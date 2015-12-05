@@ -15,8 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.hive.test.capybara.infra;
+package org.apache.hive.test.capybara.iface;
 
+import org.apache.hive.test.capybara.data.DataSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.junit.Assert;

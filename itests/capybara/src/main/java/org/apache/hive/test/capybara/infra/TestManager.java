@@ -20,6 +20,8 @@ package org.apache.hive.test.capybara.infra;
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hive.test.capybara.iface.Benchmark;
+import org.apache.hive.test.capybara.iface.ClusterManager;
 
 /**
  * Manage all aspects of the test.  This is the glue that holds all the pieces together.  The two

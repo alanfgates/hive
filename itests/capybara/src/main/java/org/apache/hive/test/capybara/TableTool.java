@@ -17,10 +17,11 @@
  */
 package org.apache.hive.test.capybara;
 
-import org.apache.hive.test.capybara.infra.DataSet;
+import org.apache.hive.test.capybara.iface.DataGenerator;
+import org.apache.hive.test.capybara.data.DataSet;
 import org.apache.hive.test.capybara.infra.RandomDataGenerator;
 import org.apache.hive.test.capybara.infra.TestConf;
-import org.apache.hive.test.capybara.infra.TestTable;
+import org.apache.hive.test.capybara.iface.TestTable;
 import org.apache.thrift.TException;
 
 import java.io.IOException;

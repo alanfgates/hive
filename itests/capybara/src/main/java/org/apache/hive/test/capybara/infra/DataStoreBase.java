@@ -18,6 +18,12 @@
 package org.apache.hive.test.capybara.infra;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.apache.hive.test.capybara.data.FetchResult;
+import org.apache.hive.test.capybara.data.ResultCode;
+import org.apache.hive.test.capybara.data.Row;
+import org.apache.hive.test.capybara.iface.ClusterManager;
+import org.apache.hive.test.capybara.iface.DataStore;
+import org.apache.hive.test.capybara.iface.TestTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -82,7 +88,7 @@ abstract class DataStoreBase implements DataStore {
         .append('\'');
     try {
       FetchResult fetch = fetchData(sql.toString());
-      if (fetch.rc != FetchResult.ResultCode.SUCCESS) {
+      if (fetch.rc != ResultCode.SUCCESS) {
         if (beenThereDoneThat) {
           throw new RuntimeException("Unable to instantiate metadata table for testing.");
         } else {
@@ -99,9 +105,9 @@ abstract class DataStoreBase implements DataStore {
                 new FieldSchema("scale", "int", "")
             ));
           }
-          Iterator<DataSet.Row> iter = fetch.data.iterator();
+          Iterator<Row> iter = fetch.data.iterator();
           if (iter.hasNext()) {
-            DataSet.Row row = iter.next();
+            Row row = iter.next();
             return TestConf.fileFormat().equalsIgnoreCase(row.get(1).asString()) &&
                 TestConf.getScale() == row.get(2).asInt();
           } else {
@@ -119,7 +125,7 @@ abstract class DataStoreBase implements DataStore {
   private void createTestTableTracker() throws SQLException, IOException {
     FetchResult fetch = fetchData("create table testtables (tablename varchar(100) " +
         markColumnPrimaryKey() + ", metastore varchar(5), fileformat varchar(10), scale int)");
-    if (fetch.rc != FetchResult.ResultCode.SUCCESS) {
+    if (fetch.rc != ResultCode.SUCCESS) {
       throw new RuntimeException("Unable to create test metadata table");
     }
     if (clusterManager != null) clusterManager.registerTable(null, "testtables");
@@ -144,7 +150,7 @@ abstract class DataStoreBase implements DataStore {
         .append(')');
     try {
       FetchResult fetch = fetchData(sql.toString());
-      if (fetch.rc != FetchResult.ResultCode.SUCCESS) {
+      if (fetch.rc != ResultCode.SUCCESS) {
         throw new RuntimeException("Unable to record data in test metadata table");
       }
       if (clusterManager != null) clusterManager.registerTable(table.getDbName(), table.getTableName());
@@ -180,11 +186,11 @@ abstract class DataStoreBase implements DataStore {
         .append('\'');
     try {
       FetchResult dropFetch = fetchData("drop table " + ifExists() + " " + getTableName(table));
-      if (dropFetch.rc != FetchResult.ResultCode.SUCCESS) {
+      if (dropFetch.rc != ResultCode.SUCCESS) {
         LOG.debug("Failed to drop table, most likely means it does not exist yet" +  dropFetch.rc);
       }
       FetchResult metaFetch = fetchData(sql.toString());
-      if (metaFetch.rc != FetchResult.ResultCode.SUCCESS) {
+      if (metaFetch.rc != ResultCode.SUCCESS) {
         LOG.debug("Failed to drop table from metadata, most likely means we don't know about it " +
             "yet, code is " + metaFetch.rc);
       }
@@ -250,10 +256,10 @@ abstract class DataStoreBase implements DataStore {
       if (failureOk) {
         LOG.info("Failed to execute query <" + sql + "> but continuing anyway because we " +
             "think that's ok.");
-        return new FetchResult(FetchResult.ResultCode.SUCCESS);
+        return new FetchResult(ResultCode.SUCCESS);
       }
       LOG.debug("Failed to run SQL query <" + sql + ">, got exception ", e);
-      return new FetchResult(FetchResult.ResultCode.NON_RETRIABLE_FAILURE);
+      return new FetchResult(ResultCode.NON_RETRIABLE_FAILURE);
     } finally {
       if (stmt != null) stmt.close();
       conn.close();
@@ -266,15 +272,15 @@ abstract class DataStoreBase implements DataStore {
     try {
       stmt = conn.createStatement();
       stmt.execute(sql);
-      return new FetchResult(FetchResult.ResultCode.SUCCESS);
+      return new FetchResult(ResultCode.SUCCESS);
     } catch (SQLException e) {
       if (failureOk) {
         LOG.info("Failed to execute statement <" + sql + "> but continuing anyway because we " +
             "think that's ok.");
-        return new FetchResult(FetchResult.ResultCode.SUCCESS);
+        return new FetchResult(ResultCode.SUCCESS);
       }
       LOG.debug("Failed to run SQL query <" + sql + ">, got exception ", e);
-      return new FetchResult(FetchResult.ResultCode.NON_RETRIABLE_FAILURE);
+      return new FetchResult(ResultCode.NON_RETRIABLE_FAILURE);
     } finally {
       if (stmt != null) stmt.close();
       conn.close();

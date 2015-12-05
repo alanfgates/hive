@@ -15,7 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.hive.test.capybara.infra;
+package org.apache.hive.test.capybara.iface;
+
+import org.apache.hive.test.capybara.data.DataSet;
+import org.apache.hive.test.capybara.data.FetchResult;
 
 import java.io.IOException;
 import java.sql.SQLException;

@@ -18,6 +18,10 @@
 package org.apache.hive.test.capybara.infra;
 
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.hive.test.capybara.data.Column;
+import org.apache.hive.test.capybara.data.DataSet;
+import org.apache.hive.test.capybara.data.Row;
+import org.apache.hive.test.capybara.data.RowBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

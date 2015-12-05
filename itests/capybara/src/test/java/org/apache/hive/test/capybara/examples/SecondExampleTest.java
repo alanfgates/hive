@@ -19,7 +19,7 @@ package org.apache.hive.test.capybara.examples;
 
 import org.apache.hive.test.capybara.IntegrationTest;
 import org.apache.hive.test.capybara.TableTool;
-import org.apache.hive.test.capybara.infra.TestTable;
+import org.apache.hive.test.capybara.iface.TestTable;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

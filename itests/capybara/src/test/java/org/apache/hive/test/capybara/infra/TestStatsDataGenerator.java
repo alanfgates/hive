@@ -17,6 +17,9 @@
  */
 package org.apache.hive.test.capybara.infra;
 
+import org.apache.hive.test.capybara.data.DataSet;
+import org.apache.hive.test.capybara.data.Row;
+import org.apache.hive.test.capybara.iface.TestTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -275,7 +278,7 @@ public class TestStatsDataGenerator {
     varcharLen = charLen = strLen = binLen = truesSeen = falsesSeen = 0;
 
     Iterator<String> strIter = data.stringIterator(",", "NULL", "");
-    for (DataSet.Row row : data) {
+    for (Row row : data) {
       Assert.assertTrue(strIter.hasNext());
       LOG.debug("Row is " + strIter.next());
       // All the column sizes combined

@@ -17,11 +17,13 @@
  */
 package org.apache.hive.test.capybara.infra;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hive.test.capybara.data.DataSet;
+import org.apache.hive.test.capybara.iface.TestTable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -31,6 +33,8 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * DataStore for Postgres.  The way data is loaded in this class makes the assumption that the
@@ -130,6 +134,33 @@ class PostgresStore extends AnsiSqlStore {
   @Override
   protected String fileStringQuotes() {
     return QUOTES;
+  }
+
+  private static SQLTranslator postgresTranslator = new SQLTranslator() {
+    @Override
+    protected String translateDataTypes(String hiveSql) {
+      Matcher m = Pattern.compile(" string").matcher(hiveSql);
+      hiveSql = m.replaceAll(" varchar(255)");
+      m = Pattern.compile(" double").matcher(hiveSql);
+      hiveSql = m.replaceAll(" double precision");
+      m = Pattern.compile(" float").matcher(hiveSql);
+      hiveSql = m.replaceAll(" real");
+      m = Pattern.compile(" tinyint").matcher(hiveSql);
+      hiveSql = m.replaceAll(" smallint");
+      m = Pattern.compile(" binary").matcher(hiveSql);
+      hiveSql = m.replaceAll(" blob");
+      return hiveSql;
+    }
+
+    @Override
+    protected char identifierQuote() {
+      return '"';
+    }
+  };
+
+  @Override
+  protected SQLTranslator getTranslator() {
+    return postgresTranslator;
   }
 
   @Override

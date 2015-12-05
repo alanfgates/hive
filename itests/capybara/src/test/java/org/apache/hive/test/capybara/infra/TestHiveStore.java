@@ -20,6 +20,12 @@ package org.apache.hive.test.capybara.infra;
 import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.hive.test.capybara.data.DataSet;
+import org.apache.hive.test.capybara.data.FetchResult;
+import org.apache.hive.test.capybara.data.ResultCode;
+import org.apache.hive.test.capybara.data.Row;
+import org.apache.hive.test.capybara.iface.ClusterManager;
+import org.apache.hive.test.capybara.iface.TestTable;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -63,7 +69,7 @@ public class TestHiveStore {
   public void hive() throws Exception {
     // Load some data, then read it back.
     FetchResult fetch = hive.fetchData("create table foo (c1 int, c2 varchar(32))");
-    Assert.assertEquals(FetchResult.ResultCode.SUCCESS, fetch.rc);
+    Assert.assertEquals(ResultCode.SUCCESS, fetch.rc);
 
     TestTable table = TestTable.fromHiveMetastore("default", "foo");
 
@@ -74,12 +80,12 @@ public class TestHiveStore {
     hive.loadData(table, data);
 
     fetch = hive.fetchData("select c1 from foo");
-    Assert.assertEquals(FetchResult.ResultCode.SUCCESS, fetch.rc);
+    Assert.assertEquals(ResultCode.SUCCESS, fetch.rc);
 
     fetch.data.setSchema(Arrays.asList(new FieldSchema("c1", "int", "")));
-    Iterator<DataSet.Row> iter = fetch.data.iterator();
+    Iterator<Row> iter = fetch.data.iterator();
     Assert.assertTrue(iter.hasNext());
-    DataSet.Row row = iter.next();
+    Row row = iter.next();
     Assert.assertEquals(1, row.get(0).asInt());
     Assert.assertTrue(iter.hasNext());
 
@@ -117,12 +123,12 @@ public class TestHiveStore {
       hive.loadData(otherTable, data);
 
       FetchResult fetch = hive.fetchData("select c1 from tind");
-      Assert.assertEquals(FetchResult.ResultCode.SUCCESS, fetch.rc);
+      Assert.assertEquals(ResultCode.SUCCESS, fetch.rc);
 
       fetch.data.setSchema(Arrays.asList(new FieldSchema("c1", "int", "")));
-      Iterator<DataSet.Row> iter = fetch.data.iterator();
+      Iterator<Row> iter = fetch.data.iterator();
       Assert.assertTrue(iter.hasNext());
-      DataSet.Row row = iter.next();
+      Row row = iter.next();
       Assert.assertEquals(1, row.get(0).asInt());
       Assert.assertTrue(iter.hasNext());
 
@@ -131,7 +137,7 @@ public class TestHiveStore {
       Assert.assertFalse(iter.hasNext());
 
       fetch = hive.fetchData("select c1 from testschema.tind");
-      Assert.assertEquals(FetchResult.ResultCode.SUCCESS, fetch.rc);
+      Assert.assertEquals(ResultCode.SUCCESS, fetch.rc);
 
 
       fetch.data.setSchema(Arrays.asList(new FieldSchema("c1", "int", "")));
@@ -172,13 +178,13 @@ public class TestHiveStore {
     hive.loadData(table, data);
 
     FetchResult fetch = hive.fetchData("select c1 from foozle");
-    Assert.assertEquals(FetchResult.ResultCode.SUCCESS, fetch.rc);
+    Assert.assertEquals(ResultCode.SUCCESS, fetch.rc);
 
     fetch.data.setSchema(Arrays.asList(new FieldSchema("c1", "int", "")));
-    Iterator<DataSet.Row> iter = fetch.data.iterator();
+    Iterator<Row> iter = fetch.data.iterator();
     Assert.assertTrue(iter.hasNext());
 
-    DataSet.Row row = iter.next();
+    Row row = iter.next();
     Assert.assertEquals(1, row.get(0).asInt());
     Assert.assertTrue(iter.hasNext());
     row = iter.next();
@@ -217,7 +223,7 @@ public class TestHiveStore {
     hive.loadData(table, data);
 
     FetchResult fetch = hive.fetchData("select count(*) from foo_part");
-    Assert.assertEquals(FetchResult.ResultCode.SUCCESS, fetch.rc);
+    Assert.assertEquals(ResultCode.SUCCESS, fetch.rc);
     fetch.data.setSchema(Arrays.asList(new FieldSchema("c0", "bigint", "")));
     Iterator<String> output = fetch.data.stringIterator(",", "", "\"");
     LOG.debug("Query result: " + StringUtils.join(output, "\n"));

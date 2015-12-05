@@ -18,27 +18,26 @@
 package org.apache.hive.test.capybara;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.hive.hcatalog.streaming.HiveEndPoint;
-import org.apache.hive.test.capybara.infra.CapyEndPoint;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.QueryPlan;
+import org.apache.hive.hcatalog.streaming.HiveEndPoint;
 import org.apache.hive.test.capybara.annotations.AcidOn;
 import org.apache.hive.test.capybara.annotations.MetadataOnly;
 import org.apache.hive.test.capybara.annotations.SqlStdAuthOn;
 import org.apache.hive.test.capybara.annotations.VectorOn;
-import org.apache.hive.test.capybara.infra.Benchmark;
-import org.apache.hive.test.capybara.infra.ClusterManager;
-import org.apache.hive.test.capybara.infra.DataSet;
-import org.apache.hive.test.capybara.infra.FetchResult;
+import org.apache.hive.test.capybara.data.ResultCode;
+import org.apache.hive.test.capybara.iface.Benchmark;
+import org.apache.hive.test.capybara.infra.CapyEndPoint;
+import org.apache.hive.test.capybara.iface.ClusterManager;
+import org.apache.hive.test.capybara.data.DataSet;
+import org.apache.hive.test.capybara.data.FetchResult;
 import org.apache.hive.test.capybara.infra.HiveStore;
 import org.apache.hive.test.capybara.infra.IntegrationRunner;
 import org.apache.hive.test.capybara.infra.TestConf;
 import org.apache.hive.test.capybara.infra.TestManager;
-import org.apache.hive.test.capybara.infra.TestTable;
+import org.apache.hive.test.capybara.iface.TestTable;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -47,6 +46,8 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.lang.annotation.Annotation;
@@ -65,14 +66,14 @@ import java.util.Map;
  * the case where a feature is not supported by the Benchmark but can be produced by a different
  * but semantically equivalent query).  This is not generally required for syntax differences as
  * the test framework can convert Hive SQL to ANSI SQL.  You can also provide your own
- * implementation of {@link org.apache.hive.test.capybara.infra.Benchmark} that will produce
+ * implementation of {@link org.apache.hive.test.capybara.iface.Benchmark} that will produce
  * results that make sense for your test.</p>
  *
  * <p>If your query requires any setting not handled in the general annotations you can set that
  * using {@link #set}.</p>
  *
  * <p>{@link #runQuery(String)}expects the query to return successfully.  For testing negative
- * queries use {@link #runQuery(String, FetchResult.ResultCode, Throwable)} which allows
+ * queries use {@link #runQuery(String, org.apache.hive.test.capybara.data.ResultCode, Throwable)} which allows
  * you to specify an expected result (success or failure) and potentially an expected exception.</p>
  *
  * <p>You can explain a query using {@link #explain}.  This will return an
@@ -237,7 +238,7 @@ public abstract class IntegrationTest {
    * @throws java.io.IOException
    */
   protected void runQuery(String sql) throws SQLException, IOException {
-    runQuery(sql, FetchResult.ResultCode.SUCCESS, null, false);
+    runQuery(sql, ResultCode.SUCCESS, null, false);
   }
 
   /**
@@ -249,13 +250,13 @@ public abstract class IntegrationTest {
    * @throws SQLException
    * @throws java.io.IOException
    */
-  protected void runQuery(String sql, final FetchResult.ResultCode expectedResult,
+  protected void runQuery(String sql, final ResultCode expectedResult,
                           Throwable expectedException) throws SQLException, IOException {
     runQuery(sql, expectedResult, expectedException, false);
   }
 
 
-  private void runQuery(String sql, final FetchResult.ResultCode expectedResult,
+  private void runQuery(String sql, final ResultCode expectedResult,
                         Throwable expectedException, boolean hiveOnly)
       throws SQLException, IOException {
     lastQuery = sql;
@@ -282,7 +283,7 @@ public abstract class IntegrationTest {
           throw new RuntimeException(hiveRunner.stashedException);
         }
       }
-      if (expectedResult != FetchResult.ResultCode.ANY) {
+      if (expectedResult != ResultCode.ANY) {
         Assert.assertEquals("Unexpected fetch result", expectedResult, hiveResults.rc);
       }
     } catch (InterruptedException e) {
@@ -320,7 +321,7 @@ public abstract class IntegrationTest {
    * @throws IOException
    */
   protected void runHive(String sql) throws SQLException, IOException {
-    runQuery(sql, FetchResult.ResultCode.SUCCESS, null, true);
+    runQuery(sql, ResultCode.SUCCESS, null, true);
   }
 
   /**
@@ -370,10 +371,10 @@ public abstract class IntegrationTest {
    * @param sql SQL to execute
    * @param expectedResult expected result from running this query
    */
-  protected void runBenchmark(String sql, FetchResult.ResultCode expectedResult)
+  protected void runBenchmark(String sql, ResultCode expectedResult)
       throws  SQLException, IOException {
     benchmarkResults = bench.getBenchDataStore().fetchData(sql);
-    if (expectedResult != FetchResult.ResultCode.ANY) {
+    if (expectedResult != ResultCode.ANY) {
       Assert.assertEquals(expectedResult, benchmarkResults.rc);
     }
   }
@@ -420,6 +421,7 @@ public abstract class IntegrationTest {
    */
   protected void assertEmpty() {
     Assert.assertNull("Expected results of query to be empty", hiveResults.data);
+    //LOG.debug("benchmark size = " + benchmarkResults.data.lengthInBytes());
     Assert.assertNull("Expected results of benchmark to be empty", benchmarkResults.data);
   }
 

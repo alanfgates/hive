@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.hive.test.capybara.infra;
+package org.apache.hive.test.capybara.data;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -24,70 +24,70 @@ public class TestDataSet {
 
   @Test
   public void fuzzyFloat() {
-    DataSet.FloatColumn one = new DataSet.FloatColumn(0);
+    FloatColumn one = new FloatColumn(0);
     one.set(new Float(1.0f));
     Assert.assertEquals(one, one);
 
-    DataSet.FloatColumn two = new DataSet.FloatColumn(0);
+    FloatColumn two = new FloatColumn(0);
     two.set(new Float(2.0f));
     Assert.assertNotEquals(one, two);
 
-    DataSet.FloatColumn pointOne = new DataSet.FloatColumn(0);
+    FloatColumn pointOne = new FloatColumn(0);
     pointOne.set(new Float(0.1f));
     Assert.assertNotEquals(one, pointOne);
 
-    DataSet.FloatColumn quintillion = new DataSet.FloatColumn(0);
+    FloatColumn quintillion = new FloatColumn(0);
     quintillion.set(new Float(1000000000000000000.0f));
     Assert.assertEquals(quintillion, quintillion);
 
-    DataSet.FloatColumn quintillionOne = new DataSet.FloatColumn(0);
+    FloatColumn quintillionOne = new FloatColumn(0);
     quintillionOne.set(new Float(1000000000000000001.0f));
     Assert.assertEquals(quintillion, quintillionOne);
 
-    DataSet.FloatColumn fiveQuintillion = new DataSet.FloatColumn(0);
+    FloatColumn fiveQuintillion = new FloatColumn(0);
     fiveQuintillion.set(new Float(5000000000000000000.0f));
     Assert.assertNotEquals(quintillion, fiveQuintillion);
 
-    DataSet.FloatColumn verySmall = new DataSet.FloatColumn(0);
+    FloatColumn verySmall = new FloatColumn(0);
     verySmall.set(new Float(0.0000000000000001f));
     Assert.assertEquals(verySmall, verySmall);
 
-    DataSet.FloatColumn justOverOne = new DataSet.FloatColumn(0);
+    FloatColumn justOverOne = new FloatColumn(0);
     justOverOne.set(new Float(1.0000000000000001f));
     Assert.assertEquals(one, justOverOne);
   }
 
   @Test
   public void fuzzyDouble() {
-    DataSet.DoubleColumn one = new DataSet.DoubleColumn(0);
+    DoubleColumn one = new DoubleColumn(0);
     one.set(new Double(1.0));
     Assert.assertEquals(one, one);
 
-    DataSet.DoubleColumn two = new DataSet.DoubleColumn(0);
+    DoubleColumn two = new DoubleColumn(0);
     two.set(new Double(2.0));
     Assert.assertNotEquals(one, two);
 
-    DataSet.DoubleColumn pointOne = new DataSet.DoubleColumn(0);
+    DoubleColumn pointOne = new DoubleColumn(0);
     pointOne.set(new Double(0.1));
     Assert.assertNotEquals(one, pointOne);
 
-    DataSet.DoubleColumn quintillion = new DataSet.DoubleColumn(0);
+    DoubleColumn quintillion = new DoubleColumn(0);
     quintillion.set(new Double(1000000000000000000.0));
     Assert.assertEquals(quintillion, quintillion);
 
-    DataSet.DoubleColumn quintillionOne = new DataSet.DoubleColumn(0);
+    DoubleColumn quintillionOne = new DoubleColumn(0);
     quintillionOne.set(new Double(1000000000000000001.0));
     Assert.assertEquals(quintillion, quintillionOne);
 
-    DataSet.DoubleColumn fiveQuintillion = new DataSet.DoubleColumn(0);
+    DoubleColumn fiveQuintillion = new DoubleColumn(0);
     fiveQuintillion.set(new Double(5000000000000000000.0));
     Assert.assertNotEquals(quintillion, fiveQuintillion);
 
-    DataSet.DoubleColumn verySmall = new DataSet.DoubleColumn(0);
+    DoubleColumn verySmall = new DoubleColumn(0);
     verySmall.set(new Double(0.0000000000000001));
     Assert.assertEquals(verySmall, verySmall);
 
-    DataSet.DoubleColumn justOverOne = new DataSet.DoubleColumn(0);
+    DoubleColumn justOverOne = new DoubleColumn(0);
     justOverOne.set(new Double(1.0000000000000001));
     Assert.assertEquals(one, justOverOne);
   }

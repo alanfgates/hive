@@ -19,6 +19,12 @@ package org.apache.hive.test.capybara.infra;
 
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.hive.test.capybara.data.DataSet;
+import org.apache.hive.test.capybara.data.FetchResult;
+import org.apache.hive.test.capybara.data.ResultCode;
+import org.apache.hive.test.capybara.data.Row;
+import org.apache.hive.test.capybara.iface.ClusterManager;
+import org.apache.hive.test.capybara.iface.TestTable;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -62,7 +68,7 @@ public class TestMiniHS2HiveStore {
   public void hive() throws Exception {
     // Load some data, then read it back.
     FetchResult fetch = hive.fetchData("create table foo (c1 int, c2 varchar(32))");
-    Assert.assertEquals(FetchResult.ResultCode.SUCCESS, fetch.rc);
+    Assert.assertEquals(ResultCode.SUCCESS, fetch.rc);
 
     TestTable table = TestTable.fromHiveMetastore("default", "foo");
 
@@ -73,12 +79,12 @@ public class TestMiniHS2HiveStore {
     hive.loadData(table, data);
 
     fetch = hive.fetchData("select c1 from foo");
-    Assert.assertEquals(FetchResult.ResultCode.SUCCESS, fetch.rc);
+    Assert.assertEquals(ResultCode.SUCCESS, fetch.rc);
 
     fetch.data.setSchema(Arrays.asList(new FieldSchema("c1", "int", "")));
-    Iterator<DataSet.Row> iter = fetch.data.iterator();
+    Iterator<Row> iter = fetch.data.iterator();
     Assert.assertTrue(iter.hasNext());
-    DataSet.Row row = iter.next();
+    Row row = iter.next();
     Assert.assertEquals(1, row.get(0).asInt());
     Assert.assertTrue(iter.hasNext());
 

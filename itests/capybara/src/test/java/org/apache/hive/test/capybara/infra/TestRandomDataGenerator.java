@@ -17,10 +17,14 @@
  */
 package org.apache.hive.test.capybara.infra;
 
+import org.apache.hive.test.capybara.data.Column;
+import org.apache.hive.test.capybara.data.DataSet;
+import org.apache.hive.test.capybara.data.Row;
+import org.apache.hive.test.capybara.iface.TestTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
-import org.apache.hive.test.capybara.DataGenerator;
+import org.apache.hive.test.capybara.iface.DataGenerator;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -66,7 +70,7 @@ public class TestRandomDataGenerator {
     int[] nullsSeen = new int[cols.size()];
     Arrays.fill(nullsSeen, 0);
     Iterator<String> strIter = data.stringIterator(",", "NULL", "");
-    for (DataSet.Row row : data) {
+    for (Row row : data) {
       Assert.assertTrue(strIter.hasNext());
       LOG.debug("Row is " + strIter.next());
       // All the column sizes combined
@@ -155,7 +159,7 @@ public class TestRandomDataGenerator {
     int[] nullsSeen = new int[cols.size()];
     Arrays.fill(nullsSeen, 0);
     Iterator<String> strIter = data.stringIterator(",", "NULL", "");
-    for (DataSet.Row row : data) {
+    for (Row row : data) {
       LOG.debug("Row is " + strIter.next());
       rowCnt++;
       Assert.assertEquals(cols.size(), row.size());
@@ -191,9 +195,9 @@ public class TestRandomDataGenerator {
 
     DataSet data = rand.generateData(table, 100);
 
-    Set<DataSet.Column> partValsSeen = new HashSet<>();
+    Set<Column> partValsSeen = new HashSet<>();
     Iterator<String> strIter = data.stringIterator(",", "NULL", "");
-    for (DataSet.Row row : data) {
+    for (Row row : data) {
       LOG.debug("Row is " + strIter.next());
       Assert.assertEquals(cols.size() + partCols.size(), row.size());
 
@@ -221,9 +225,9 @@ public class TestRandomDataGenerator {
 
     DataSet data = rand.generateData(table, 100);
 
-    SortedSet<DataSet.Column> partValsSeen = new TreeSet<>();
+    SortedSet<Column> partValsSeen = new TreeSet<>();
     Iterator<String> strIter = data.stringIterator(",", "NULL", "");
-    for (DataSet.Row row : data) {
+    for (Row row : data) {
       LOG.debug("Row is " + strIter.next());
       Assert.assertEquals(cols.size() + partCols.size(), row.size());
 
@@ -231,7 +235,7 @@ public class TestRandomDataGenerator {
     }
 
     Assert.assertEquals(3, partValsSeen.size());
-    Iterator<DataSet.Column> iter = partValsSeen.iterator();
+    Iterator<Column> iter = partValsSeen.iterator();
     short nextPartValExpected = 1;
     while (iter.hasNext()) {
       Assert.assertEquals(nextPartValExpected++, iter.next().asShort());
@@ -256,7 +260,7 @@ public class TestRandomDataGenerator {
 
     Set<Comparable> partValsSeen = new HashSet<>();
     Iterator<String> strIter = data.stringIterator(",", "NULL", "");
-    for (DataSet.Row row : data) {
+    for (Row row : data) {
       LOG.debug("Row is " + strIter.next());
       Assert.assertEquals(cols.size() + partCols.size(), row.size());
 
@@ -284,9 +288,9 @@ public class TestRandomDataGenerator {
     DataSet data = rand.generateData(table, 100);
 
     int rowCnt = 0;
-    Set<DataSet.Column> pkSeen = new HashSet<>();
+    Set<Column> pkSeen = new HashSet<>();
     Iterator<String> strIter = data.stringIterator(",", "NULL", "");
-    for (DataSet.Row row : data) {
+    for (Row row : data) {
       rowCnt++;
       LOG.debug("Row is " + strIter.next());
       Assert.assertEquals(cols.size() + partCols.size(), row.size());
@@ -315,7 +319,7 @@ public class TestRandomDataGenerator {
 
     long nextSequence = 1;
     Iterator<String> strIter = data.stringIterator(",", "NULL", "");
-    for (DataSet.Row row : data) {
+    for (Row row : data) {
       LOG.debug("sequence row is " + strIter.next());
       Assert.assertEquals(cols.size() + partCols.size(), row.size());
 
@@ -336,7 +340,7 @@ public class TestRandomDataGenerator {
     DataSet dimData = rand.generateData(dim, 5);
 
     int dimRowCnt = 0;
-    for (DataSet.Row dimRow : dimData) dimRowCnt++;
+    for (Row dimRow : dimData) dimRowCnt++;
     LOG.debug("Number of dimension rows " + dimRowCnt);
 
     TestTable fact = TestTable.getBuilder("fact")
@@ -348,7 +352,7 @@ public class TestRandomDataGenerator {
     DataSet factData = rand.generateData(fact, 100);
 
     Iterator<String> strIter = factData.stringIterator(",", "NULL", "");
-    for (DataSet.Row row : factData) {
+    for (Row row : factData) {
       LOG.debug("Row is " + strIter.next());
       Assert.assertTrue(row.get(1).asLong() <= dimRowCnt);
     }

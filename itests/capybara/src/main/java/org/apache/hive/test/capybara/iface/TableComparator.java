@@ -15,8 +15,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.hive.test.capybara.infra;
+package org.apache.hive.test.capybara.iface;
 
+import org.apache.hive.test.capybara.data.ResultCode;
+import org.apache.hive.test.capybara.data.Row;
+import org.apache.hive.test.capybara.infra.ClusterDataGenerator;
+import org.apache.hive.test.capybara.data.FetchResult;
+import org.apache.hive.test.capybara.infra.HiveStore;
+import org.apache.hive.test.capybara.infra.NonSortingComparator;
+import org.apache.hive.test.capybara.infra.TestConf;
+import org.apache.hive.test.capybara.infra.TestManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -82,18 +90,19 @@ public class TableComparator {
 
     // Step 1, get an estimated size
     FetchResult cnt = hive.fetchData("select count(*) from " + table.getFullName());
-    if (cnt.rc != FetchResult.ResultCode.SUCCESS) {
+    if (cnt.rc != ResultCode.SUCCESS) {
       throw new RuntimeException("Failed to count rows in " + table.getFullName());
     }
     cnt.data.setSchema(Arrays.asList(new FieldSchema("col1", "bigint", "")));
-    Iterator<DataSet.Row> iter = cnt.data.iterator();
+    Iterator<Row> iter = cnt.data.iterator();
     assert iter.hasNext();
     long rowCnt = iter.next().get(0).asLong();
 
     FetchResult lmt = hive.fetchData("select * from " + table.getFullName() + " limit 100");
-    if (lmt.rc != FetchResult.ResultCode.SUCCESS) {
+    if (lmt.rc != ResultCode.SUCCESS) {
       throw new RuntimeException("Failed to fetch first 100 rows in " + table.getFullName());
     }
+    lmt.data.setSchema(table.getCombinedSchema());
     Iterator<String> strIter = lmt.data.stringIterator(",", "N", "\"");
     int sum = 0;
     while (strIter.hasNext()) sum += strIter.next().length();
@@ -102,9 +111,9 @@ public class TableComparator {
     long size = rowCnt * avg;
     int parallelism = (int) (2 * size * 1024 / TestConf.getClusterGenThreshold());
 
-    // If parallelism turns out to be 1, do this locally as two separate selects.  Otherwise
+    // If parallelism turns out to be less than or equal to 1, do this locally as two separate selects.  Otherwise
     // we'll do it in the cluster
-    if (parallelism == 1) {
+    if (parallelism <= 1) {
       localCompare(hive, bench, table);
     } else {
       clusterCompare(hive, bench, table, parallelism);
@@ -129,9 +138,9 @@ public class TableComparator {
         .append(colList);
 
     FetchResult hiveResult = hive.fetchData(sql.toString());
-    Assert.assertEquals(FetchResult.ResultCode.SUCCESS, hiveResult.rc);
+    Assert.assertEquals(ResultCode.SUCCESS, hiveResult.rc);
     FetchResult benchResult = bench.fetchData(sql.toString());
-    Assert.assertEquals(FetchResult.ResultCode.SUCCESS, benchResult.rc);
+    Assert.assertEquals(ResultCode.SUCCESS, benchResult.rc);
     if (hiveResult.data.getSchema() == null) {
       hiveResult.data.setSchema(benchResult.data.getSchema());
     }
@@ -195,9 +204,9 @@ public class TableComparator {
     sql.append(") from ")
         .append(table.getFullName());
     FetchResult hiveResult = hive.fetchData(sql.toString());
-    Assert.assertEquals(FetchResult.ResultCode.SUCCESS, hiveResult.rc);
+    Assert.assertEquals(ResultCode.SUCCESS, hiveResult.rc);
     FetchResult benchResult = bench.fetchData(sql.toString());
-    Assert.assertEquals(FetchResult.ResultCode.SUCCESS, benchResult.rc);
+    Assert.assertEquals(ResultCode.SUCCESS, benchResult.rc);
 
     // Step 4, create an MR job that will do the comparison in pieces, with each task comparing
     // one partition.  The format of the file is one line per mapper each with four fields:
@@ -313,9 +322,9 @@ public class TableComparator {
             .append(line[3]);
 
         FetchResult hiveResult = hive.fetchData(sql.toString());
-        Assert.assertEquals(FetchResult.ResultCode.SUCCESS, hiveResult.rc);
+        Assert.assertEquals(ResultCode.SUCCESS, hiveResult.rc);
         FetchResult benchResult = bench.fetchData(sql.toString());
-        Assert.assertEquals(FetchResult.ResultCode.SUCCESS, benchResult.rc);
+        Assert.assertEquals(ResultCode.SUCCESS, benchResult.rc);
         if (hiveResult.data.getSchema() == null) {
           hiveResult.data.setSchema(benchResult.data.getSchema());
         }

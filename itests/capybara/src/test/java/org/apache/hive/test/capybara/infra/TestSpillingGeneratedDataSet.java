@@ -17,8 +17,9 @@
  */
 package org.apache.hive.test.capybara.infra;
 
-import org.apache.hive.test.capybara.DataGenerator;
+import org.apache.hive.test.capybara.iface.DataGenerator;
 import org.apache.hive.test.capybara.IntegrationTest;
+import org.apache.hive.test.capybara.iface.TestTable;
 import org.junit.Test;
 
 public class TestSpillingGeneratedDataSet extends IntegrationTest {

@@ -17,10 +17,14 @@
  */
 package org.apache.hive.test.capybara.infra;
 
+import org.apache.hive.test.capybara.data.DataSet;
+import org.apache.hive.test.capybara.data.Row;
+import org.apache.hive.test.capybara.data.RowBuilder;
+import org.apache.hive.test.capybara.iface.TestTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
-import org.apache.hive.test.capybara.DataGenerator;
+import org.apache.hive.test.capybara.iface.DataGenerator;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -107,14 +111,14 @@ public class RandomDataGenerator extends DataGeneratorImpl implements Serializab
 
     List<FieldSchema> partCols = table.getPartCols();
     GeneratedDataSet rows;
-    DataSet.RowBuilder colBuilder = new DataSet.RowBuilder(cols);
+    RowBuilder colBuilder = new RowBuilder(cols);
     rows = new GeneratedDataSet(table.getCombinedSchema());
     if (partCols == null || partCols.size() == 0) {
       generateData(rows, colBuilder, generators, null, scale, pctNulls);
     } else {
-      List<DataSet.Row> partVals = determinePartVals(table, scale, pctNulls);
+      List<Row> partVals = determinePartVals(table, scale, pctNulls);
 
-      for (DataSet.Row partVal : partVals) {
+      for (Row partVal : partVals) {
         // Divide scale by number of partitions so we still get the right amount of data.
         generateData(rows, colBuilder, generators, partVal, scale / partVals.size() + 1, pctNulls);
       }
@@ -122,12 +126,12 @@ public class RandomDataGenerator extends DataGeneratorImpl implements Serializab
     return rows;
   }
 
-  private void generateData(GeneratedDataSet rows, DataSet.RowBuilder builder,
-                            ColGenerator[] generators, DataSet.Row partVals, int scale,
+  private void generateData(GeneratedDataSet rows, RowBuilder builder,
+                            ColGenerator[] generators, Row partVals, int scale,
                             double[] pctNulls) {
     long generatedSize = 0;
     while (generatedSize < scale * 1024) {
-      DataSet.Row row = builder.build();
+      Row row = builder.build();
       for (int i = 0; i < generators.length; i++) {
         row.get(i).set(generators[i].generate(pctNulls[i]));
       }
@@ -378,8 +382,8 @@ public class RandomDataGenerator extends DataGeneratorImpl implements Serializab
     ForeignKeyGenerator(TestTable.ForeignKey fk) {
       vals = new HashMap<>();
       int nextVal = 0;
-      for (DataSet.Row row : fk.targetTable) {
-        vals.put(nextVal++, row.get(fk.colNumInTarget).val);
+      for (Row row : fk.targetTable) {
+        vals.put(nextVal++, row.get(fk.colNumInTarget).get());
       }
     }
 

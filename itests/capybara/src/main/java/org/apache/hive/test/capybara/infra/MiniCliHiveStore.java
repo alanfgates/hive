@@ -17,6 +17,9 @@
  */
 package org.apache.hive.test.capybara.infra;
 
+import org.apache.hive.test.capybara.data.FetchResult;
+import org.apache.hive.test.capybara.data.ResultCode;
+import org.apache.hive.test.capybara.iface.ClusterManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.hive.ql.CommandNeedRetryException;
@@ -48,17 +51,17 @@ class MiniCliHiveStore extends MiniHiveStoreBase {
       if (rsp.getResponseCode() != 0) {
         LOG.info("Response code from query <" + sql + "> is " + rsp.getResponseCode() + ", error" +
             " message <" + rsp.getErrorMessage() + "> SQLState <" + rsp.getSQLState() + ">");
-        return new FetchResult(FetchResult.ResultCode.NON_RETRIABLE_FAILURE);
+        return new FetchResult(ResultCode.NON_RETRIABLE_FAILURE);
       }
       List<String> rows = new ArrayList<>();
       if (getDriver().getResults(rows)) {
         return new FetchResult(new StringDataSet(rows, "\t", "NULL"));
       } else {
-        return new FetchResult(FetchResult.ResultCode.SUCCESS);
+        return new FetchResult(ResultCode.SUCCESS);
       }
     } catch (CommandNeedRetryException e) {
       LOG.info("Query <" + sql + "> failed with retriable error");
-      return new FetchResult(FetchResult.ResultCode.RETRIABLE_FAILURE);
+      return new FetchResult(ResultCode.RETRIABLE_FAILURE);
     }
   }
 

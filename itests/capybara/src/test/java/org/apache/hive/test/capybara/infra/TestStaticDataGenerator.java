@@ -19,7 +19,10 @@ package org.apache.hive.test.capybara.infra;
 
 import org.apache.commons.codec.binary.Base64;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
-import org.apache.hive.test.capybara.DataGenerator;
+import org.apache.hive.test.capybara.data.DataSet;
+import org.apache.hive.test.capybara.data.Row;
+import org.apache.hive.test.capybara.iface.DataGenerator;
+import org.apache.hive.test.capybara.iface.TestTable;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -66,9 +69,9 @@ public class TestStaticDataGenerator {
     DataGenerator gen = new StaticDataGenerator(rows, ",");
     DataSet ds = gen.generateData(table);
 
-    Iterator<DataSet.Row> iter = ds.iterator();
+    Iterator<Row> iter = ds.iterator();
     Assert.assertTrue(iter.hasNext());
-    DataSet.Row row = iter.next();
+    Row row = iter.next();
     Assert.assertEquals(6022141300000000000L, row.get(0).asLong());
     Assert.assertEquals(299792458, row.get(1).asInt());
     Assert.assertEquals((short)1432, row.get(2).asShort());
@@ -110,9 +113,9 @@ public class TestStaticDataGenerator {
     DataGenerator gen = new StaticDataGenerator(rows, ",");
     DataSet ds = gen.generateData(table);
 
-    Iterator<DataSet.Row> iter = ds.iterator();
+    Iterator<Row> iter = ds.iterator();
     Assert.assertTrue(iter.hasNext());
-    DataSet.Row row = iter.next();
+    Row row = iter.next();
     Assert.assertEquals(6L, row.get(0).asLong());
     Assert.assertEquals("na", row.get(1).asString());
 

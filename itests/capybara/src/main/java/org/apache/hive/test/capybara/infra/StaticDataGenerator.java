@@ -18,7 +18,9 @@
 package org.apache.hive.test.capybara.infra;
 
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
-import org.apache.hive.test.capybara.DataGenerator;
+import org.apache.hive.test.capybara.data.DataSet;
+import org.apache.hive.test.capybara.iface.DataGenerator;
+import org.apache.hive.test.capybara.iface.TestTable;
 
 import java.util.List;
 

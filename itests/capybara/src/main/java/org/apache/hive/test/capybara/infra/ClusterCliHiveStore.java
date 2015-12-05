@@ -19,6 +19,9 @@ package org.apache.hive.test.capybara.infra;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hive.test.capybara.data.FetchResult;
+import org.apache.hive.test.capybara.data.ResultCode;
+import org.apache.hive.test.capybara.iface.ClusterManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.hive.ql.QueryPlan;
@@ -105,13 +108,13 @@ class ClusterCliHiveStore extends HiveStore {
     if (rc != 0) {
       LOG.warn("Got non-zero return code from Hive " + rc + ", stderr is <" +
           StringUtils.join(stderrLines, "\n") + ">");
-      return new FetchResult(FetchResult.ResultCode.NON_RETRIABLE_FAILURE);
+      return new FetchResult(ResultCode.NON_RETRIABLE_FAILURE);
     }
     LOG.debug("stderr from Hive invocation: " + StringUtils.join(stderrLines, "\n"));
     if (stdoutLines.size() > 0) {
       return new FetchResult(new StringDataSet(stdoutLines, "\t", "NULL"));
     } else {
-      return new FetchResult(FetchResult.ResultCode.SUCCESS);
+      return new FetchResult(ResultCode.SUCCESS);
     }
   }
 

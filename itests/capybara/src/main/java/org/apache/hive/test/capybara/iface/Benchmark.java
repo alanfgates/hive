@@ -15,12 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.hive.test.capybara.infra;
+package org.apache.hive.test.capybara.iface;
 
 /**
  * A benchmark for testing results against.  This provides both the
- * {@link org.apache.hive.test.capybara.infra.DataStore} and the
- * {@link org.apache.hive.test.capybara.infra.ResultComparator} used to determine if a test was
+ * {@link DataStore} and the
+ * {@link ResultComparator} used to determine if a test was
  * successful.  Users can extend this, though in most cases one of the existing Benchmark
  * implementations should be sufficient.
  */

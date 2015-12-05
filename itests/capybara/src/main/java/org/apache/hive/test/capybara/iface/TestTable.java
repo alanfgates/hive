@@ -15,15 +15,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.hive.test.capybara.infra;
+package org.apache.hive.test.capybara.iface;
 
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.ql.parse.SemanticAnalyzer;
-import org.apache.hive.test.capybara.DataGenerator;
-import org.apache.thrift.TException;
+import org.apache.hadoop.hive.ql.session.SessionState;
+import org.apache.hive.test.capybara.data.DataSet;
+import org.apache.hive.test.capybara.data.ResultCode;
+import org.apache.hive.test.capybara.data.Row;
+import org.apache.hive.test.capybara.data.FetchResult;
+import org.apache.hive.test.capybara.infra.HiveStore;
+import org.apache.hive.test.capybara.infra.TestConf;
+import org.apache.hive.test.capybara.infra.TestManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,7 +57,7 @@ public class TestTable implements Serializable {
   private final boolean isAcid;
   private final int numBuckets;
   private final String[] bucketCols;
-  private List<DataSet.Row> partVals;
+  private List<Row> partVals;
   private int numParts;
   private boolean hiveCreated, benchCreated;
   // If true, cache generated data.  This is used for generating data that will be referenced in
@@ -66,19 +72,23 @@ public class TestTable implements Serializable {
    * {@link org.apache.hive.test.capybara.IntegrationTest#runQuery} to drop the table, and then
    * create the table also using runQuery().  This causes the table to be dropped and created in
    * both Hive and the Benchmark.  Then when you call
-   * {@link #populate(org.apache.hive.test.capybara.DataGenerator)} below it will load data into
+   * {@link #populate(org.apache.hive.test.capybara.iface.DataGenerator)} below it will load data
+   * into
    * both.
    * @param dbName database table is located in.
    * @param tableName name of the table
    * @return TestTable
    * @throws java.io.IOException
    */
-  public static TestTable fromHiveMetastore(String dbName, String tableName)
-      throws IOException {
+  public static TestTable fromHiveMetastore(String dbName, String tableName) throws IOException {
     try {
       HiveStore hive = TestManager.getTestManager().getClusterManager().getHive();
       IMetaStoreClient msClient = hive.getMetastoreConnection();
       Table msTable = msClient.getTable(dbName, tableName);
+      // If we haven't started a session, start one, as we'll need it
+      if (SessionState.get() == null) SessionState.start(hive.getHiveConf());
+      // If we haven't set the transaction manager, we need to do it
+      if (SessionState.get().getTxnMgr() == null) SessionState.get().initTxnMgr(hive.getHiveConf());
       TestTable testTable = new TestTable(dbName, tableName, msTable.getSd().getCols(),
           msTable.getPartitionKeysSize() > 0 ? msTable.getPartitionKeys() : null,
           null, null, null, 0,
@@ -87,7 +97,7 @@ public class TestTable implements Serializable {
           msTable.getSd().getNumBuckets());
       testTable.benchCreated = testTable.hiveCreated = true;
       return testTable;
-    } catch (TException e) {
+    } catch (Exception e) {
       throw new IOException(e);
     }
   }
@@ -289,7 +299,7 @@ public class TestTable implements Serializable {
       TestTable meta = new TestTable("fake", "fake", partCols, null, null, null, null, 0, false,
           null, 0);
       DataSet ds = partValsGenerator.generateData(meta);
-      for (DataSet.Row row : ds) partVals.add(row);
+      for (Row row : ds) partVals.add(row);
       this.numParts = partVals.size();
     } else {
       partVals = null;
@@ -457,7 +467,7 @@ public class TestTable implements Serializable {
    * been determined yet.
    * @return part vals
    */
-  public List<DataSet.Row> getPartVals() {
+  public List<Row> getPartVals() {
     return partVals;
   }
 
@@ -470,7 +480,7 @@ public class TestTable implements Serializable {
     return numParts;
   }
 
-  public void setPartVals(List<DataSet.Row> partVals) {
+  public void setPartVals(List<Row> partVals) {
     this.partVals = partVals;
   }
 
@@ -488,7 +498,7 @@ public class TestTable implements Serializable {
 
   /**
    * Get a PreparedStatement that can be used to load data into this table.  This statement can
-   * be passed to {@link org.apache.hive.test.capybara.infra.DataSet.Column#load}.
+   * be passed to {@link org.apache.hive.test.capybara.data.Column#load}.
    * @param conn JDBC connection
    * @param store DataStore this statement is being prepared for
    * @return a prepared statement
@@ -527,7 +537,7 @@ public class TestTable implements Serializable {
    * to be a copy, so don't mess with it (I wish Java had const).
    * @return combined schema.
    */
-  List<FieldSchema> getCombinedSchema() {
+  public List<FieldSchema> getCombinedSchema() {
     if (partCols == null) return cols;
     List<FieldSchema> combined = new ArrayList<>(cols);
     combined.addAll(partCols);
@@ -539,13 +549,13 @@ public class TestTable implements Serializable {
    * A primary key.  For now it is limited to a single column.
    */
   public static class PrimaryKey implements Serializable {
-    final int colNum;
+    public final int colNum;
 
     public PrimaryKey(int colNum) {
       this.colNum = colNum;
     }
 
-    boolean isSequence() { return false; }
+    public boolean isSequence() { return false; }
   }
 
   /**
@@ -557,18 +567,18 @@ public class TestTable implements Serializable {
     }
 
     @Override
-    boolean isSequence() { return true; }
+    public boolean isSequence() { return true; }
   }
 
   /**
    * A foreign key.  This takes a reference to a
-   * {@link org.apache.hive.test.capybara.infra.TestTable.PrimaryKey} in a target table.
+   * {@link TestTable.PrimaryKey} in a target table.
    */
   public static class ForeignKey implements Serializable {
-    transient DataSet targetTable;
-    final int colNumInTarget;
-    final int colNumInSrc;
-    Path pkFile; // if non-null, points to the file that contains the primary key data.
+    public transient DataSet targetTable;
+    public final int colNumInTarget;
+    public final int colNumInSrc;
+    public Path pkFile; // if non-null, points to the file that contains the primary key data.
 
     public ForeignKey(DataSet targetTable, int targetColNum, int srcColNum) {
       this.targetTable = targetTable;
@@ -603,7 +613,7 @@ public class TestTable implements Serializable {
       // quite likely we won't actually need to fetch the data.
       DataStore bench = TestManager.getTestManager().getBenchmark().getBenchDataStore();
       FetchResult fetch = bench.fetchData("select * from " + toString());
-      if (fetch.rc != FetchResult.ResultCode.SUCCESS) {
+      if (fetch.rc != ResultCode.SUCCESS) {
         throw new RuntimeException("Unable to fetch results from already populated table " +
             toString());
       }

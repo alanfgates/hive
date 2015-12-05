@@ -17,6 +17,9 @@
  */
 package org.apache.hive.test.capybara.infra;
 
+import org.apache.hive.test.capybara.data.DataSet;
+import org.apache.hive.test.capybara.data.ResultCode;
+import org.apache.hive.test.capybara.iface.TestTable;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -78,6 +81,21 @@ public class TestAnsiSqlStore {
     }
 
     @Override
+    protected SQLTranslator getTranslator() {
+      return new SQLTranslator() {
+        @Override
+        protected String translateDataTypes(String hiveSql) {
+          return hiveSql;
+        }
+
+        @Override
+        protected char identifierQuote() {
+          return '"';
+        }
+      };
+    }
+
+    @Override
     public void forceCreateTable(TestTable table) throws SQLException, IOException {
 
     }
@@ -87,15 +105,14 @@ public class TestAnsiSqlStore {
   public void createTable() throws Exception {
     String hiveSql = "create table if not exists acid_uanp(a int, b varchar(128)) partitioned by " +
         "(c string) clustered by (a) into 2 buckets stored as orc TBLPROPERTIES ('transactional'='true')";
-    Assert.assertEquals("create table  acid_uanp(a int, b varchar(128))    ",
+    Assert.assertEquals("create table if not exists acid_uanp (a int, b varchar(128))",
         store.hiveSqlToAnsiSql(hiveSql));
-    Assert.assertTrue(store.failureOk);
   }
 
   @Test
   public void insert() throws Exception {
-    String hiveSql = "insert into acid_uanp partition (c = 'fred') values (1, 'boy')";
-    Assert.assertEquals("insert into acid_uanp  values (1, 'boy')",
+    String hiveSql = "insert into table acid_uanp partition (c = 'fred') values (1, 'boy')";
+    Assert.assertEquals("insert into acid_uanp values (1, 'boy')",
         store.hiveSqlToAnsiSql(hiveSql));
     Assert.assertFalse(store.failureOk);
   }
@@ -103,7 +120,14 @@ public class TestAnsiSqlStore {
   @Test
   public void dropTable() throws Exception {
     String hiveSql = "drop table if exists acid_uanp";
-    Assert.assertEquals("drop table  acid_uanp", store.hiveSqlToAnsiSql(hiveSql));
-    Assert.assertTrue(store.failureOk);
+    Assert.assertEquals("drop table if exists acid_uanp", store.hiveSqlToAnsiSql(hiveSql));
+  }
+
+  @Test
+  public void emptySqlSucceeds() throws Exception {
+    // Make sure a Hive SQL statement like alter database which is a NOP for the benchmark succeeds
+    String hiveSQL = "alter database fred set owner user user1";
+    Assert.assertEquals("", store.hiveSqlToAnsiSql(hiveSQL));
+    Assert.assertEquals(ResultCode.SUCCESS, store.fetchData(hiveSQL).rc);
   }
 }

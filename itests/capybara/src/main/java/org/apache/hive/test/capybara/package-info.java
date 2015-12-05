@@ -56,7 +56,7 @@
  *
  * <p>{@link org.apache.hive.test.capybara.TableTool}
  * provides methods to build a number of commonly used test tables.  You can also use
- * {@link org.apache.hive.test.capybara.infra.TestTable} to build your own table and populate it.
+ * {@link org.apache.hive.test.capybara.iface.TestTable} to build your own table and populate it.
  * The system keeps track of tables created and populated in both Hive and the Benchmark and will
  * not re-create the tables if they already exist.  It will detect changes in scale, file format,
  * etc. that will require a re-creation and then handle dropping and re-creating the table.</p>

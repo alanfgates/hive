@@ -18,6 +18,8 @@
 package org.apache.hive.test.capybara.infra;
 
 import org.apache.commons.codec.binary.Base64;
+import org.apache.hive.test.capybara.data.DataSet;
+import org.apache.hive.test.capybara.iface.TestTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -37,7 +39,7 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.RunningJob;
 import org.apache.hadoop.mapred.lib.NLineInputFormat;
 import org.apache.hadoop.mapred.lib.NullOutputFormat;
-import org.apache.hive.test.capybara.DataGenerator;
+import org.apache.hive.test.capybara.iface.DataGenerator;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;

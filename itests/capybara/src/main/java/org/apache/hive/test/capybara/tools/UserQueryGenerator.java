@@ -695,7 +695,7 @@ public class UserQueryGenerator {
       "import org.apache.hadoop.hive.conf.HiveConf;",
       "import org.apache.hive.test.capybara.IntegrationTest;",
       "import org.apache.hive.test.capybara.infra.StatsDataGenerator;",
-      "import org.apache.hive.test.capybara.infra.TestTable;",
+      "import org.apache.hive.test.capybara.iface.TestTable;",
       "import org.junit.Assert;",
       "import org.junit.Before;",
       "import org.junit.Test;",

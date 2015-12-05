@@ -17,6 +17,8 @@
  */
 package org.apache.hive.test.capybara.infra;
 
+import org.apache.hive.test.capybara.data.DataSet;
+import org.apache.hive.test.capybara.iface.TestTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.derby.jdbc.EmbeddedDriver;
@@ -150,5 +152,134 @@ public class DerbyStore extends AnsiSqlStore {
   @Override
   protected long getLimit() {
     return limit;
+  }
+
+  private SQLTranslator derbyTranslator = new SQLTranslator() {
+    @Override
+    protected String translateCreateDatabase(String hiveSql) throws
+        TranslationException {
+      String benchSql = super.translateCreateDatabase(hiveSql);
+      // Remove 'if not exists'
+      Matcher m = Pattern.compile("create schema if not exists").matcher(benchSql);
+      if (m.find()) {
+        failureOk = true;
+        return m.replaceAll("create schema");
+      }
+      return benchSql;
+    }
+
+    @Override
+    protected String translateDropDatabase(String hiveSql) throws TranslationException {
+      String benchSql = super.translateDropDatabase(hiveSql);
+      // Remove 'if exists'
+      Matcher m = Pattern.compile("drop schema if exists").matcher(benchSql);
+      if (m.find()) {
+        failureOk = true;
+        benchSql = m.replaceAll("drop schema");
+      }
+
+      // Derby requires restrict, so put it there if it's missing
+      m = Pattern.compile("cascade$").matcher(benchSql);
+      benchSql = m.replaceAll("restrict");
+      if (!benchSql.contains("restrict")) {
+        benchSql = benchSql + " restrict";
+      }
+      return benchSql;
+    }
+
+    @Override
+    protected String translateCreateTableLike(Matcher matcher) {
+      StringBuilder sql = new StringBuilder();
+      if (matcher.group(1) != null && matcher.group(1).equals("temporary ")) {
+        sql.append("declare global temporary table ");
+      } else {
+        sql.append("create table ");
+      }
+      if (matcher.group(2) != null) failureOk = true;
+      sql.append(matcher.group(3))
+          .append(" as select * from ")
+          .append(matcher.group(4));
+      return sql.toString();
+    }
+
+    @Override
+    protected String translateCreateTableAs(Matcher matcher) throws TranslationException {
+      StringBuilder sql = new StringBuilder();
+      if (matcher.group(1) != null && matcher.group(1).equals("temporary ")) {
+        sql.append("declare global temporary table ");
+      } else {
+        sql.append("create table ");
+      }
+      if (matcher.group(2) != null) failureOk = true;
+      sql.append(matcher.group(3))
+          .append(" as ")
+          .append(translateSelect(matcher.group(4)));
+      return sql.toString();
+    }
+
+    @Override
+    protected String translateCreateTableWithColDefs(Matcher matcher) {
+      StringBuilder sql = new StringBuilder();
+      if (matcher.group(1) != null && matcher.group(1).equals("temporary ")) {
+        sql.append("declare global temporary table ");
+      } else {
+        sql.append("create table ");
+      }
+      if (matcher.group(2) != null) failureOk = true;
+      sql.append(matcher.group(3))
+          .append(" (")
+          .append(translateDataTypes(parseOutColDefs(matcher.group(4))));
+      return sql.toString();
+    }
+
+    @Override
+    protected String translateDataTypes(String hiveSql) {
+      Matcher m = Pattern.compile(" string").matcher(hiveSql);
+      hiveSql = m.replaceAll(" varchar(255)");
+      m = Pattern.compile(" tinyint").matcher(hiveSql);
+      hiveSql = m.replaceAll(" smallint");
+      m = Pattern.compile(" binary").matcher(hiveSql);
+      hiveSql = m.replaceAll(" blob");
+      return hiveSql;
+    }
+
+    @Override
+    protected String translateDropTable(String hiveSql) throws TranslationException {
+      // Need to remove purge and 'if exists' if they are there
+      Matcher m = Pattern.compile("drop table (if exists )?(" + tableNameRegex + ")").matcher(hiveSql);
+      if (m.lookingAt()) {
+        if (m.group(1) != null) failureOk = true;
+        return "drop table " + m.group(2);
+      } else {
+        throw new TranslationException("drop table", hiveSql);
+      }
+    }
+
+    @Override
+    protected String translateLimit(String hiveSql) throws TranslationException {
+      Matcher m = Pattern.compile("([0-9]+)").matcher(hiveSql);
+      if (m.find()) {
+        limit = Integer.valueOf(m.group(1));
+        return "";
+      } else {
+        throw new TranslationException("limit", hiveSql);
+      }
+    }
+
+    @Override
+    protected void fillOutUdfMapping() {
+      super.fillOutUdfMapping();
+      udfMapping.put("substring", "substr");
+    }
+
+    @Override
+    protected char identifierQuote() {
+      return '"';
+    }
+  };
+
+  @Override
+  protected SQLTranslator getTranslator() {
+    return derbyTranslator;
   }
 }

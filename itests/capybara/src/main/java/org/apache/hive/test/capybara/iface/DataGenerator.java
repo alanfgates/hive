@@ -15,11 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.hive.test.capybara;
+package org.apache.hive.test.capybara.iface;
 
-import org.apache.hive.test.capybara.infra.DataSet;
+import org.apache.hive.test.capybara.data.DataSet;
 import org.apache.hive.test.capybara.infra.TestConf;
-import org.apache.hive.test.capybara.infra.TestTable;
 
 /**
  * Generate data for use by Hive and benchmarks.

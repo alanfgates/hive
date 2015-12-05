@@ -17,10 +17,13 @@
  */
 package org.apache.hive.test.capybara.infra;
 
+import org.apache.hive.test.capybara.data.DataSet;
+import org.apache.hive.test.capybara.iface.ResultComparator;
+import org.apache.hive.test.capybara.iface.TestTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
-import org.apache.hive.test.capybara.DataGenerator;
+import org.apache.hive.test.capybara.iface.DataGenerator;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;

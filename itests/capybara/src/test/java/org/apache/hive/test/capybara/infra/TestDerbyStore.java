@@ -17,10 +17,15 @@
  */
 package org.apache.hive.test.capybara.infra;
 
+import org.apache.hive.test.capybara.data.DataSet;
+import org.apache.hive.test.capybara.data.FetchResult;
+import org.apache.hive.test.capybara.data.ResultCode;
+import org.apache.hive.test.capybara.data.Row;
+import org.apache.hive.test.capybara.iface.TestTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
-import org.apache.hive.test.capybara.DataGenerator;
+import org.apache.hive.test.capybara.iface.DataGenerator;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -85,9 +90,9 @@ public class TestDerbyStore {
     }
 
     FetchResult fetch = derby.fetchData("select c1 from foo");
-    Assert.assertEquals(FetchResult.ResultCode.SUCCESS, fetch.rc);
+    Assert.assertEquals(ResultCode.SUCCESS, fetch.rc);
 
-    Iterator<DataSet.Row> iter = fetch.data.iterator();
+    Iterator<Row> iter = fetch.data.iterator();
     Assert.assertTrue(iter.hasNext());
     Assert.assertEquals(1, iter.next().get(0).asInt());
     Assert.assertTrue(iter.hasNext());
@@ -125,9 +130,9 @@ public class TestDerbyStore {
       derby.loadData(otherTable, data);
 
       FetchResult fetch = derby.fetchData("select c1 from tind");
-      Assert.assertEquals(FetchResult.ResultCode.SUCCESS, fetch.rc);
+      Assert.assertEquals(ResultCode.SUCCESS, fetch.rc);
 
-      Iterator<DataSet.Row> iter = fetch.data.iterator();
+      Iterator<Row> iter = fetch.data.iterator();
       Assert.assertTrue(iter.hasNext());
       Assert.assertEquals(1, iter.next().get(0).asInt());
       Assert.assertTrue(iter.hasNext());
@@ -135,7 +140,7 @@ public class TestDerbyStore {
       Assert.assertFalse(iter.hasNext());
 
       fetch = derby.fetchData("select c1 from testschema.tind");
-      Assert.assertEquals(FetchResult.ResultCode.SUCCESS, fetch.rc);
+      Assert.assertEquals(ResultCode.SUCCESS, fetch.rc);
 
       iter = fetch.data.iterator();
       Assert.assertTrue(iter.hasNext());
@@ -181,12 +186,12 @@ public class TestDerbyStore {
   @Test
   public void failureOk() throws Exception {
     FetchResult fetch = derby.fetchData("drop table if exists fred");
-    Assert.assertEquals(FetchResult.ResultCode.SUCCESS, fetch.rc);
+    Assert.assertEquals(ResultCode.SUCCESS, fetch.rc);
 
     fetch = derby.fetchData("create table fred (a int)");
-    Assert.assertEquals(FetchResult.ResultCode.SUCCESS, fetch.rc);
+    Assert.assertEquals(ResultCode.SUCCESS, fetch.rc);
 
     fetch = derby.fetchData("create table if not exists fred (a int)");
-    Assert.assertEquals(FetchResult.ResultCode.SUCCESS, fetch.rc);
+    Assert.assertEquals(ResultCode.SUCCESS, fetch.rc);
   }
 }

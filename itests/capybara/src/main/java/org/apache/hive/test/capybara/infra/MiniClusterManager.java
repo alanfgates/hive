@@ -17,15 +17,10 @@
  */
 package org.apache.hive.test.capybara.infra;
 
-import org.apache.hadoop.crypto.key.KeyProvider;
-import org.apache.hadoop.crypto.key.KeyProvider.Options;
 import org.apache.hadoop.crypto.key.KeyProviderCryptoExtension;
 import org.apache.hadoop.hive.shims.Utils;
 
-import org.apache.hadoop.security.authentication.util.KerberosName;
-import org.apache.hadoop.security.Credentials;
-import org.apache.hadoop.security.UserGroupInformation;
-
+import org.apache.hive.test.capybara.iface.ClusterManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.conf.Configuration;

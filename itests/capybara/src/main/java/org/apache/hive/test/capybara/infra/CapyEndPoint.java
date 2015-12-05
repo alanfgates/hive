@@ -35,6 +35,11 @@ import org.apache.hive.hcatalog.streaming.SerializationError;
 import org.apache.hive.hcatalog.streaming.StreamingConnection;
 import org.apache.hive.hcatalog.streaming.StreamingException;
 import org.apache.hive.hcatalog.streaming.TransactionBatch;
+import org.apache.hive.test.capybara.data.Column;
+import org.apache.hive.test.capybara.data.Row;
+import org.apache.hive.test.capybara.data.RowBuilder;
+import org.apache.hive.test.capybara.iface.BenchmarkDataStore;
+import org.apache.hive.test.capybara.iface.TestTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -113,10 +118,10 @@ public class CapyEndPoint extends HiveEndPoint {
     private final TransactionBatch hiveBatch;
     private final Connection conn;
     private final AbstractRecordWriter writer;
-    private final DataSet.RowBuilder rowBuilder;
+    private final RowBuilder rowBuilder;
     private final StructObjectInspector rowInspector;
     private final ObjectInspector[] colInspectors;
-    private final DataSet.Row partRow;
+    private final Row partRow;
     private final PreparedStatement preparedStatement;
 
     public CapyTransactionBatch(TransactionBatch hiveBatch, Connection conn,
@@ -124,7 +129,7 @@ public class CapyEndPoint extends HiveEndPoint {
       this.hiveBatch = hiveBatch;
       this.conn = conn;
       this.writer = (AbstractRecordWriter)writer;
-      rowBuilder = new DataSet.RowBuilder(testTable.getCombinedSchema());
+      rowBuilder = new RowBuilder(testTable.getCombinedSchema());
       rowInspector =
           (StructObjectInspector)((AbstractRecordWriter) writer).getSerde().getObjectInspector();
       List<? extends StructField> fields = rowInspector.getAllStructFieldRefs();
@@ -134,7 +139,7 @@ public class CapyEndPoint extends HiveEndPoint {
       }
 
       if (partitionVals != null && partitionVals.size() > 0) {
-        DataSet.RowBuilder partRowBuilder = new DataSet.RowBuilder(testTable.getPartCols());
+        RowBuilder partRowBuilder = new RowBuilder(testTable.getPartCols());
         partRow = partRowBuilder.build();
         for (int i = 0; i < partRow.size(); i++) {
           String val = partitionVals.get(i) == null ? "NULL" : partitionVals.get(i);
@@ -209,7 +214,7 @@ public class CapyEndPoint extends HiveEndPoint {
 
       // Convert the Object to our Row format.  This may not fill up all of the columns because
       // it won't have the partitions columns.
-      DataSet.Row row = rowBuilder.build();
+      Row row = rowBuilder.build();
       List<Object> objCols = rowInspector.getStructFieldsDataAsList(objRow);
       for (int i = 0; i < colInspectors.length; i++) {
         row.get(i).fromObject(colInspectors[i], objCols.get(i));
@@ -220,7 +225,7 @@ public class CapyEndPoint extends HiveEndPoint {
 
       // Load it in via a prepared statement
       try {
-        for (DataSet.Column col : row) col.load(preparedStatement);
+        for (Column col : row) col.load(preparedStatement);
         preparedStatement.executeUpdate();
       } catch (SQLException e) {
         throw new StreamingException("Unable to load into benchmark", e);

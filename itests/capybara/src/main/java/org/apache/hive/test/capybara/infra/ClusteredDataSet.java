@@ -18,6 +18,8 @@
 package org.apache.hive.test.capybara.infra;
 
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.hive.test.capybara.data.DataSet;
+import org.apache.hive.test.capybara.data.Row;
 
 import java.util.Collections;
 import java.util.Iterator;

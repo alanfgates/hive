@@ -18,7 +18,10 @@
 package org.apache.hive.test.capybara.infra;
 
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
-import org.apache.hive.test.capybara.DataGenerator;
+import org.apache.hive.test.capybara.data.Row;
+import org.apache.hive.test.capybara.data.RowBuilder;
+import org.apache.hive.test.capybara.iface.DataGenerator;
+import org.apache.hive.test.capybara.iface.TestTable;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -33,28 +36,28 @@ abstract class DataGeneratorImpl extends DataGenerator {
   protected abstract ColGenerator getGenerator(FieldSchema col, TestTable.PrimaryKey pk,
                                       TestTable.ForeignKey fk);
 
-  protected List<DataSet.Row> determinePartVals(TestTable table, int scale, double[] pctNulls) {
+  protected List<Row> determinePartVals(TestTable table, int scale, double[] pctNulls) {
     // There are three options for partition values.  The user could have specified the values
     // they want, or they could have just specified how many partitions they want or they could
     // have let us decide based one scale.
     List<FieldSchema> partCols = table.getPartCols();
     List<FieldSchema> cols = table.getCols();
-    List<DataSet.Row> partVals = table.getPartVals();
+    List<Row> partVals = table.getPartVals();
     int numPartitions = table.getNumParts();
 
     // If the user did not preset the partVals, it will be null
     if (partVals == null) {
       partVals = new ArrayList<>();
-      DataSet.RowBuilder partBuilder = new DataSet.RowBuilder(partCols, cols.size());
+      RowBuilder partBuilder = new RowBuilder(partCols, cols.size());
       // If the user did not specify a number of partitions, set it based on scale.
       if (numPartitions == 0) numPartitions = (int) Math.log10(scale) + 1;
       RandomDataGenerator.ColGenerator[] partGenerators = new RandomDataGenerator.ColGenerator[partCols.size()];
       for (int i = 0; i < partGenerators.length; i++) {
         partGenerators[i] = getGenerator(partCols.get(i), null, null);
       }
-      Set<DataSet.Row> usedPartVals = new HashSet<>();
+      Set<Row> usedPartVals = new HashSet<>();
       for (int i = 0; i < numPartitions; i++) {
-        DataSet.Row partVal = partBuilder.build();
+        Row partVal = partBuilder.build();
         for (int j = 0; j < partGenerators.length; j++) {
           partVal.get(j).set(partGenerators[j].generate(pctNulls[j]));
         }

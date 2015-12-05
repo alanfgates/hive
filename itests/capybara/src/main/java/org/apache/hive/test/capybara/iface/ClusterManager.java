@@ -15,10 +15,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.hive.test.capybara.infra;
+package org.apache.hive.test.capybara.iface;
 
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hive.test.capybara.infra.HiveStore;
 
 import java.io.IOException;
 import java.util.Map;

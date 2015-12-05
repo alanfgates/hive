@@ -17,6 +17,11 @@
  */
 package org.apache.hive.test.capybara.infra;
 
+import org.apache.hive.test.capybara.data.DataSet;
+import org.apache.hive.test.capybara.data.FetchResult;
+import org.apache.hive.test.capybara.data.ResultCode;
+import org.apache.hive.test.capybara.iface.ClusterManager;
+import org.apache.hive.test.capybara.iface.TestTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.conf.Configurable;
@@ -72,7 +77,7 @@ public abstract class HiveStore extends DataStoreBase implements Configurable {
     dataSetDumps = new HashMap<>();
   }
 
-  IMetaStoreClient getMetastoreConnection() throws MetaException {
+  public IMetaStoreClient getMetastoreConnection() throws MetaException {
     assert conf != null;
     if (msClient == null) {
       msClient = new HiveMetaStoreClient(conf);
@@ -132,7 +137,7 @@ public abstract class HiveStore extends DataStoreBase implements Configurable {
         .append("location '").append(dir.toUri().toString()).append("'");
 
     FetchResult res = fetchData(sql.toString());
-    Assert.assertEquals(FetchResult.ResultCode.SUCCESS, res.rc);
+    Assert.assertEquals(ResultCode.SUCCESS, res.rc);
 
     // Now, insert from the temp table to the target table.
     sql = new StringBuilder("insert into ")
@@ -151,7 +156,7 @@ public abstract class HiveStore extends DataStoreBase implements Configurable {
 
     LOG.debug("Going to send to Hive: " + sql.toString());
     res = fetchData(sql.toString());
-    Assert.assertEquals(FetchResult.ResultCode.SUCCESS, res.rc);
+    Assert.assertEquals(ResultCode.SUCCESS, res.rc);
   }
 
   @Override
@@ -185,6 +190,10 @@ public abstract class HiveStore extends DataStoreBase implements Configurable {
     return conf;
   }
 
+  public HiveConf getHiveConf() {
+    return conf;
+  }
+
   @Override
   public String getTableName(TestTable table) {
     return table.toString();
@@ -208,7 +217,7 @@ public abstract class HiveStore extends DataStoreBase implements Configurable {
    * Generate a random directory to dump generated data in.
    * @return directory name
    */
-  static String getDirForDumpFile() {
+  public static String getDirForDumpFile() {
     // Use '/' explicitly rather than file.separator property as HDFS always uses forward slash.
     String filename = new StringBuilder(TestManager.getTestManager().getConf().get("hadoop.tmp.dir"))
         .append('/')
@@ -255,7 +264,7 @@ public abstract class HiveStore extends DataStoreBase implements Configurable {
       throws SQLException, IOException {
     if (!force && tableExistsInCorrectState(table)) return false;
     FetchResult rc = fetchData("drop table if exists " + table.toString());
-    Assert.assertEquals(FetchResult.ResultCode.SUCCESS, rc.rc);
+    Assert.assertEquals(ResultCode.SUCCESS, rc.rc);
 
     StringBuilder builder =  new StringBuilder();
     builder.append("create table ")
@@ -304,7 +313,7 @@ public abstract class HiveStore extends DataStoreBase implements Configurable {
     }
 
     rc = fetchData(builder.toString());
-    Assert.assertEquals(FetchResult.ResultCode.SUCCESS, rc.rc);
+    Assert.assertEquals(ResultCode.SUCCESS, rc.rc);
     if (!force) recordTableCreation(table);
     return true;
   }

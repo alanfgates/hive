@@ -17,10 +17,14 @@
  */
 package org.apache.hive.test.capybara.infra;
 
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.hive.test.capybara.data.DataSet;
+import org.apache.hive.test.capybara.data.FetchResult;
+import org.apache.hive.test.capybara.data.ResultCode;
+import org.apache.hive.test.capybara.iface.BenchmarkDataStore;
+import org.apache.hive.test.capybara.iface.TestTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.hadoop.hive.metastore.api.FieldSchema;
-import org.junit.Assert;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -33,8 +37,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * An abstract class for all DataStores that are ANSI SQL compliant.  It contains convenience
@@ -57,6 +59,7 @@ abstract class AnsiSqlStore extends DataStoreBase implements BenchmarkDataStore 
    */
   protected boolean failureOk;
 
+
   protected AnsiSqlStore() {
     dataSetDumps = new HashMap<>();
   }
@@ -72,9 +75,15 @@ abstract class AnsiSqlStore extends DataStoreBase implements BenchmarkDataStore 
   }
 
   @Override
-  public FetchResult fetchData(String sql) throws SQLException, IOException {
-    sql = hiveSqlToAnsiSql(sql);
-    LOG.debug("Going to run query <" + sql + "> against ANSI SQL store");
+  public FetchResult fetchData(String hiveSql) throws SQLException, IOException {
+    String sql = hiveSqlToAnsiSql(hiveSql);
+    if (sql.equals("")) {
+      // This means this is a NOP for the benchmark
+      LOG.debug("Hive SQL <" + hiveSql + "> is NOP on benchmark");
+      return new FetchResult(ResultCode.SUCCESS);
+    }
+    LOG.debug("Translated Hive SQL <" + hiveSql + "> to <" + sql +
+        ">, going to run against benchmark");
     return jdbcFetch(sql, getLimit(), failureOk);
   }
 
@@ -119,6 +128,12 @@ abstract class AnsiSqlStore extends DataStoreBase implements BenchmarkDataStore 
   protected abstract String fileStringQuotes();
 
   /**
+   * Get the appropriate SQL translator for this database.
+   * @return translator
+   */
+  protected abstract SQLTranslator getTranslator();
+
+  /**
    * Get the limit that should be applied to a query.  This is to deal with the fact that derby
    * doesn't support limit.  If a database supports limit it should not override this method.
    * @return limit value.
@@ -133,76 +148,17 @@ abstract class AnsiSqlStore extends DataStoreBase implements BenchmarkDataStore 
    * @return ANSI SQL
    */
   protected String hiveSqlToAnsiSql(String hiveSql) throws IOException, SQLException {
-    failureOk = false;
 
-    // If they preprended the table name with 'default.' strip it so that it works
-    Matcher matcher = Pattern.compile("default\\.", Pattern.CASE_INSENSITIVE).matcher(hiveSql);
-    hiveSql = matcher.replaceAll("");
-
-    // Get rid of if [not] exists
-    matcher = Pattern.compile("if\\s+(not\\s+)?exists", Pattern.CASE_INSENSITIVE).matcher(hiveSql);
-    String tmpSql = matcher.replaceAll("");
-    if (!tmpSql.equals(hiveSql)) {
-      // We changed something
-      failureOk = true;
-      hiveSql = tmpSql;
+    try {
+      SQLTranslator translator = getTranslator();
+      String benchSql = translator.translate(hiveSql);
+      failureOk = translator.isFailureOk();
+      return benchSql;
+    } catch (TranslationException e) {
+      LOG.warn("Unable to translate Hive SQL <" + hiveSql +
+          "> for your benchmark, risking it using original Hive SQL");
+      return hiveSql;
     }
-
-    // Get rid of clustered by
-    matcher = Pattern.compile("clustered\\s+by\\s+\\(.*?\\)\\s+into\\s+[0-9]+\\s+buckets",
-        Pattern.CASE_INSENSITIVE).matcher(hiveSql);
-    hiveSql = matcher.replaceAll("");
-
-    // Get rid of stored as
-    matcher = Pattern.compile("stored\\s+as\\s+[a-z]+", Pattern.CASE_INSENSITIVE).matcher(hiveSql);
-    hiveSql = matcher.replaceAll("");
-
-    // Get rid of table properties
-    matcher = Pattern.compile("tblproperties\\s+\\(.*?\\)", Pattern.CASE_INSENSITIVE).matcher(hiveSql);
-    hiveSql = matcher.replaceAll("");
-
-    // Get rid of partitioned by
-    matcher = Pattern.compile("partitioned\\s+by\\s+\\(.*?\\)", Pattern.CASE_INSENSITIVE).matcher(hiveSql);
-    hiveSql = matcher.replaceAll("");
-
-    // Get rid of partitions (in an insert statement)
-    matcher = Pattern.compile("partition\\s+\\(.*?\\)", Pattern.CASE_INSENSITIVE).matcher(hiveSql);
-    hiveSql = matcher.replaceAll("");
-
-    // Get rid of Skewed by
-    matcher = Pattern.compile("skewed\\s+by\\s+\\(.*?\\)\\s+ON\\s+\\(.*\\)",
-        Pattern.CASE_INSENSITIVE).matcher(hiveSql);
-    hiveSql = matcher.replaceAll("");
-
-    // Get rid of table in 'insert into table'
-    matcher = Pattern.compile("insert\\s+into\\s+table", Pattern.CASE_INSENSITIVE).matcher(hiveSql);
-    hiveSql = matcher.replaceAll("insert into ");
-
-    // Handle insert overwrite.  This takes a little more since we need to drop all the rows from
-    // a table when this is issued.
-    matcher = Pattern.compile("insert\\s+overwrite\\s+table\\s+([a-z_0-9]+)", Pattern.CASE_INSENSITIVE).matcher(
-        hiveSql);
-    if (matcher.find()) {
-      FetchResult result = fetchData("delete from " + matcher.group(1));
-      Assert.assertEquals(FetchResult.ResultCode.SUCCESS, result.rc);
-      hiveSql = matcher.replaceAll("insert into " + matcher.group(1));
-    }
-
-    // Switch string columns to varchar columns
-    while (true) {
-      matcher = Pattern.compile("([ (])string([,)])", Pattern.CASE_INSENSITIVE).matcher(hiveSql);
-      if (matcher.find()) {
-        hiveSql = matcher.replaceFirst(matcher.group(1) + "varchar(1023)" + matcher.group(2));
-      } else {
-        break;
-      }
-    }
-
-    // Remove any hints
-    matcher = Pattern.compile("/\\*.*\\*/").matcher(hiveSql);
-    hiveSql = matcher.replaceAll("");
-
-    return hiveSql;
   }
 
   protected String convertType(String hiveType) {
@@ -230,9 +186,8 @@ abstract class AnsiSqlStore extends DataStoreBase implements BenchmarkDataStore 
       allCols.addAll(table.getPartCols());
     }
 
-    Connection conn = connect(true);
     Statement stmt = null;
-    try {
+    try (Connection conn = connect(true)) {
       StringBuilder sql = new StringBuilder("create table ")
           .append(getTableName(table))
           .append(" (");
@@ -249,8 +204,9 @@ abstract class AnsiSqlStore extends DataStoreBase implements BenchmarkDataStore 
       if (!force) recordTableCreation(table);
     } finally {
       if (stmt != null) stmt.close();
-      conn.close();
+
     }
     return true;
   }
+
 }

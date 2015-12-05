@@ -17,6 +17,9 @@
  */
 package org.apache.hive.test.capybara.infra;
 
+import org.apache.hive.test.capybara.data.DataSet;
+import org.apache.hive.test.capybara.data.Row;
+import org.apache.hive.test.capybara.iface.ResultComparator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.junit.Assert;
@@ -30,7 +33,7 @@ import java.util.PriorityQueue;
  * Compare two data sets without sorting Hive.  We still sort the benchmark because every
  * database sorts things just a little differently (like NULLs first or last, collation, etc.).
  */
-class NonSortingComparator extends ResultComparator {
+public class NonSortingComparator extends ResultComparator {
   static final private Logger LOG = LoggerFactory.getLogger(NonSortingComparator.class.getName());
 
   @Override
@@ -40,19 +43,19 @@ class NonSortingComparator extends ResultComparator {
     compare(hive.iterator(), sort(bench));
   }
 
-  protected void compare(Iterator<DataSet.Row> hiveIter, Iterator<DataSet.Row> benchIter) {
+  protected void compare(Iterator<Row> hiveIter, Iterator<Row> benchIter) {
     // Keep a bounded queue of records so that if there's a failure we can print some context
     // around the failed lines rather than just the individual lines.
-    BoundedQueue<DataSet.Row> hiveQueue = new BoundedQueue<>(25);
-    BoundedQueue<DataSet.Row> benchQueue = new BoundedQueue<>(25);
+    BoundedQueue<Row> hiveQueue = new BoundedQueue<>(25);
+    BoundedQueue<Row> benchQueue = new BoundedQueue<>(25);
 
     int rowNum = 0;
     while (hiveIter.hasNext()) {
       Assert.assertTrue("Benchmark ran out of rows at " + rowNum + " but hive still has rows",
           benchIter.hasNext());
       rowNum++;
-      DataSet.Row hiveRow = hiveIter.next();
-      DataSet.Row benchRow = benchIter.next();
+      Row hiveRow = hiveIter.next();
+      Row benchRow = benchIter.next();
       hiveQueue.add(hiveRow);
       benchQueue.add(benchRow);
 
@@ -72,20 +75,20 @@ class NonSortingComparator extends ResultComparator {
         benchIter.hasNext());
   }
 
-  protected Iterator<DataSet.Row> sort(DataSet data) {
-    final PriorityQueue<DataSet.Row> sorted = new PriorityQueue<>();
-    Iterator<DataSet.Row> iter = data.iterator();
+  protected Iterator<Row> sort(DataSet data) {
+    final PriorityQueue<Row> sorted = new PriorityQueue<>();
+    Iterator<Row> iter = data.iterator();
     while (iter.hasNext()) {
       sorted.add(iter.next());
     }
-    return new Iterator<DataSet.Row>() {
+    return new Iterator<Row>() {
       @Override
       public boolean hasNext() {
         return sorted.size() > 0;
       }
 
       @Override
-      public DataSet.Row next() {
+      public Row next() {
         return sorted.poll();
       }
 

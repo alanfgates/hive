@@ -17,6 +17,11 @@
  */
 package org.apache.hive.test.capybara.infra;
 
+import org.apache.hive.test.capybara.iface.Benchmark;
+import org.apache.hive.test.capybara.iface.BenchmarkDataStore;
+import org.apache.hive.test.capybara.iface.ResultComparator;
+import org.apache.hive.test.capybara.iface.TableComparator;
+
 /**
  * A Benchmark that uses Postgres to store the results and standard ResultComparators for
  * comparison.

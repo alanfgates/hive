@@ -20,6 +20,7 @@ package org.apache.hive.test.capybara.infra;
 import org.apache.hadoop.hive.ql.Driver;
 import org.apache.hadoop.hive.ql.QueryPlan;
 import org.apache.hadoop.hive.ql.session.SessionState;
+import org.apache.hive.test.capybara.iface.ClusterManager;
 import org.junit.Assert;
 
 abstract class MiniHiveStoreBase extends HiveStore {

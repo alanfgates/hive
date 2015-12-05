@@ -15,21 +15,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.hive.test.capybara.infra;
+package org.apache.hive.test.capybara.data;
 
 /**
  * Result of fetching data.  This includes the
- * {@link org.apache.hive.test.capybara.infra.DataSet} and info on the result.  If the result
+ * {@link org.apache.hive.test.capybara.data.DataSet} and info on the result.  If the result
  * was a failure the data set will be null.
  */
 public class FetchResult {
 
-  /**
-   * Result from Hive.  This is done as an enum since values differ based on whether
-   * Hive is being accessed by command line or JDBC.  ANY indicates that it's ok whether
-   * something passes or fails.
-   */
-  public enum ResultCode { SUCCESS, RETRIABLE_FAILURE, NON_RETRIABLE_FAILURE, ANY };
+  ;
 
   final public DataSet data;
   final public ResultCode rc;
