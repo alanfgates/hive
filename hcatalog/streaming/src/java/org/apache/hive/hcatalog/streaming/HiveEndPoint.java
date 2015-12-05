@@ -393,7 +393,7 @@ public class HiveEndPoint {
     }
 
     private TransactionBatch fetchTransactionBatchImpl(int numTransactions,
-                                                  RecordWriter recordWriter)
+                                                       RecordWriter recordWriter)
             throws StreamingException, TransactionBatchUnAvailable, InterruptedException {
       return new TransactionBatchImpl(username, ugi, endPt, numTransactions, msClient
               , recordWriter);
