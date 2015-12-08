@@ -256,6 +256,23 @@ public class DerbyStore extends AnsiSqlStore {
     }
 
     @Override
+    protected String translateAlterTableRename(String tableName, String remainder) throws
+        TranslationException {
+      LOG.error("Derby does not support alter table rename");
+      throw new TranslationException("alter table rename", remainder);
+    }
+
+    @Override
+    protected String translateConstants(String hiveSql) throws TranslationException {
+      String benchSql = super.translateConstants(hiveSql);
+      Matcher m = Pattern.compile("date '").matcher(benchSql);
+      benchSql = m.replaceAll("'");
+      m = Pattern.compile("timestamp '").matcher(benchSql);
+      benchSql = m.replaceAll("'");
+      return benchSql;
+    }
+
+    @Override
     protected String translateLimit(String hiveSql) throws TranslationException {
       Matcher m = Pattern.compile("([0-9]+)").matcher(hiveSql);
       if (m.find()) {

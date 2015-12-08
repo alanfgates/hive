@@ -17,6 +17,9 @@
  */
 package org.apache.hive.test.capybara.infra;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -34,6 +37,7 @@ import java.util.regex.Pattern;
  * state kept is when "use database" is translated, so that the current database is tracked.
  */
 abstract class SQLTranslator {
+  private static final Logger LOG = LoggerFactory.getLogger(SQLTranslator.class.getName());
 
   protected static final String idRegex = "[a-zA-Z0-9_]+";
   protected static final String tableNameRegex = "(?:" + idRegex + "\\.)?" + idRegex;
@@ -70,56 +74,70 @@ abstract class SQLTranslator {
     trimmed = m.replaceAll(" ");
 
     String benchSql;
-    if (Pattern.compile("create (database|schema)").matcher(trimmed).lookingAt()) {
-      benchSql = translateCreateDatabase(trimmed);
-    } else if (Pattern.compile("alter (database|schema)").matcher(trimmed).lookingAt()) {
-      benchSql = translateAlterDatabase(trimmed);
-    } else if (Pattern.compile("drop (database|schema)").matcher(trimmed).lookingAt()) {
-      benchSql = translateDropDatabase(trimmed);
-    } else if (Pattern.compile("use (" + idRegex +")").matcher(trimmed).lookingAt()) {
-      benchSql = translateUseDatabase(m.group(1));
+    if (Pattern.compile("select").matcher(trimmed).lookingAt()) {
+      benchSql = translateSelect(trimmed);
+    } else if (Pattern.compile("insert").matcher(trimmed).lookingAt()) {
+      benchSql = translateInsert(trimmed);
+    } else if (Pattern.compile("explain").matcher(trimmed).lookingAt()) {
+      benchSql = "";
+    } else if (Pattern.compile("update").matcher(trimmed).lookingAt()) {
+      benchSql = translateUpdate(trimmed);
+    } else if (Pattern.compile("delete from").matcher(trimmed).lookingAt()) {
+      benchSql = translateDelete(trimmed);
     } else if (Pattern.compile("create (temporary |external )?table").matcher(trimmed).lookingAt()) {
       benchSql = translateCreateTable(trimmed);
     } else if (Pattern.compile("drop table").matcher(trimmed).lookingAt()) {
       benchSql = translateDropTable(trimmed);
-    } else if (Pattern.compile("select").matcher(trimmed).lookingAt()) {
-      benchSql = translateSelect(trimmed);
-    } else if (Pattern.compile("insert").matcher(trimmed).lookingAt()) {
-      benchSql = translateInsert(trimmed);
+    } else if (Pattern.compile("alter table").matcher(trimmed).lookingAt()) {
+      benchSql = translateAlterTable(trimmed);
+    } else if (Pattern.compile("show").matcher(trimmed).lookingAt()) {
+      benchSql = "";
+    } else if (Pattern.compile("describe").matcher(trimmed).lookingAt()) {
+      benchSql = "";
+    } else if (Pattern.compile("create (database|schema)").matcher(trimmed).lookingAt()) {
+      benchSql = translateCreateDatabase(trimmed);
+    } else if (Pattern.compile("alter (database|schema)").matcher(trimmed).lookingAt()) {
+      benchSql = "";
+    } else if (Pattern.compile("drop (database|schema)").matcher(trimmed).lookingAt()) {
+      benchSql = translateDropDatabase(trimmed);
+    } else if (Pattern.compile("use (" + idRegex +")").matcher(trimmed).lookingAt()) {
+      benchSql = translateUseDatabase(m.group(1));
+    } else if (Pattern.compile("analyze").matcher(trimmed).lookingAt()) {
+      benchSql = "";
+    } else if (Pattern.compile("create role").matcher(trimmed).lookingAt()) {
+      benchSql = "";
+    } else if (Pattern.compile("drop role").matcher(trimmed).lookingAt()) {
+      benchSql = "";
+    } else if (Pattern.compile("set role").matcher(trimmed).lookingAt()) {
+      benchSql = "";
+    } else if (Pattern.compile("grant").matcher(trimmed).lookingAt()) {
+      benchSql = "";
+    } else if (Pattern.compile("revoke").matcher(trimmed).lookingAt()) {
+      benchSql = "";
+    } else if (Pattern.compile("create index").matcher(trimmed).lookingAt()) {
+      benchSql = "";
+    } else if (Pattern.compile("alter index").matcher(trimmed).lookingAt()) {
+      benchSql = "";
+    } else if (Pattern.compile("drop index").matcher(trimmed).lookingAt()) {
+      benchSql = "";
+    } else if (Pattern.compile("create (temporary )?function").matcher(trimmed).lookingAt()) {
+      // This won't end well.  We can't translate functions
+      throw new TranslationException("create function", hiveSql);
+    } else if (Pattern.compile("drop (temporary )?function").matcher(trimmed).lookingAt()) {
+      throw new TranslationException("drop function", hiveSql);
+    } else if (Pattern.compile("reload function").matcher(trimmed).lookingAt()) {
+      throw new TranslationException("reload function", hiveSql);
     } else {
       throw new TranslationException("Unrecognized", hiveSql);
     }
     return reQuote(benchSql);
 
     // TODO:
-    // alter function
-    // alter index
     // alter table
     // alter view
-    // create function
-    // create index
     // create view
-    // delete
-    // describe
-    // drop function
-    // drop index
-    // drop table
     // drop view
-    // explain
-    // insert
-    // select
-    //   projectionlist
-    //     exprs
-    //   from
-    //     table name, including current schema
-    //   where
-    //   group by
-    //   having
-    //   order by
-    //   limit
-    // show
-    // truncate table
-    // update
+    // truncate table - have to handle truncate partition and weird partition casts
     // with
   }
 
@@ -150,11 +168,6 @@ abstract class SQLTranslator {
     }
 
     throw new TranslationException("create database", hiveSql);
-  }
-
-  protected String translateAlterDatabase(String hiveSql) throws TranslationException {
-    // Alter database can only change Hive specific things.
-    return "";
   }
 
   protected String translateDropDatabase(String hiveSql) throws TranslationException {
@@ -240,7 +253,7 @@ abstract class SQLTranslator {
    *                group 2 is 'if not exists', may be null
    *                group 3 is the table name
    *                group 4 column definitions and the rest of the query
-   * @return
+   * @return bench sql
    */
   protected String translateCreateTableWithColDefs(Matcher matcher) {
     StringBuilder sql = new StringBuilder("create ");
@@ -284,6 +297,82 @@ abstract class SQLTranslator {
       throw new TranslationException("drop table", hiveSql);
     }
   }
+
+  private String translateAlterTable(String hiveSql) throws TranslationException {
+    // It has been said that enough monkeys pounding on typewriters would eventually produce the
+    // complete works of Shakespeare.  In the case of Hive's alter table syntax someone gave the
+    // monkeys whiskey first.
+    Matcher m = Pattern.compile("alter table (" + tableNameRegex + ") ").matcher(hiveSql);
+    if (m.lookingAt()) {
+      String tableName = translateTableNames(m.group(1));
+      String remainder = hiveSql.substring(m.end());
+      if (remainder.startsWith("rename to")) return translateAlterTableRename(tableName, remainder);
+      if (remainder.startsWith("set")) return "";
+      if (remainder.startsWith("clustered by")) return "";
+      if (remainder.startsWith("skewed by")) return "";
+      if (remainder.startsWith("not skewed")) return "";
+      if (remainder.startsWith("not stored as directories")) return "";
+      if (remainder.startsWith("add partition") ||
+          remainder.startsWith("add if not exists partition")) {
+        return "";
+      }
+
+      // This is really an alter partition.  We need to parse through the partition and possibly
+      // translate it.
+      if (remainder.startsWith("partition (")) {
+        String partition = parsePartition(remainder.substring("partition ".length()));
+        String afterPartition =
+            remainder.substring("partition ".length() + partition.length()).trim();
+
+        if (afterPartition.startsWith("rename to partition ")) {
+          String secondPartition =
+              parsePartition(afterPartition.substring("rename to partition ".length()));
+        }
+
+
+      }
+
+
+      // TODO - Partitions ones to deal with
+      // TODO - rename
+      // TODO - set
+
+
+      return "oops";
+
+    } else {
+      throw new TranslationException("alter table", hiveSql);
+    }
+
+  }
+
+  private String parsePartition(String hiveSql) throws TranslationException {
+    StringBuilder sql = new StringBuilder();
+    int level = 0;
+    for (int i = 0; i < hiveSql.length(); i++) {
+      if (hiveSql.charAt(i) == '(') {
+        if (level++ > 0) sql.append('(');
+      } else if (hiveSql.charAt(i) == ')') {
+        if (--level == 0) return sql.toString();
+        else sql.append(')');
+      } else {
+        sql.append(hiveSql.charAt(i));
+      }
+    }
+    throw new TranslationException("partition", hiveSql);
+  }
+
+  /**
+   * Translate alter table rename
+   * @param tableName translated table name
+   * @param remainder remainder of the Hive SQL, commencing after the table name.  It should
+   *                  start with 'rename to'
+   * @return translated SQL, this should include the entire SQL, not just the remainder (ie it
+   * should start with 'alter table'
+   * @throws TranslationException
+   */
+  protected abstract String translateAlterTableRename(String tableName, String remainder)
+    throws TranslationException;
 
   /**********************************************************************************************
    * Query related
@@ -411,9 +500,44 @@ abstract class SQLTranslator {
   }
 
   private String translateExpressions(String hiveSql) throws TranslationException {
-    String benchSql = translateCasts(hiveSql);
+    String benchSql = translateConstants(hiveSql);
+    benchSql = translateCasts(benchSql);
     benchSql = translateUDFs(benchSql);
     return translateSubqueries(benchSql);
+  }
+
+  protected String translateConstants(String hiveSql) throws TranslationException {
+    // TODO - test this
+    if (hiveSql.contains(" interval '")) {
+      LOG.error("Interval type not yet supported.");
+      throw new TranslationException("interval", hiveSql);
+    }
+    // Remove the annotations Hive uses for bigint, etc.
+    String benchSql = hiveSql;
+    Pattern p = Pattern.compile("([0-9]+)(l|s|y|bd)");
+    Matcher m = p.matcher(benchSql);
+    while (m.find()) {
+      benchSql = m.replaceFirst(m.group(1)); // Get rid of the letter qualifier
+      m = p.matcher(benchSql);
+    }
+
+    // Make sure all dates and timestamps have 2 digit months
+    p = Pattern.compile("(date|timestamp) '([0-9]{4})-([0-9])");
+    m = p.matcher(benchSql);
+    while (m.find()) {
+      benchSql = m.replaceFirst(m.group(1) + " '" + m.group(2) + "-0" + m.group(3));
+      m = p.matcher(benchSql);
+    }
+
+    // Make sure all dates and timestamps have 2 digit days
+    p = Pattern.compile("(date|timestamp) '([0-9]{4})-([0-9]{2})-([0-9])");
+    m = p.matcher(benchSql);
+    while (m.find()) {
+      benchSql =
+          m.replaceFirst(m.group(1) + " '" + m.group(2) + "-" + m.group(3) + "-0" + m.group(4));
+      m = p.matcher(benchSql);
+    }
+    return benchSql;
   }
 
   private String translateCasts(String hiveSql) throws TranslationException {
@@ -506,7 +630,7 @@ abstract class SQLTranslator {
     return translateSubqueries(hiveSql);
   }
 
-  private String translateTableNames(String hiveSql) {
+  protected String translateTableNames(String hiveSql) {
     // For now just strain out the default if it's there.  Eventually need to add non-default
     // name if it's been set.
     Matcher matcher = Pattern.compile("default\\.").matcher(hiveSql);
@@ -539,7 +663,7 @@ abstract class SQLTranslator {
   }
 
   /**********************************************************************************************
-   * Insert releated
+   * DML releated
    **********************************************************************************************/
   protected String translateInsert(String hiveSql) throws TranslationException {
     StringBuilder sql = new StringBuilder();
@@ -552,6 +676,7 @@ abstract class SQLTranslator {
       int current = m.end();
       if (m.group(2) != null) {
         // chew through the partition definition, we don't care about it
+        // TODO - handle adding partition values to list if it makes sense.
         int level = 0;
         for (; current < hiveSql.length();  current++) {
           if (hiveSql.charAt(current) == '(') {
@@ -575,6 +700,35 @@ abstract class SQLTranslator {
       return sql.toString();
     } else {
       throw new TranslationException("insert", hiveSql);
+    }
+  }
+
+  protected String translateUpdate(String hiveSql) throws TranslationException {
+    StringBuilder sql = new StringBuilder();
+    Matcher m = Pattern.compile("update (" + tableNameRegex + ") set ").matcher(hiveSql);
+    if (m.lookingAt()) {
+      sql.append("update ")
+          .append(translateTableNames(m.group(1)))
+          .append(" set ")
+          .append(translateExpressions(hiveSql.substring(m.end())));
+      return sql.toString();
+    } else {
+      throw new TranslationException("update", hiveSql);
+    }
+  }
+
+  protected String translateDelete(String hiveSql) throws TranslationException {
+    StringBuilder sql = new StringBuilder();
+    Matcher m = Pattern.compile("delete from (" + tableNameRegex + ")").matcher(hiveSql);
+    if (m.lookingAt()) {
+      sql.append("delete from ")
+          .append(translateTableNames(m.group(1)));
+      if (m.end() < hiveSql.length()) {
+        sql.append(translateExpressions(hiveSql.substring(m.end())));
+      }
+      return sql.toString();
+    } else {
+      throw new TranslationException("delete", hiveSql);
     }
   }
 

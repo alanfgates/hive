@@ -19,11 +19,16 @@ package org.apache.hive.test.capybara.infra;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 public class TestDerbyTranslator {
   private DerbyStore store;
   private SQLTranslator translator;
+
+  @Rule
+  public ExpectedException thrown = ExpectedException.none();
 
   @Before
   public void getTranslator() {
@@ -168,6 +173,13 @@ public class TestDerbyTranslator {
     Assert.assertTrue(translator.isFailureOk());
     Assert.assertEquals("drop table db.t", translator.translate("drop table db.t"));
     Assert.assertEquals("drop table t", translator.translate("drop table t purge"));
+  }
+
+  @Test
+  public void alterTable() throws Exception {
+    thrown.expect(TranslationException.class);
+    thrown.expectMessage("Could not translate alter table rename, Hive SQL:");
+    translator.translate("alter table tab1 rename to tab2");
   }
 
   @Test

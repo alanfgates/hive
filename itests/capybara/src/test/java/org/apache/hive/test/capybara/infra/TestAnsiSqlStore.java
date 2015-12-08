@@ -89,6 +89,12 @@ public class TestAnsiSqlStore {
         }
 
         @Override
+        protected String translateAlterTableRename(String tableName, String remainder) throws
+            TranslationException {
+          return null;
+        }
+
+        @Override
         protected char identifierQuote() {
           return '"';
         }

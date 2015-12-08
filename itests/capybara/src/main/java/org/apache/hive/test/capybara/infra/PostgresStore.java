@@ -42,7 +42,7 @@ import java.util.regex.Pattern;
  * not.
  */
 class PostgresStore extends AnsiSqlStore {
-  private static final Logger LOG = LoggerFactory.getLogger(DerbyStore.class.getName());
+  private static final Logger LOG = LoggerFactory.getLogger(PostgresStore.class.getName());
 
   private static final String DELIMITER_STR = "\t";
   private static final String NULL_STR = "\\N";
@@ -150,6 +150,18 @@ class PostgresStore extends AnsiSqlStore {
       m = Pattern.compile(" binary").matcher(hiveSql);
       hiveSql = m.replaceAll(" blob");
       return hiveSql;
+    }
+
+    @Override
+    protected String translateAlterTableRename(String tableName, String remainder)
+        throws TranslationException {
+      Matcher m =
+          Pattern.compile("rename to (" + SQLTranslator.tableNameRegex + ")").matcher(remainder);
+      if (m.lookingAt()) {
+        return "alter table " + tableName + " rename to " + translateTableNames(m.group(1));
+      } else {
+        throw new TranslationException("alter table rename", remainder);
+      }
     }
 
     @Override

@@ -99,15 +99,6 @@ public class TestPostgresTranslator {
   }
 
   @Test
-  public void alterDatabase() throws Exception {
-    Assert.assertEquals("",
-        translator.translate("alter database db_alter_onr set owner user user1"));
-
-    Assert.assertEquals("",
-        translator.translate("alter schema db_alter_onr set owner user user1"));
-  }
-
-  @Test
   public void dropDatabase() throws Exception {
     Assert.assertEquals("drop schema add_part_test_db",
         translator.translate("DROP DATABASE add_part_test_db"));
@@ -199,6 +190,19 @@ public class TestPostgresTranslator {
     Assert.assertFalse(translator.isFailureOk());
     Assert.assertEquals("drop table db.t", translator.translate("drop table db.t"));
     Assert.assertEquals("drop table t", translator.translate("drop table t purge"));
+  }
+
+  @Test
+  public void alterTable() throws Exception {
+    Assert.assertEquals("alter table tab1 rename to tab2", translator.translate("alter table tab1 rename to tab2"));
+    Assert.assertEquals("", translator.translate("alter table test set fileformat orc"));
+    Assert.assertEquals("", translator.translate("alter table tst1 clustered by (key) into 8 buckets"));
+    Assert.assertEquals("", translator.translate("alter table fact_daily skewed by (key, value) on (('484','val_484'),('238','val_238')) stored as DIRECTORIES"));
+    Assert.assertEquals("", translator.translate("alter table skew_test.original3 not skewed"));
+    Assert.assertEquals("", translator.translate("alter table stored_as_dirs_multiple not stored as DIRECTORIES"));
+    Assert.assertEquals("", translator.translate("alter table T1 add partition (ds = 'today')"));
+    Assert.assertEquals("", translator.translate("alter table temp add if not exists partition (p ='p1')"));
+
   }
 
   @Test
@@ -333,19 +337,98 @@ public class TestPostgresTranslator {
 
   @Test
   public void insert() throws Exception {
-    Assert.assertEquals("insert into acidjoin1 values ('aaa', 35), ('bbb', 32), ('ccc', 32), ('ddd', 35), ('eee', 32)",
-        translator.translate("insert into table acidjoin1 values ('aaa', 35), ('bbb', 32), ('ccc', 32), ('ddd', 35), ('eee', 32)"));
-    Assert.assertEquals("insert into acid_vectorized select cint, cstring1 from alltypesorc where cint is not null order by cint limit 10",
-        translator.translate("insert into table acid_vectorized select cint, cstring1 from alltypesorc where cint is not null order by cint limit 10"));
-    Assert.assertEquals("insert into ac.alter_char_1 select key, value from src order by key limit 5",
-        translator.translate("insert overwrite table ac.alter_char_1   select key, value from src order by key limit 5"));
+    Assert.assertEquals(
+        "insert into acidjoin1 values ('aaa', 35), ('bbb', 32), ('ccc', 32), ('ddd', 35), ('eee', 32)",
+        translator.translate(
+            "insert into table acidjoin1 values ('aaa', 35), ('bbb', 32), ('ccc', 32), ('ddd', 35), ('eee', 32)"));
+    Assert.assertEquals(
+        "insert into acid_vectorized select cint, cstring1 from alltypesorc where cint is not null order by cint limit 10",
+        translator.translate(
+            "insert into table acid_vectorized select cint, cstring1 from alltypesorc where cint is not null order by cint limit 10"));
+    Assert.assertEquals(
+        "insert into ac.alter_char_1 select key, value from src order by key limit 5",
+        translator.translate(
+            "insert overwrite table ac.alter_char_1   select key, value from src order by key limit 5"));
     Assert.assertEquals("insert into acid values(\"foo\", \"bar\")",
-        translator.translate("insert into table acid partition(ds='2008-04-08') values(\"foo\", \"bar\")"));
+        translator.translate(
+            "insert into table acid partition(ds='2008-04-08') values(\"foo\", \"bar\")"));
     Assert.assertEquals("insert into acid select key,value,ds from srcpart",
-        translator.translate("insert into table acid partition(ds)  select key,value,ds from srcpart"));
+        translator.translate(
+            "insert into table acid partition(ds)  select key,value,ds from srcpart"));
     Assert.assertEquals("insert into tab_part select key,value from srcbucket_mapjoin_part",
-        translator.translate("insert overwrite table tab_part partition (ds='2008-04-08') select key,value from srcbucket_mapjoin_part"));
+        translator.translate(
+            "insert overwrite table tab_part partition (ds='2008-04-08') select key,value from srcbucket_mapjoin_part"));
+  }
 
+  @Test
+  public void update() throws Exception {
+    Assert.assertEquals("update t_auth_up set j = 0 where i > 0",
+        translator.translate("update t_auth_up set j = 0 where i > 0"));
+    Assert.assertEquals("update acid set value = 'bar'",
+        translator.translate("update acid set value = 'bar'"));
+  }
+
+  @Test
+  public void delete() throws Exception {
+    Assert.assertEquals("delete from acid_iud",
+        translator.translate("delete from acid_iud"));
+    Assert.assertEquals("delete from acid where key = 'foo' and ds='2008-04-08'",
+        translator.translate("delete from acid where key = 'foo' and ds='2008-04-08'"));
+  }
+
+  @Test
+  public void nullTranslator() throws Exception {
+    Assert.assertEquals("", translator.translate("show tables"));
+    Assert.assertEquals("", translator.translate("describe t"));
+    Assert.assertEquals("", translator.translate("explain select * from t"));
+    Assert.assertEquals("", translator.translate("analyze table src_rc_merge_test_stat compute statistics"));
+    Assert.assertEquals("", translator.translate("grant select on table src_auth_tmp to user hive_test_user"));
+    Assert.assertEquals("", translator.translate("revoke select on table src_autho_test from user hive_test_user"));
+    Assert.assertEquals("", translator.translate("create index t1_index on table t1(a) as 'COMPACT' WITH DEFERRED REBUILD"));
+    Assert.assertEquals("", translator.translate("alter index t1_index on t1 rebuild"));
+    Assert.assertEquals("", translator.translate("drop index src_index_2 on src"));
+    Assert.assertEquals("", translator.translate("create role role1"));
+    Assert.assertEquals("", translator.translate("drop role sRc_roLE"));
+    Assert.assertEquals("", translator.translate("set role ADMIN"));
+    Assert.assertEquals("", translator.translate("alter database db_alter_onr set owner user user1"));
+    Assert.assertEquals("", translator.translate("alter schema db_alter_onr set owner user user1"));
+  }
+
+  @Test
+  public void createFunction() throws Exception {
+    thrown.expect(TranslationException.class);
+    thrown.expectMessage("Could not translate create function, Hive SQL:");
+    translator.translate(
+        "create function lookup as 'org.apache.hadoop.hive.ql.udf.UDFFileLookup' using file 'hdfs:///tmp/udf_using/sales.txt'");
+  }
+
+  @Test
+  public void createTemporaryFunction() throws Exception {
+    thrown.expect(TranslationException.class);
+    thrown.expectMessage("Could not translate create function, Hive SQL:");
+    translator.translate(
+        "create temporary function udtfCount2 as 'org.apache.hadoop.hive.contrib.udtf.example.GenericUDTFCount2'");
+  }
+
+  @Test
+  public void reloadFunction() throws Exception {
+    thrown.expect(TranslationException.class);
+    thrown.expectMessage("Could not translate reload function, Hive SQL:");
+    translator.translate("reload function");
+  }
+
+  @Test
+  public void dropFunction() throws Exception {
+    thrown.expect(TranslationException.class);
+    thrown.expectMessage("Could not translate drop function, Hive SQL:");
+    translator.translate("drop function perm_fn");
+  }
+
+  @Test
+  public void dropTemporaryFunction() throws Exception {
+    thrown.expect(TranslationException.class);
+    thrown.expectMessage("Could not translate drop function, Hive SQL:");
+    translator.translate("drop temporary function matchpathtest");
   }
 
   @Test

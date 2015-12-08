@@ -123,6 +123,7 @@ public class CapyEndPoint extends HiveEndPoint {
     private final ObjectInspector[] colInspectors;
     private final Row partRow;
     private final PreparedStatement preparedStatement;
+    private boolean isClosed;
 
     public CapyTransactionBatch(TransactionBatch hiveBatch, Connection conn,
                                 RecordWriter writer) throws SerializationError, SerDeException {
@@ -153,6 +154,7 @@ public class CapyEndPoint extends HiveEndPoint {
       } catch (SQLException e) {
         throw new RuntimeException(e);
       }
+      isClosed = false;
     }
 
     @Override
@@ -242,5 +244,9 @@ public class CapyEndPoint extends HiveEndPoint {
       hiveBatch.close();
     }
 
+    @Override
+    public boolean isClosed() {
+      return isClosed;
+    }
   }
 }
