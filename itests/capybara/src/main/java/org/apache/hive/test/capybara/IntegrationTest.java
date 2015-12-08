@@ -174,6 +174,9 @@ public abstract class IntegrationTest {
     // Allow dynamic partitioning, as we need it.
     set(HiveConf.ConfVars.DYNAMICPARTITIONINGMODE.varname, "nonstrict");
 
+    // Turn off strict mode, which stops certain queries.
+    set(HiveConf.ConfVars.HIVEMAPREDMODE.varname, "nonstrict");
+
     // Set default file format to whatever has been chosen for this test, so we
     // automatically get the right file format.
     set(HiveConf.ConfVars.HIVEDEFAULTFILEFORMAT.varname, TestConf.fileFormat());

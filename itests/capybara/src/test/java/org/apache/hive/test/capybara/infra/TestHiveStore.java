@@ -50,6 +50,7 @@ public class TestHiveStore {
   public static void setup() throws IOException {
     conf = new HiveConf();
     conf.setVar(HiveConf.ConfVars.DYNAMICPARTITIONINGMODE, "nonstrict");
+    conf.setVar(HiveConf.ConfVars.HIVEMAPREDMODE, "nonstrict");
     TestConf.setEngine(TestConf.ENGINE_UNSPECIFIED);
     mgr = new MiniClusterManager();
     mgr.setConf(conf);

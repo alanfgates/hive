@@ -18,6 +18,7 @@
 package org.apache.hive.test.capybara.infra;
 
 import org.apache.hadoop.crypto.key.KeyProviderCryptoExtension;
+import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
 import org.apache.hadoop.hive.shims.Utils;
 
 import org.apache.hive.test.capybara.iface.ClusterManager;
@@ -143,7 +144,7 @@ public class MiniClusterManager implements ClusterManager {
       	LOG.error("failed setup: ", e);
       }
 
-      HiveConf.setVar(conf, HiveConf.ConfVars.HADOOPFS, nameNodeUri);
+      conf.set(CommonConfigurationKeysPublic.FS_DEFAULT_NAME_KEY, nameNodeUri);
     } else if (TestConf.engine().equals(TestConf.ENGINE_UNSPECIFIED)) {
       // ok, hope you know what you're doing
     } else {
