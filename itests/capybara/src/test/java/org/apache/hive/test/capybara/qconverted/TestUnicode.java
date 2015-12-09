@@ -20,14 +20,14 @@ package org.apache.hive.test.capybara.qconverted;
 import org.apache.hive.test.capybara.IntegrationTest;
 import org.apache.hive.test.capybara.iface.TestTable;
 import org.apache.hive.test.capybara.infra.StaticDataGenerator;
-import org.junit.Test;
+import org.junit.Ignore;
 
 import java.util.Arrays;
 import java.util.List;
 
 public class TestUnicode extends IntegrationTest {
 
-  @Test
+  @Ignore
   public void unicodeData() throws Exception {
     TestTable uni = TestTable.getBuilder("unitable")
         .addCol("a", "varchar(20)")

@@ -19,6 +19,7 @@ package org.apache.hive.test.capybara.infra;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -196,7 +197,8 @@ public class TestPostgresTranslator {
   public void alterTable() throws Exception {
     Assert.assertEquals("alter table tab1 rename to tab2", translator.translate("alter table tab1 rename to tab2"));
     Assert.assertEquals("", translator.translate("alter table test set fileformat orc"));
-    Assert.assertEquals("", translator.translate("alter table tst1 clustered by (key) into 8 buckets"));
+    Assert.assertEquals("",
+        translator.translate("alter table tst1 clustered by (key) into 8 buckets"));
     Assert.assertEquals("", translator.translate("alter table fact_daily skewed by (key, value) on (('484','val_484'),('238','val_238')) stored as DIRECTORIES"));
     Assert.assertEquals("", translator.translate("alter table skew_test.original3 not skewed"));
     Assert.assertEquals("", translator.translate("alter table stored_as_dirs_multiple not stored as DIRECTORIES"));
@@ -224,6 +226,29 @@ public class TestPostgresTranslator {
         translator.translate("select distinct l_partkey as p_partkey from   Lineitem"));
     Assert.assertEquals("select all l_partkey as p_partkey from lineitem",
         translator.translate("select all l_partkey as p_partkey from   Lineitem"));
+  }
+
+  @Ignore
+  public void selectInterval() throws Exception {
+    thrown.expect(TranslationException.class);
+    thrown.expectMessage("Could not translate interval, Hive SQL:");
+    translator.translate(
+        "select   interval '10-11' year to month,   interval '10' year,   interval '11' month from src limit 1");
+  }
+
+  @Ignore
+  public void selectConstantCasts() throws Exception {
+    Assert.assertEquals("select dateval - date '1999-06-07' from interval_arithmetic_1",
+        translator.translate("select dateval - date '1999-06-07' from interval_arithmetic_1"));
+    Assert.assertEquals("select dateval - date '1999-06-07' from interval_arithmetic_1",
+        translator.translate("select dateval - date '1999-6-7' from interval_arithmetic_1"));
+    Assert.assertEquals("select timestamp '1999-01-01 01:00:00' from interval_arithmetic_1",
+        translator.translate("select timestamp '1999-01-01 01:00:00' from interval_arithmetic_1"));
+    Assert.assertEquals("select timestamp '1999-01-01 01:00:00' from interval_arithmetic_1",
+        translator.translate("select timestamp '1999-1-1 01:00:00' from interval_arithmetic_1"));
+    Assert.assertEquals("select 101, -101, 100, -100, 100.00 from t",
+        translator.translate("select 101Y, -101S, 100, -100L, 100.00BD from T"));
+
   }
 
   @Test

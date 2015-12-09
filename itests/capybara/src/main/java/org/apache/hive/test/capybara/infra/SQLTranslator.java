@@ -22,10 +22,8 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -41,6 +39,8 @@ abstract class SQLTranslator {
 
   protected static final String idRegex = "[a-zA-Z0-9_]+";
   protected static final String tableNameRegex = "(?:" + idRegex + "\\.)?" + idRegex;
+  protected static final String QUOTE_START = "CQ_";
+  protected static final String QUOTE_END = "_QC";
 
   /**
    * If true, it's ok if this SQL fails to run on the benchmark.  This is used to mask the fact
@@ -507,8 +507,9 @@ abstract class SQLTranslator {
   }
 
   protected String translateConstants(String hiveSql) throws TranslationException {
-    // TODO - test this
-    if (hiveSql.contains(" interval '")) {
+    return hiveSql;
+    /*
+    if (hiveSql.contains(" interval ")) {
       LOG.error("Interval type not yet supported.");
       throw new TranslationException("interval", hiveSql);
     }
@@ -522,11 +523,22 @@ abstract class SQLTranslator {
     }
 
     // Make sure all dates and timestamps have 2 digit months
-    p = Pattern.compile("(date|timestamp) '([0-9]{4})-([0-9])");
+    p = Pattern.compile("(date|timestamp) (" + QUOTE_START + "[0-9]+" + QUOTE_END + ")");
+    Pattern qpm = Pattern.compile("(date|timestamp) '([0-9]{4})-([0-9])");
     m = p.matcher(benchSql);
-    while (m.find()) {
+    int current = 0;
+    while (m.find(current)) {
+      // The quotes have been replaced for safety.  We have to go into the quote map and check
+      // that this quote is ok
+      Quote quote = quotes.get(m.group(1));
+      Matcher qm = qpm.matcher(quote.value);
+
+      // TODO fix the month
+
+      // TODO fix the day
+
       benchSql = m.replaceFirst(m.group(1) + " '" + m.group(2) + "-0" + m.group(3));
-      m = p.matcher(benchSql);
+      current = m.end();
     }
 
     // Make sure all dates and timestamps have 2 digit days
@@ -538,6 +550,7 @@ abstract class SQLTranslator {
       m = p.matcher(benchSql);
     }
     return benchSql;
+    */
   }
 
   private String translateCasts(String hiveSql) throws TranslationException {
@@ -690,6 +703,7 @@ abstract class SQLTranslator {
           }
         }
       }
+      // TODO handle column names listed in insert
       // We might have a select, or we might have a values
       String remaining = hiveSql.substring(current).trim();
       if (remaining.startsWith("values")) {
@@ -748,7 +762,7 @@ abstract class SQLTranslator {
     }
   }
 
-  private Set<Quote> quotes = new HashSet<>();
+  private Map<String, Quote> quotes = new HashMap<>();
   private static int numQuotes = 1;
 
   private String deQuote(String hiveSql) {
@@ -773,11 +787,10 @@ abstract class SQLTranslator {
         quoteValue.append(c);
       } else if (c != currentQuote && prev == currentQuote) {
         // okay, now we've seen a closing quote and the next char is not another quote, so close it.
-        output.append("CAPYQUOTE_")
-            .append(numQuotes)
-            .append("_ETOUQYPAC");
+        String marker = QUOTE_START + numQuotes + QUOTE_END;
+        output.append(marker);
         quoteValue.setLength(quoteValue.length() - 1); // trim the final quote
-        quotes.add(new Quote(numQuotes++, currentQuote, quoteValue.toString()));
+        quotes.put(marker, new Quote(numQuotes++, currentQuote, quoteValue.toString()));
         quoteValue = new StringBuilder();
         currentQuote = 0;
         prev = 0;
@@ -792,19 +805,18 @@ abstract class SQLTranslator {
     }
     // We could have ended on the quote
     if (currentQuote != 0 && (prev == '`' || prev == '"' || prev == '\'')) {
-      output.append("CAPYQUOTE_")
-          .append(numQuotes)
-          .append("_ETOUQYPAC");
+      String marker = QUOTE_START + numQuotes + QUOTE_END;
+      output.append(marker);
       quoteValue.setLength(quoteValue.length() - 1); // trim the final quote
-      quotes.add(new Quote(numQuotes, currentQuote, quoteValue.toString()));
+      quotes.put(marker, new Quote(numQuotes, currentQuote, quoteValue.toString()));
     }
 
     return output.toString();
   }
 
   private String reQuote(String benchSql) {
-    for (Quote quote : quotes) {
-      Matcher m = Pattern.compile("CAPYQUOTE_" + quote.number + "_ETOUQYPAC").matcher(benchSql);
+    for (Quote quote : quotes.values()) {
+      Matcher m = Pattern.compile(QUOTE_START + quote.number + QUOTE_END).matcher(benchSql);
       if (quote.quoteType == '`') {
         benchSql = m.replaceAll(identifierQuote() + quote.value + identifierQuote());
       } else {

@@ -265,10 +265,10 @@ public class DerbyStore extends AnsiSqlStore {
     @Override
     protected String translateConstants(String hiveSql) throws TranslationException {
       String benchSql = super.translateConstants(hiveSql);
-      Matcher m = Pattern.compile("date '").matcher(benchSql);
-      benchSql = m.replaceAll("'");
-      m = Pattern.compile("timestamp '").matcher(benchSql);
-      benchSql = m.replaceAll("'");
+      Matcher m = Pattern.compile("date " + QUOTE_START).matcher(benchSql);
+      benchSql = m.replaceAll(QUOTE_START);
+      m = Pattern.compile("timestamp " + QUOTE_START).matcher(benchSql);
+      benchSql = m.replaceAll(QUOTE_START);
       return benchSql;
     }
 

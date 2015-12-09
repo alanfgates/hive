@@ -19,6 +19,7 @@ package org.apache.hive.test.capybara.infra;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -187,5 +188,17 @@ public class TestDerbyTranslator {
     Assert.assertEquals("select key from src_autho_test order by key",
         translator.translate("select key from src_autho_test order by key limit 20"));
     Assert.assertEquals(20, store.getLimit());
+  }
+
+  @Ignore
+  public void constantCast() throws Exception {
+    Assert.assertEquals("select dateval - '1999-06-07' from interval_arithmetic_1",
+        translator.translate("select   dateval - date '1999-06-07' from interval_arithmetic_1"));
+    Assert.assertEquals("select dateval - '1999-06-07' from interval_arithmetic_1",
+        translator.translate("select   dateval - date '1999-6-7' from interval_arithmetic_1"));
+    Assert.assertEquals("select '1999-01-01 01:00:00' from interval_arithmetic_1",
+        translator.translate("select timestamp '1999-01-01 01:00:00' from interval_arithmetic_1"));
+    Assert.assertEquals("select '1999-01-01 01:00:00' from interval_arithmetic_1",
+        translator.translate("select timestamp '1999-1-1 01:00:00' from interval_arithmetic_1"));
   }
 }
