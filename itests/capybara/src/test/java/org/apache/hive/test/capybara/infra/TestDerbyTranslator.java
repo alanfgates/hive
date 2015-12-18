@@ -19,7 +19,6 @@ package org.apache.hive.test.capybara.infra;
 
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -190,7 +189,7 @@ public class TestDerbyTranslator {
     Assert.assertEquals(20, store.getLimit());
   }
 
-  @Ignore
+  @Test
   public void constantCast() throws Exception {
     Assert.assertEquals("select dateval - '1999-06-07' from interval_arithmetic_1",
         translator.translate("select   dateval - date '1999-06-07' from interval_arithmetic_1"));

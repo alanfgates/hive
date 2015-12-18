@@ -19,7 +19,6 @@ package org.apache.hive.test.capybara.infra;
 
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -228,7 +227,7 @@ public class TestPostgresTranslator {
         translator.translate("select all l_partkey as p_partkey from   Lineitem"));
   }
 
-  @Ignore
+  @Test
   public void selectInterval() throws Exception {
     thrown.expect(TranslationException.class);
     thrown.expectMessage("Could not translate interval, Hive SQL:");
@@ -236,7 +235,7 @@ public class TestPostgresTranslator {
         "select   interval '10-11' year to month,   interval '10' year,   interval '11' month from src limit 1");
   }
 
-  @Ignore
+  @Test
   public void selectConstantCasts() throws Exception {
     Assert.assertEquals("select dateval - date '1999-06-07' from interval_arithmetic_1",
         translator.translate("select dateval - date '1999-06-07' from interval_arithmetic_1"));

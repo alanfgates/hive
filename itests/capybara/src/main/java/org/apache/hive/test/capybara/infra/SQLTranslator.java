@@ -507,8 +507,7 @@ abstract class SQLTranslator {
   }
 
   protected String translateConstants(String hiveSql) throws TranslationException {
-    return hiveSql;
-    /*
+    //return hiveSql;
     if (hiveSql.contains(" interval ")) {
       LOG.error("Interval type not yet supported.");
       throw new TranslationException("interval", hiveSql);
@@ -524,33 +523,31 @@ abstract class SQLTranslator {
 
     // Make sure all dates and timestamps have 2 digit months
     p = Pattern.compile("(date|timestamp) (" + QUOTE_START + "[0-9]+" + QUOTE_END + ")");
-    Pattern qpm = Pattern.compile("(date|timestamp) '([0-9]{4})-([0-9])");
+    Pattern qpm = Pattern.compile("([0-9]{4})-([0-9])-");
+    Pattern qpd = Pattern.compile("([0-9]{4})-([0-9]{2})-([0-9])( .*)?");
     m = p.matcher(benchSql);
     int current = 0;
     while (m.find(current)) {
       // The quotes have been replaced for safety.  We have to go into the quote map and check
       // that this quote is ok
-      Quote quote = quotes.get(m.group(1));
+      Quote quote = quotes.get(m.group(2));
+      // fix the month if we need to
       Matcher qm = qpm.matcher(quote.value);
+      if (qm.find()) {
+        quote.value = qm.replaceFirst(qm.group(1) + "-0" + qm.group(2) + "-");
+      }
 
-      // TODO fix the month
-
-      // TODO fix the day
-
-      benchSql = m.replaceFirst(m.group(1) + " '" + m.group(2) + "-0" + m.group(3));
+      // fix the day if we need to
+      Matcher qd = qpd.matcher(quote.value);
+      if (qd.matches()) {
+        quote.value = qd.replaceFirst(qd.group(1) + "-" + qd.group(2) + "-0" + qd.group(3)
+          + (qd.group(4) == null ? "" : qd.group(4)));
+      }
       current = m.end();
     }
 
     // Make sure all dates and timestamps have 2 digit days
-    p = Pattern.compile("(date|timestamp) '([0-9]{4})-([0-9]{2})-([0-9])");
-    m = p.matcher(benchSql);
-    while (m.find()) {
-      benchSql =
-          m.replaceFirst(m.group(1) + " '" + m.group(2) + "-" + m.group(3) + "-0" + m.group(4));
-      m = p.matcher(benchSql);
-    }
     return benchSql;
-    */
   }
 
   private String translateCasts(String hiveSql) throws TranslationException {
@@ -753,7 +750,7 @@ abstract class SQLTranslator {
   private class Quote {
     final int number;
     final char quoteType;
-    final String value;
+    String value;
 
     public Quote(int number, char quoteType, String value) {
       this.number = number;
