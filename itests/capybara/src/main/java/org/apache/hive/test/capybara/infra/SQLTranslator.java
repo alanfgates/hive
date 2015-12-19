@@ -90,6 +90,8 @@ abstract class SQLTranslator {
       benchSql = translateDropTable(trimmed);
     } else if (Pattern.compile("alter table").matcher(trimmed).lookingAt()) {
       benchSql = translateAlterTable(trimmed);
+    } else if (Pattern.compile("msck (repair )?table").matcher(trimmed).lookingAt()) {
+      benchSql = "";
     } else if (Pattern.compile("show").matcher(trimmed).lookingAt()) {
       benchSql = "";
     } else if (Pattern.compile("describe").matcher(trimmed).lookingAt()) {
@@ -306,7 +308,31 @@ abstract class SQLTranslator {
     if (m.lookingAt()) {
       String tableName = translateTableNames(m.group(1));
       String remainder = hiveSql.substring(m.end());
-      if (remainder.startsWith("rename to")) return translateAlterTableRename(tableName, remainder);
+
+      // See if this has a partition clause after the table name (though some types put it after
+      // the verb, see what I meant about the whiskey?).  If it does, parse through that and
+      // remember the values in case we need them.
+      String partition = null;
+      if (remainder.startsWith("partition")) {
+        partition = parsePartition(remainder);
+        remainder = remainder.substring(partition.length()).trim();
+        /*
+        partition = parsePartition(remainder.substring("partition ".length()));
+        // The +2 is to account for the (), which aren't included in the parsed out partition string
+        remainder = remainder.substring("partition ".length() + partition.length() + 2).trim();
+        */
+      }
+
+      if (remainder.startsWith("rename to")) {
+        if (partition == null) {
+          return translateAlterTableRename(tableName, remainder);
+        } else {
+          // TODO - once we can parse out partition values we can support this, as it's just an
+          // update.
+          LOG.error("alter table partition rename not yet supported");
+          throw new TranslationException("alter table partition rename", hiveSql);
+        }
+      }
       if (remainder.startsWith("set")) return "";
       if (remainder.startsWith("clustered by")) return "";
       if (remainder.startsWith("skewed by")) return "";
@@ -316,29 +342,28 @@ abstract class SQLTranslator {
           remainder.startsWith("add if not exists partition")) {
         return "";
       }
-
-      // This is really an alter partition.  We need to parse through the partition and possibly
-      // translate it.
-      if (remainder.startsWith("partition (")) {
-        String partition = parsePartition(remainder.substring("partition ".length()));
-        String afterPartition =
-            remainder.substring("partition ".length() + partition.length()).trim();
-
-        if (afterPartition.startsWith("rename to partition ")) {
-          String secondPartition =
-              parsePartition(afterPartition.substring("rename to partition ".length()));
-        }
-
-
+      if (remainder.startsWith("drop partition") ||
+          remainder.startsWith("drop if exists partition")) {
+        return "";
+      }
+      if (remainder.startsWith("exchange")) {
+        LOG.error("alter table exchange partition not supported");
+        throw new TranslationException("alter table exchange", hiveSql);
+      }
+      if (remainder.startsWith("archive")) return "";
+      if (remainder.startsWith("unarchive")) return "";
+      if (remainder.startsWith("touch")) return "";
+      if (remainder.startsWith("enable")) return "";
+      if (remainder.startsWith("disable")) return "";
+      if (remainder.startsWith("compact")) return "";
+      if (remainder.startsWith("concatenate")) return "";
+      if (remainder.startsWith("change")) {
+        LOG.error("alter table change column not supported, as changing data types is seriously " +
+            "dicey and we can't tell whether the datatype is being changed or not.");
+        throw new TranslationException("alter table change column", hiveSql);
       }
 
-
-      // TODO - Partitions ones to deal with
-      // TODO - rename
-      // TODO - set
-
-
-      return "oops";
+      throw new TranslationException("unknown alter table", hiveSql);
 
     } else {
       throw new TranslationException("alter table", hiveSql);
@@ -347,16 +372,17 @@ abstract class SQLTranslator {
   }
 
   private String parsePartition(String hiveSql) throws TranslationException {
-    StringBuilder sql = new StringBuilder();
-    int level = 0;
-    for (int i = 0; i < hiveSql.length(); i++) {
-      if (hiveSql.charAt(i) == '(') {
-        if (level++ > 0) sql.append('(');
-      } else if (hiveSql.charAt(i) == ')') {
-        if (--level == 0) return sql.toString();
-        else sql.append(')');
-      } else {
+    Matcher m = Pattern.compile("(partition ?)").matcher(hiveSql);
+    if (m.lookingAt()) {
+      StringBuilder sql = new StringBuilder(m.group());
+      int level = 0;
+      for (int i = m.group().length(); i < hiveSql.length(); i++) {
         sql.append(hiveSql.charAt(i));
+        if (hiveSql.charAt(i) == '(') {
+          level++;
+        } else if (hiveSql.charAt(i) == ')') {
+          if (--level == 0) return sql.toString();
+        }
       }
     }
     throw new TranslationException("partition", hiveSql);

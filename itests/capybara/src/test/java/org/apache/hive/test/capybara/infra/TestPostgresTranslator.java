@@ -203,9 +203,50 @@ public class TestPostgresTranslator {
     Assert.assertEquals("", translator.translate("alter table stored_as_dirs_multiple not stored as DIRECTORIES"));
     Assert.assertEquals("", translator.translate("alter table T1 add partition (ds = 'today')"));
     Assert.assertEquals("", translator.translate("alter table temp add if not exists partition (p ='p1')"));
+    Assert.assertEquals("", translator.translate("MSCK TABLE repairtable"));
+    Assert.assertEquals("", translator.translate("MSCK REPAIR TABLE default.repairtable"));
+    Assert.assertEquals("", translator.translate("alter table repl_employee drop partition (emp_country=\"us\", emp_state=\"ca\")"));
+    Assert.assertEquals("", translator.translate("alter table dmp.mp drop if exists partition (b='3')"));
+    Assert.assertEquals("", translator.translate("ALTER TABLE tstsrcpart ARCHIVE PARTITION (ds='2008-04-08', hr='12')"));
+    Assert.assertEquals("", translator.translate("ALTER TABLE tstsrcpart UNARCHIVE PARTITION (ds='2008-04-08', hr='12')"));
+    Assert.assertEquals("", translator.translate("alter table T2 touch"));
+    Assert.assertEquals("", translator.translate("alter table T4 touch partition (ds='tomorrow')"));
+    Assert.assertEquals("", translator.translate("alter table T1 compact 'major'"));
+    Assert.assertEquals("", translator.translate("alter table tgt_rc_merge_test concatenate"));
+    Assert.assertEquals("", translator.translate("alter table partcoltypenum partition(tint=100BD, sint=20000S, bint=300000000000L) set location \"file:/test/test/tint=1/sint=2/bint=3\""));
+    Assert.assertEquals("", translator.translate("alter table T1 partition (ds = 'today') compact 'major'"));
+    Assert.assertEquals("", translator.translate("ALTER table escape2 PARTITION (ds='1', part=' ') CONCATENATE"));
 
   }
 
+  @Test
+  public void alterTableExchange() throws Exception {
+    thrown.expect(TranslationException.class);
+    thrown.expectMessage("Could not translate alter table exchange, Hive SQL:");
+    translator.translate(
+        "ALTER TABLE exchange_part_test1 EXCHANGE PARTITION (ds='2013-04-05', hr='1') WITH TABLE exchange_part_test2;");
+  }
+
+  @Test
+  public void alterTableChangeColumn() throws Exception {
+    thrown.expect(TranslationException.class);
+    thrown.expectMessage("Could not translate alter table change column, Hive SQL:");
+    translator.translate("alter table dummy change col1 col1 string comment '한글_col1'");
+  }
+
+  @Test
+  public void alterTableChangeColumnPartition() throws Exception {
+    thrown.expect(TranslationException.class);
+    thrown.expectMessage("Could not translate alter table change column, Hive SQL:");
+    translator.translate("alter table partcoltypenum partition (tint=110Y, sint=22000S, bint=330000000000L) change key key decimal(10,0)");
+  }
+
+  @Test
+  public void alterTableRenamePartition() throws Exception {
+    thrown.expect(TranslationException.class);
+    thrown.expectMessage("Could not translate alter table partition rename, Hive SQL:");
+    translator.translate("alter table partcoltypenum partition(tint=100, sint=20000, bint=300000000000) rename to partition (tint=110Y, sint=22000S, bint=330000000000L)");
+  }
   @Test
   public void selectSimple() throws Exception {
     Assert.assertEquals("select * from add_part_test",
