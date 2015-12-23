@@ -156,7 +156,7 @@ class PostgresStore extends AnsiSqlStore {
     protected String translateAlterTableRename(String tableName, String remainder)
         throws TranslationException {
       Matcher m =
-          Pattern.compile("rename to (" + SQLTranslator.tableNameRegex + ")").matcher(remainder);
+          Pattern.compile("rename to (" + SQLTranslator.TABLE_NAME_REGEX + ")").matcher(remainder);
       if (m.lookingAt()) {
         return "alter table " + tableName + " rename to " + translateTableNames(m.group(1));
       } else {

@@ -246,7 +246,7 @@ public class DerbyStore extends AnsiSqlStore {
     @Override
     protected String translateDropTable(String hiveSql) throws TranslationException {
       // Need to remove purge and 'if exists' if they are there
-      Matcher m = Pattern.compile("drop table (if exists )?(" + tableNameRegex + ")").matcher(hiveSql);
+      Matcher m = Pattern.compile("drop table (if exists )?(" + TABLE_NAME_REGEX + ")").matcher(hiveSql);
       if (m.lookingAt()) {
         if (m.group(1) != null) failureOk = true;
         return "drop table " + m.group(2);

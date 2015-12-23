@@ -17,9 +17,11 @@
  */
 package org.apache.hive.test.capybara.infra;
 
+import org.apache.hadoop.hive.common.ObjectPair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -37,10 +39,13 @@ import java.util.regex.Pattern;
 abstract class SQLTranslator {
   private static final Logger LOG = LoggerFactory.getLogger(SQLTranslator.class.getName());
 
-  protected static final String idRegex = "[a-zA-Z0-9_]+";
-  protected static final String tableNameRegex = "(?:" + idRegex + "\\.)?" + idRegex;
+  protected static final String ID_REGEX = "[a-zA-Z0-9_]+";
+  protected static final String TABLE_NAME_REGEX = "(?:" + ID_REGEX + "\\.)?" + ID_REGEX;
   protected static final String QUOTE_START = "CQ_";
   protected static final String QUOTE_END = "_QC";
+  protected static final String QUOTE_REGEX = QUOTE_START + "[0-9]+" + QUOTE_END;
+  protected static final String NUMERIC_CONSTANT_REGEX = "([0-9]+)(l|s|y|bd)";
+
 
   /**
    * If true, it's ok if this SQL fails to run on the benchmark.  This is used to mask the fact
@@ -102,7 +107,7 @@ abstract class SQLTranslator {
       benchSql = "";
     } else if (Pattern.compile("drop (database|schema)").matcher(trimmed).lookingAt()) {
       benchSql = translateDropDatabase(trimmed);
-    } else if (Pattern.compile("use (" + idRegex +")").matcher(trimmed).lookingAt()) {
+    } else if (Pattern.compile("use (" + ID_REGEX +")").matcher(trimmed).lookingAt()) {
       benchSql = translateUseDatabase(m.group(1));
     } else if (Pattern.compile("analyze").matcher(trimmed).lookingAt()) {
       benchSql = "";
@@ -135,10 +140,10 @@ abstract class SQLTranslator {
     return reQuote(benchSql);
 
     // TODO:
-    // alter table
     // alter view
     // create view
     // drop view
+    // load
     // truncate table - have to handle truncate partition and weird partition casts
     // with
   }
@@ -163,7 +168,7 @@ abstract class SQLTranslator {
 
     // Remove any other modifiers (location, comment, dbproperties)...
     //m = Pattern.compile("create schema (?:if not exists )?([a-zA-Z0-9][a-zA-Z0-9_]*) .*").matcher(benchSql);
-    m = Pattern.compile("create schema (if not exists )?(" + idRegex + ")(?: .*)?").matcher(
+    m = Pattern.compile("create schema (if not exists )?(" + ID_REGEX + ")(?: .*)?").matcher(
         benchSql);
     if (m.lookingAt()) {
       return "create schema " + (m.group(1) == null ? "" : m.group(1)) + m.group(2);
@@ -192,17 +197,17 @@ abstract class SQLTranslator {
 
     // Look for like
     Matcher m = Pattern.compile("create (temporary |external )?table (if not exists )?(" +
-            tableNameRegex + ") like (" + tableNameRegex + ")").matcher(hiveSql);
+        TABLE_NAME_REGEX + ") like (" + TABLE_NAME_REGEX + ")").matcher(hiveSql);
     if (m.lookingAt()) return translateCreateTableLike(m);
 
     // Look for as
     m = Pattern.compile("create (temporary |external )?table (if not exists )?(" +
-        tableNameRegex + ") (?:.* )?as (select.*)").matcher(hiveSql);
+        TABLE_NAME_REGEX + ") (?:.* )?as (select.*)").matcher(hiveSql);
     if (m.lookingAt()) return translateCreateTableAs(m);
 
     // Must be your basic create table foo (x int ...) type
     m = Pattern.compile("create (temporary |external )?table (if not exists )?(" +
-        tableNameRegex + ") ?\\((.*)").matcher(hiveSql);
+        TABLE_NAME_REGEX + ") ?\\((.*)").matcher(hiveSql);
     if (m.lookingAt()) return translateCreateTableWithColDefs(m);
 
     throw new TranslationException("create table", hiveSql);
@@ -289,7 +294,7 @@ abstract class SQLTranslator {
 
   protected String translateDropTable(String hiveSql) throws TranslationException {
     // Need to remove purge if its there
-    Matcher m = Pattern.compile("drop table (if exists )?(" + tableNameRegex + ")").matcher(hiveSql);
+    Matcher m = Pattern.compile("drop table (if exists )?(" + TABLE_NAME_REGEX + ")").matcher(hiveSql);
     if (m.lookingAt()) {
       StringBuilder sql = new StringBuilder("drop table ");
       if (m.group(1) != null) sql.append(m.group(1));
@@ -304,7 +309,7 @@ abstract class SQLTranslator {
     // It has been said that enough monkeys pounding on typewriters would eventually produce the
     // complete works of Shakespeare.  In the case of Hive's alter table syntax someone gave the
     // monkeys whiskey first.
-    Matcher m = Pattern.compile("alter table (" + tableNameRegex + ") ").matcher(hiveSql);
+    Matcher m = Pattern.compile("alter table (" + TABLE_NAME_REGEX + ") ").matcher(hiveSql);
     if (m.lookingAt()) {
       String tableName = translateTableNames(m.group(1));
       String remainder = hiveSql.substring(m.end());
@@ -312,15 +317,10 @@ abstract class SQLTranslator {
       // See if this has a partition clause after the table name (though some types put it after
       // the verb, see what I meant about the whiskey?).  If it does, parse through that and
       // remember the values in case we need them.
-      String partition = null;
+      PartitionClause partition = null;
       if (remainder.startsWith("partition")) {
         partition = parsePartition(remainder);
-        remainder = remainder.substring(partition.length()).trim();
-        /*
-        partition = parsePartition(remainder.substring("partition ".length()));
-        // The +2 is to account for the (), which aren't included in the parsed out partition string
-        remainder = remainder.substring("partition ".length() + partition.length() + 2).trim();
-        */
+        remainder = remainder.substring(partition.length).trim();
       }
 
       if (remainder.startsWith("rename to")) {
@@ -371,17 +371,68 @@ abstract class SQLTranslator {
 
   }
 
-  private String parsePartition(String hiveSql) throws TranslationException {
-    Matcher m = Pattern.compile("(partition ?)").matcher(hiveSql);
+  private class PartitionClause {
+    final int length;
+    final List<ObjectPair<String, String>> partKeyVals; // val might be null
+
+    public PartitionClause(int length, List<ObjectPair<String, String>> partKeyVals) {
+      this.length = length;
+      this.partKeyVals = partKeyVals;
+    }
+  }
+
+  private PartitionClause parsePartition(String hiveSql) throws TranslationException {
+    // Find the end of the partition clause.  We've masked out the quotes so there shouldn't be
+    // any close parends left.
+    int endPartition = hiveSql.indexOf(')');
+    if (endPartition == -1) {
+      throw new TranslationException("partition", hiveSql);
+    }
+
+    // Run the whole thing through the constant translator
+    String benchSql = translateConstants(hiveSql.substring(0, endPartition + 1));
+
+    int length = 0;
+    List<ObjectPair<String, String>> partKeyValues = new ArrayList<>();
+    Matcher m = Pattern.compile("(partition ?\\()").matcher(benchSql);
+    // I can just read until the next comma or close parend because I've already turned the
+    // quotes into identifiers to avoid issues.
+    Pattern keyValue = Pattern.compile("(" + ID_REGEX + ") ?=(.+?)[,)]");
+    Pattern key = Pattern.compile(ID_REGEX);
     if (m.lookingAt()) {
-      StringBuilder sql = new StringBuilder(m.group());
-      int level = 0;
-      for (int i = m.group().length(); i < hiveSql.length(); i++) {
-        sql.append(hiveSql.charAt(i));
-        if (hiveSql.charAt(i) == '(') {
-          level++;
-        } else if (hiveSql.charAt(i) == ')') {
-          if (--level == 0) return sql.toString();
+      length += m.group().length();
+
+      while (true) {
+        if (benchSql.charAt(length) == ' ') length++;
+
+        // The next thing we see should be either an key = value or just key
+        Matcher kvm = keyValue.matcher(benchSql.substring(length));
+        if (kvm.lookingAt()) {
+          length += kvm.group().length() - 1; // subtract one to get rid of the , or )
+          partKeyValues.add(new ObjectPair<>(kvm.group(1), kvm.group(2).trim()));
+        } else {
+          Matcher km = key.matcher(benchSql.substring(length));
+          if (km.lookingAt()) {
+            length += km.group().length();
+            // This is just the key, so add just the key to the map
+            partKeyValues.add(new ObjectPair<>(km.group(), (String)null));
+          } else {
+            LOG.error("Expected to find 'partkey' or 'partkey = partval', but instead found: " +
+              benchSql.substring(length));
+            throw new TranslationException("partition", hiveSql);
+          }
+        }
+
+        // Okay, now we might see a comma next or a ).  If it's a comma we need to move length
+        // forward and do it again.  If it's ) we're done, time to return.
+        if (benchSql.charAt(length) == ' ') length++;
+        if (benchSql.charAt(length) == ')') {
+          return new PartitionClause(endPartition + 1,  partKeyValues);
+        } else if (benchSql.charAt(length) == ',') {
+          length++;
+        } else {
+          LOG.error("Expected to find ')' or ',' but instead found " + benchSql.charAt(length));
+          throw new TranslationException("partition", hiveSql);
         }
       }
     }
@@ -404,8 +455,21 @@ abstract class SQLTranslator {
    * Query related
    **********************************************************************************************/
   final protected String translateSelect(String hiveSql) throws TranslationException {
-    // First, find where the from starts.  Hive doesn't support subqueries in the projection
-    // list, so we don't need to worry about hitting the wrong from
+    return translateSelect(hiveSql, null);
+  }
+
+  /**
+   *
+   * @param hiveSql SQL from Hive
+   * @param extraProjections A set of key value pairs (picked up from a partition clause) that
+   *                         need to be added to the projection list of this select.  Some of the
+   *                         keys may have null values, which means they are already accounted
+   *                         for and can be ignored.
+   * @return
+   * @throws TranslationException
+   */
+  private String translateSelect(String hiveSql, List<ObjectPair<String, String>> extraProjections)
+      throws TranslationException {
     StringBuilder benchSql = new StringBuilder("select ");
     int current = 7; // pointer to our place in the SQL stream
 
@@ -422,6 +486,9 @@ abstract class SQLTranslator {
     int nextKeyword = findNextKeyword(hiveSql, current, Arrays.asList(" from ", " where ",
         " group by ", " having ", " union ", " order by ", " limit "));
     benchSql.append(translateExpressions(hiveSql.substring(current, nextKeyword)));
+    if (extraProjections != null) {
+      benchSql.append(appendPartitionProjection(hiveSql, extraProjections));
+    }
     current = nextKeyword;
 
     // Handle a from if it's there
@@ -502,6 +569,39 @@ abstract class SQLTranslator {
     return benchSql.toString();
   }
 
+  private String appendPartitionProjection(String hiveSql,
+                                           List<ObjectPair<String, String>> partKeyVals)
+      throws TranslationException {
+    // TODO For now we only support all dynamic or all static, trying to figure out how to mix and
+    // match them is challenging.
+    boolean allNull = true, allNotNull = true;
+    for (ObjectPair<String, String> kvp : partKeyVals) {
+      allNull &= kvp.getSecond() == null;
+      allNotNull &= kvp.getSecond() != null;
+    }
+    if (!allNotNull && !allNull) {
+      LOG.error("For now we require that all keys in a partition clause have values or none do.");
+      throw new TranslationException("partition", hiveSql);
+    }
+
+    // TODO Also, we assume that users gave the partition specification in the same order as the
+    // partition keys in the metadata.  If not, we'll have a problem.
+    // Fixing this will require having metadata for the table we're translating.
+
+    if (allNull) {
+      // The values are already in the projection list, so nothing to do.
+      return "";
+    }
+
+    StringBuilder sql = new StringBuilder();
+    for (ObjectPair<String, String> kvp : partKeyVals) {
+      sql.append(", ")
+          .append(kvp.getSecond());
+    }
+
+    return sql.toString();
+  }
+
   private int findNextKeyword(String hiveSql, int current, List<String> keywords) {
     int level = 0;
     for (int i = current; i < hiveSql.length(); i++) {
@@ -540,7 +640,7 @@ abstract class SQLTranslator {
     }
     // Remove the annotations Hive uses for bigint, etc.
     String benchSql = hiveSql;
-    Pattern p = Pattern.compile("([0-9]+)(l|s|y|bd)");
+    Pattern p = Pattern.compile(NUMERIC_CONSTANT_REGEX);
     Matcher m = p.matcher(benchSql);
     while (m.find()) {
       benchSql = m.replaceFirst(m.group(1)); // Get rid of the letter qualifier
@@ -548,7 +648,7 @@ abstract class SQLTranslator {
     }
 
     // Make sure all dates and timestamps have 2 digit months
-    p = Pattern.compile("(date|timestamp) (" + QUOTE_START + "[0-9]+" + QUOTE_END + ")");
+    p = Pattern.compile("(date|timestamp) (" + QUOTE_REGEX + ")");
     Pattern qpm = Pattern.compile("([0-9]{4})-([0-9])-");
     Pattern qpd = Pattern.compile("([0-9]{4})-([0-9]{2})-([0-9])( .*)?");
     m = p.matcher(benchSql);
@@ -635,7 +735,7 @@ abstract class SQLTranslator {
 
   private String translateUDFs(String hiveSql) throws TranslationException {
     if (udfMapping == null) fillOutUdfMapping();
-    Matcher m = Pattern.compile("(" + idRegex + ") ?\\(").matcher(hiveSql);
+    Matcher m = Pattern.compile("(" + ID_REGEX + ") ?\\(").matcher(hiveSql);
     StringBuilder benchSql = new StringBuilder();
     int current = 0;
     while (m.find(current)) {
@@ -703,36 +803,43 @@ abstract class SQLTranslator {
    **********************************************************************************************/
   protected String translateInsert(String hiveSql) throws TranslationException {
     StringBuilder sql = new StringBuilder();
-    Matcher m = Pattern.compile("insert (?:overwrite )?(?:into )?(?:table )?(" + tableNameRegex +
-        ") (partition)?").matcher(hiveSql);
+    Matcher m = Pattern.compile("insert (?:overwrite )?(?:into )?(?:table )?(" + TABLE_NAME_REGEX +
+        ") ?").matcher(hiveSql);
     if (m.lookingAt()) {
       sql.append("insert into ")
           .append(translateTableNames(m.group(1)))
           .append(' ');
       int current = m.end();
-      if (m.group(2) != null) {
-        // chew through the partition definition, we don't care about it
-        // TODO - handle adding partition values to list if it makes sense.
-        int level = 0;
-        for (; current < hiveSql.length();  current++) {
-          if (hiveSql.charAt(current) == '(') {
-            level++;
-          } else if (hiveSql.charAt(current) == ')') {
-            if (--level == 0) {
-              // increment current so we move past the )
-              current++;
-              break;
-            }
-          }
-        }
+      PartitionClause partition = null;
+      if (hiveSql.substring(current).startsWith("partition")) {
+        partition = parsePartition(hiveSql.substring(current));
+        current += partition.length;
       }
+
       // TODO handle column names listed in insert
       // We might have a select, or we might have a values
       String remaining = hiveSql.substring(current).trim();
       if (remaining.startsWith("values")) {
+        if (partition != null) {
+          String paritionAddition =
+              appendPartitionProjection(remaining.substring(6).trim(), partition.partKeyVals);
+          if (!paritionAddition.equals("")) {
+            // We have to parse out each values clause so we can append these values to each clause
+            Matcher pm = Pattern.compile("\\)").matcher(remaining);
+            int pos = 0;
+            while (pm.find(pos)) {
+              sql.append(remaining.substring(pos, pm.start()))
+                  .append(paritionAddition)
+                  .append(')');
+              pos = pm.end();
+            }
+            return sql.toString();
+          }
+        }
+        // TODO handle appending additional values in 'values' when we need to
         sql.append(remaining);
       } else {
-        sql.append(translateSelect(remaining));
+        sql.append(translateSelect(remaining, (partition == null) ? null : partition.partKeyVals));
       }
       return sql.toString();
     } else {
@@ -742,7 +849,7 @@ abstract class SQLTranslator {
 
   protected String translateUpdate(String hiveSql) throws TranslationException {
     StringBuilder sql = new StringBuilder();
-    Matcher m = Pattern.compile("update (" + tableNameRegex + ") set ").matcher(hiveSql);
+    Matcher m = Pattern.compile("update (" + TABLE_NAME_REGEX + ") set ").matcher(hiveSql);
     if (m.lookingAt()) {
       sql.append("update ")
           .append(translateTableNames(m.group(1)))
@@ -756,7 +863,7 @@ abstract class SQLTranslator {
 
   protected String translateDelete(String hiveSql) throws TranslationException {
     StringBuilder sql = new StringBuilder();
-    Matcher m = Pattern.compile("delete from (" + tableNameRegex + ")").matcher(hiveSql);
+    Matcher m = Pattern.compile("delete from (" + TABLE_NAME_REGEX + ")").matcher(hiveSql);
     if (m.lookingAt()) {
       sql.append("delete from ")
           .append(translateTableNames(m.group(1)));

@@ -414,15 +414,26 @@ public class TestPostgresTranslator {
         "insert into ac.alter_char_1 select key, value from src order by key limit 5",
         translator.translate(
             "insert overwrite table ac.alter_char_1   select key, value from src order by key limit 5"));
-    Assert.assertEquals("insert into acid values(\"foo\", \"bar\")",
-        translator.translate(
-            "insert into table acid partition(ds='2008-04-08') values(\"foo\", \"bar\")"));
-    Assert.assertEquals("insert into acid select key,value,ds from srcpart",
-        translator.translate(
-            "insert into table acid partition(ds)  select key,value,ds from srcpart"));
-    Assert.assertEquals("insert into tab_part select key,value from srcbucket_mapjoin_part",
+    Assert.assertEquals("insert into tab_part select key,value, '2008-04-08' from srcbucket_mapjoin_part",
         translator.translate(
             "insert overwrite table tab_part partition (ds='2008-04-08') select key,value from srcbucket_mapjoin_part"));
+    Assert.assertEquals("insert into alter3 select col1, 'test_part:', 'test_part:' from alter3_src",
+        translator.translate(
+            "insert overwrite table alter3 partition (pCol1='test_part:', pcol2='test_part:') select col1 from alter3_src"));
+    Assert.assertEquals("insert into src_orc_merge_test_part select *, '2012-01-03', '2012-01-03+14:46:31' from src order by key, value",
+        translator.translate(
+            "insert overwrite table src_orc_merge_test_part partition(ds='2012-01-03', ts='2012-01-03+14:46:31') select * from src order by key, value"));
+    Assert.assertEquals("insert into acid select key,value,ds from srcpart",
+        translator.translate("insert into table acid partition(ds)  select key,value,ds from srcpart"));
+    Assert.assertEquals("insert into acid values(\"foo\", \"bar\", '2008-04-08')",
+        translator.translate(
+            "insert into table acid partition(ds='2008-04-08') values(\"foo\", \"bar\")"));
+    Assert.assertEquals("insert into acid values(\"foo\", \"bar\", '2008-04-08'),('faz', 'baz', '2008-04-08')",
+        translator.translate(
+            "insert into table acid partition(ds='2008-04-08') values(\"foo\", \"bar\"),('faz', 'baz')"));
+    Assert.assertEquals("insert into encryptedtable values ('val_501', '501'), ('val_502', '502')",
+        translator.translate(
+            "insert into table encryptedTable partition (key) values     ('val_501', '501'),     ('val_502', '502')"));
   }
 
   @Test
