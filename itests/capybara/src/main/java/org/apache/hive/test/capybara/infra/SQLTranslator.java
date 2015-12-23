@@ -810,19 +810,37 @@ abstract class SQLTranslator {
           .append(translateTableNames(m.group(1)))
           .append(' ');
       int current = m.end();
+      String remaining = hiveSql.substring(current).trim();
       PartitionClause partition = null;
+      String paritionAddition = null;
       if (hiveSql.substring(current).startsWith("partition")) {
         partition = parsePartition(hiveSql.substring(current));
         current += partition.length;
+        paritionAddition =
+            appendPartitionProjection(remaining.substring(6).trim(), partition.partKeyVals);
+        remaining = hiveSql.substring(current).trim();
       }
 
-      // TODO handle column names listed in insert
+
+      // We might have insert columns, if so chew threw them and append them
+      if (remaining.startsWith("(")) {
+        int closeParend = remaining.indexOf(')');
+        sql.append(remaining.substring(0, closeParend));
+        // If we have dynamic partitions, we need to put the keys in too
+        if (partition != null && !paritionAddition.equals("")) {
+          // We need to append the keys, not the values.
+          for (ObjectPair<String, String> kvp : partition.partKeyVals) {
+            sql.append(", ")
+                .append(kvp.getFirst());
+          }
+        }
+        sql.append(") ");
+        remaining = remaining.substring(closeParend + 1).trim();
+      }
+
       // We might have a select, or we might have a values
-      String remaining = hiveSql.substring(current).trim();
       if (remaining.startsWith("values")) {
         if (partition != null) {
-          String paritionAddition =
-              appendPartitionProjection(remaining.substring(6).trim(), partition.partKeyVals);
           if (!paritionAddition.equals("")) {
             // We have to parse out each values clause so we can append these values to each clause
             Matcher pm = Pattern.compile("\\)").matcher(remaining);
@@ -836,7 +854,6 @@ abstract class SQLTranslator {
             return sql.toString();
           }
         }
-        // TODO handle appending additional values in 'values' when we need to
         sql.append(remaining);
       } else {
         sql.append(translateSelect(remaining, (partition == null) ? null : partition.partKeyVals));

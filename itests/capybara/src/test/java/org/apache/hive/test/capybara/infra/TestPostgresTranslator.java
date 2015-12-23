@@ -434,6 +434,22 @@ public class TestPostgresTranslator {
     Assert.assertEquals("insert into encryptedtable values ('val_501', '501'), ('val_502', '502')",
         translator.translate(
             "insert into table encryptedTable partition (key) values     ('val_501', '501'),     ('val_502', '502')"));
+    Assert.assertEquals("insert into source (s2,s1) values(2,1)",
+        translator.translate("insert into source(s2,s1) values(2,1)"));
+    Assert.assertEquals("insert into target1 (z,x) select * from source",
+        translator.translate("insert into target1(z,x) select * from source"));
+    Assert.assertEquals("insert into pageviews (userid,i,link, datestamp) values ('jsmith', 7, '7mail.com', '2014-09-23')",
+        translator.translate("INSERT INTO TABLE pageviews PARTITION (datestamp='2014-09-23')(userid,i,link) VALUES ('jsmith', 7, '7mail.com')"));
+    Assert.assertEquals("insert into pageviews (userid,i,link, datestamp) values ('jsmith', 7, '7mail.com', '2014-09-23')('jdoe', 8, '8mail.org', '2014-09-23')",
+        translator.translate("INSERT INTO TABLE pageviews PARTITION (datestamp='2014-09-23')(userid,i,link) VALUES ('jsmith', 7, '7mail.com')('jdoe', 8, '8mail.org')"));
+    Assert.assertEquals("insert into pageviews (userid,i,link,datestamp) values ('jsmith', 17, '17mail.com', '2014-09-23')",
+        translator.translate("INSERT INTO TABLE pageviews PARTITION (datestamp,i)(userid,i,link,datestamp) VALUES ('jsmith', 17, '17mail.com', '2014-09-23')"));
+    Assert.assertEquals("insert into pageviews (userid,i,link,datestamp) values ('jsmith', 17, '17mail.com', '2014-09-23')('jdoe', 18, '18mail.com', '2014-09-24')",
+        translator.translate("INSERT INTO TABLE pageviews PARTITION (datestamp,i)(userid,i,link,datestamp) VALUES ('jsmith', 17, '17mail.com', '2014-09-23')('jdoe', 18, '18mail.com', '2014-09-24')"));
+    Assert.assertEquals("insert into target1 (z,x, str) select *, 'fred' from source",
+        translator.translate("insert into target1 partition (str = 'fred')(z,x) select * from source"));
+    Assert.assertEquals("insert into target1 (z,x,str) select * from source",
+        translator.translate("insert into target1 partition (str)(z,x,str) select * from source"));
   }
 
   @Test
