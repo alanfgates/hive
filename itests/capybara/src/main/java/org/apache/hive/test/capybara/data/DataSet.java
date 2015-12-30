@@ -158,6 +158,14 @@ public abstract class DataSet implements Iterable<Row> {
   }
 
   /**
+   * Determine whether this DataSet is empty (ie, it has no data).
+   * @return true if empty, false
+   */
+  public boolean isEmpty() {
+    return rows == null || rows.size() == 0;
+  }
+
+  /**
    * Get the total size of the dataset.  This is for testing purposes and shouldn't be used in
    * general.  It can be expensive, as it forces an iteration through the data set.
    * @return size of the dataset.

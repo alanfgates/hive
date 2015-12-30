@@ -136,6 +136,11 @@ class PostgresStore extends AnsiSqlStore {
     return QUOTES;
   }
 
+  @Override
+  protected String getTempTableCreate() {
+    return "create temporary table ";
+  }
+
   private static SQLTranslator postgresTranslator = new SQLTranslator() {
     @Override
     protected String translateDataTypes(String hiveSql) {

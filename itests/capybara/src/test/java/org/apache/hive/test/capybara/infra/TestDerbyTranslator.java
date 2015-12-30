@@ -136,16 +136,16 @@ public class TestDerbyTranslator {
             "(age) into 2 buckets stored as orc TBLPROPERTIES (\"transactional\"=\"true\")"));
     Assert.assertEquals("create table alter1 (a int, b int)",
         translator.translate("create table alter1(a int, b int)"));
-    Assert.assertEquals("create table alter2 (a int, b int)",
+    Assert.assertEquals("create table alter2 (a int, b int, insertdate varchar(255))",
         translator.translate("create table alter2(a int, b int) partitioned by (insertdate string)"));
     Assert.assertEquals("create table alter3_src ( col1 varchar(255) )",
         translator.translate("create table alter3_src ( col1 string ) stored as textfile "));
-    Assert.assertEquals("create table alter3 ( col1 varchar(255) )",
+    Assert.assertEquals("create table alter3 ( col1 varchar(255) , pcol1 varchar(255) , pcol2 varchar(255))",
         translator.translate("create table alter3 ( col1 string ) partitioned by (pcol1 string , " +
             "pcol2 string) stored as sequencefile"));
     Assert.assertEquals("create table ac.alter_char_1 (key varchar(255), value varchar(255))",
         translator.translate("create table ac.alter_char_1 (key string, value string)"));
-    Assert.assertEquals("create table tst1 (key varchar(255), value varchar(255))",
+    Assert.assertEquals("create table tst1 (key varchar(255), value varchar(255), ds varchar(255))",
         translator.translate("create table tst1(key string, value string) partitioned by (ds " +
             "string) clustered by (key) into 10 buckets"));
     Assert.assertEquals("create table over1k ( t smallint, si smallint, i int, b bigint, f float, " +

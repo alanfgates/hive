@@ -57,6 +57,7 @@ public class TestTable implements Serializable {
   private final boolean isAcid;
   private final int numBuckets;
   private final String[] bucketCols;
+  private final boolean isTemporary;
   private List<Row> partVals;
   private int numParts;
   private boolean hiveCreated, benchCreated;
@@ -94,7 +95,7 @@ public class TestTable implements Serializable {
           null, null, null, 0,
           SemanticAnalyzer.isAcidTable(new org.apache.hadoop.hive.ql.metadata.Table(msTable)),
           msTable.getSd().getBucketCols().toArray(new String[msTable.getSd().getBucketColsSize()]),
-          msTable.getSd().getNumBuckets());
+          msTable.getSd().getNumBuckets(), msTable.isTemporary());
       testTable.benchCreated = testTable.hiveCreated = true;
       return testTable;
     } catch (Exception e) {
@@ -114,6 +115,7 @@ public class TestTable implements Serializable {
     private boolean isAcid = false;
     private String[] bucketCols;
     private int numBuckets = 0;
+    private boolean isTemporary = false;
 
     private Builder(String tableName) {
       this.tableName = tableName;
@@ -254,6 +256,16 @@ public class TestTable implements Serializable {
     }
 
     /**
+     * Set whether this table is temporary.
+     * @param isTemporary whether the table is temporary.
+     * @return this
+     */
+    public Builder setTemporary(boolean isTemporary) {
+      this.isTemporary = isTemporary;
+      return this;
+    }
+
+    /**
      * Create the TestTable.  This only creates the Java object.  The table is not created in
      * Hive or the benchmark.
      * @return the table
@@ -264,7 +276,7 @@ public class TestTable implements Serializable {
         throw new RuntimeException("You must provide a tablename and columns before building");
       }
       return new TestTable(dbName, tableName, cols, partCols, pk, fks, partValsGenerator,
-          numParts, isAcid, bucketCols, numBuckets);
+          numParts, isAcid, bucketCols, numBuckets, isTemporary);
     }
   }
 
@@ -280,7 +292,8 @@ public class TestTable implements Serializable {
   private TestTable(String dbName, String tableName, List<FieldSchema> cols,
                     List<FieldSchema> partCols, PrimaryKey pk, List<ForeignKey> fk,
                     DataGenerator partValsGenerator, int numParts, boolean isAcid,
-                    String[] bucketCols, int numBuckets) {
+                    String[] bucketCols, int numBuckets, boolean isTemporary) {
+    this.isTemporary = isTemporary;
     this.dbName = dbName == null ? "default" : dbName;
     this.tableName = tableName;
     this.cols = cols;
@@ -297,7 +310,7 @@ public class TestTable implements Serializable {
       // That TestTable needs to match the schema of the partition columns, not the regular
       // columns, thus we can't use 'this' here.
       TestTable meta = new TestTable("fake", "fake", partCols, null, null, null, null, 0, false,
-          null, 0);
+          null, 0, isTemporary);
       DataSet ds = partValsGenerator.generateData(meta);
       for (Row row : ds) partVals.add(row);
       this.numParts = partVals.size();
@@ -494,6 +507,10 @@ public class TestTable implements Serializable {
 
   public String[] getBucketCols() {
     return bucketCols;
+  }
+
+  public boolean isTemporary() {
+    return isTemporary;
   }
 
   /**

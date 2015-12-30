@@ -153,16 +153,16 @@ public class TestPostgresTranslator {
             "(age) into 2 buckets stored as orc TBLPROPERTIES (\"transactional\"=\"true\")"));
     Assert.assertEquals("create table alter1 (a int, b int)",
         translator.translate("create table alter1(a int, b int)"));
-    Assert.assertEquals("create table alter2 (a int, b int)",
+    Assert.assertEquals("create table alter2 (a int, b int, insertdate varchar(255))",
         translator.translate("create table alter2(a int, b int) partitioned by (insertdate string)"));
     Assert.assertEquals("create table alter3_src ( col1 varchar(255) )",
         translator.translate("create table alter3_src ( col1 string ) stored as textfile "));
-    Assert.assertEquals("create table alter3 ( col1 varchar(255) )",
+    Assert.assertEquals("create table alter3 ( col1 varchar(255) , pcol1 varchar(255) , pcol2 varchar(255))",
         translator.translate("create table alter3 ( col1 string ) partitioned by (pcol1 string , " +
             "pcol2 string) stored as sequencefile"));
     Assert.assertEquals("create table ac.alter_char_1 (key varchar(255), value varchar(255))",
         translator.translate("create table ac.alter_char_1 (key string, value string)"));
-    Assert.assertEquals("create table tst1 (key varchar(255), value varchar(255))",
+    Assert.assertEquals("create table tst1 (key varchar(255), value varchar(255), ds varchar(255))",
         translator.translate("create table tst1(key string, value string) partitioned by (ds " +
             "string) clustered by (key) into 10 buckets"));
     Assert.assertEquals("create table over1k ( t smallint, si smallint, i int, b bigint, f real, " +
@@ -195,6 +195,10 @@ public class TestPostgresTranslator {
   @Test
   public void alterTable() throws Exception {
     Assert.assertEquals("alter table tab1 rename to tab2", translator.translate("alter table tab1 rename to tab2"));
+    Assert.assertEquals(
+        "update partcoltypenum set tint = 110, sint = 22000, bint = 330000000000 where tint = 100 and sint = 2200 and bint = 300000000000",
+        translator.translate(
+            "alter table partcoltypenum partition(tint=100, sint=2200, bint=300000000000) rename to partition (tint=110Y, sint=22000S, bint=330000000000L)"));
     Assert.assertEquals("", translator.translate("alter table test set fileformat orc"));
     Assert.assertEquals("",
         translator.translate("alter table tst1 clustered by (key) into 8 buckets"));
@@ -216,7 +220,6 @@ public class TestPostgresTranslator {
     Assert.assertEquals("", translator.translate("alter table partcoltypenum partition(tint=100BD, sint=20000S, bint=300000000000L) set location \"file:/test/test/tint=1/sint=2/bint=3\""));
     Assert.assertEquals("", translator.translate("alter table T1 partition (ds = 'today') compact 'major'"));
     Assert.assertEquals("", translator.translate("ALTER table escape2 PARTITION (ds='1', part=' ') CONCATENATE"));
-
   }
 
   @Test
@@ -241,12 +244,6 @@ public class TestPostgresTranslator {
     translator.translate("alter table partcoltypenum partition (tint=110Y, sint=22000S, bint=330000000000L) change key key decimal(10,0)");
   }
 
-  @Test
-  public void alterTableRenamePartition() throws Exception {
-    thrown.expect(TranslationException.class);
-    thrown.expectMessage("Could not translate alter table partition rename, Hive SQL:");
-    translator.translate("alter table partcoltypenum partition(tint=100, sint=20000, bint=300000000000) rename to partition (tint=110Y, sint=22000S, bint=330000000000L)");
-  }
   @Test
   public void selectSimple() throws Exception {
     Assert.assertEquals("select * from add_part_test",
@@ -440,12 +437,12 @@ public class TestPostgresTranslator {
         translator.translate("insert into target1(z,x) select * from source"));
     Assert.assertEquals("insert into pageviews (userid,i,link, datestamp) values ('jsmith', 7, '7mail.com', '2014-09-23')",
         translator.translate("INSERT INTO TABLE pageviews PARTITION (datestamp='2014-09-23')(userid,i,link) VALUES ('jsmith', 7, '7mail.com')"));
-    Assert.assertEquals("insert into pageviews (userid,i,link, datestamp) values ('jsmith', 7, '7mail.com', '2014-09-23')('jdoe', 8, '8mail.org', '2014-09-23')",
-        translator.translate("INSERT INTO TABLE pageviews PARTITION (datestamp='2014-09-23')(userid,i,link) VALUES ('jsmith', 7, '7mail.com')('jdoe', 8, '8mail.org')"));
+    Assert.assertEquals("insert into pageviews (userid,i,link, datestamp) values ('jsmith', 7, '7mail.com', '2014-09-23'),('jdoe', 8, '8mail.org', '2014-09-23')",
+        translator.translate("INSERT INTO TABLE pageviews PARTITION (datestamp='2014-09-23')(userid,i,link) VALUES ('jsmith', 7, '7mail.com'),('jdoe', 8, '8mail.org')"));
     Assert.assertEquals("insert into pageviews (userid,i,link,datestamp) values ('jsmith', 17, '17mail.com', '2014-09-23')",
         translator.translate("INSERT INTO TABLE pageviews PARTITION (datestamp,i)(userid,i,link,datestamp) VALUES ('jsmith', 17, '17mail.com', '2014-09-23')"));
-    Assert.assertEquals("insert into pageviews (userid,i,link,datestamp) values ('jsmith', 17, '17mail.com', '2014-09-23')('jdoe', 18, '18mail.com', '2014-09-24')",
-        translator.translate("INSERT INTO TABLE pageviews PARTITION (datestamp,i)(userid,i,link,datestamp) VALUES ('jsmith', 17, '17mail.com', '2014-09-23')('jdoe', 18, '18mail.com', '2014-09-24')"));
+    Assert.assertEquals("insert into pageviews (userid,i,link,datestamp) values ('jsmith', 17, '17mail.com', '2014-09-23') , ('jdoe', 18, '18mail.com', '2014-09-24')",
+        translator.translate("INSERT INTO TABLE pageviews PARTITION (datestamp,i)(userid,i,link,datestamp) VALUES ('jsmith', 17, '17mail.com', '2014-09-23') , ('jdoe', 18, '18mail.com', '2014-09-24')"));
     Assert.assertEquals("insert into target1 (z,x, str) select *, 'fred' from source",
         translator.translate("insert into target1 partition (str = 'fred')(z,x) select * from source"));
     Assert.assertEquals("insert into target1 (z,x,str) select * from source",

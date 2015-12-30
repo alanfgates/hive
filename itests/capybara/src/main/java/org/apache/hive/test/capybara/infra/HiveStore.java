@@ -267,7 +267,9 @@ public abstract class HiveStore extends DataStoreBase implements Configurable {
     Assert.assertEquals(ResultCode.SUCCESS, rc.rc);
 
     StringBuilder builder =  new StringBuilder();
-    builder.append("create table ")
+    builder.append("create ");
+    if (table.isTemporary()) builder.append(" temporary ");
+    builder.append("table ")
         .append(table.toString())
         .append(" (");
     boolean first = true;

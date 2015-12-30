@@ -423,9 +423,12 @@ public abstract class IntegrationTest {
    * successfully, as that is controlled by how you call runQuery.
    */
   protected void assertEmpty() {
-    Assert.assertNull("Expected results of query to be empty", hiveResults.data);
-    //LOG.debug("benchmark size = " + benchmarkResults.data.lengthInBytes());
-    Assert.assertNull("Expected results of benchmark to be empty", benchmarkResults.data);
+    Assert.assertTrue("Expected results of query to be empty", resultIsEmpty(hiveResults));
+    Assert.assertTrue("Expected results of benchmark to be empty", resultIsEmpty(benchmarkResults));
+  }
+
+  private boolean resultIsEmpty(FetchResult result) {
+    return result.data == null || result.data.isEmpty();
   }
 
   private void compare(boolean sort) throws SQLException, IOException {

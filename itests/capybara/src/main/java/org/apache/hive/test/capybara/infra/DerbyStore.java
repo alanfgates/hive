@@ -145,6 +145,11 @@ public class DerbyStore extends AnsiSqlStore {
   }
 
   @Override
+  protected String getTempTableCreate() {
+    return "declare global temporary table ";
+  }
+
+  @Override
   public Class getDriverClass() {
     return jdbcDriver.getClass();
   }

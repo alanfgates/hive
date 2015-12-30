@@ -66,6 +66,11 @@ public class TestAnsiSqlStore {
     }
 
     @Override
+    protected String getTempTableCreate() {
+      return null;
+    }
+
+    @Override
     protected Properties connectionProperties() {
       return null;
     }
@@ -111,14 +116,16 @@ public class TestAnsiSqlStore {
   public void createTable() throws Exception {
     String hiveSql = "create table if not exists acid_uanp(a int, b varchar(128)) partitioned by " +
         "(c string) clustered by (a) into 2 buckets stored as orc TBLPROPERTIES ('transactional'='true')";
-    Assert.assertEquals("create table if not exists acid_uanp (a int, b varchar(128))",
+    // string isn't translated to varchar in this query because TestAnsiSqlStore has it's own
+    // translator that doesn't handle that.  It would be translated by derby or postgres.
+    Assert.assertEquals("create table if not exists acid_uanp (a int, b varchar(128), c string)",
         store.hiveSqlToAnsiSql(hiveSql));
   }
 
   @Test
   public void insert() throws Exception {
     String hiveSql = "insert into table acid_uanp partition (c = 'fred') values (1, 'boy')";
-    Assert.assertEquals("insert into acid_uanp values (1, 'boy')",
+    Assert.assertEquals("insert into acid_uanp values (1, 'boy', 'fred')",
         store.hiveSqlToAnsiSql(hiveSql));
     Assert.assertFalse(store.failureOk);
   }

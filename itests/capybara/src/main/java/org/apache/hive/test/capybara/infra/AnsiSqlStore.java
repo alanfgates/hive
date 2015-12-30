@@ -134,6 +134,12 @@ abstract class AnsiSqlStore extends DataStoreBase implements BenchmarkDataStore 
   protected abstract SQLTranslator getTranslator();
 
   /**
+   * Get the string for createing a temporary table.
+   * @return temp table creation string
+   */
+  protected abstract String getTempTableCreate();
+
+  /**
    * Get the limit that should be applied to a query.  This is to deal with the fact that derby
    * doesn't support limit.  If a database supports limit it should not override this method.
    * @return limit value.
@@ -186,10 +192,11 @@ abstract class AnsiSqlStore extends DataStoreBase implements BenchmarkDataStore 
       allCols.addAll(table.getPartCols());
     }
 
-    Statement stmt = null;
     try (Connection conn = connect(true)) {
-      StringBuilder sql = new StringBuilder("create table ")
-          .append(getTableName(table))
+      StringBuilder sql = new StringBuilder();
+      if (table.isTemporary()) sql.append(getTempTableCreate());
+      else sql.append("create table ");
+      sql.append(getTableName(table))
           .append(" (");
       for (FieldSchema col : allCols) {
         sql.append(col.getName())
@@ -198,13 +205,11 @@ abstract class AnsiSqlStore extends DataStoreBase implements BenchmarkDataStore 
             .append(",");
       }
       sql.deleteCharAt(sql.length() - 1).append(") ");
-      stmt = conn.createStatement();
-      LOG.debug("Going to run <" + sql.toString() + "> on ANSI SQL store");
-      stmt.execute(sql.toString());
-      if (!force) recordTableCreation(table);
-    } finally {
-      if (stmt != null) stmt.close();
-
+      try (Statement stmt = conn.createStatement()) {
+        LOG.debug("Going to run <" + sql.toString() + "> on ANSI SQL store");
+        stmt.execute(sql.toString());
+        if (!force) recordTableCreation(table);
+      }
     }
     return true;
   }

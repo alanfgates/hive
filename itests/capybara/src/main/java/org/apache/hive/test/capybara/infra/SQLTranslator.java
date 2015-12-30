@@ -273,14 +273,28 @@ abstract class SQLTranslator {
     return sql.toString();
   }
 
+  // This method assumes restOfQuery does not include the opening ( of the column list.
   protected String parseOutColDefs(String restOfQuery) {
     StringBuilder cols = new StringBuilder();
     int level = 1;
-    for (int i = 0; i < restOfQuery.length() && level > 0; i++) {
+    int i = 0;
+    for (; i < restOfQuery.length() && level > 0; i++) {
       char current = restOfQuery.charAt(i);
       cols.append(current);
       if (current == '(') level++;
       else if (current == ')') level--;
+    }
+    String remainder = restOfQuery.substring(i).trim();
+    // We need to make sure we've moved past the opening ( for the partition clause
+    Matcher m = Pattern.compile("partitioned by ?\\(").matcher(remainder);
+    if (m.lookingAt()) {
+      // We need to get rid of the ')' we already put on there
+      cols.setLength(cols.length() - 1);
+      // Just pass it back to ourselves to grab the partitioning columns
+      String partitionColDefs = parseOutColDefs(remainder.substring(m.end()));
+      // The substring(1) is to remove the initial ( from the resulting defs
+      cols.append(", ")
+          .append(partitionColDefs);
     }
     return cols.toString();
   }
@@ -327,10 +341,7 @@ abstract class SQLTranslator {
         if (partition == null) {
           return translateAlterTableRename(tableName, remainder);
         } else {
-          // TODO - once we can parse out partition values we can support this, as it's just an
-          // update.
-          LOG.error("alter table partition rename not yet supported");
-          throw new TranslationException("alter table partition rename", hiveSql);
+          return translateAlterPartitionRename(tableName, remainder, partition);
         }
       }
       if (remainder.startsWith("set")) return "";
@@ -450,6 +461,43 @@ abstract class SQLTranslator {
    */
   protected abstract String translateAlterTableRename(String tableName, String remainder)
     throws TranslationException;
+
+  /**
+   * Translate an alter partition rename to an update statement
+   * @param tableName translated table name
+   * @param remainder remainder of the Hive SQL, commencing after the current partition clause.  It
+   *                  should start with 'rename to'
+   * @param oldPartition Partition clause for the existing partition
+   * @return an update statement
+   * @throws TranslationException
+   */
+  protected String translateAlterPartitionRename(String tableName, String remainder,
+                                                 PartitionClause oldPartition)
+      throws TranslationException {
+    remainder = remainder.substring("rename to".length()).trim();
+    PartitionClause newPartition = parsePartition(remainder);
+    StringBuilder sql = new StringBuilder("update ");
+    sql.append(tableName)
+        .append(" set ");
+    boolean first = true;
+    for (ObjectPair<String, String> kvp : newPartition.partKeyVals) {
+      if (first) first = false;
+      else sql.append(", ");
+      sql.append(kvp.getFirst())
+          .append(" = ")
+          .append(kvp.getSecond());
+    }
+    sql.append(" where ");
+    first = true;
+    for (ObjectPair<String, String> kvp : oldPartition.partKeyVals) {
+      if (first) first = false;
+      else sql.append(" and ");
+      sql.append(kvp.getFirst())
+          .append(" = ")
+          .append(kvp.getSecond());
+    }
+    return sql.toString();
+  }
 
   /**********************************************************************************************
    * Query related
