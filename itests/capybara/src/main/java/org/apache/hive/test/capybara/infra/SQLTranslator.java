@@ -61,7 +61,9 @@ abstract class SQLTranslator {
 
   /**
    * Translate the Hive SQL to the appropraite dialect.  This call breaks up the Hive SQL into
-   * separate sections.  It is final because sub-classes shouldn't change the way it is broken up.
+   * separate sections.  It is final because sub-classes shouldn't change the way it is broken up
+   * .  This method should never be called internally as it does a bunch of state management.
+   * For general translation internally use {@link #translateSql}.
    * @param hiveSql SQL in Hive dialect
    * @return SQL in benchmark dialect.
    */
@@ -78,74 +80,80 @@ abstract class SQLTranslator {
     Matcher m = Pattern.compile("\\s+").matcher(trimmed);
     trimmed = m.replaceAll(" ");
 
-    String benchSql;
-    if (Pattern.compile("select").matcher(trimmed).lookingAt()) {
-      benchSql = translateSelect(trimmed);
-    } else if (Pattern.compile("insert").matcher(trimmed).lookingAt()) {
-      benchSql = translateInsert(trimmed);
-    } else if (Pattern.compile("explain").matcher(trimmed).lookingAt()) {
-      benchSql = "";
-    } else if (Pattern.compile("update").matcher(trimmed).lookingAt()) {
-      benchSql = translateUpdate(trimmed);
-    } else if (Pattern.compile("delete from").matcher(trimmed).lookingAt()) {
-      benchSql = translateDelete(trimmed);
-    } else if (Pattern.compile("create (temporary |external )?table").matcher(trimmed).lookingAt()) {
-      benchSql = translateCreateTable(trimmed);
-    } else if (Pattern.compile("drop table").matcher(trimmed).lookingAt()) {
-      benchSql = translateDropTable(trimmed);
-    } else if (Pattern.compile("alter table").matcher(trimmed).lookingAt()) {
-      benchSql = translateAlterTable(trimmed);
-    } else if (Pattern.compile("msck (repair )?table").matcher(trimmed).lookingAt()) {
-      benchSql = "";
-    } else if (Pattern.compile("show").matcher(trimmed).lookingAt()) {
-      benchSql = "";
-    } else if (Pattern.compile("describe").matcher(trimmed).lookingAt()) {
-      benchSql = "";
-    } else if (Pattern.compile("create (database|schema)").matcher(trimmed).lookingAt()) {
-      benchSql = translateCreateDatabase(trimmed);
-    } else if (Pattern.compile("alter (database|schema)").matcher(trimmed).lookingAt()) {
-      benchSql = "";
-    } else if (Pattern.compile("drop (database|schema)").matcher(trimmed).lookingAt()) {
-      benchSql = translateDropDatabase(trimmed);
-    } else if (Pattern.compile("use (" + ID_REGEX +")").matcher(trimmed).lookingAt()) {
-      benchSql = translateUseDatabase(m.group(1));
-    } else if (Pattern.compile("analyze").matcher(trimmed).lookingAt()) {
-      benchSql = "";
-    } else if (Pattern.compile("create role").matcher(trimmed).lookingAt()) {
-      benchSql = "";
-    } else if (Pattern.compile("drop role").matcher(trimmed).lookingAt()) {
-      benchSql = "";
-    } else if (Pattern.compile("set role").matcher(trimmed).lookingAt()) {
-      benchSql = "";
-    } else if (Pattern.compile("grant").matcher(trimmed).lookingAt()) {
-      benchSql = "";
-    } else if (Pattern.compile("revoke").matcher(trimmed).lookingAt()) {
-      benchSql = "";
-    } else if (Pattern.compile("create index").matcher(trimmed).lookingAt()) {
-      benchSql = "";
-    } else if (Pattern.compile("alter index").matcher(trimmed).lookingAt()) {
-      benchSql = "";
-    } else if (Pattern.compile("drop index").matcher(trimmed).lookingAt()) {
-      benchSql = "";
-    } else if (Pattern.compile("create (temporary )?function").matcher(trimmed).lookingAt()) {
+    String benchSql = translateSql(trimmed);
+    return reQuote(benchSql);
+
+  }
+
+  private String translateSql(String hiveSql) throws TranslationException {
+    if (Pattern.compile("select").matcher(hiveSql).lookingAt()) {
+      return translateSelect(hiveSql);
+    } else if (Pattern.compile("with").matcher(hiveSql).lookingAt()) {
+      return translateWith(hiveSql);
+    } else if (Pattern.compile("insert").matcher(hiveSql).lookingAt()) {
+      return translateInsert(hiveSql);
+    } else if (Pattern.compile("explain").matcher(hiveSql).lookingAt()) {
+      return "";
+    } else if (Pattern.compile("update").matcher(hiveSql).lookingAt()) {
+      return translateUpdate(hiveSql);
+    } else if (Pattern.compile("delete from").matcher(hiveSql).lookingAt()) {
+      return translateDelete(hiveSql);
+    } else if (Pattern.compile("create (temporary |external )?table").matcher(hiveSql).lookingAt()) {
+      return translateCreateTable(hiveSql);
+    } else if (Pattern.compile("drop table").matcher(hiveSql).lookingAt()) {
+      return translateDropTable(hiveSql);
+    } else if (Pattern.compile("alter table").matcher(hiveSql).lookingAt()) {
+      return translateAlterTable(hiveSql);
+    } else if (Pattern.compile("msck (repair )?table").matcher(hiveSql).lookingAt()) {
+      return "";
+    } else if (Pattern.compile("show").matcher(hiveSql).lookingAt()) {
+      return "";
+    } else if (Pattern.compile("describe").matcher(hiveSql).lookingAt()) {
+      return "";
+    } else if (Pattern.compile("create (database|schema)").matcher(hiveSql).lookingAt()) {
+      return translateCreateDatabase(hiveSql);
+    } else if (Pattern.compile("alter (database|schema)").matcher(hiveSql).lookingAt()) {
+      return "";
+    } else if (Pattern.compile("drop (database|schema)").matcher(hiveSql).lookingAt()) {
+      return translateDropDatabase(hiveSql);
+    } else if (Pattern.compile("use (" + ID_REGEX +")").matcher(hiveSql).lookingAt()) {
+      Matcher m = Pattern.compile("use (" + ID_REGEX + ")").matcher(hiveSql);
+      if (m.lookingAt()) return translateUseDatabase(m.group(1));
+      else throw new TranslationException("use database", hiveSql);
+    } else if (Pattern.compile("analyze").matcher(hiveSql).lookingAt()) {
+      return "";
+    } else if (Pattern.compile("create role").matcher(hiveSql).lookingAt()) {
+      return "";
+    } else if (Pattern.compile("drop role").matcher(hiveSql).lookingAt()) {
+      return "";
+    } else if (Pattern.compile("set role").matcher(hiveSql).lookingAt()) {
+      return "";
+    } else if (Pattern.compile("grant").matcher(hiveSql).lookingAt()) {
+      return "";
+    } else if (Pattern.compile("revoke").matcher(hiveSql).lookingAt()) {
+      return "";
+    } else if (Pattern.compile("create index").matcher(hiveSql).lookingAt()) {
+      return "";
+    } else if (Pattern.compile("alter index").matcher(hiveSql).lookingAt()) {
+      return "";
+    } else if (Pattern.compile("drop index").matcher(hiveSql).lookingAt()) {
+      return "";
+    } else if (Pattern.compile("create (temporary )?function").matcher(hiveSql).lookingAt()) {
       // This won't end well.  We can't translate functions
       throw new TranslationException("create function", hiveSql);
-    } else if (Pattern.compile("drop (temporary )?function").matcher(trimmed).lookingAt()) {
+    } else if (Pattern.compile("drop (temporary )?function").matcher(hiveSql).lookingAt()) {
       throw new TranslationException("drop function", hiveSql);
-    } else if (Pattern.compile("reload function").matcher(trimmed).lookingAt()) {
+    } else if (Pattern.compile("reload function").matcher(hiveSql).lookingAt()) {
       throw new TranslationException("reload function", hiveSql);
     } else {
       throw new TranslationException("Unrecognized", hiveSql);
     }
-    return reQuote(benchSql);
-
     // TODO:
     // alter view
     // create view
     // drop view
     // load
     // truncate table - have to handle truncate partition and weird partition casts
-    // with
   }
 
   public boolean isFailureOk() {
@@ -207,7 +215,7 @@ abstract class SQLTranslator {
 
     // Must be your basic create table foo (x int ...) type
     m = Pattern.compile("create (temporary |external )?table (if not exists )?(" +
-        TABLE_NAME_REGEX + ") ?\\((.*)").matcher(hiveSql);
+        TABLE_NAME_REGEX + ") ?(\\(.*)").matcher(hiveSql);
     if (m.lookingAt()) return translateCreateTableWithColDefs(m);
 
     throw new TranslationException("create table", hiveSql);
@@ -259,34 +267,30 @@ abstract class SQLTranslator {
    *                group 1 is temporary or external (may be null)
    *                group 2 is 'if not exists', may be null
    *                group 3 is the table name
-   *                group 4 column definitions and the rest of the query
+   *                group 4 column definitions starting with '(' and the rest of the query
    * @return bench sql
+   * @throws TranslationException
    */
-  protected String translateCreateTableWithColDefs(Matcher matcher) {
+  protected String translateCreateTableWithColDefs(Matcher matcher) throws TranslationException {
     StringBuilder sql = new StringBuilder("create ");
     if (matcher.group(1) != null && matcher.group(1).equals("temporary ")) sql.append("temporary ");
     sql.append("table ");
     if (matcher.group(2) != null) sql.append(matcher.group(2));
     sql.append(matcher.group(3))
-        .append(" (")
+        .append(' ')
         .append(translateDataTypes(parseOutColDefs(matcher.group(4))));
     return sql.toString();
   }
 
-  // This method assumes restOfQuery does not include the opening ( of the column list.
-  protected String parseOutColDefs(String restOfQuery) {
+  protected String parseOutColDefs(String restOfQuery) throws TranslationException {
     StringBuilder cols = new StringBuilder();
-    int level = 1;
-    int i = 0;
-    for (; i < restOfQuery.length() && level > 0; i++) {
-      char current = restOfQuery.charAt(i);
-      cols.append(current);
-      if (current == '(') level++;
-      else if (current == ')') level--;
-    }
-    String remainder = restOfQuery.substring(i).trim();
+    int endOfColDefs = findMatchingCloseParend(restOfQuery);
+    cols.append(restOfQuery.substring(0, endOfColDefs + 1));
+    String remainder = restOfQuery.substring(endOfColDefs + 1).trim();
+
+
     // We need to make sure we've moved past the opening ( for the partition clause
-    Matcher m = Pattern.compile("partitioned by ?\\(").matcher(remainder);
+    Matcher m = Pattern.compile("partitioned by ?").matcher(remainder);
     if (m.lookingAt()) {
       // We need to get rid of the ')' we already put on there
       cols.setLength(cols.length() - 1);
@@ -294,7 +298,7 @@ abstract class SQLTranslator {
       String partitionColDefs = parseOutColDefs(remainder.substring(m.end()));
       // The substring(1) is to remove the initial ( from the resulting defs
       cols.append(", ")
-          .append(partitionColDefs);
+          .append(partitionColDefs.substring(1));
     }
     return cols.toString();
   }
@@ -513,7 +517,7 @@ abstract class SQLTranslator {
    *                         need to be added to the projection list of this select.  Some of the
    *                         keys may have null values, which means they are already accounted
    *                         for and can be ignored.
-   * @return
+   * @return translated select
    * @throws TranslationException
    */
   private String translateSelect(String hiveSql, List<ObjectPair<String, String>> extraProjections)
@@ -826,24 +830,84 @@ abstract class SQLTranslator {
     Matcher m = Pattern.compile("\\( ?select").matcher(hiveSql);
     int current = 0;
     while (m.find(current)) {
-      int level = 1;
-      for (int i = m.start() + 1; i < hiveSql.length() && level > 0; i++) {
-        if (hiveSql.charAt(i) == '(') {
-          level++;
-        } else if (hiveSql.charAt(i) == ')' && --level == 0) {
-          if (m.start() - current > 0) sql.append(hiveSql.substring(current, m.start()));
-          sql.append('(')
-              .append(translateSelect(hiveSql.substring(m.start() + 1, i).trim()));
-          // Don't append the final ')', it will get picked up by the append of the next section
-          // of the query.
-          current = i;
-        }
-      }
+      int closeParend = findMatchingCloseParend(hiveSql.substring(m.start()));
+      if (m.start() - current > 0) sql.append(hiveSql.substring(current, m.start()));
+      sql.append('(')
+          .append(translateSelect(hiveSql.substring(m.start() + 1, m.start() + closeParend).trim()));
+      // Don't append the final ')', it will get picked up by the append of the next section
+      // of the query.
+      current = closeParend + m.start();
+
     }
     // We still need to copy the last bit in.
     if (current > 0 && current < hiveSql.length()) sql.append(hiveSql.substring(current));
     if (sql.length() > 0) return sql.toString();
     else return hiveSql;
+  }
+
+  private String translateWith(String hiveSql) throws TranslationException {
+    StringBuilder sql = new StringBuilder();
+    sql.append(getCteInitial());
+    Matcher m = Pattern.compile("(" + ID_REGEX + ") as ?").matcher(hiveSql);
+    int current = 0;
+    boolean isFirst = true;
+    while (m.find(current)) {
+      String cteName = m.group(1);
+      current = m.end();
+      int closeParend = findMatchingCloseParend(hiveSql.substring(current));
+      sql.append(translateCteBody(cteName, translateSelect(hiveSql.substring(current + 1,
+          current + closeParend)), isFirst));
+      current += closeParend + 1;
+      sql.append(getCteFinal());
+      // We may have a comma and then another CTE
+      while (hiveSql.charAt(current) == ' ' || hiveSql.charAt(current) == ',') current++;
+      if (isFirst) isFirst = false;
+    }
+
+    // At this point we should now get to the main query.  Pass it back to translate
+    sql.append(' ')
+      .append(translateSql(hiveSql.substring(current)));
+    return sql.toString();
+  }
+
+  /**
+   * Return the beginning of a CTE statement.  The default implementation returns "with ".  If
+   * the target db type doesn't support with clauses then this should return an empty string (but
+   * not a null).
+   * @return See above, no nulls
+   * @throws TranslationException
+   */
+  protected String getCteInitial() throws TranslationException {
+    return "with ";
+  }
+
+  /**
+   * Translate the body of a CTE.  If the target db type doesn't support a CTE this is where
+   * you'll return a create temp table instead.
+   * @param cteName name of the cte
+   * @param queryDef query definition used to build the cte
+   * @param isFirst true if this is the first cte
+   * @return translated string
+   */
+  protected String translateCteBody(String cteName, String queryDef, boolean isFirst) {
+    StringBuilder sql = new StringBuilder();
+    if (!isFirst) sql.append(", ");
+
+    sql.append(cteName)
+        .append(" as ")
+        .append("(")
+        .append(queryDef)
+        .append(")");
+    return sql.toString();
+  }
+
+  /**
+   * Return anything after a CTE declaration.  For the standard case this is an empty string.  If
+   * you translated the CTE to a temp table declaration then this needs to be a ';'.
+   * @return
+   */
+  protected String getCteFinal() {
+    return "";
   }
 
   /**********************************************************************************************
@@ -872,7 +936,7 @@ abstract class SQLTranslator {
 
       // We might have insert columns, if so chew threw them and append them
       if (remaining.startsWith("(")) {
-        int closeParend = remaining.indexOf(')');
+        int closeParend = findMatchingCloseParend(remaining);
         sql.append(remaining.substring(0, closeParend));
         // If we have dynamic partitions, we need to put the keys in too
         if (partition != null && !paritionAddition.equals("")) {
@@ -1023,5 +1087,24 @@ abstract class SQLTranslator {
   }
 
   protected abstract char identifierQuote();
+
+  /**
+   * Given a part of a SQL query, find the position where the parenthesis end.  This method
+   * assumes that the String it is passed has '(' as its first character.
+   * @param sql SQL clause, must start with a '('
+   * @return position of the matching ')'
+   * @throws TranslationException
+   */
+  protected final int findMatchingCloseParend(String sql) throws TranslationException {
+    if (sql.charAt(0) != '(') {
+      throw new TranslationException("parenthesis phrase must start with (", sql);
+    }
+    int level = 1;
+    for (int i = 1; i < sql.length(); i++) {
+      if (sql.charAt(i) == '(') level++;
+      else if (sql.charAt(i) == ')' && --level == 0) return i;
+    }
+    throw new TranslationException("Unable to find matching )", sql);
+  }
 
 }

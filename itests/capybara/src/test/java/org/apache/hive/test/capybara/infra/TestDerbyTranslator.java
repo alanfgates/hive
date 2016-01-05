@@ -200,4 +200,14 @@ public class TestDerbyTranslator {
     Assert.assertEquals("select '1999-01-01 01:00:00' from interval_arithmetic_1",
         translator.translate("select timestamp '1999-1-1 01:00:00' from interval_arithmetic_1"));
   }
+
+  @Test
+  public void with() throws Exception {
+    Assert.assertEquals("declare global temporary table q1 as select  key from src where key = '4'; select * from q1",
+        translator.translate("with q1 as ( select key from src where key = '4') select * from q1"));
+    Assert.assertEquals("declare global temporary table q1 as select  key from src where key = '4';declare global temporary table q2 as select key from src2 where key = '4'; select * from q1 join q1 using(key)",
+        translator.translate("with q1 as ( select key from src where key = '4'), q2 as (select key from src2 where key = '4')  select * from q1 join q1 using(key)"));
+
+  }
+
 }

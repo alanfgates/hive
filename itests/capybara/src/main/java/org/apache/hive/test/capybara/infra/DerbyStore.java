@@ -223,7 +223,7 @@ public class DerbyStore extends AnsiSqlStore {
     }
 
     @Override
-    protected String translateCreateTableWithColDefs(Matcher matcher) {
+    protected String translateCreateTableWithColDefs(Matcher matcher) throws TranslationException {
       StringBuilder sql = new StringBuilder();
       if (matcher.group(1) != null && matcher.group(1).equals("temporary ")) {
         sql.append("declare global temporary table ");
@@ -232,7 +232,7 @@ public class DerbyStore extends AnsiSqlStore {
       }
       if (matcher.group(2) != null) failureOk = true;
       sql.append(matcher.group(3))
-          .append(" (")
+          .append(' ')
           .append(translateDataTypes(parseOutColDefs(matcher.group(4))));
       return sql.toString();
     }
@@ -297,6 +297,25 @@ public class DerbyStore extends AnsiSqlStore {
     @Override
     protected char identifierQuote() {
       return '"';
+    }
+
+    @Override
+    protected String getCteInitial() throws TranslationException {
+      return "";
+    }
+
+    @Override
+    protected String getCteFinal() {
+      return ";";
+    }
+
+    @Override
+    protected String translateCteBody(String cteName, String queryDef, boolean isFirst) {
+      StringBuilder sql = new StringBuilder("declare global temporary table ")
+          .append(cteName)
+          .append(" as ")
+          .append(queryDef); // Remove the open parend
+      return sql.toString();
     }
   };
 
