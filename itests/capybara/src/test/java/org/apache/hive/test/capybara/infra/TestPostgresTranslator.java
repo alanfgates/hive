@@ -181,6 +181,9 @@ public class TestPostgresTranslator {
     Assert.assertEquals("create table roottable (key varchar(255))",
         translator.translate("create external table roottable (key string) row format delimited " +
             "fields terminated by '\\t' stored as textfile"));
+    Assert.assertEquals("create table \"avro_dec\" ( \"name\" varchar(255) , \"value\" decimal(5,2) )",
+        translator.translate(
+            "CREATE TABLE `avro_dec`(   `name` string COMMENT 'from deserializer',   `value` decimal(5,2) COMMENT 'from deserializer') COMMENT 'just drop the schema right into the HQL' ROW FORMAT SERDE   'org.apache.hadoop.hive.serde2.avro.AvroSerDe' STORED AS INPUTFORMAT   'org.apache.hadoop.hive.ql.io.avro.AvroContainerInputFormat' OUTPUTFORMAT   'org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat' TBLPROPERTIES (   'numFiles'='1',   'avro.schema.literal'='{\\\"namespace\\\":\\\"com.howdy\\\",\\\"name\\\":\\\"some_schema\\\",\\\"type\\\":\\\"record\\\",\\\"fields\\\":[{\\\"name\\\":\\\"name\\\",\\\"type\\\":\\\"string\\\"},{\\\"name\\\":\\\"value\\\",\\\"type\\\":{\\\"type\\\":\\\"bytes\\\",\\\"logicalType\\\":\\\"decimal\\\",\\\"precision\\\":5,\\\"scale\\\":2}}]}' )"));
   }
 
   @Test
@@ -545,4 +548,30 @@ public class TestPostgresTranslator {
 
   }
 
+  @Test
+  public void createView() throws Exception {
+    Assert.assertEquals("create view tv.testview as select * from srcpart",
+        translator.translate("CREATE VIEW tv.testView as SELECT * FROM srcpart"));
+    Assert.assertEquals("create view v_cli (i) as select i from t_cli",
+        translator.translate("create view v_cli (i) as select i from t_cli"));
+    Assert.assertEquals("create view v_cli (i, j) as select i, j from t_cli",
+        translator.translate("create view v_cli (i, j) as select i, j from t_cli"));
+    Assert.assertEquals("create view view6 (valoo ) as select upper(value) as blarg from src where key=86",
+        translator.translate("CREATE VIEW view6(valoo COMMENT 'I cannot spell') AS SELECT upper(value) as blarg FROM src WHERE key=86"));
+    Assert.assertEquals("create view view3 (valoo) as select upper(value) from src where key=86",
+        translator.translate("CREATE VIEW view3(valoo) TBLPROPERTIES (\"fear\" = \"factor\") AS SELECT upper(value) FROM src WHERE key=86"));
+    Assert.assertEquals("create view vp1 as select key, value from src where key=86",
+        translator.translate("CREATE VIEW vp1 PARTITIONED ON (value) AS SELECT key, value FROM src WHERE key=86"));
+  }
+
+  @Test
+  public void dropView() throws Exception {
+    Assert.assertEquals("drop view tv.testview",
+        translator.translate("DROP VIEW tv.testView"));
+    Assert.assertEquals("drop view testview",
+        translator.translate("DROP VIEW testView"));
+    Assert.assertEquals("drop view v",
+        translator.translate("drop view if exists v"));
+
+  }
 }

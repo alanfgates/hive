@@ -122,6 +122,10 @@ abstract class SQLTranslator {
       else throw new TranslationException("use database", hiveSql);
     } else if (Pattern.compile("analyze").matcher(hiveSql).lookingAt()) {
       return "";
+    } else if (Pattern.compile("create view").matcher(hiveSql).lookingAt()) {
+      return translateCreateView(hiveSql);
+    } else if (Pattern.compile("drop view").matcher(hiveSql).lookingAt()) {
+      return translateDropView(hiveSql);
     } else if (Pattern.compile("create role").matcher(hiveSql).lookingAt()) {
       return "";
     } else if (Pattern.compile("drop role").matcher(hiveSql).lookingAt()) {
@@ -150,8 +154,6 @@ abstract class SQLTranslator {
     }
     // TODO:
     // alter view
-    // create view
-    // drop view
     // load
     // truncate table - have to handle truncate partition and weird partition casts
   }
@@ -262,7 +264,7 @@ abstract class SQLTranslator {
   }
 
   /**
-   * Translate create table iwth column definitions
+   * Translate create table with column definitions
    * @param matcher A matcher for the statement
    *                group 1 is temporary or external (may be null)
    *                group 2 is 'if not exists', may be null
@@ -285,7 +287,7 @@ abstract class SQLTranslator {
   protected String parseOutColDefs(String restOfQuery) throws TranslationException {
     StringBuilder cols = new StringBuilder();
     int endOfColDefs = findMatchingCloseParend(restOfQuery);
-    cols.append(restOfQuery.substring(0, endOfColDefs + 1));
+    cols.append(removeColumnComments(restOfQuery.substring(0, endOfColDefs + 1)));
     String remainder = restOfQuery.substring(endOfColDefs + 1).trim();
 
 
@@ -309,6 +311,28 @@ abstract class SQLTranslator {
    * @return transformed text, with datatypes changed and other contents untouched.
    */
   protected abstract String translateDataTypes(String hiveSql);
+
+  // Remove the COMMENT 'this is a comment' from column declarations.
+  private String removeColumnComments(String hiveSql) {
+    // We simply tokenize this on words and remove anything that says comment and the following
+    // token.  We've already masked the quotes into single words so we don't need to worry about
+    // getting bogus spaces in the quotes.
+    String[] words = hiveSql.split(" ");
+    StringBuilder sql = new StringBuilder();
+    for (int i = 0; i < words.length; i++) {
+      if (words[i].equals("comment")) {
+        // If there's a comma at the end of the comment, put it here
+        if (words[i+1].endsWith(",")) sql.append(", ");
+        else if (words[i+1].endsWith(")")) sql.append(")");
+
+        i++;  // advance i by one so we skip comment and the following word
+      } else {
+        sql.append(words[i])
+            .append(' ');
+      }
+    }
+    return sql.toString().trim();
+  }
 
   protected String translateDropTable(String hiveSql) throws TranslationException {
     // Need to remove purge if its there
@@ -501,6 +525,75 @@ abstract class SQLTranslator {
           .append(kvp.getSecond());
     }
     return sql.toString();
+  }
+
+  /**********************************************************************************************
+   * View related
+   **********************************************************************************************/
+  protected String translateCreateView(String hiveSql) throws TranslationException {
+    Matcher m =
+        Pattern.compile("create view (?:if not exists )?(" + TABLE_NAME_REGEX + ")").matcher(hiveSql);
+    if (m.lookingAt()) {
+      StringBuilder sql = new StringBuilder("create view ")
+          .append(m.group(1))
+          .append(' ');
+      int current = m.end();
+      if (hiveSql.charAt(current) == ' ') current++;
+
+      // It might have column definitions.  If so, grab those and append them
+      if (hiveSql.charAt(current) == '(') {
+        int closeParend = findMatchingCloseParend(hiveSql.substring(current)) + current;
+        sql.append(removeColumnComments(hiveSql.substring(current, closeParend + 1)))
+            .append(' ');
+        current = closeParend + 1;
+      }
+      if (hiveSql.charAt(current) == ' ') current++;
+
+      // It might have a comment, if so move past it
+      Matcher cm = Pattern.compile("comment " + QUOTE_REGEX).matcher(hiveSql.substring(current));
+      if (cm.lookingAt()) {
+        current += cm.end();
+      }
+
+      // It might have 'partitioned on'
+      if (hiveSql.charAt(current) == ' ') current++;
+      if (hiveSql.substring(current).startsWith("partitioned on")) {
+        current += "partitioned on".length();
+        if (hiveSql.charAt(current) == ' ') current++;
+        current += findMatchingCloseParend(hiveSql.substring(current)) + 1;
+      }
+
+      if (hiveSql.charAt(current) == ' ') current++;
+      // It might have table properties
+      if (hiveSql.substring(current).startsWith("tblproperties")) {
+        current += "tblproperties".length();
+        if (hiveSql.charAt(current) == ' ') current++;
+        current += findMatchingCloseParend(hiveSql.substring(current)) + 1;
+      }
+      if (hiveSql.charAt(current) == ' ') current++;
+
+      // We should now be at the AS
+      if (!hiveSql.substring(current).startsWith("as")) {
+        throw new TranslationException("create view", hiveSql);
+      }
+      current += 3;
+      sql.append("as ");
+      sql.append(translateSelect(hiveSql.substring(current)));
+      return sql.toString();
+    } else {
+      throw new TranslationException("create view", hiveSql);
+    }
+  }
+
+  protected String translateDropView(String hiveSql) throws TranslationException {
+    Matcher m =
+        Pattern.compile("drop view (?:if exists )?(" + TABLE_NAME_REGEX + ")").matcher(hiveSql);
+    if (m.lookingAt()) {
+      return "drop view " + m.group(1);
+    } else {
+      throw new TranslationException("drop view", hiveSql);
+    }
+
   }
 
   /**********************************************************************************************
@@ -774,12 +867,14 @@ abstract class SQLTranslator {
     udfMapping.put("cos", "cos");
     udfMapping.put("count", "count");
     udfMapping.put("length", "length");
+    udfMapping.put("lower", "lower");
     udfMapping.put("max", "max");
     udfMapping.put("min", "min");
     udfMapping.put("sin", "sin");
     udfMapping.put("substring", "substring");
     udfMapping.put("sum", "sum");
     udfMapping.put("tan", "tan");
+    udfMapping.put("upper", "upper");
 
     // TODO go through all the Hive UDFs.
 
