@@ -66,8 +66,12 @@ public class TestAnsiSqlStore {
     }
 
     @Override
-    protected String getTempTableCreate() {
+    protected String getTempTableCreate(String tableName) {
       return null;
+    }
+
+    @Override
+    public void cleanupAfterTest() throws SQLException, IOException {
     }
 
     @Override

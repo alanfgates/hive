@@ -84,7 +84,17 @@ abstract class AnsiSqlStore extends DataStoreBase implements BenchmarkDataStore 
     }
     LOG.debug("Translated Hive SQL <" + hiveSql + "> to <" + sql +
         ">, going to run against benchmark");
-    return jdbcFetch(sql, getLimit(), failureOk);
+    // In a few rare cases the translation can actually return multiple statements.  In this case
+    // we need to break them up and run them one at a time.  We assume that only the last one
+    // actually returns results.
+    String[] queries = sql.split(SQLTranslator.QUERY_SEPARATOR);
+    FetchResult fr = null;
+    for (String query : queries) {
+      fr = jdbcFetch(query, getLimit(), failureOk);
+      if (fr.rc != ResultCode.SUCCESS && !failureOk) return fr;
+    }
+
+    return fr;
   }
 
   @Override
@@ -136,8 +146,9 @@ abstract class AnsiSqlStore extends DataStoreBase implements BenchmarkDataStore 
   /**
    * Get the string for createing a temporary table.
    * @return temp table creation string
+   * @param tableName
    */
-  protected abstract String getTempTableCreate();
+  protected abstract String getTempTableCreate(String tableName);
 
   /**
    * Get the limit that should be applied to a query.  This is to deal with the fact that derby
@@ -194,7 +205,7 @@ abstract class AnsiSqlStore extends DataStoreBase implements BenchmarkDataStore 
 
     try (Connection conn = connect(true)) {
       StringBuilder sql = new StringBuilder();
-      if (table.isTemporary()) sql.append(getTempTableCreate());
+      if (table.isTemporary()) sql.append(getTempTableCreate(table.getTableName()));
       else sql.append("create table ");
       sql.append(getTableName(table))
           .append(" (");

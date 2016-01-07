@@ -17,17 +17,19 @@
  */
 package org.apache.hive.test.capybara.infra;
 
+import org.apache.derby.jdbc.EmbeddedDriver;
 import org.apache.hive.test.capybara.data.DataSet;
 import org.apache.hive.test.capybara.iface.TestTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.derby.jdbc.EmbeddedDriver;
 
 import java.io.File;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -43,6 +45,7 @@ public class DerbyStore extends AnsiSqlStore {
   private static final String DERBY_URL;
 
   private long limit;
+  private List<String> tempTables = new ArrayList<>();
 
   static {
     DERBY_URL = new StringBuilder("jdbc:derby:")
@@ -145,13 +148,21 @@ public class DerbyStore extends AnsiSqlStore {
   }
 
   @Override
-  protected String getTempTableCreate() {
-    return "declare global temporary table ";
+  protected String getTempTableCreate(String tableName) {
+    tempTables.add(tableName);
+    return "create table ";
   }
 
   @Override
   public Class getDriverClass() {
     return jdbcDriver.getClass();
+  }
+
+  @Override
+  public void cleanupAfterTest() throws SQLException, IOException {
+    for (String tempTable : tempTables) {
+      jdbcFetch("drop table " + tempTable, Long.MAX_VALUE, true);
+    }
   }
 
   @Override
@@ -196,29 +207,37 @@ public class DerbyStore extends AnsiSqlStore {
     protected String translateCreateTableLike(Matcher matcher) {
       StringBuilder sql = new StringBuilder();
       if (matcher.group(1) != null && matcher.group(1).equals("temporary ")) {
-        sql.append("declare global temporary table ");
-      } else {
-        sql.append("create table ");
+        tempTables.add(matcher.group(3));
       }
+      sql.append("create table ");
       if (matcher.group(2) != null) failureOk = true;
       sql.append(matcher.group(3))
           .append(" as select * from ")
-          .append(matcher.group(4));
+          .append(matcher.group(4))
+          .append(" with no data");
       return sql.toString();
     }
 
     @Override
     protected String translateCreateTableAs(Matcher matcher) throws TranslationException {
+      // Derby can't create and populate a table in a single command.  Create table as select
+      // just creates the table.  So we have to add a seperate insert to put the data in the table.
       StringBuilder sql = new StringBuilder();
       if (matcher.group(1) != null && matcher.group(1).equals("temporary ")) {
-        sql.append("declare global temporary table ");
-      } else {
-        sql.append("create table ");
+        tempTables.add(matcher.group(3));
       }
+      sql.append("create table ");
+      String select = translateSelect(matcher.group(4));
       if (matcher.group(2) != null) failureOk = true;
       sql.append(matcher.group(3))
           .append(" as ")
-          .append(translateSelect(matcher.group(4)));
+          .append(select)
+          .append(" with no data")
+          .append(QUERY_SEPARATOR)
+          .append("insert into ")
+          .append(matcher.group(3))
+          .append(' ')
+          .append(select);
       return sql.toString();
     }
 
@@ -226,10 +245,9 @@ public class DerbyStore extends AnsiSqlStore {
     protected String translateCreateTableWithColDefs(Matcher matcher) throws TranslationException {
       StringBuilder sql = new StringBuilder();
       if (matcher.group(1) != null && matcher.group(1).equals("temporary ")) {
-        sql.append("declare global temporary table ");
-      } else {
-        sql.append("create table ");
+        tempTables.add(matcher.group(3));
       }
+      sql.append("create table ");
       if (matcher.group(2) != null) failureOk = true;
       sql.append(matcher.group(3))
           .append(' ')
@@ -306,15 +324,22 @@ public class DerbyStore extends AnsiSqlStore {
 
     @Override
     protected String getCteFinal() {
-      return ";";
+      return QUERY_SEPARATOR;
     }
 
     @Override
     protected String translateCteBody(String cteName, String queryDef, boolean isFirst) {
-      StringBuilder sql = new StringBuilder("declare global temporary table ")
+      StringBuilder sql = new StringBuilder("create table ")
           .append(cteName)
           .append(" as ")
+          .append(queryDef)
+          .append(" with no data ")
+          .append(SQLTranslator.QUERY_SEPARATOR)
+          .append(" insert into ")
+          .append(cteName)
+          .append(' ')
           .append(queryDef); // Remove the open parend
+      tempTables.add(cteName);
       return sql.toString();
     }
   };

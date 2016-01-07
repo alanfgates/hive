@@ -17,6 +17,7 @@
  */
 package org.apache.hive.test.capybara.iface;
 
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 
@@ -43,4 +44,11 @@ public interface BenchmarkDataStore extends DataStore {
    * @throws java.sql.SQLException
    */
   Connection getJdbcConnection(boolean autoCommit) throws SQLException;
+
+  /**
+   * Cleanup after a test has been run.  Benchmark implementation can use this to do things like
+   * clean up any temporary state, etc.
+   * @throws SQLException
+   */
+  void cleanupAfterTest() throws SQLException, IOException;
 }

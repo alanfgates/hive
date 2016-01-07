@@ -220,6 +220,8 @@ public abstract class IntegrationTest {
   @After
   public void teardownTest() throws Exception {
     LOG.trace("Entering teardownTest");
+    // Give the benchmark a chance to cleanup if it needs to
+    testManager.getBenchmark().getBenchDataStore().cleanupAfterTest();
     clusterManager.unsetHive();
     testManager.resetBenchmark();
     LOG.trace("Leaving teardownTest");

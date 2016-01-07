@@ -120,13 +120,31 @@ public class TestDerbyTranslator {
 
   @Test
   public void createTableLike() throws Exception {
-    Assert.assertEquals("create table alter3_like as select * from alter3",
+    Assert.assertEquals("create table alter3_like as select * from alter3 with no data",
         translator.translate("create table alter3_like like alter3"));
-    Assert.assertEquals("create table emp_orc as select * from emp_staging",
+    Assert.assertEquals("create table emp_orc as select * from emp_staging with no data",
         translator.translate("create table if not exists emp_orc like emp_staging"));
     Assert.assertTrue(translator.isFailureOk());
-    Assert.assertEquals("create table source.srcpart as select * from default.srcpart",
+    Assert.assertEquals("create table source.srcpart as select * from default.srcpart with no data",
         translator.translate("create table source.srcpart like default.srcpart;"));
+  }
+
+  @Test
+  public void createTableAs() throws Exception {
+    Assert.assertEquals("create table src_stat as select * from src1 with no data"
+            + SQLTranslator.QUERY_SEPARATOR +
+            "insert into src_stat select * from src1",
+        translator.translate("create table src_stat as select * from src1"));
+    Assert.assertEquals("create table dest_grouped_old1 as select 1+1, " +
+            "2+2 as zz, src.key, src.value, count(src.value), count(src.value)" +
+            ", count(src.value), sum(value) from src group by src.key with no data" +
+            SQLTranslator.QUERY_SEPARATOR +
+            "insert into dest_grouped_old1 select 1+1, " +
+            "2+2 as zz, src.key, src.value, count(src.value), count(src.value)" +
+            ", count(src.value), sum(value) from src group by src.key",
+        translator.translate("create table dest_grouped_old1 as select 1+1, " +
+            "2+2 as zz, src.key, src.value, count(src.value), count(src.value)" +
+            ", count(src.value), SUM(value) from src group by src.key"));
   }
 
   @Test
@@ -158,7 +176,7 @@ public class TestDerbyTranslator {
             "int )",
         translator.translate("create table if not exists loc_staging (state string,locid int,zip " +
             "bigint,year int ) row format delimited fields terminated by '|' stored as textfile"));
-    Assert.assertEquals("declare global temporary table acid_dtt (a int, b varchar(128))",
+    Assert.assertEquals("create table acid_dtt (a int, b varchar(128))",
         translator.translate("create temporary table acid_dtt(a int, b varchar(128)) clustered by" +
             " (a) into 2 buckets stored as orc TBLPROPERTIES ('transactional'='true')"));
     Assert.assertEquals("create table roottable (key varchar(255))",
@@ -203,9 +221,19 @@ public class TestDerbyTranslator {
 
   @Test
   public void with() throws Exception {
-    Assert.assertEquals("declare global temporary table q1 as select  key from src where key = '4'; select * from q1",
+    Assert.assertEquals("create table q1 as select  key from src where key = '4' with no data " +
+            SQLTranslator.QUERY_SEPARATOR +
+            " insert into q1 select  key from src where key = '4'" +
+            SQLTranslator.QUERY_SEPARATOR + " select * from q1",
         translator.translate("with q1 as ( select key from src where key = '4') select * from q1"));
-    Assert.assertEquals("declare global temporary table q1 as select  key from src where key = '4';declare global temporary table q2 as select key from src2 where key = '4'; select * from q1 join q1 using(key)",
+    Assert.assertEquals("create table q1 as select  key from src where key = '4' with no data " +
+            SQLTranslator.QUERY_SEPARATOR +
+            " insert into q1 select  key from src where key = '4'" +
+            SQLTranslator.QUERY_SEPARATOR +
+            "create table q2 as select key from src2 where key = '4' with no data " +
+            SQLTranslator.QUERY_SEPARATOR +
+            " insert into q2 select key from src2 where key = '4'" +
+            SQLTranslator.QUERY_SEPARATOR + " select * from q1 join q1 using(key)",
         translator.translate("with q1 as ( select key from src where key = '4'), q2 as (select key from src2 where key = '4')  select * from q1 join q1 using(key)"));
 
   }

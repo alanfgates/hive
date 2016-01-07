@@ -137,8 +137,13 @@ class PostgresStore extends AnsiSqlStore {
   }
 
   @Override
-  protected String getTempTableCreate() {
+  protected String getTempTableCreate(String tableName) {
     return "create temporary table ";
+  }
+
+  @Override
+  public void cleanupAfterTest() throws SQLException {
+    // NOP
   }
 
   private static SQLTranslator postgresTranslator = new SQLTranslator() {

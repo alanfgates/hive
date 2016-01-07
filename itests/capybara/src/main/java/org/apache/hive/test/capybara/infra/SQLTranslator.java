@@ -46,6 +46,9 @@ abstract class SQLTranslator {
   protected static final String QUOTE_REGEX = QUOTE_START + "[0-9]+" + QUOTE_END;
   protected static final String NUMERIC_CONSTANT_REGEX = "([0-9]+)(l|s|y|bd)";
 
+  // For use when we need to put two queries into one string.  We can't just use ';' because it
+  // might exist in some quotes.
+  static final String QUERY_SEPARATOR = QUOTE_START + ";;;" + QUOTE_END;
 
   /**
    * If true, it's ok if this SQL fails to run on the benchmark.  This is used to mask the fact
