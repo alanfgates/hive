@@ -140,20 +140,20 @@ public class TestAcid extends IntegrationTest {
 
   @Test
   public void updateAllNonPartitioned() throws Exception {
-    TestTable acid_uanp = TestTable.getBuilder("acid_uanp")
+    TestTable acid_uanpd = TestTable.getBuilder("acid_uanpd")
         .addCol("a", "int")
         .addCol("b", "varchar(128)")
         .setBucketCols("a")
         .setNumBuckets(2)
         .setAcid(true)
         .build();
-    acid_uanp.create();
+    acid_uanpd.create();
     DataGenerator generator = new RandomDataGenerator(873);
-    acid_uanp.populate(generator);
+    acid_uanpd.populate(generator);
 
-    runQuery("update acid_uanp set b = 'fred'");
+    runQuery("update acid_uanpd set b = 'fred'");
 
-    runQuery("select * from acid_uanp");
+    runQuery("select * from acid_uanpd");
     sortAndCompare();
   }
 

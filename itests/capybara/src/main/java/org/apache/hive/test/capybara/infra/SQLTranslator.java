@@ -581,7 +581,7 @@ abstract class SQLTranslator {
       }
       current += 3;
       sql.append("as ");
-      sql.append(translateSelect(hiveSql.substring(current)));
+      sql.append(translate(hiveSql.substring(current)));
       return sql.toString();
     } else {
       throw new TranslationException("create view", hiveSql);

@@ -129,7 +129,7 @@ public abstract class IntegrationTest {
   }
 
   @AfterClass
-  public static void teardownClass() {
+  public static void teardownClass() throws IOException {
     LOG.trace("Entering teardownClass");
     // tear down any miniclusters we started
     clusterManager.tearDown();
@@ -186,6 +186,9 @@ public abstract class IntegrationTest {
     hive = clusterManager.getHive();
     bench = testManager.getBenchmark();
 
+    // Give the cluster manager a chance to do any setup it needs to do.
+    clusterManager.beforeTest();
+
     // Handle any annotations that set values in the config file
     List<Annotation> annotations = allAnnotations.get(name.getMethodName());
     if (annotations != null) {
@@ -222,8 +225,8 @@ public abstract class IntegrationTest {
     LOG.trace("Entering teardownTest");
     // Give the benchmark a chance to cleanup if it needs to
     testManager.getBenchmark().getBenchDataStore().cleanupAfterTest();
-    clusterManager.unsetHive();
     testManager.resetBenchmark();
+    clusterManager.afterTest();
     LOG.trace("Leaving teardownTest");
   }
 

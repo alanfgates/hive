@@ -33,14 +33,28 @@ public interface ClusterManager extends Configurable {
   /**
    * Prepare the cluster for testing.  This will be called once at the beginning of a set of
    * tests (in an @BeforeClass method).
+   * @throws IOException
    */
   void setup() throws IOException;
 
   /**
    * Tear down the cluster after testing.  This will be called once at the end of a set of tests
    * (in an @AfterClass method).
+   * @throws IOException
    */
-  void tearDown();
+  void tearDown() throws IOException;
+
+  /**
+   * Called before each test is run.
+   * @throws IOException
+   */
+  void beforeTest() throws IOException;
+
+  /**
+   * Called after each test is run.
+   * @throws IOException
+   */
+  void afterTest() throws IOException;
 
   /**
    * Indicate whether this is a remote cluster.
@@ -60,12 +74,6 @@ public interface ClusterManager extends Configurable {
    * @return connection to Hive
    */
   HiveStore getHive();
-
-  /**
-   * Set the Hive connection to null.  This is done after a test so that the next test doesn't
-   * inherit any state from the current one.  This may be a NOP for some cluster managers.
-   */
-  void unsetHive();
 
   /**
    * Get a JDBC URL to talk to Hive.  If the access method is not set to "jdbc" the result of

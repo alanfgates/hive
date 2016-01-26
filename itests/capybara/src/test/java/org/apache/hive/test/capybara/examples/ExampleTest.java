@@ -81,6 +81,7 @@ public class ExampleTest extends IntegrationTest {
   // * Make is so the user can change the package for tests created by UserQueryGenerator
   // * Split up the infra package into interface and impl, it's getting too big and confusing.
   // Move DataGenerator from top to interface.
+  // * Make older version of Hive work as benchmark
 
   // TODO - needs tested
   // * Test ability to generate data in parallel (on cluster) for large data

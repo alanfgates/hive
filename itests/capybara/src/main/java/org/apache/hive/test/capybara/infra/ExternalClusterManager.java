@@ -49,6 +49,16 @@ public class ExternalClusterManager implements ClusterManager {
   }
 
   @Override
+  public void beforeTest() throws IOException {
+
+  }
+
+  @Override
+  public void afterTest() throws IOException {
+
+  }
+
+  @Override
   public boolean remote() {
     return true;
   }
@@ -99,13 +109,6 @@ public class ExternalClusterManager implements ClusterManager {
   @Override
   public Map<String, String> getConfVars() {
     return confVars;
-  }
-
-  @Override
-  public void unsetHive() {
-    // NOP, since we're not directly connected to Hive we don't need to build a new instance each
-    // time to reset the config.
-
   }
 
   @Override

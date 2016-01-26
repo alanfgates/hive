@@ -166,24 +166,33 @@ public class MiniClusterManager implements ClusterManager {
 
   @Override
   public void tearDown() {
-    try {
-      for (String dbNameTableName : registeredTables) {
-	try {
-	  getHive().fetchData("drop table " + dbNameTableName);
-	} catch (SQLException | IOException e) {
-	  LOG.error("Unable to drop table " + dbNameTableName, e);
-	  throw new RuntimeException(e);
-	}
+    Exception caughtException = null;
+    for (String dbNameTableName : registeredTables) {
+      try {
+        getHive().fetchData("drop table " + dbNameTableName);
+      } catch (SQLException | IOException e) {
+        LOG.error("Unable to drop table " + dbNameTableName, e);
+        caughtException = e;
+        // Keep going so we get everything shutdown, finally close it at the end
       }
-    } finally {
-      // tear down any mini-clusters we've constructed.
-      if (tez != null) tez.stop();
-      if (dfs != null) dfs.shutdown();
     }
+
     // tear down any mini-clusters we've constructed.
     if (dfs != null) dfs.shutdown();
     if (tez != null) tez.stop();
     if (hs2 != null) hs2.stop();
+    if (caughtException != null) throw new RuntimeException(caughtException);
+  }
+
+  @Override
+  public void beforeTest() throws IOException {
+
+  }
+
+  @Override
+  public void afterTest() throws IOException {
+    if (tez != null) tez.close();
+    hive = null;
   }
 
   @Override
@@ -219,11 +228,6 @@ public class MiniClusterManager implements ClusterManager {
       throw new RuntimeException("No in JDBC mode!");
     }
     return hs2.getJdbcURL();
-  }
-
-  @Override
-  public void unsetHive() {
-    hive = null;
   }
 
   @Override

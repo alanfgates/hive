@@ -545,7 +545,6 @@ public class TestPostgresTranslator {
         translator.translate("with q1 as ( select key from src where key = '4') select * from q1"));
     Assert.assertEquals("with q1 as (select  key from src where key = '4'), q2 as (select key from src2 where key = '4') select * from q1 join q1 using(key)",
         translator.translate("with q1 as ( select key from src where key = '4'), q2 as (select key from src2 where key = '4')  select * from q1 join q1 using(key)"));
-
   }
 
   @Test
