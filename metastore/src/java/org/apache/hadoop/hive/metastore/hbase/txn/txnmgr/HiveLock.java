@@ -21,7 +21,7 @@ import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
 
 import java.io.IOException;
 
-class HiveLock implements Comparable<HiveLock> {
+class HiveLock {
 
   private final long id;
   // Transaction we are part of, needed so that we can backtrack to the txns when tracing via
@@ -87,28 +87,6 @@ class HiveLock implements Comparable<HiveLock> {
 
   public TransactionManager.DTPLockQueue getDtpQueue() {
     return dtpQueue;
-  }
-
-  @Override
-  public int compareTo(HiveLock other) {
-    // Sort order is based on the DTP queue the lock is in.  This is to make sure that when a txn
-    // goes to lock the DTPQueue it is guaranteed not to deadlock with another txn.
-    int result = dtpQueue.key.db.compareTo(other.dtpQueue.key.db);
-    if (result == 0) {
-      if (dtpQueue.key.table != null) {
-        result = dtpQueue.key.table.compareTo(other.dtpQueue.key.table);
-        if (result == 0) {
-          if (dtpQueue.key.part != null) {
-            result = dtpQueue.key.part.compareTo(other.dtpQueue.key.part);
-          } else {
-            result = other.dtpQueue.key.part == null ? 0 : -1;
-          }
-        }
-      } else {
-        result = other.dtpQueue.key.table == null ? 0 : -1;
-      }
-    }
-    return result;
   }
 
   @Override

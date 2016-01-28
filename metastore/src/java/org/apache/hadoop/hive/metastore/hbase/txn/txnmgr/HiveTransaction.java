@@ -22,8 +22,6 @@ import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 class HiveTransaction {
   private final long id;
@@ -35,12 +33,6 @@ class HiveTransaction {
   // capacity, but when it grows you loose control of how.
   private HiveLock[] hiveLocks;
 
-  // This lock controls access to the transaction itself.  In most cases there won't be
-  // contention on it as usually only the session that owns the transaction will access it.
-  // However, the cleaner threads will need to access it if it times out or is otherwise aborted.
-  private final Lock txnLock;
-
-
   /**
    * For use when creating a new transaction.  This creates the transaction in an open state.
    * @param id txn id
@@ -48,7 +40,6 @@ class HiveTransaction {
   HiveTransaction(long id) {
     this.id = id;
     state = HbaseMetastoreProto.Transaction.TxnState.OPEN;
-    txnLock = new ReentrantLock();
   }
 
   /**
@@ -67,10 +58,6 @@ class HiveTransaction {
     for (int i = 0; i < hbaseLocks.size(); i++) {
       hiveLocks[i] = new HiveLock(id, hbaseLocks.get(i), txnMgr);
     }
-    // I'm not sure if Protobuf is order perserving for my array or not.
-    Arrays.sort(hiveLocks);
-    txnLock = new ReentrantLock();
-
   }
 
   long getId() {
@@ -111,9 +98,5 @@ class HiveTransaction {
       hiveLocks = Arrays.copyOf(hiveLocks, origSize + newLocks.length);
       System.arraycopy(newLocks, 0, hiveLocks, origSize, newLocks.length);
     }
-  }
-
-  public Lock getTxnLock() {
-    return txnLock;
   }
 }
