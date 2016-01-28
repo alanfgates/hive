@@ -257,6 +257,48 @@ message Table {
   optional bool is_temporary = 14;
 }
 
+message Transaction {
+  enum TxnState {
+    COMMITTED = 1;
+    ABORTED = 2;
+    OPEN = 3;
+  }
+
+  message Lock {
+    enum LockState {
+      ACQUIRED = 1;
+      WAITING = 2;
+      ABORTED = 3;
+      RELEASED = 4; // This indicates a lock has been released but the record is being kept around for later use
+    }
+
+    enum LockType {
+      SHARED_READ = 1;
+      SHARED_WRITE = 2;
+      EXCLUSIVE = 3;
+      INTENTION = 4;
+    }
+    required int64 id = 1;
+    required LockState state = 2;
+    required LockType type = 3;
+    optional string db = 4;
+    optional string table = 5;
+    optional string partition = 6;
+    optional int64 acquired_at = 7;
+    optional bool compacted = 8;
+  }
+
+  required int64 id = 1;
+  required TxnState txn_state = 2;
+  optional string user = 3;
+  optional string hostname = 4;
+  optional int64 last_heartbeat = 5;
+  optional string agent_info = 6;
+  optional string meta_info = 7;
+  optional int32 heartbeat_count = 8;
+  repeated Lock locks = 9;
+}
+
 message PartitionKeyComparator {
   required string names = 1;
   required string types = 2;
