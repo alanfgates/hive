@@ -151,6 +151,7 @@ public class TransactionManager {
       for (HiveLock lock : locks) {
         lock.setState(HbaseMetastoreProto.Transaction.Lock.LockState.ABORTED);
         lock.getDtpQueue().hiveLocks.remove(lock.getId());
+        // TODO move locks to DTP table that tracks locks for compaction cleanup
       }
     }
 
@@ -174,6 +175,7 @@ public class TransactionManager {
         for (HiveLock lock : locks) {
           lock.setState(HbaseMetastoreProto.Transaction.Lock.LockState.RELEASED);
           lock.getDtpQueue().hiveLocks.remove(lock.getId());
+          // TODO move locks to DTP table that tracks locks for compaction cleanup
         }
       }
 
@@ -336,6 +338,7 @@ public class TransactionManager {
         if (lockIds.contains(lock.getId())) {
           lock.setState(HbaseMetastoreProto.Transaction.Lock.LockState.RELEASED);
           lock.getDtpQueue().hiveLocks.remove(lock.getId());
+          // TODO move locks to DTP table that tracks locks for compaction cleanup
         }
       }
       // TODO update HBase
