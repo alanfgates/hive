@@ -91,6 +91,8 @@ public class TransactionManager {
 
   private TransactionManager(HiveConf conf) {
     masterLock = new ReentrantReadWriteLock();
+    // Don't set the values here, as for efficiency in iteration we want the size to match as
+    // closely as possible to the actual number of entries.
     openTxns = new HashMap<>();
     abortedTxns = new HashMap<>();
     dtps = new HashMap<>(10000);
@@ -378,8 +380,6 @@ public class TransactionManager {
       }
     }
   }
-
-  // TODO search for deadlocks
 
   public static class LockKeeper implements Closeable {
     final Lock lock;
