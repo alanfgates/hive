@@ -35,7 +35,6 @@ import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -48,12 +47,6 @@ import java.util.TreeMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-
-// TODO
-// MAJOR TODO
-// What are the threading characteristics of a co-processor?  Is it already single threaded or
-// can I expect a thread per caller?
-
 
 public class TransactionManager {
 
@@ -506,76 +499,50 @@ public class TransactionManager {
         sleepTime = 2000;
         try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
           // We're looking only for transactions that have 1+ acquired locks and 1+ waiting locks
-          Map<Long, PotentialDeadlock> potentials = new HashMap<>();
           for (HiveTransaction txn : openTxns.values()) {
-            Set<Long> acquired = new HashSet<>();
-            List<HiveLock> waiting = new ArrayList<>();
+            boolean sawAcquired = false, sawWaiting = false;
             for (HiveLock lock : txn.getHiveLocks()) {
               if (lock.getState() == HbaseMetastoreProto.Transaction.Lock.LockState.WAITING) {
-                waiting.add(lock);
+                sawWaiting = true;
               } else if (lock.getState() == HbaseMetastoreProto.Transaction.Lock.LockState.ACQUIRED) {
-                acquired.add(lock.getId());
+                sawAcquired = true;
               }
             }
-            if (acquired.size() > 0 && waiting.size() > 0) {
-              potentials.put(txn.getId(), new PotentialDeadlock(acquired, waiting));
-            }
-          }
-          // TODO - this no work.  We need a full depth first traversal to find loops, not just
-          // two step loops as the following does.
-          // Now, look through the potentials and see if any of them are wedged on each other
-          for (Map.Entry<Long, PotentialDeadlock> potential : potentials.entrySet()) {
-            // For each one it is waiting for, go see if that transaction is waiting on us and
-            // has the lock we're waiting for.
-            for (HiveLock waitingFor : potential.getValue().waitingLocks) {
-              Iterator<HiveLock> iter = waitingFor.getDtpQueue().hiveLocks.values().iterator();
-              while (iter.hasNext()) {
-                HiveLock holder = iter.next();
-                if (holder.getState() == HbaseMetastoreProto.Transaction.Lock.LockState.ACQUIRED) {
-                  // See if this transaction is in our potential set
-                  PotentialDeadlock otherHalf = potentials.get(holder.getTxnId());
-                  if (otherHalf != null) {
-                    // Ok, there is at least the possibility.  We need to see if the other half
-                    // is waiting on a lock our initial potential has acquired.
-                    for (HiveLock otherHalfLock : otherHalf.waitingLocks) {
-                      if (potential.getValue().acquiredLocks.contains(otherHalfLock.getId())) {
-                        // Bingo, found one.  Now, abort whichever of these transactions has the
-                        // higher id number.  To do that we'll have to release the read lock and
-                        // acquire the write lock, so after that we'll set the sleep time low and
-                        // start over again.
-                        long victim = Math.max(potential.getKey(), holder.getTxnId());
-                        masterLock.readLock().unlock();
-                        // TODO LOG this as an ERROR
-                        try (LockKeeper lk1 = new LockKeeper(masterLock.writeLock())) {
-                          abortTxn(openTxns.get(victim));
-                        }
-                        sleepTime = 1;
-                        break;
-                      }
-                    }
-                  }
+            // Only check if we have both acquired and waiting locks.  A transaction might be in
+            // a cycle without that, but it won't be key to the cycle without it.
+            if (sawAcquired && sawWaiting) {
+              if (lookForDeadlock(txn.getId(), txn, true)) {
+                // It's easiest to always kill this one rather than try to figure out where in
+                // the graph we can remove something and break the cycle.  Given that which txn
+                // we examine first is mostly random this should be ok (I hope).
+                masterLock.readLock().unlock();
+                // TODO LOG this as an ERROR
+                try (LockKeeper lk1 = new LockKeeper(masterLock.writeLock())) {
+                  abortTxn(openTxns.get(txn.getId()));
                 }
+                // We've released the readlock and messed with the data structures we're
+                // traversing, so don't keep going.  Instead set our sleep time very low so we
+                // run again soon.
+                sleepTime = 1;
+                break;
               }
-              if (sleepTime == 1) break;
             }
-            if (sleepTime == 1) break;
           }
-          if (sleepTime == 1) break;
         } catch (IOException e) {
           // TODO probably want to log this and ignore
         }
       }
     }
-  };
 
-  private static class PotentialDeadlock {
-    final Set<Long> acquiredLocks;
-    final List<HiveLock> waitingLocks;
-
-    PotentialDeadlock(Set<Long> acquiredLocks, List<HiveLock> waitingLocks) {
-      this.acquiredLocks = acquiredLocks;
-      this.waitingLocks = waitingLocks;
+    private boolean lookForDeadlock(long firstHalf, HiveTransaction txn, boolean initial) {
+      if (!initial && firstHalf == txn.getId()) return true;
+      for (HiveLock lock : txn.getHiveLocks()) {
+        if (lock.getState() == HbaseMetastoreProto.Transaction.Lock.LockState.WAITING) {
+          // TODO deal with missing txn
+          return lookForDeadlock(firstHalf, openTxns.get(lock.getTxnId()), false);
+        }
+      }
+      return false;
     }
-  }
-
+  };
 }
