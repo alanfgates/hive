@@ -32791,77 +32791,67 @@ public final class HbaseMetastoreProto {
     com.google.protobuf.ByteString
         getHostnameBytes();
 
-    // optional int64 last_heartbeat = 5;
+    // optional string agent_info = 5;
     /**
-     * <code>optional int64 last_heartbeat = 5;</code>
-     */
-    boolean hasLastHeartbeat();
-    /**
-     * <code>optional int64 last_heartbeat = 5;</code>
-     */
-    long getLastHeartbeat();
-
-    // optional string agent_info = 6;
-    /**
-     * <code>optional string agent_info = 6;</code>
+     * <code>optional string agent_info = 5;</code>
      */
     boolean hasAgentInfo();
     /**
-     * <code>optional string agent_info = 6;</code>
+     * <code>optional string agent_info = 5;</code>
      */
     java.lang.String getAgentInfo();
     /**
-     * <code>optional string agent_info = 6;</code>
+     * <code>optional string agent_info = 5;</code>
      */
     com.google.protobuf.ByteString
         getAgentInfoBytes();
 
-    // optional string meta_info = 7;
+    // optional string meta_info = 6;
     /**
-     * <code>optional string meta_info = 7;</code>
+     * <code>optional string meta_info = 6;</code>
      */
     boolean hasMetaInfo();
     /**
-     * <code>optional string meta_info = 7;</code>
+     * <code>optional string meta_info = 6;</code>
      */
     java.lang.String getMetaInfo();
     /**
-     * <code>optional string meta_info = 7;</code>
+     * <code>optional string meta_info = 6;</code>
      */
     com.google.protobuf.ByteString
         getMetaInfoBytes();
 
-    // optional int32 heartbeat_count = 8;
+    // optional int32 aborted_lock_count = 7;
     /**
-     * <code>optional int32 heartbeat_count = 8;</code>
+     * <code>optional int32 aborted_lock_count = 7;</code>
      */
-    boolean hasHeartbeatCount();
+    boolean hasAbortedLockCount();
     /**
-     * <code>optional int32 heartbeat_count = 8;</code>
+     * <code>optional int32 aborted_lock_count = 7;</code>
      */
-    int getHeartbeatCount();
+    int getAbortedLockCount();
 
-    // repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;
+    // repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;
     /**
-     * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+     * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
      */
     java.util.List<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock> 
         getLocksList();
     /**
-     * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+     * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
      */
     org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock getLocks(int index);
     /**
-     * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+     * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
      */
     int getLocksCount();
     /**
-     * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+     * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
      */
     java.util.List<? extends org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.LockOrBuilder> 
         getLocksOrBuilderList();
     /**
-     * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+     * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
      */
     org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.LockOrBuilder getLocksOrBuilder(
         int index);
@@ -32943,30 +32933,25 @@ public final class HbaseMetastoreProto {
               hostname_ = input.readBytes();
               break;
             }
-            case 40: {
+            case 42: {
               bitField0_ |= 0x00000010;
-              lastHeartbeat_ = input.readInt64();
+              agentInfo_ = input.readBytes();
               break;
             }
             case 50: {
               bitField0_ |= 0x00000020;
-              agentInfo_ = input.readBytes();
-              break;
-            }
-            case 58: {
-              bitField0_ |= 0x00000040;
               metaInfo_ = input.readBytes();
               break;
             }
-            case 64: {
-              bitField0_ |= 0x00000080;
-              heartbeatCount_ = input.readInt32();
+            case 56: {
+              bitField0_ |= 0x00000040;
+              abortedLockCount_ = input.readInt32();
               break;
             }
-            case 74: {
-              if (!((mutable_bitField0_ & 0x00000100) == 0x00000100)) {
+            case 66: {
+              if (!((mutable_bitField0_ & 0x00000080) == 0x00000080)) {
                 locks_ = new java.util.ArrayList<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock>();
-                mutable_bitField0_ |= 0x00000100;
+                mutable_bitField0_ |= 0x00000080;
               }
               locks_.add(input.readMessage(org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock.PARSER, extensionRegistry));
               break;
@@ -32979,7 +32964,7 @@ public final class HbaseMetastoreProto {
         throw new com.google.protobuf.InvalidProtocolBufferException(
             e.getMessage()).setUnfinishedMessage(this);
       } finally {
-        if (((mutable_bitField0_ & 0x00000100) == 0x00000100)) {
+        if (((mutable_bitField0_ & 0x00000080) == 0x00000080)) {
           locks_ = java.util.Collections.unmodifiableList(locks_);
         }
         this.unknownFields = unknownFields.build();
@@ -34661,33 +34646,17 @@ public final class HbaseMetastoreProto {
       }
     }
 
-    // optional int64 last_heartbeat = 5;
-    public static final int LAST_HEARTBEAT_FIELD_NUMBER = 5;
-    private long lastHeartbeat_;
+    // optional string agent_info = 5;
+    public static final int AGENT_INFO_FIELD_NUMBER = 5;
+    private java.lang.Object agentInfo_;
     /**
-     * <code>optional int64 last_heartbeat = 5;</code>
+     * <code>optional string agent_info = 5;</code>
      */
-    public boolean hasLastHeartbeat() {
+    public boolean hasAgentInfo() {
       return ((bitField0_ & 0x00000010) == 0x00000010);
     }
     /**
-     * <code>optional int64 last_heartbeat = 5;</code>
-     */
-    public long getLastHeartbeat() {
-      return lastHeartbeat_;
-    }
-
-    // optional string agent_info = 6;
-    public static final int AGENT_INFO_FIELD_NUMBER = 6;
-    private java.lang.Object agentInfo_;
-    /**
-     * <code>optional string agent_info = 6;</code>
-     */
-    public boolean hasAgentInfo() {
-      return ((bitField0_ & 0x00000020) == 0x00000020);
-    }
-    /**
-     * <code>optional string agent_info = 6;</code>
+     * <code>optional string agent_info = 5;</code>
      */
     public java.lang.String getAgentInfo() {
       java.lang.Object ref = agentInfo_;
@@ -34704,7 +34673,7 @@ public final class HbaseMetastoreProto {
       }
     }
     /**
-     * <code>optional string agent_info = 6;</code>
+     * <code>optional string agent_info = 5;</code>
      */
     public com.google.protobuf.ByteString
         getAgentInfoBytes() {
@@ -34720,17 +34689,17 @@ public final class HbaseMetastoreProto {
       }
     }
 
-    // optional string meta_info = 7;
-    public static final int META_INFO_FIELD_NUMBER = 7;
+    // optional string meta_info = 6;
+    public static final int META_INFO_FIELD_NUMBER = 6;
     private java.lang.Object metaInfo_;
     /**
-     * <code>optional string meta_info = 7;</code>
+     * <code>optional string meta_info = 6;</code>
      */
     public boolean hasMetaInfo() {
-      return ((bitField0_ & 0x00000040) == 0x00000040);
+      return ((bitField0_ & 0x00000020) == 0x00000020);
     }
     /**
-     * <code>optional string meta_info = 7;</code>
+     * <code>optional string meta_info = 6;</code>
      */
     public java.lang.String getMetaInfo() {
       java.lang.Object ref = metaInfo_;
@@ -34747,7 +34716,7 @@ public final class HbaseMetastoreProto {
       }
     }
     /**
-     * <code>optional string meta_info = 7;</code>
+     * <code>optional string meta_info = 6;</code>
      */
     public com.google.protobuf.ByteString
         getMetaInfoBytes() {
@@ -34763,52 +34732,52 @@ public final class HbaseMetastoreProto {
       }
     }
 
-    // optional int32 heartbeat_count = 8;
-    public static final int HEARTBEAT_COUNT_FIELD_NUMBER = 8;
-    private int heartbeatCount_;
+    // optional int32 aborted_lock_count = 7;
+    public static final int ABORTED_LOCK_COUNT_FIELD_NUMBER = 7;
+    private int abortedLockCount_;
     /**
-     * <code>optional int32 heartbeat_count = 8;</code>
+     * <code>optional int32 aborted_lock_count = 7;</code>
      */
-    public boolean hasHeartbeatCount() {
-      return ((bitField0_ & 0x00000080) == 0x00000080);
+    public boolean hasAbortedLockCount() {
+      return ((bitField0_ & 0x00000040) == 0x00000040);
     }
     /**
-     * <code>optional int32 heartbeat_count = 8;</code>
+     * <code>optional int32 aborted_lock_count = 7;</code>
      */
-    public int getHeartbeatCount() {
-      return heartbeatCount_;
+    public int getAbortedLockCount() {
+      return abortedLockCount_;
     }
 
-    // repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;
-    public static final int LOCKS_FIELD_NUMBER = 9;
+    // repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;
+    public static final int LOCKS_FIELD_NUMBER = 8;
     private java.util.List<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock> locks_;
     /**
-     * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+     * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
      */
     public java.util.List<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock> getLocksList() {
       return locks_;
     }
     /**
-     * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+     * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
      */
     public java.util.List<? extends org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.LockOrBuilder> 
         getLocksOrBuilderList() {
       return locks_;
     }
     /**
-     * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+     * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
      */
     public int getLocksCount() {
       return locks_.size();
     }
     /**
-     * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+     * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
      */
     public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock getLocks(int index) {
       return locks_.get(index);
     }
     /**
-     * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+     * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
      */
     public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.LockOrBuilder getLocksOrBuilder(
         int index) {
@@ -34820,10 +34789,9 @@ public final class HbaseMetastoreProto {
       txnState_ = org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.TxnState.COMMITTED;
       user_ = "";
       hostname_ = "";
-      lastHeartbeat_ = 0L;
       agentInfo_ = "";
       metaInfo_ = "";
-      heartbeatCount_ = 0;
+      abortedLockCount_ = 0;
       locks_ = java.util.Collections.emptyList();
     }
     private byte memoizedIsInitialized = -1;
@@ -34865,19 +34833,16 @@ public final class HbaseMetastoreProto {
         output.writeBytes(4, getHostnameBytes());
       }
       if (((bitField0_ & 0x00000010) == 0x00000010)) {
-        output.writeInt64(5, lastHeartbeat_);
+        output.writeBytes(5, getAgentInfoBytes());
       }
       if (((bitField0_ & 0x00000020) == 0x00000020)) {
-        output.writeBytes(6, getAgentInfoBytes());
+        output.writeBytes(6, getMetaInfoBytes());
       }
       if (((bitField0_ & 0x00000040) == 0x00000040)) {
-        output.writeBytes(7, getMetaInfoBytes());
-      }
-      if (((bitField0_ & 0x00000080) == 0x00000080)) {
-        output.writeInt32(8, heartbeatCount_);
+        output.writeInt32(7, abortedLockCount_);
       }
       for (int i = 0; i < locks_.size(); i++) {
-        output.writeMessage(9, locks_.get(i));
+        output.writeMessage(8, locks_.get(i));
       }
       getUnknownFields().writeTo(output);
     }
@@ -34906,23 +34871,19 @@ public final class HbaseMetastoreProto {
       }
       if (((bitField0_ & 0x00000010) == 0x00000010)) {
         size += com.google.protobuf.CodedOutputStream
-          .computeInt64Size(5, lastHeartbeat_);
+          .computeBytesSize(5, getAgentInfoBytes());
       }
       if (((bitField0_ & 0x00000020) == 0x00000020)) {
         size += com.google.protobuf.CodedOutputStream
-          .computeBytesSize(6, getAgentInfoBytes());
+          .computeBytesSize(6, getMetaInfoBytes());
       }
       if (((bitField0_ & 0x00000040) == 0x00000040)) {
         size += com.google.protobuf.CodedOutputStream
-          .computeBytesSize(7, getMetaInfoBytes());
-      }
-      if (((bitField0_ & 0x00000080) == 0x00000080)) {
-        size += com.google.protobuf.CodedOutputStream
-          .computeInt32Size(8, heartbeatCount_);
+          .computeInt32Size(7, abortedLockCount_);
       }
       for (int i = 0; i < locks_.size(); i++) {
         size += com.google.protobuf.CodedOutputStream
-          .computeMessageSize(9, locks_.get(i));
+          .computeMessageSize(8, locks_.get(i));
       }
       size += getUnknownFields().getSerializedSize();
       memoizedSerializedSize = size;
@@ -35049,17 +35010,15 @@ public final class HbaseMetastoreProto {
         bitField0_ = (bitField0_ & ~0x00000004);
         hostname_ = "";
         bitField0_ = (bitField0_ & ~0x00000008);
-        lastHeartbeat_ = 0L;
-        bitField0_ = (bitField0_ & ~0x00000010);
         agentInfo_ = "";
-        bitField0_ = (bitField0_ & ~0x00000020);
+        bitField0_ = (bitField0_ & ~0x00000010);
         metaInfo_ = "";
+        bitField0_ = (bitField0_ & ~0x00000020);
+        abortedLockCount_ = 0;
         bitField0_ = (bitField0_ & ~0x00000040);
-        heartbeatCount_ = 0;
-        bitField0_ = (bitField0_ & ~0x00000080);
         if (locksBuilder_ == null) {
           locks_ = java.util.Collections.emptyList();
-          bitField0_ = (bitField0_ & ~0x00000100);
+          bitField0_ = (bitField0_ & ~0x00000080);
         } else {
           locksBuilder_.clear();
         }
@@ -35110,23 +35069,19 @@ public final class HbaseMetastoreProto {
         if (((from_bitField0_ & 0x00000010) == 0x00000010)) {
           to_bitField0_ |= 0x00000010;
         }
-        result.lastHeartbeat_ = lastHeartbeat_;
+        result.agentInfo_ = agentInfo_;
         if (((from_bitField0_ & 0x00000020) == 0x00000020)) {
           to_bitField0_ |= 0x00000020;
         }
-        result.agentInfo_ = agentInfo_;
+        result.metaInfo_ = metaInfo_;
         if (((from_bitField0_ & 0x00000040) == 0x00000040)) {
           to_bitField0_ |= 0x00000040;
         }
-        result.metaInfo_ = metaInfo_;
-        if (((from_bitField0_ & 0x00000080) == 0x00000080)) {
-          to_bitField0_ |= 0x00000080;
-        }
-        result.heartbeatCount_ = heartbeatCount_;
+        result.abortedLockCount_ = abortedLockCount_;
         if (locksBuilder_ == null) {
-          if (((bitField0_ & 0x00000100) == 0x00000100)) {
+          if (((bitField0_ & 0x00000080) == 0x00000080)) {
             locks_ = java.util.Collections.unmodifiableList(locks_);
-            bitField0_ = (bitField0_ & ~0x00000100);
+            bitField0_ = (bitField0_ & ~0x00000080);
           }
           result.locks_ = locks_;
         } else {
@@ -35164,27 +35119,24 @@ public final class HbaseMetastoreProto {
           hostname_ = other.hostname_;
           onChanged();
         }
-        if (other.hasLastHeartbeat()) {
-          setLastHeartbeat(other.getLastHeartbeat());
-        }
         if (other.hasAgentInfo()) {
-          bitField0_ |= 0x00000020;
+          bitField0_ |= 0x00000010;
           agentInfo_ = other.agentInfo_;
           onChanged();
         }
         if (other.hasMetaInfo()) {
-          bitField0_ |= 0x00000040;
+          bitField0_ |= 0x00000020;
           metaInfo_ = other.metaInfo_;
           onChanged();
         }
-        if (other.hasHeartbeatCount()) {
-          setHeartbeatCount(other.getHeartbeatCount());
+        if (other.hasAbortedLockCount()) {
+          setAbortedLockCount(other.getAbortedLockCount());
         }
         if (locksBuilder_ == null) {
           if (!other.locks_.isEmpty()) {
             if (locks_.isEmpty()) {
               locks_ = other.locks_;
-              bitField0_ = (bitField0_ & ~0x00000100);
+              bitField0_ = (bitField0_ & ~0x00000080);
             } else {
               ensureLocksIsMutable();
               locks_.addAll(other.locks_);
@@ -35197,7 +35149,7 @@ public final class HbaseMetastoreProto {
               locksBuilder_.dispose();
               locksBuilder_ = null;
               locks_ = other.locks_;
-              bitField0_ = (bitField0_ & ~0x00000100);
+              bitField0_ = (bitField0_ & ~0x00000080);
               locksBuilder_ = 
                 com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders ?
                    getLocksFieldBuilder() : null;
@@ -35464,49 +35416,16 @@ public final class HbaseMetastoreProto {
         return this;
       }
 
-      // optional int64 last_heartbeat = 5;
-      private long lastHeartbeat_ ;
+      // optional string agent_info = 5;
+      private java.lang.Object agentInfo_ = "";
       /**
-       * <code>optional int64 last_heartbeat = 5;</code>
+       * <code>optional string agent_info = 5;</code>
        */
-      public boolean hasLastHeartbeat() {
+      public boolean hasAgentInfo() {
         return ((bitField0_ & 0x00000010) == 0x00000010);
       }
       /**
-       * <code>optional int64 last_heartbeat = 5;</code>
-       */
-      public long getLastHeartbeat() {
-        return lastHeartbeat_;
-      }
-      /**
-       * <code>optional int64 last_heartbeat = 5;</code>
-       */
-      public Builder setLastHeartbeat(long value) {
-        bitField0_ |= 0x00000010;
-        lastHeartbeat_ = value;
-        onChanged();
-        return this;
-      }
-      /**
-       * <code>optional int64 last_heartbeat = 5;</code>
-       */
-      public Builder clearLastHeartbeat() {
-        bitField0_ = (bitField0_ & ~0x00000010);
-        lastHeartbeat_ = 0L;
-        onChanged();
-        return this;
-      }
-
-      // optional string agent_info = 6;
-      private java.lang.Object agentInfo_ = "";
-      /**
-       * <code>optional string agent_info = 6;</code>
-       */
-      public boolean hasAgentInfo() {
-        return ((bitField0_ & 0x00000020) == 0x00000020);
-      }
-      /**
-       * <code>optional string agent_info = 6;</code>
+       * <code>optional string agent_info = 5;</code>
        */
       public java.lang.String getAgentInfo() {
         java.lang.Object ref = agentInfo_;
@@ -35520,7 +35439,7 @@ public final class HbaseMetastoreProto {
         }
       }
       /**
-       * <code>optional string agent_info = 6;</code>
+       * <code>optional string agent_info = 5;</code>
        */
       public com.google.protobuf.ByteString
           getAgentInfoBytes() {
@@ -35536,51 +35455,51 @@ public final class HbaseMetastoreProto {
         }
       }
       /**
-       * <code>optional string agent_info = 6;</code>
+       * <code>optional string agent_info = 5;</code>
        */
       public Builder setAgentInfo(
           java.lang.String value) {
         if (value == null) {
     throw new NullPointerException();
   }
-  bitField0_ |= 0x00000020;
+  bitField0_ |= 0x00000010;
         agentInfo_ = value;
         onChanged();
         return this;
       }
       /**
-       * <code>optional string agent_info = 6;</code>
+       * <code>optional string agent_info = 5;</code>
        */
       public Builder clearAgentInfo() {
-        bitField0_ = (bitField0_ & ~0x00000020);
+        bitField0_ = (bitField0_ & ~0x00000010);
         agentInfo_ = getDefaultInstance().getAgentInfo();
         onChanged();
         return this;
       }
       /**
-       * <code>optional string agent_info = 6;</code>
+       * <code>optional string agent_info = 5;</code>
        */
       public Builder setAgentInfoBytes(
           com.google.protobuf.ByteString value) {
         if (value == null) {
     throw new NullPointerException();
   }
-  bitField0_ |= 0x00000020;
+  bitField0_ |= 0x00000010;
         agentInfo_ = value;
         onChanged();
         return this;
       }
 
-      // optional string meta_info = 7;
+      // optional string meta_info = 6;
       private java.lang.Object metaInfo_ = "";
       /**
-       * <code>optional string meta_info = 7;</code>
+       * <code>optional string meta_info = 6;</code>
        */
       public boolean hasMetaInfo() {
-        return ((bitField0_ & 0x00000040) == 0x00000040);
+        return ((bitField0_ & 0x00000020) == 0x00000020);
       }
       /**
-       * <code>optional string meta_info = 7;</code>
+       * <code>optional string meta_info = 6;</code>
        */
       public java.lang.String getMetaInfo() {
         java.lang.Object ref = metaInfo_;
@@ -35594,7 +35513,7 @@ public final class HbaseMetastoreProto {
         }
       }
       /**
-       * <code>optional string meta_info = 7;</code>
+       * <code>optional string meta_info = 6;</code>
        */
       public com.google.protobuf.ByteString
           getMetaInfoBytes() {
@@ -35610,81 +35529,81 @@ public final class HbaseMetastoreProto {
         }
       }
       /**
-       * <code>optional string meta_info = 7;</code>
+       * <code>optional string meta_info = 6;</code>
        */
       public Builder setMetaInfo(
           java.lang.String value) {
         if (value == null) {
     throw new NullPointerException();
   }
-  bitField0_ |= 0x00000040;
+  bitField0_ |= 0x00000020;
         metaInfo_ = value;
         onChanged();
         return this;
       }
       /**
-       * <code>optional string meta_info = 7;</code>
+       * <code>optional string meta_info = 6;</code>
        */
       public Builder clearMetaInfo() {
-        bitField0_ = (bitField0_ & ~0x00000040);
+        bitField0_ = (bitField0_ & ~0x00000020);
         metaInfo_ = getDefaultInstance().getMetaInfo();
         onChanged();
         return this;
       }
       /**
-       * <code>optional string meta_info = 7;</code>
+       * <code>optional string meta_info = 6;</code>
        */
       public Builder setMetaInfoBytes(
           com.google.protobuf.ByteString value) {
         if (value == null) {
     throw new NullPointerException();
   }
-  bitField0_ |= 0x00000040;
+  bitField0_ |= 0x00000020;
         metaInfo_ = value;
         onChanged();
         return this;
       }
 
-      // optional int32 heartbeat_count = 8;
-      private int heartbeatCount_ ;
+      // optional int32 aborted_lock_count = 7;
+      private int abortedLockCount_ ;
       /**
-       * <code>optional int32 heartbeat_count = 8;</code>
+       * <code>optional int32 aborted_lock_count = 7;</code>
        */
-      public boolean hasHeartbeatCount() {
-        return ((bitField0_ & 0x00000080) == 0x00000080);
+      public boolean hasAbortedLockCount() {
+        return ((bitField0_ & 0x00000040) == 0x00000040);
       }
       /**
-       * <code>optional int32 heartbeat_count = 8;</code>
+       * <code>optional int32 aborted_lock_count = 7;</code>
        */
-      public int getHeartbeatCount() {
-        return heartbeatCount_;
+      public int getAbortedLockCount() {
+        return abortedLockCount_;
       }
       /**
-       * <code>optional int32 heartbeat_count = 8;</code>
+       * <code>optional int32 aborted_lock_count = 7;</code>
        */
-      public Builder setHeartbeatCount(int value) {
-        bitField0_ |= 0x00000080;
-        heartbeatCount_ = value;
+      public Builder setAbortedLockCount(int value) {
+        bitField0_ |= 0x00000040;
+        abortedLockCount_ = value;
         onChanged();
         return this;
       }
       /**
-       * <code>optional int32 heartbeat_count = 8;</code>
+       * <code>optional int32 aborted_lock_count = 7;</code>
        */
-      public Builder clearHeartbeatCount() {
-        bitField0_ = (bitField0_ & ~0x00000080);
-        heartbeatCount_ = 0;
+      public Builder clearAbortedLockCount() {
+        bitField0_ = (bitField0_ & ~0x00000040);
+        abortedLockCount_ = 0;
         onChanged();
         return this;
       }
 
-      // repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;
+      // repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;
       private java.util.List<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock> locks_ =
         java.util.Collections.emptyList();
       private void ensureLocksIsMutable() {
-        if (!((bitField0_ & 0x00000100) == 0x00000100)) {
+        if (!((bitField0_ & 0x00000080) == 0x00000080)) {
           locks_ = new java.util.ArrayList<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock>(locks_);
-          bitField0_ |= 0x00000100;
+          bitField0_ |= 0x00000080;
          }
       }
 
@@ -35692,7 +35611,7 @@ public final class HbaseMetastoreProto {
           org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock, org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock.Builder, org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.LockOrBuilder> locksBuilder_;
 
       /**
-       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
        */
       public java.util.List<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock> getLocksList() {
         if (locksBuilder_ == null) {
@@ -35702,7 +35621,7 @@ public final class HbaseMetastoreProto {
         }
       }
       /**
-       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
        */
       public int getLocksCount() {
         if (locksBuilder_ == null) {
@@ -35712,7 +35631,7 @@ public final class HbaseMetastoreProto {
         }
       }
       /**
-       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
        */
       public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock getLocks(int index) {
         if (locksBuilder_ == null) {
@@ -35722,7 +35641,7 @@ public final class HbaseMetastoreProto {
         }
       }
       /**
-       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
        */
       public Builder setLocks(
           int index, org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock value) {
@@ -35739,7 +35658,7 @@ public final class HbaseMetastoreProto {
         return this;
       }
       /**
-       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
        */
       public Builder setLocks(
           int index, org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock.Builder builderForValue) {
@@ -35753,7 +35672,7 @@ public final class HbaseMetastoreProto {
         return this;
       }
       /**
-       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
        */
       public Builder addLocks(org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock value) {
         if (locksBuilder_ == null) {
@@ -35769,7 +35688,7 @@ public final class HbaseMetastoreProto {
         return this;
       }
       /**
-       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
        */
       public Builder addLocks(
           int index, org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock value) {
@@ -35786,7 +35705,7 @@ public final class HbaseMetastoreProto {
         return this;
       }
       /**
-       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
        */
       public Builder addLocks(
           org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock.Builder builderForValue) {
@@ -35800,7 +35719,7 @@ public final class HbaseMetastoreProto {
         return this;
       }
       /**
-       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
        */
       public Builder addLocks(
           int index, org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock.Builder builderForValue) {
@@ -35814,7 +35733,7 @@ public final class HbaseMetastoreProto {
         return this;
       }
       /**
-       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
        */
       public Builder addAllLocks(
           java.lang.Iterable<? extends org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock> values) {
@@ -35828,12 +35747,12 @@ public final class HbaseMetastoreProto {
         return this;
       }
       /**
-       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
        */
       public Builder clearLocks() {
         if (locksBuilder_ == null) {
           locks_ = java.util.Collections.emptyList();
-          bitField0_ = (bitField0_ & ~0x00000100);
+          bitField0_ = (bitField0_ & ~0x00000080);
           onChanged();
         } else {
           locksBuilder_.clear();
@@ -35841,7 +35760,7 @@ public final class HbaseMetastoreProto {
         return this;
       }
       /**
-       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
        */
       public Builder removeLocks(int index) {
         if (locksBuilder_ == null) {
@@ -35854,14 +35773,14 @@ public final class HbaseMetastoreProto {
         return this;
       }
       /**
-       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
        */
       public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock.Builder getLocksBuilder(
           int index) {
         return getLocksFieldBuilder().getBuilder(index);
       }
       /**
-       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
        */
       public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.LockOrBuilder getLocksOrBuilder(
           int index) {
@@ -35871,7 +35790,7 @@ public final class HbaseMetastoreProto {
         }
       }
       /**
-       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
        */
       public java.util.List<? extends org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.LockOrBuilder> 
            getLocksOrBuilderList() {
@@ -35882,14 +35801,14 @@ public final class HbaseMetastoreProto {
         }
       }
       /**
-       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
        */
       public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock.Builder addLocksBuilder() {
         return getLocksFieldBuilder().addBuilder(
             org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock.getDefaultInstance());
       }
       /**
-       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
        */
       public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock.Builder addLocksBuilder(
           int index) {
@@ -35897,7 +35816,7 @@ public final class HbaseMetastoreProto {
             index, org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock.getDefaultInstance());
       }
       /**
-       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 9;</code>
+       * <code>repeated .org.apache.hadoop.hive.metastore.hbase.Transaction.Lock locks = 8;</code>
        */
       public java.util.List<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock.Builder> 
            getLocksBuilderList() {
@@ -35910,7 +35829,7 @@ public final class HbaseMetastoreProto {
           locksBuilder_ = new com.google.protobuf.RepeatedFieldBuilder<
               org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock, org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.Lock.Builder, org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Transaction.LockOrBuilder>(
                   locks_,
-                  ((bitField0_ & 0x00000100) == 0x00000100),
+                  ((bitField0_ & 0x00000080) == 0x00000080),
                   getParentForChildren(),
                   isClean());
           locks_ = null;
@@ -39970,42 +39889,42 @@ public final class HbaseMetastoreProto {
       "\013 \001(\t\022\022\n\ntable_type\030\014 \001(\t\022Q\n\nprivileges\030" +
       "\r \001(\0132=.org.apache.hadoop.hive.metastore" +
       ".hbase.PrincipalPrivilegeSet\022\024\n\014is_tempo" +
-      "rary\030\016 \001(\010\"\374\005\n\013Transaction\022\n\n\002id\030\001 \002(\003\022O" +
+      "rary\030\016 \001(\010\"\347\005\n\013Transaction\022\n\n\002id\030\001 \002(\003\022O" +
       "\n\ttxn_state\030\002 \002(\0162<.org.apache.hadoop.hi" +
       "ve.metastore.hbase.Transaction.TxnState\022" +
-      "\014\n\004user\030\003 \001(\t\022\020\n\010hostname\030\004 \001(\t\022\026\n\016last_" +
-      "heartbeat\030\005 \001(\003\022\022\n\nagent_info\030\006 \001(\t\022\021\n\tm" +
-      "eta_info\030\007 \001(\t\022\027\n\017heartbeat_count\030\010 \001(\005\022" +
-      "G\n\005locks\030\t \003(\01328.org.apache.hadoop.hive.",
-      "metastore.hbase.Transaction.Lock\032\234\003\n\004Loc" +
-      "k\022\n\n\002id\030\001 \002(\003\022Q\n\005state\030\002 \002(\0162B.org.apach" +
-      "e.hadoop.hive.metastore.hbase.Transactio" +
-      "n.Lock.LockState\022O\n\004type\030\003 \002(\0162A.org.apa" +
-      "che.hadoop.hive.metastore.hbase.Transact" +
-      "ion.Lock.LockType\022\n\n\002db\030\004 \001(\t\022\r\n\005table\030\005" +
-      " \001(\t\022\021\n\tpartition\030\006 \001(\t\022\023\n\013acquired_at\030\007" +
-      " \001(\003\022\021\n\tcompacted\030\010 \001(\010\"A\n\tLockState\022\014\n\010" +
-      "ACQUIRED\020\001\022\013\n\007WAITING\020\002\022\013\n\007ABORTED\020\003\022\014\n\010" +
-      "RELEASED\020\004\"K\n\010LockType\022\017\n\013SHARED_READ\020\001\022",
-      "\020\n\014SHARED_WRITE\020\002\022\r\n\tEXCLUSIVE\020\003\022\r\n\tINTE" +
-      "NTION\020\004\"0\n\010TxnState\022\r\n\tCOMMITTED\020\001\022\013\n\007AB" +
-      "ORTED\020\002\022\010\n\004OPEN\020\003\"\353\004\n\026PartitionKeyCompar" +
-      "ator\022\r\n\005names\030\001 \002(\t\022\r\n\005types\030\002 \002(\t\022S\n\002op" +
-      "\030\003 \003(\0132G.org.apache.hadoop.hive.metastor" +
-      "e.hbase.PartitionKeyComparator.Operator\022" +
-      "S\n\005range\030\004 \003(\0132D.org.apache.hadoop.hive." +
-      "metastore.hbase.PartitionKeyComparator.R" +
-      "ange\032(\n\004Mark\022\r\n\005value\030\001 \002(\t\022\021\n\tinclusive" +
-      "\030\002 \002(\010\032\272\001\n\005Range\022\013\n\003key\030\001 \002(\t\022R\n\005start\030\002",
-      " \001(\0132C.org.apache.hadoop.hive.metastore." +
-      "hbase.PartitionKeyComparator.Mark\022P\n\003end" +
-      "\030\003 \001(\0132C.org.apache.hadoop.hive.metastor" +
-      "e.hbase.PartitionKeyComparator.Mark\032\241\001\n\010" +
-      "Operator\022Z\n\004type\030\001 \002(\0162L.org.apache.hado" +
-      "op.hive.metastore.hbase.PartitionKeyComp" +
-      "arator.Operator.Type\022\013\n\003key\030\002 \002(\t\022\013\n\003val" +
-      "\030\003 \002(\t\"\037\n\004Type\022\010\n\004LIKE\020\000\022\r\n\tNOTEQUALS\020\001*" +
-      "#\n\rPrincipalType\022\010\n\004USER\020\000\022\010\n\004ROLE\020\001"
+      "\014\n\004user\030\003 \001(\t\022\020\n\010hostname\030\004 \001(\t\022\022\n\nagent" +
+      "_info\030\005 \001(\t\022\021\n\tmeta_info\030\006 \001(\t\022\032\n\022aborte" +
+      "d_lock_count\030\007 \001(\005\022G\n\005locks\030\010 \003(\01328.org." +
+      "apache.hadoop.hive.metastore.hbase.Trans",
+      "action.Lock\032\234\003\n\004Lock\022\n\n\002id\030\001 \002(\003\022Q\n\005stat" +
+      "e\030\002 \002(\0162B.org.apache.hadoop.hive.metasto" +
+      "re.hbase.Transaction.Lock.LockState\022O\n\004t" +
+      "ype\030\003 \002(\0162A.org.apache.hadoop.hive.metas" +
+      "tore.hbase.Transaction.Lock.LockType\022\n\n\002" +
+      "db\030\004 \001(\t\022\r\n\005table\030\005 \001(\t\022\021\n\tpartition\030\006 \001" +
+      "(\t\022\023\n\013acquired_at\030\007 \001(\003\022\021\n\tcompacted\030\010 \001" +
+      "(\010\"A\n\tLockState\022\014\n\010ACQUIRED\020\001\022\013\n\007WAITING" +
+      "\020\002\022\013\n\007ABORTED\020\003\022\014\n\010RELEASED\020\004\"K\n\010LockTyp" +
+      "e\022\017\n\013SHARED_READ\020\001\022\020\n\014SHARED_WRITE\020\002\022\r\n\t",
+      "EXCLUSIVE\020\003\022\r\n\tINTENTION\020\004\"0\n\010TxnState\022\r" +
+      "\n\tCOMMITTED\020\001\022\013\n\007ABORTED\020\002\022\010\n\004OPEN\020\003\"\353\004\n" +
+      "\026PartitionKeyComparator\022\r\n\005names\030\001 \002(\t\022\r" +
+      "\n\005types\030\002 \002(\t\022S\n\002op\030\003 \003(\0132G.org.apache.h" +
+      "adoop.hive.metastore.hbase.PartitionKeyC" +
+      "omparator.Operator\022S\n\005range\030\004 \003(\0132D.org." +
+      "apache.hadoop.hive.metastore.hbase.Parti" +
+      "tionKeyComparator.Range\032(\n\004Mark\022\r\n\005value" +
+      "\030\001 \002(\t\022\021\n\tinclusive\030\002 \002(\010\032\272\001\n\005Range\022\013\n\003k" +
+      "ey\030\001 \002(\t\022R\n\005start\030\002 \001(\0132C.org.apache.had",
+      "oop.hive.metastore.hbase.PartitionKeyCom" +
+      "parator.Mark\022P\n\003end\030\003 \001(\0132C.org.apache.h" +
+      "adoop.hive.metastore.hbase.PartitionKeyC" +
+      "omparator.Mark\032\241\001\n\010Operator\022Z\n\004type\030\001 \002(" +
+      "\0162L.org.apache.hadoop.hive.metastore.hba" +
+      "se.PartitionKeyComparator.Operator.Type\022" +
+      "\013\n\003key\030\002 \002(\t\022\013\n\003val\030\003 \002(\t\"\037\n\004Type\022\010\n\004LIK" +
+      "E\020\000\022\r\n\tNOTEQUALS\020\001*#\n\rPrincipalType\022\010\n\004U" +
+      "SER\020\000\022\010\n\004ROLE\020\001"
     };
     com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner assigner =
       new com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner() {
@@ -40233,7 +40152,7 @@ public final class HbaseMetastoreProto {
           internal_static_org_apache_hadoop_hive_metastore_hbase_Transaction_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
               internal_static_org_apache_hadoop_hive_metastore_hbase_Transaction_descriptor,
-              new java.lang.String[] { "Id", "TxnState", "User", "Hostname", "LastHeartbeat", "AgentInfo", "MetaInfo", "HeartbeatCount", "Locks", });
+              new java.lang.String[] { "Id", "TxnState", "User", "Hostname", "AgentInfo", "MetaInfo", "AbortedLockCount", "Locks", });
           internal_static_org_apache_hadoop_hive_metastore_hbase_Transaction_Lock_descriptor =
             internal_static_org_apache_hadoop_hive_metastore_hbase_Transaction_descriptor.getNestedTypes().get(0);
           internal_static_org_apache_hadoop_hive_metastore_hbase_Transaction_Lock_fieldAccessorTable = new

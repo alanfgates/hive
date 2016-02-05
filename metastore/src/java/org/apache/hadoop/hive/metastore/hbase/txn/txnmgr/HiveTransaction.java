@@ -19,70 +19,24 @@ package org.apache.hadoop.hive.metastore.hbase.txn.txnmgr;
 
 import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
+abstract class HiveTransaction {
+  protected final long id;
 
-class HiveTransaction {
-  private final long id;
-  private HbaseMetastoreProto.Transaction.TxnState state;
-  private long lastHeartbeat;
-
-  // I chose an array over a list so that I could explicitly control growth.  ArrayList is memory
-  // efficient (only 4 more bytes than an array I believe) and you can control the initial
-  // capacity, but when it grows you loose control of how.
-  private HiveLock[] hiveLocks;
-
-  /**
-   * For use when creating a new transaction.  This creates the transaction in an open state.
-   * @param id txn id
-   */
-  HiveTransaction(long id) {
+  protected HiveTransaction(long id) {
     this.id = id;
-    state = HbaseMetastoreProto.Transaction.TxnState.OPEN;
   }
 
-  /**
-   * For use when recovering transactions from HBase.
-   * @param hbaseTxn transaction record from HBase.
-   * @param txnMgr transaction manager.
-   * @throws IOException
-   */
-  HiveTransaction(HbaseMetastoreProto.Transaction hbaseTxn, TransactionManager txnMgr)
-      throws IOException {
-    id = hbaseTxn.getId();
-    state = hbaseTxn.getTxnState();
-    lastHeartbeat = hbaseTxn.getLastHeartbeat();
-    List<HbaseMetastoreProto.Transaction.Lock> hbaseLocks = hbaseTxn.getLocksList();
-    hiveLocks = new HiveLock[hbaseLocks.size()];
-    for (int i = 0; i < hbaseLocks.size(); i++) {
-      hiveLocks[i] = new HiveLock(id, hbaseLocks.get(i), txnMgr);
-    }
-  }
-
-  long getId() {
+  final long getId() {
     return id;
   }
 
-  HbaseMetastoreProto.Transaction.TxnState getState() {
-    return state;
-  }
+  abstract HbaseMetastoreProto.Transaction.TxnState getState();
 
-  void setState(HbaseMetastoreProto.Transaction.TxnState state) {
-    this.state = state;
-  }
+  abstract long getLastHeartbeat();
 
-  long getLastHeartbeat() {
-    return lastHeartbeat;
-  }
+  abstract void setLastHeartbeat(long lastHeartbeat);
 
-  void setLastHeartbeat(long lastHeartbeat) {
-    this.lastHeartbeat = lastHeartbeat;
-  }
-
-  HiveLock[] getHiveLocks() {
-    return hiveLocks;
-  }
+  abstract HiveLock[] getHiveLocks();
 
   /**
    * Add locks to the transaction.
@@ -90,13 +44,5 @@ class HiveTransaction {
    *                 array, so don't plan to do anything else with it.  All your locks are belong to
    *                 us.
    */
-  void addLocks(HiveLock[] newLocks) {
-    if (hiveLocks == null) {
-      hiveLocks = newLocks;
-    } else {
-      int origSize = hiveLocks.length;
-      hiveLocks = Arrays.copyOf(hiveLocks, origSize + newLocks.length);
-      System.arraycopy(newLocks, 0, hiveLocks, origSize, newLocks.length);
-    }
-  }
+  abstract void addLocks(HiveLock[] newLocks);
 }

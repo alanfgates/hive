@@ -320,11 +320,9 @@ message Transaction {
   required TxnState txn_state = 2;
   optional string user = 3;
   optional string hostname = 4;
-  optional int64 last_heartbeat = 5;
-  optional string agent_info = 6;
-  optional string meta_info = 7;
-  optional int32 heartbeat_count = 8;
-  repeated Lock locks = 9;
+  optional string agent_info = 5;
+  optional string meta_info = 6;
+  repeated Lock locks = 8;
 }
 
 message PartitionKeyComparator {
