@@ -42,14 +42,11 @@ public class TransactionManager {
 
   // TODO prove out compaction operations
   // TODO solve lost update problem
-  // TODO convert to coprocessor service
-  // TODO connect to actual HBase storage
-  // TODO fix bug in lock acquire that won't acquire ahead of wait if it can
-  // TODO see if we can make lock acquition active instead of passive
+  // TODO Convert to actual service
   // TODO remove the use of HiveConf, this won't have access to it, need to find another way to pass the required values.
   // TODO handle refusing new transactions once we reach a certain size.
-  // TODO handle lock promotion
 
+  // Someday - handle lock promotion
 
   // Track what locks types are compatible.  First array is holder, second is requester
   private static boolean[][] lockCompatibilityTable;
@@ -744,29 +741,79 @@ public class TransactionManager {
     public void run() {
       while (true) {
         try {
-          DTPKey key = lockQueuesToCheck.take();
-          List<HiveLock> toNofify = new ArrayList<>();
+          List<DTPKey> keys = new ArrayList<>();
+          keys.add(lockQueuesToCheck.take());
+          List<HiveLock> toAcquire = new ArrayList<>();
           try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
-            DTPQueue queue = dtps.get(key);
-            HiveLock lastLock = null;
-            for (HiveLock lock : queue.queue.values()) {
-              if (lock.getState() == HbaseMetastoreProto.LockState.WAITING) {
-                // See if we can acquire this lock
-                if (lastLock == null || twoLocksCompatible(lastLock.getType(), lock.getType())) {
-                  toNofify.add(lock);
-                } else {
-                  // If we can't acquire then nothing behind us can either
-                  // TODO prove to yourself this is true
-                  break;
-                }
+            // Many keys may have been added to the queue, grab them all so we can do this just
+            // once.
+            DTPKey k;
+            while ((k = lockQueuesToCheck.poll()) != null) {
+              keys.add(k);
+            }
+            for (DTPKey key : keys) {
+              DTPQueue queue = dtps.get(key);
+              HiveLock lastLock = null;
+              for (HiveLock lock : queue.queue.values()) {
+                if (lock.getState() == HbaseMetastoreProto.LockState.WAITING) {
+                  // See if we can acquire this lock
+                  if (lastLock == null || twoLocksCompatible(lastLock.getType(), lock.getType())) {
+                    toAcquire.add(lock);
+                  } else {
+                    // If we can't acquire then nothing behind us can either
+                    // TODO prove to yourself this is true
+                    break;
+                  }
 
+                }
+                lastLock = lock;
               }
-              lastLock = lock;
             }
           } // Now outside read lock
-          for (HiveLock lock : toNofify) {
-            // TODO figure out how to notify requester
+          Map<Long, Map<Long, HiveLock>> txnsToModify = new HashMap<>();
+          for (HiveLock lock : toAcquire) {
+            Map<Long, HiveLock> locks = txnsToModify.get(lock.getTxnId());
+            if (locks == null) {
+              locks = new HashMap<>();
+              txnsToModify.put(lock.getTxnId(), locks);
+            }
+            locks.put(lock.getId(), lock);
           }
+
+          try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
+            for (HiveLock lock : toAcquire) {
+              lock.setState(HbaseMetastoreProto.LockState.ACQUIRED);
+            }
+
+            List<HbaseMetastoreProto.Transaction> txnsToPut = new ArrayList<>();
+            for (Map.Entry<Long, Map<Long, HiveLock>> entry : txnsToModify.entrySet()) {
+              HiveTransaction txn = openTxns.get(entry.getKey());
+              if (txn == null || txn.getState() != HbaseMetastoreProto.TxnState.OPEN) {
+                // LOG this, don't throw
+              } else {
+                HbaseMetastoreProto.Transaction hbaseTxn = getHBase().getTransaction(txn.getId());
+                HbaseMetastoreProto.Transaction.Builder txnBuilder =
+                    HbaseMetastoreProto.Transaction.newBuilder(hbaseTxn);
+                List<HbaseMetastoreProto.Transaction.Lock> hbaseLocks = hbaseTxn.getLocksList();
+                txnBuilder.clearLocks();
+                for (HbaseMetastoreProto.Transaction.Lock hbaseLock : hbaseLocks) {
+                  if (entry.getValue().containsKey(hbaseLock.getId())) {
+                    HbaseMetastoreProto.Transaction.Lock.Builder lockBuilder =
+                        HbaseMetastoreProto.Transaction.Lock.newBuilder(hbaseLock);
+                    lockBuilder.setAcquiredAt(System.currentTimeMillis());
+                    lockBuilder.setState(HbaseMetastoreProto.LockState.ACQUIRED);
+                    txnBuilder.addLocks(lockBuilder);
+                  } else {
+                    txnBuilder.addLocks(hbaseLock);
+                  }
+                }
+                txnsToPut.add(txnBuilder.build());
+              }
+            }
+            getHBase().putTransactions(txnsToPut);
+          } // out of the write lock
+
+          // TODO figure out how to notify requester
         } catch (Exception ie) {
           // TODO probably want to log this and ignore
         }
