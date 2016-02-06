@@ -42,7 +42,6 @@ import org.apache.hadoop.hive.metastore.api.ShowLocksResponse;
 import org.apache.hadoop.hive.metastore.api.TxnAbortedException;
 import org.apache.hadoop.hive.metastore.api.TxnOpenException;
 import org.apache.hadoop.hive.metastore.api.UnlockRequest;
-import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
 import org.apache.hadoop.hive.metastore.hbase.txn.txnmgr.TransactionManager;
 import org.apache.hadoop.hive.metastore.txn.CompactionInfo;
 import org.apache.hadoop.hive.metastore.txn.TxnStore;
@@ -72,42 +71,52 @@ public class HBaseTxnHandler implements TxnStore {
   @Override
   public GetOpenTxnsResponse getOpenTxns() throws MetaException {
     // TODO -actually call co-processor
+    /*
     try {
       return txnMgr.getOpenTxns();
     } catch (IOException e) {
       throw new MetaException(e.getMessage());
     }
+    */
+    return null;
   }
 
   @Override
   public OpenTxnsResponse openTxns(OpenTxnRequest rqst) throws MetaException {
     // TODO -actually call co-processor
+    /*
     try {
       return txnMgr.openTxns(rqst);
     } catch (IOException e) {
       throw new MetaException(e.getMessage());
     }
+    */
+    return null;
   }
 
   @Override
   public void abortTxn(AbortTxnRequest rqst) throws NoSuchTxnException, MetaException {
     // TODO -actually call co-processor
+    /*
     try {
       txnMgr.abortTxn(rqst);
     } catch (IOException e) {
       throw new MetaException(e.getMessage());
     }
+    */
   }
 
   @Override
   public void commitTxn(CommitTxnRequest rqst) throws NoSuchTxnException, TxnAbortedException,
       MetaException {
     // TODO -actually call co-processor
+    /*
     try {
       txnMgr.commitTxn(rqst);
     } catch (IOException e) {
       throw new MetaException(e.getMessage());
     }
+    */
   }
 
   @Override
@@ -156,11 +165,14 @@ public class HBaseTxnHandler implements TxnStore {
   public HeartbeatTxnRangeResponse heartbeatTxnRange(HeartbeatTxnRangeRequest rqst) throws
       MetaException {
     // TODO -actually call co-processor
+    /*
     try {
       return txnMgr.heartbeat(rqst);
     } catch (IOException e) {
       throw new MetaException(e.getMessage());
     }
+    */
+    return null;
   }
 
   @Override
@@ -179,11 +191,13 @@ public class HBaseTxnHandler implements TxnStore {
   public void addDynamicPartitions(AddDynamicPartitions rqst) throws NoSuchTxnException,
       TxnAbortedException, MetaException {
     // TODO -actually call co-processor
+    /*
     try {
       txnMgr.addDynamicPartitions(rqst);
     } catch (IOException e) {
       throw new MetaException(e.getMessage());
     }
+    */
   }
 
   @Override
@@ -218,6 +232,7 @@ public class HBaseTxnHandler implements TxnStore {
 
     // TODO modify state in HBase for each txn as well, and set lock states to compacted
 
+    /*
     HbaseMetastoreProto.Transaction txn = null;
     for (HbaseMetastoreProto.Transaction.Lock lock : txn.getLocksList()) {
       if (!lock.getCompacted()) return;
@@ -228,6 +243,7 @@ public class HBaseTxnHandler implements TxnStore {
     } catch (IOException e) {
       throw new MetaException(e.getMessage());
     }
+    */
   }
 
   @Override

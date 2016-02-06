@@ -17,6 +17,8 @@
  */
 package org.apache.hadoop.hive.metastore.hbase;
 
+// Metadata catalog objects
+
 enum PrincipalType {
     USER = 0;
     ROLE = 1;
@@ -94,34 +96,6 @@ message ColumnStats {
   optional DecimalStats decimal_stats = 10;
   optional string column_name = 11;
   optional string bit_vectors = 12;
-}
-
-message Compaction {
-  enum State {
-    INITIATED = 1;
-    WORKING = 2;
-    READY_FOR_CLEANING = 3;
-    FAILED = 4;
-    SUCCEEDED = 5;
-  }
-
-  enum Type {
-    MINOR = 1;
-    MAJOR = 2;
-  }
-
-  required int64 id = 1;
-  optional string db = 2;
-  optional string table = 3;
-  optional string partition = 4;
-  optional State state = 5;
-  required Type type = 6;
-  optional string worker_id = 7;
-  optional int64 started_working_at = 8;
-  optional string run_as = 9;
-  optional int64 highest_txn_id = 10;
-  optional bytes meta_info = 11;
-  optional string hadoop_job_id = 12;
 }
 
 message Database {
@@ -285,46 +259,6 @@ message Table {
   optional bool is_temporary = 14;
 }
 
-message Transaction {
-  enum TxnState {
-    COMMITTED = 1;
-    ABORTED = 2;
-    OPEN = 3;
-  }
-
-  message Lock {
-    enum LockState {
-      ACQUIRED = 1;
-      WAITING = 2;
-      ABORTED = 3;
-      RELEASED = 4; // This indicates a lock has been released but the record is being kept around for later use
-    }
-
-    enum LockType {
-      SHARED_READ = 1;
-      SHARED_WRITE = 2;
-      EXCLUSIVE = 3;
-      INTENTION = 4;
-    }
-    required int64 id = 1;
-    required LockState state = 2;
-    required LockType type = 3;
-    optional string db = 4;
-    optional string table = 5;
-    optional string partition = 6;
-    optional int64 acquired_at = 7;
-    optional bool compacted = 8;
-  }
-
-  required int64 id = 1;
-  required TxnState txn_state = 2;
-  optional string user = 3;
-  optional string hostname = 4;
-  optional string agent_info = 5;
-  optional string meta_info = 6;
-  repeated Lock locks = 8;
-}
-
 message PartitionKeyComparator {
   required string names = 1;
   required string types = 2;
@@ -349,3 +283,137 @@ message PartitionKeyComparator {
   repeated Operator op = 3;
   repeated Range range = 4;
 }
+
+// Transaction related persisted objects
+enum CompactionState {
+  INITIATED = 1;
+  WORKING = 2;
+  READY_FOR_CLEANING = 3;
+  FAILED = 4;
+  SUCCEEDED = 5;
+}
+
+enum CompactionType {
+  MINOR = 1;
+  MAJOR = 2;
+}
+
+enum LockState {
+  ACQUIRED = 1;
+  WAITING = 2;
+  TXN_ABORTED = 3;
+  RELEASED = 4; // This indicates a lock has been released but the record is being kept around for later use
+}
+
+enum LockType {
+  SHARED_READ = 1;
+  SHARED_WRITE = 2;
+  EXCLUSIVE = 3;
+  INTENTION = 4;
+}
+
+enum TxnState {
+  COMMITTED = 1;
+  ABORTED = 2;
+  OPEN = 3;
+}
+
+message Compaction {
+  required int64 id = 1;
+  optional string db = 2;
+  optional string table = 3;
+  optional string partition = 4;
+  required CompactionState state = 5;
+  required CompactionType type = 6;
+  optional string worker_id = 7;
+  optional int64 started_working_at = 8;
+  optional string run_as = 9;
+  optional int64 highest_txn_id = 10;
+  optional string meta_info = 11;
+  optional string hadoop_job_id = 12;
+}
+
+message Transaction {
+  message Lock {
+    required int64 id = 1;
+    required LockState state = 2;
+    required LockType type = 3;
+    optional string db = 4;
+    optional string table = 5;
+    optional string partition = 6;
+    optional int64 acquired_at = 7;
+    optional bool compacted = 8;
+  }
+
+  required int64 id = 1;
+  required TxnState txn_state = 2;
+  optional string user = 3;
+  optional string hostname = 4;
+  optional string agent_info = 5;
+  optional string meta_info = 6;
+  optional int64 commit_id = 7;
+  repeated Lock locks = 8;
+}
+
+message PotentialCompaction {
+  required string db = 1;
+  required string table = 2;
+  optional string partition = 3;
+  repeated int64 txnIds = 4;
+}
+
+// Co-processor transaction service related messages
+
+message AddDynamicPartitions {
+  required int64 txn_id = 1;
+  required string db = 2;
+  required string table = 3;
+  repeated string partitions = 4;
+}
+
+message GetOpenTxnsResponse {
+  required int64 high_water_mark = 1;
+  repeated int64 open_transactions = 2;
+  repeated int64 aborted_transactions = 3;
+}
+
+message HeartbeatTxnRangeRequest {
+  required int64 min_txn = 1; // inclusive
+  required int64 max_txn = 2; // inclusive
+}
+
+message HeartbeatTxnRangeResponse {
+  repeated int64 aborted = 1;
+  repeated int64 no_such = 2;
+}
+
+message LockRequest {
+  message Component {
+    required LockType type = 1;
+    required LockState state = 2;
+    required string db = 3;
+    optional string table = 4;
+    optional string partition = 5;
+  }
+
+  required int64 txn_id = 1;
+  repeated Component components = 2;
+}
+
+
+message OpenTxnsRequest {
+  required int32 num_txns = 1;
+  required string user = 2;
+  required string hostname = 3;
+  optional string agent_info = 4;
+}
+
+message OpenTxnsResponse {
+  repeated int64 txn_ids = 1;
+}
+
+message TransactionId {
+  required int64 id = 1;
+}
+
+

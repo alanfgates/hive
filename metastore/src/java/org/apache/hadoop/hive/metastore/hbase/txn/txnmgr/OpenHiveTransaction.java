@@ -55,15 +55,15 @@ class OpenHiveTransaction extends HiveTransaction {
       hiveLocks[i] = new HiveLock(id, hbaseLocks.get(i), txnMgr);
       // They might be listed as RELEASED if they were added later as DYNAMIC partition
       // locks, so don't add them in that case.
-      if (hiveLocks[i].getState() == HbaseMetastoreProto.Transaction.Lock.LockState.WAITING ||
-          hiveLocks[i].getState() == HbaseMetastoreProto.Transaction.Lock.LockState.ACQUIRED) {
+      if (hiveLocks[i].getState() == HbaseMetastoreProto.LockState.WAITING ||
+          hiveLocks[i].getState() == HbaseMetastoreProto.LockState.ACQUIRED) {
         hiveLocks[i].getDtpQueue().hiveLocks.put(hiveLocks[i].getId(), hiveLocks[i]);
       }
     }
   }
 
-  HbaseMetastoreProto.Transaction.TxnState getState() {
-    return HbaseMetastoreProto.Transaction.TxnState.OPEN;
+  HbaseMetastoreProto.TxnState getState() {
+    return HbaseMetastoreProto.TxnState.OPEN;
   }
 
   @Override
@@ -96,5 +96,20 @@ class OpenHiveTransaction extends HiveTransaction {
       hiveLocks = Arrays.copyOf(hiveLocks, origSize + newLocks.length);
       System.arraycopy(newLocks, 0, hiveLocks, origSize, newLocks.length);
     }
+  }
+
+  @Override
+  boolean hasWriteLocks() {
+    for (HiveLock hiveLock : hiveLocks) {
+      if (hiveLock.getType() == HbaseMetastoreProto.LockType.SHARED_WRITE) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  @Override
+  long getCommitId() {
+    throw new UnsupportedOperationException("Logic error, no commit id for an open transaction");
   }
 }

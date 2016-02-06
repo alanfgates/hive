@@ -30,19 +30,49 @@ abstract class HiveTransaction {
     return id;
   }
 
-  abstract HbaseMetastoreProto.Transaction.TxnState getState();
+  abstract HbaseMetastoreProto.TxnState getState();
 
+  /**
+   * Get the last heartbeat timestamp.  It is only valid to call this when the transaction is in
+   * open state.
+   * @return timestamp in milliseconds since the epoch of the last heartbeat.
+   */
   abstract long getLastHeartbeat();
 
+  /**
+   * Set the heartbeat time.  It is only valid to call this when the transaction is in the open
+   * state.
+   * @param lastHeartbeat timestamp in milliseconds since the epoch.
+   */
   abstract void setLastHeartbeat(long lastHeartbeat);
 
+  /**
+   * Get a list of locks associated with this transaction.  It is valid to call this when the
+   * transaction is open or committed, but not when it is aborted.
+   * @return list of locks.  In open state, all locks will be returned, in committed state only
+   * shared_write locks will be returned.
+   */
   abstract HiveLock[] getHiveLocks();
 
   /**
-   * Add locks to the transaction.
+   * Add locks to the transaction.  It is only valid to call this when the transaction is in open
+   * state.
    * @param newLocks array of locks to add.  This method assumes it can take ownership of this
    *                 array, so don't plan to do anything else with it.  All your locks are belong to
    *                 us.
    */
   abstract void addLocks(HiveLock[] newLocks);
+
+  /**
+   * Determine if this transaction held any write locks.
+   * @return true if any of the locks were shared_write
+   */
+  abstract boolean hasWriteLocks();
+
+  /**
+   * Get the transaction id at which this was committed.  This only makes sense to call once the
+   * state of the transaction is committed (duh!).
+   * @return commit id.
+   */
+  abstract long getCommitId();
 }

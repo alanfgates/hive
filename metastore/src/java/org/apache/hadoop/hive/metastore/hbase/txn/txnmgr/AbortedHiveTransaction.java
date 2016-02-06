@@ -29,7 +29,7 @@ public class AbortedHiveTransaction extends HiveTransaction {
    */
   AbortedHiveTransaction(HiveTransaction openTxn) {
     super(openTxn.getId());
-    if (openTxn.getState() != HbaseMetastoreProto.Transaction.TxnState.OPEN) {
+    if (openTxn.getState() != HbaseMetastoreProto.TxnState.OPEN) {
       throw new RuntimeException("Logic error, attempt to abort transaction in state " +
           openTxn.getState());
     }
@@ -46,8 +46,8 @@ public class AbortedHiveTransaction extends HiveTransaction {
   }
 
   @Override
-  HbaseMetastoreProto.Transaction.TxnState getState() {
-    return HbaseMetastoreProto.Transaction.TxnState.ABORTED;
+  HbaseMetastoreProto.TxnState getState() {
+    return HbaseMetastoreProto.TxnState.ABORTED;
   }
 
   @Override
@@ -68,5 +68,15 @@ public class AbortedHiveTransaction extends HiveTransaction {
   @Override
   void addLocks(HiveLock[] newLocks) {
     throw new UnsupportedOperationException("Logic error, no locks for aborted transactions");
+  }
+
+  @Override
+  boolean hasWriteLocks() {
+    return true;
+  }
+
+  @Override
+  long getCommitId() {
+    throw new UnsupportedOperationException("Logic error, no commit id for an aborted transaction");
   }
 }

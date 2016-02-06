@@ -22,9 +22,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterators;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.lang.StringUtils;
-import org.apache.hadoop.hbase.filter.FirstKeyOnlyFilter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.HBaseConfiguration;
@@ -37,8 +34,10 @@ import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Row;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.filter.BinaryPrefixComparator;
 import org.apache.hadoop.hbase.filter.CompareFilter;
 import org.apache.hadoop.hbase.filter.Filter;
+import org.apache.hadoop.hbase.filter.FirstKeyOnlyFilter;
 import org.apache.hadoop.hbase.filter.RegexStringComparator;
 import org.apache.hadoop.hbase.filter.RowFilter;
 import org.apache.hadoop.hive.common.ObjectPair;
@@ -64,6 +63,8 @@ import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.protocol.TSimpleJSONProtocol;
 import org.apache.thrift.transport.TMemoryBuffer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -90,14 +91,17 @@ public class HBaseReadWrite implements MetadataStore {
 
   final static String AGGR_STATS_TABLE = "HBMS_AGGR_STATS";
   final static String DB_TABLE = "HBMS_DBS";
+  final static String COMPACTION_TABLE = "HBMS_COMPACTIONS";
   final static String FUNC_TABLE = "HBMS_FUNCS";
   final static String GLOBAL_PRIVS_TABLE = "HBMS_GLOBAL_PRIVS";
   final static String PART_TABLE = "HBMS_PARTITIONS";
+  final static String POTENTIAL_COMPACTION_TABLE = "HBMS_POTENTIAL_COMPACTIONS";
   final static String ROLE_TABLE = "HBMS_ROLES";
   final static String SD_TABLE = "HBMS_SDS";
   final static String SECURITY_TABLE = "HBMS_SECURITY";
   final static String SEQUENCES_TABLE = "HBMS_SEQUENCES";
   final static String TABLE_TABLE = "HBMS_TBLS";
+  final static String TXN_TABLE = "HBMS_TXNS";
   final static String USER_TO_ROLE_TABLE = "HBMS_USER_TO_ROLE";
   final static String FILE_METADATA_TABLE = "HBMS_FILE_METADATA";
   final static byte[] CATALOG_CF = "c".getBytes(HBaseUtils.ENCODING);
@@ -109,12 +113,15 @@ public class HBaseReadWrite implements MetadataStore {
   public final static String[] tableNames = { AGGR_STATS_TABLE, DB_TABLE, FUNC_TABLE,
                                               GLOBAL_PRIVS_TABLE, PART_TABLE, USER_TO_ROLE_TABLE,
                                               ROLE_TABLE, SD_TABLE, SECURITY_TABLE, SEQUENCES_TABLE,
-                                              TABLE_TABLE, FILE_METADATA_TABLE };
+                                              TABLE_TABLE, FILE_METADATA_TABLE, TXN_TABLE,
+                                              COMPACTION_TABLE, POTENTIAL_COMPACTION_TABLE};
   public final static Map<String, List<byte[]>> columnFamilies = new HashMap<> (tableNames.length);
 
   static {
     columnFamilies.put(AGGR_STATS_TABLE, Arrays.asList(CATALOG_CF));
     columnFamilies.put(DB_TABLE, Arrays.asList(CATALOG_CF));
+    columnFamilies.put(COMPACTION_TABLE, Arrays.asList(CATALOG_CF));
+    columnFamilies.put(POTENTIAL_COMPACTION_TABLE, Arrays.asList(CATALOG_CF));
     columnFamilies.put(FUNC_TABLE, Arrays.asList(CATALOG_CF));
     columnFamilies.put(GLOBAL_PRIVS_TABLE, Arrays.asList(CATALOG_CF));
     columnFamilies.put(PART_TABLE, Arrays.asList(CATALOG_CF, STATS_CF));
@@ -124,6 +131,7 @@ public class HBaseReadWrite implements MetadataStore {
     columnFamilies.put(SECURITY_TABLE, Arrays.asList(CATALOG_CF));
     columnFamilies.put(SEQUENCES_TABLE, Arrays.asList(CATALOG_CF));
     columnFamilies.put(TABLE_TABLE, Arrays.asList(CATALOG_CF, STATS_CF));
+    columnFamilies.put(TXN_TABLE, Arrays.asList(CATALOG_CF));
     // Stats CF will contain PPD stats.
     columnFamilies.put(FILE_METADATA_TABLE, Arrays.asList(CATALOG_CF, STATS_CF));
   }
@@ -206,7 +214,7 @@ public class HBaseReadWrite implements MetadataStore {
    * {@link #setConf} has been called. Woe betide you if that's not the case.
    * @return thread's instance of HBaseReadWrite
    */
-  static HBaseReadWrite getInstance() {
+  public static HBaseReadWrite getInstance() {
     if (staticConf == null) {
       throw new RuntimeException("Must set conf object before getting an instance");
     }
@@ -2387,6 +2395,454 @@ public class HBaseReadWrite implements MetadataStore {
       }
     }
     return lines;
+  }
+
+  /**********************************************************************************************
+   * Transaction and Compaction related methods
+   *********************************************************************************************/
+
+  /**
+   * Get a transaction object
+   * @param txnId id of the transaction to get
+   * @return transaction object, or null if no such transaction
+   * @throws IOException
+   */
+  public HbaseMetastoreProto.Transaction getTransaction(long txnId) throws IOException {
+    byte[] key = HBaseUtils.buildKey(Long.toString(txnId));
+    byte[] serialized = read(TXN_TABLE, key, CATALOG_CF, CATALOG_COL);
+    if (serialized == null) return null;
+    return HBaseUtils.deserializeTransaction(serialized);
+  }
+
+  /**
+   * Get an iterator to all of the transactions in the table.
+   * @return iterator
+   * @throws IOException
+   */
+  public List<HbaseMetastoreProto.Transaction> scanTransactions() throws IOException {
+    Iterator<Result> iter = scan(TXN_TABLE, null, null, CATALOG_CF, CATALOG_COL, null);
+    List<HbaseMetastoreProto.Transaction> txns = new ArrayList<>();
+    while (iter.hasNext()) {
+      Result result = iter.next();
+      txns.add(HBaseUtils.deserializeTransaction(result.getValue(CATALOG_CF, CATALOG_COL)));
+    }
+    return txns;
+  }
+
+  /**
+   * Write a transaction to HBase.
+   * @param txn transaction to record.
+   * @throws IOException
+   */
+  public void putTransaction(HbaseMetastoreProto.Transaction txn) throws IOException {
+    byte[][] serialized = HBaseUtils.serializeTransaction(txn);
+    store(TXN_TABLE, serialized[0], CATALOG_CF, CATALOG_COL, serialized[1]);
+  }
+
+  /**
+   * Put a group of transactions into the table
+   * @param txns list of transaction to add
+   * @throws IOException
+   */
+  public void putTransactions(List<HbaseMetastoreProto.Transaction> txns) throws IOException {
+    List<Put> puts = new ArrayList<>(txns.size());
+    for (HbaseMetastoreProto.Transaction txn : txns) {
+      byte[][] serialized = HBaseUtils.serializeTransaction(txn);
+      Put p = new Put(serialized[0]);
+      p.add(CATALOG_CF, CATALOG_COL, serialized[1]);
+      puts.add(p);
+    }
+    HTableInterface htab = conn.getHBaseTable(TXN_TABLE);
+    htab.put(puts);
+    conn.flush(htab);
+  }
+
+  /**
+   * Remove a transaction from HBase.
+   * @param txnId id of transaction to remove.
+   * @throws IOException
+   */
+  public void deleteTransaction(long txnId) throws IOException {
+    byte[] key = HBaseUtils.buildKey(Long.toString(txnId));
+    delete(TXN_TABLE, key, null, null);
+  }
+
+  /**
+   * Print out one transaction.
+   * @param txnId id of transaction to print
+   * @return string containing transaction information
+   * @throws IOException
+   */
+  String printTransaction(long txnId) throws IOException {
+    return printTransaction(getTransaction(txnId));
+  }
+
+  /**
+   * Print all transactions.
+   * @return list of transactions
+   * @throws IOException
+   */
+  List<String> printTransactions() throws IOException {
+    List<String> lines = new ArrayList<>();
+    for (HbaseMetastoreProto.Transaction txn : scanTransactions()) {
+      lines.add(printTransaction(txn));
+    }
+    return lines;
+  }
+
+  private String printTransaction(HbaseMetastoreProto.Transaction txn) {
+    StringBuilder buf = new StringBuilder("{id:")
+        .append(txn.getId())
+        .append(", state:\"")
+        .append(txn.getTxnState().toString())
+        .append("\", ");
+    if (txn.hasUser()) {
+      buf.append("user: \"")
+          .append(txn.getUser())
+          .append("\", ");
+    }
+    if (txn.hasHostname()) {
+      buf.append("hostname: \"")
+          .append(txn.getHostname())
+          .append("\", ");
+    }
+    if (txn.hasAgentInfo()) {
+      buf.append("agentInfo: \"")
+          .append(txn.getAgentInfo())
+          .append("\", ");
+    }
+    if (txn.hasMetaInfo()) {
+      buf.append("metaInfo: \"")
+          .append(txn.getMetaInfo())
+          .append("\", ");
+    }
+    buf.append("locks:[");
+    boolean first = true;
+    List<HbaseMetastoreProto.Transaction.Lock> locks = txn.getLocksList();
+    for (HbaseMetastoreProto.Transaction.Lock lock : locks) {
+      if (first) first = false;
+      else buf.append(", ");
+      buf.append("{id: ")
+          .append(lock.getId())
+          .append(", ");
+      buf.append("{state: \"")
+          .append(lock.getState().toString())
+          .append("\", ");
+      buf.append("{type: \"")
+          .append(lock.getType().toString())
+          .append("\"");
+      if (lock.hasDb()) {
+        buf.append(", ")
+            .append("db: \"")
+            .append(lock.getDb())
+            .append("\"");
+      }
+      if (lock.hasTable()) {
+        buf.append(", ")
+            .append("table: \"")
+            .append(lock.getTable())
+            .append("\"");
+      }
+      if (lock.hasPartition()) {
+        buf.append(", ")
+            .append("partition: \"")
+            .append(lock.getPartition())
+            .append("\"");
+      }
+      if (lock.hasAcquiredAt()) {
+        buf.append(", ")
+            .append("acquiredAt: ")
+            .append(lock.getAcquiredAt());
+      }
+      if (lock.hasCompacted()) {
+        buf.append(", ")
+            .append("compacted: ")
+            .append(lock.getCompacted());
+      }
+      buf.append("}");
+    }
+    buf.append("]}");
+    return buf.toString();
+  }
+
+  /**
+   * Get a compaction object
+   * @param compactionId id of the compactions to get
+   * @return transaction object, or null if no such transaction
+   * @throws IOException
+   */
+  public HbaseMetastoreProto.Compaction getCompaction(long compactionId) throws IOException {
+    byte[] key = HBaseUtils.buildKey(Long.toString(compactionId));
+    byte[] serialized = read(COMPACTION_TABLE, key, CATALOG_CF, CATALOG_COL);
+    if (serialized == null) return null;
+    return HBaseUtils.deserializeCompaction(serialized);
+  }
+
+  /**
+   * Get an iterator to all of the compactions in the table.
+   * @param state only return compactions in the given state.
+   * @return iterator
+   * @throws IOException
+   */
+  public List<HbaseMetastoreProto.Compaction> scanCompactions(HbaseMetastoreProto.CompactionState state)
+      throws  IOException {
+    Filter filter = null;
+    if (state != null) {
+      filter = new RowFilter(CompareFilter.CompareOp.EQUAL,
+          new BinaryPrefixComparator(HBaseUtils.buildKey(state.toString())));
+    }
+    Iterator<Result> iter = scan(COMPACTION_TABLE, null, null, CATALOG_CF, CATALOG_COL, filter);
+    List<HbaseMetastoreProto.Compaction> compactions = new ArrayList<>();
+    while (iter.hasNext()) {
+      Result result = iter.next();
+      compactions.add(HBaseUtils.deserializeCompaction(result.getValue(CATALOG_CF, CATALOG_COL)));
+    }
+    return compactions;
+  }
+
+  /**
+   * Write a compaction to HBase.  If you are changing the state of the compaction you MUST
+   * delete it and then put it, as you're also changing the key.
+   * @param compaction compaction to record.
+   * @throws IOException
+   */
+  public void putCompaction(HbaseMetastoreProto.Compaction compaction) throws IOException {
+    byte[][] serialized = HBaseUtils.serializeCompaction(compaction);
+    store(COMPACTION_TABLE, serialized[0], CATALOG_CF, CATALOG_COL, serialized[1]);
+  }
+
+  /**
+   * Remove a compaction from HBase.
+   * @param compactionId id of compaction to remove.
+   * @throws IOException
+   */
+  public void deleteCompaction(long compactionId) throws IOException {
+    byte[] key = HBaseUtils.buildKey(Long.toString(compactionId));
+    delete(COMPACTION_TABLE, key, null, null);
+  }
+
+  /**
+   * Print out one compaction.
+   * @param compactionId id of compaction to print
+   * @return string containing compaction information
+   * @throws IOException
+   */
+  String printCompaction(long compactionId) throws IOException {
+    return printCompaction(getCompaction(compactionId));
+  }
+
+  /**
+   * Print all compactions.
+   * @return list of compactions.
+   * @throws IOException
+   */
+  List<String> printCompactions() throws IOException {
+    List<String> lines = new ArrayList<>();
+    for (HbaseMetastoreProto.Compaction compaction : scanCompactions(null)) {
+      lines.add(printCompaction(compaction));
+    }
+    return lines;
+  }
+
+  private String printCompaction(HbaseMetastoreProto.Compaction compaction) {
+    StringBuilder buf = new StringBuilder("{id:")
+        .append(compaction.getId())
+        .append(", state:\"")
+        .append(compaction.getState().toString())
+        .append("\", ")
+        .append(", type:\"")
+        .append(compaction.getType().toString())
+        .append("\"");
+    if (compaction.hasDb()) {
+      buf.append(", db: \"")
+          .append(compaction.getDb())
+          .append("\"");
+    }
+    if (compaction.hasTable()) {
+      buf.append(", table: \"")
+          .append(compaction.getDb())
+          .append("\"");
+    }
+    if (compaction.hasPartition()) {
+      buf.append(", partition: \"")
+          .append(compaction.getPartition())
+          .append("\"");
+    }
+    if (compaction.hasWorkerId()) {
+      buf.append(", workerId: \"")
+          .append(compaction.getWorkerId())
+          .append("\"");
+    }
+    if (compaction.hasStartedWorkingAt()) {
+      buf.append(", startedWorkingAt: ")
+          .append(compaction.getStartedWorkingAt());
+    }
+    if (compaction.hasRunAs()) {
+      buf.append(", runAs: \"")
+          .append(compaction.getRunAs())
+          .append("\"");
+    }
+    if (compaction.hasHighestTxnId()) {
+      buf.append(", highestTxnId: ")
+          .append(compaction.getHighestTxnId());
+    }
+    if (compaction.hasMetaInfo()) {
+      buf.append(", metaInfo: \"")
+          .append(compaction.getMetaInfo())
+          .append("\"");
+    }
+    if (compaction.hasHadoopJobId()) {
+      buf.append(", hadoopJobId: \"")
+          .append(compaction.getHadoopJobId())
+          .append("\"");
+    }
+    buf.append("}");
+    return buf.toString();
+  }
+
+  /**
+   * Get a potential compaction object
+   * @param db database potential is in
+   * @param table table of potential
+   * @param partition partition of potential, may be null
+   * @return potential compaction object, or null if no such potential compaction
+   * @throws IOException
+   */
+  public HbaseMetastoreProto.PotentialCompaction getPotentialCompaction(String db, String table,
+                                                                 String partition)
+      throws IOException {
+    byte[] key = partition == null ? HBaseUtils.buildKey(db, table) :
+      HBaseUtils.buildKey(db, table, partition);
+    byte[] serialized = read(POTENTIAL_COMPACTION_TABLE, key, CATALOG_CF, CATALOG_COL);
+    if (serialized == null) return null;
+    return HBaseUtils.deserializePotentialCompaction(serialized);
+  }
+
+  /**
+   * Get an iterator to all of the potential compactions in the table.
+   * @return iterator
+   * @throws IOException
+   */
+  public List<HbaseMetastoreProto.PotentialCompaction> scanPotentialCompactions() throws IOException {
+    Iterator<Result> iter = scan(POTENTIAL_COMPACTION_TABLE, null, null, CATALOG_CF, CATALOG_COL,
+        null);
+    List<HbaseMetastoreProto.PotentialCompaction> potentials = new ArrayList<>();
+    while (iter.hasNext()) {
+      Result result = iter.next();
+      potentials.add(HBaseUtils.deserializePotentialCompaction(result.getValue(CATALOG_CF, CATALOG_COL)));
+    }
+    return potentials;
+  }
+
+  public static class PotentialCompactionEntity {
+    final public String db;
+    final public String table;
+    final public String partition;
+
+    public PotentialCompactionEntity(String db, String table, String partition) {
+      this.db = db;
+      this.table = table;
+      this.partition = partition;
+    }
+  }
+  /**
+   * Write a potential compaction to HBase.
+   * @param txnid transaction id
+   * @param pces potential compaction entities s to record.  This makes the assumption that there
+   *             are no duplicates in the list.
+   * @throws IOException
+   */
+  public void putPotentialCompactions(long txnid, List<PotentialCompactionEntity> pces)
+      throws IOException {
+    List<HbaseMetastoreProto.PotentialCompaction> hbasePcs = new ArrayList<>();
+    for (PotentialCompactionEntity pc : pces) {
+      HbaseMetastoreProto.PotentialCompaction hbasePc =
+          getPotentialCompaction(pc.db, pc.table, pc.partition);
+      if (hbasePc == null) {
+        hbasePcs.add(HbaseMetastoreProto.PotentialCompaction.newBuilder()
+            .setDb(pc.db)
+            .setTable(pc.table)
+            .setPartition(pc.partition)
+            .addTxnIds(txnid)
+            .build());
+      } else {
+        hbasePcs.add(HbaseMetastoreProto.PotentialCompaction.newBuilder(hbasePc)
+            .addTxnIds(txnid)
+            .build());
+      }
+    }
+
+    List<Put> puts = new ArrayList<>(hbasePcs.size());
+    for (HbaseMetastoreProto.PotentialCompaction potential : hbasePcs) {
+      byte[][] serialized = HBaseUtils.serializePotentialCompaction(potential);
+      Put p = new Put(serialized[0]);
+      p.add(CATALOG_CF, CATALOG_COL, serialized[1]);
+      puts.add(p);
+    }
+    HTableInterface htab = conn.getHBaseTable(POTENTIAL_COMPACTION_TABLE);
+    htab.put(puts);
+    conn.flush(htab);
+  }
+
+  /**
+   * Remove a potential compaction from HBase.
+   * @param db database potential is in
+   * @param table table of potential
+   * @param partition partition of potential, may be null
+   * @throws IOException
+   */
+  public void deletePotentialCompaction(String db, String table, String partition) throws IOException {
+    byte[] key = partition == null ? HBaseUtils.buildKey(db, table) :
+        HBaseUtils.buildKey(db, table, partition);
+    delete(POTENTIAL_COMPACTION_TABLE, key, null, null);
+  }
+
+  /**
+   * Print out one potential compaction.
+   * @param db database potential is in
+   * @param table table of potential
+   * @param partition partition of potential, may be null
+   * @return string containing potential compaction information
+   * @throws IOException
+   */
+  String printPotentialCompaction(String db, String table, String partition) throws IOException {
+    return printPotentialCompaction(getPotentialCompaction(db, table, partition));
+  }
+
+  /**
+   * Print all potential compactions.
+   * @return list of potential compactions
+   * @throws IOException
+   */
+  List<String> printPotentialCompactions() throws IOException {
+    List<String> lines = new ArrayList<>();
+    for (HbaseMetastoreProto.PotentialCompaction potential : scanPotentialCompactions()) {
+      lines.add(printPotentialCompaction(potential));
+    }
+    return lines;
+  }
+
+  private String printPotentialCompaction(HbaseMetastoreProto.PotentialCompaction potential) {
+    StringBuilder buf = new StringBuilder("{db: \"")
+        .append(potential.getDb())
+        .append("\", table: \"")
+        .append(potential.getTable())
+        .append("\"");
+    if (potential.hasPartition()) {
+      buf.append(", partition : \"")
+          .append(potential.getPartition())
+          .append("\"");
+    }
+    boolean first = true;
+    List<Long> txns = potential.getTxnIdsList();
+    buf.append(", txnIds:[");
+    for (Long txn : txns) {
+      if (first) first = false;
+      else buf.append(", ");
+      buf.append(txn);
+    }
+    buf.append("]}");
+    return buf.toString();
   }
 
   /**********************************************************************************************

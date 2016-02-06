@@ -1397,6 +1397,79 @@ public class HBaseUtils {
   }
 
   /**
+   * Serialize a transaction.
+   * @param txn transaction to serialize
+   * @return two byte arrays, first contains the key, the second the serialized value.
+   */
+  static byte[][] serializeTransaction(HbaseMetastoreProto.Transaction txn) {
+    byte[][] result = new byte[2][];
+    result[0] = buildKey(Long.toString(txn.getId()));
+    result[1] = txn.toByteArray();
+    return result;
+  }
+
+  /**
+   * Deserialize a transaction.
+   * @param value value fetched from hbase
+   * @return A transaction
+   * @throws InvalidProtocolBufferException
+   */
+  static HbaseMetastoreProto.Transaction deserializeTransaction(byte[] value)
+      throws InvalidProtocolBufferException {
+    return HbaseMetastoreProto.Transaction.parseFrom(value);
+  }
+
+  /**
+   * Serialize a compaction.
+   * @param compaction compaction to serialize
+   * @return two byte arrays, first contains the key, the second the serialized value.
+   */
+  static byte[][] serializeCompaction(HbaseMetastoreProto.Compaction compaction) {
+    byte[][] result = new byte[2][];
+    result[0] = buildKey(compaction.getState().toString(), Long.toString(compaction.getId()));
+    result[1] = compaction.toByteArray();
+    return result;
+  }
+
+  /**
+   * Deserialize a compaction.
+   * @param value value fetched from hbase
+   * @return A compaction
+   * @throws InvalidProtocolBufferException
+   */
+  static HbaseMetastoreProto.Compaction deserializeCompaction(byte[] value)
+      throws InvalidProtocolBufferException {
+    return HbaseMetastoreProto.Compaction.parseFrom(value);
+  }
+
+  /**
+   * Serialize a potential compaction.
+   * @param potential potentialCompaction to serialize
+   * @return two byte arrays, first contains the key, the second the serialized value.
+   */
+  static byte[][] serializePotentialCompaction(HbaseMetastoreProto.PotentialCompaction potential) {
+    byte[][] result = new byte[2][];
+    if (potential.hasPartition()) {
+      result[0] = buildKey(potential.getDb(), potential.getTable(), potential.getPartition());
+    } else {
+      result[0] = buildKey(potential.getDb(), potential.getTable());
+    }
+    result[1] = potential.toByteArray();
+    return result;
+  }
+
+  /**
+   * Deserialize a potential compaction.
+   * @param value value fetched from hbase
+   * @return A potentialCompaction
+   * @throws InvalidProtocolBufferException
+   */
+  static HbaseMetastoreProto.PotentialCompaction deserializePotentialCompaction(byte[] value)
+      throws InvalidProtocolBufferException {
+    return HbaseMetastoreProto.PotentialCompaction.parseFrom(value);
+  }
+
+  /**
    * @param keyStart byte array representing the start prefix
    * @return byte array corresponding to the next possible prefix
    */

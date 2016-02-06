@@ -28,19 +28,39 @@ public class CommittedHiveTransaction extends HiveTransaction {
   // capacity, but when it grows you loose control of how.
   private HiveLock[] hiveLocks;
 
+  private final long commitId;
+
   /**
    * For use when creating a new transaction.  This creates the transaction in an open state.
    * @param openTxn open transaction that is moving to a committed state.
+   * @param commitId id assigned at commit time.
    */
-  CommittedHiveTransaction(HiveTransaction openTxn) {
+  CommittedHiveTransaction(HiveTransaction openTxn, long commitId) {
     super(openTxn.getId());
-    if (openTxn.getState() == HbaseMetastoreProto.Transaction.TxnState.OPEN) {
+    this.commitId = commitId;
+    if (openTxn.getState() == HbaseMetastoreProto.TxnState.OPEN) {
       throw new RuntimeException("Logic error, trying to move transaction of type " +
           openTxn.getState() + " to committed");
     }
-    hiveLocks = openTxn.getHiveLocks();
-    for (HiveLock lock : hiveLocks) {
-      lock.setState(HbaseMetastoreProto.Transaction.Lock.LockState.RELEASED);
+    // We only want to copy over the write locks, as this can potentially save us a lot of space
+    // and makes it easier to looks for write sets.
+    int numWriteLocks = 0;
+    for (HiveLock lock : openTxn.getHiveLocks()) {
+      if (lock.getType() == HbaseMetastoreProto.LockType.SHARED_WRITE) {
+        numWriteLocks++;
+      }
+    }
+    if (numWriteLocks == 0) {
+      throw new RuntimeException("Logic error, should not be creating committed transacion for " +
+          "read only transaction");
+    }
+    hiveLocks = new HiveLock[numWriteLocks];
+    int i = 0;
+    for (HiveLock lock : openTxn.getHiveLocks()) {
+      if (lock.getType() == HbaseMetastoreProto.LockType.SHARED_WRITE) {
+        hiveLocks[i++] = lock;
+        hiveLocks[i++].setState(HbaseMetastoreProto.LockState.RELEASED);
+      }
     }
   }
 
@@ -53,6 +73,7 @@ public class CommittedHiveTransaction extends HiveTransaction {
   CommittedHiveTransaction(HbaseMetastoreProto.Transaction hbaseTxn, TransactionManager txnMgr)
       throws IOException {
     super(hbaseTxn.getId());
+    this.commitId = hbaseTxn.getCommitId();
     List<HbaseMetastoreProto.Transaction.Lock> hbaseLocks = hbaseTxn.getLocksList();
     hiveLocks = new HiveLock[hbaseLocks.size()];
     for (int i = 0; i < hbaseLocks.size(); i++) {
@@ -61,8 +82,8 @@ public class CommittedHiveTransaction extends HiveTransaction {
     }
   }
 
-  HbaseMetastoreProto.Transaction.TxnState getState() {
-    return HbaseMetastoreProto.Transaction.TxnState.COMMITTED;
+  HbaseMetastoreProto.TxnState getState() {
+    return HbaseMetastoreProto.TxnState.COMMITTED;
   }
 
   @Override
@@ -83,5 +104,15 @@ public class CommittedHiveTransaction extends HiveTransaction {
   @Override
   void addLocks(HiveLock[] newLocks) {
     throw new UnsupportedOperationException("Logic error, can't add locks to committed transactions");
+  }
+
+  @Override
+  boolean hasWriteLocks() {
+    return true;
+  }
+
+  @Override
+  long getCommitId() {
+    return commitId;
   }
 }
