@@ -43,6 +43,7 @@ public class TransactionManager {
   // TODO prove out compaction operations
   // TODO solve lost update problem
   // TODO Convert to actual service
+  // TODO get rid of all of the exceptions and send them back in a message
   // TODO remove the use of HiveConf, this won't have access to it, need to find another way to pass the required values.
   // TODO handle refusing new transactions once we reach a certain size.
 
@@ -309,7 +310,7 @@ public class TransactionManager {
     return builder.build();
   }
 
-  public void lock(HbaseMetastoreProto.LockRequest rqst) throws IOException {
+  public HbaseMetastoreProto.LockResponse lock(HbaseMetastoreProto.LockRequest rqst) throws IOException {
     List<HbaseMetastoreProto.LockComponent> components = rqst.getComponentsList();
     HiveLock[] hiveLocks = new HiveLock[components.size()];
     HiveTransaction txn;
@@ -333,6 +334,10 @@ public class TransactionManager {
       }
       txn.addLocks(hiveLocks);
     }
+    // Poll on the state of all the locks, return once they've all gone acquired.  But don't wait
+    // more than a few seconds, as this is tying down a thread in HBase.  After that they can call
+    // check locks to determine if their locks have acquired.
+    return pollForLocks(rqst.getTxnId(), hiveLocks);
   }
 
   DTPQueue findDTPQueue(String db, String table, String part) throws IOException {
@@ -343,6 +348,53 @@ public class TransactionManager {
       dtps.put(key, queue);
     }
     return queue;
+  }
+
+  // This checks that all locks in the transaction are acquired.  It will hold for a few seconds
+  // to see if it can acquire them all.
+  public HbaseMetastoreProto.LockResponse checkLocks(HbaseMetastoreProto.TransactionId txnId)
+    throws IOException {
+    HiveTransaction txn = openTxns.get(txnId.getId());
+    if (txn == null) throw new IOException("attempt to check locks on non-existing txn");
+    return pollForLocks(txnId.getId(), txn.getHiveLocks());
+  }
+
+  private HbaseMetastoreProto.LockResponse pollForLocks(long txnId, HiveLock[] hiveLocks)
+      throws IOException {
+    long waitUntil = System.currentTimeMillis() + 5000;
+    try {
+      while (System.currentTimeMillis() < waitUntil) {
+        lockChecker.wait(waitUntil - System.currentTimeMillis());
+        boolean sawWaiting = false;
+        for (HiveLock lock : hiveLocks) {
+          if (lock.getState() == HbaseMetastoreProto.LockState.WAITING) {
+            sawWaiting = true;
+            break;
+          }
+          if (lock.getState() != HbaseMetastoreProto.LockState.ACQUIRED) {
+            // This will force an abort
+            throw new RuntimeException();
+          }
+        }
+        if (!sawWaiting) {
+          return HbaseMetastoreProto.LockResponse.newBuilder()
+              .setState(HbaseMetastoreProto.LockState.ACQUIRED)
+              .build();
+        }
+      }
+
+      // If we got here it means we wait too long.
+      return HbaseMetastoreProto.LockResponse.newBuilder()
+          .setState(HbaseMetastoreProto.LockState.WAITING)
+          .build();
+
+    } catch (Exception e) {
+      abortTxn(HbaseMetastoreProto.TransactionId.newBuilder().setId(txnId).build());
+      return HbaseMetastoreProto.LockResponse.newBuilder()
+          .setState(HbaseMetastoreProto.LockState.TXN_ABORTED)
+          .build();
+
+    }
   }
 
   /*
@@ -812,8 +864,9 @@ public class TransactionManager {
             }
             getHBase().putTransactions(txnsToPut);
           } // out of the write lock
+          // Notify all waiters so they know to see if they've acquired their locks.
+          this.notifyAll();
 
-          // TODO figure out how to notify requester
         } catch (Exception ie) {
           // TODO probably want to log this and ignore
         }

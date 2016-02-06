@@ -401,9 +401,7 @@ message LockRequest {
 }
 
 message LockResponse {
-  required string db = 1;
-  optional string table = 2;
-  optional string partition = 3;
+  required LockState state = 1;
 }
 
 message OpenTxnsRequest {
