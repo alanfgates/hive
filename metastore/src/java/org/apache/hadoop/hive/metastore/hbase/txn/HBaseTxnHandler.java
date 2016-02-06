@@ -46,7 +46,6 @@ import org.apache.hadoop.hive.metastore.hbase.txn.txnmgr.TransactionManager;
 import org.apache.hadoop.hive.metastore.txn.CompactionInfo;
 import org.apache.hadoop.hive.metastore.txn.TxnStore;
 
-import java.io.IOException;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Set;
@@ -123,22 +122,22 @@ public class HBaseTxnHandler implements TxnStore {
   public LockResponse lock(LockRequest rqst) throws NoSuchTxnException, TxnAbortedException,
       MetaException {
     // TODO -actually call co-processor
+    /*
     try {
       return txnMgr.lock(rqst);
     } catch (IOException e) {
       throw new MetaException(e.getMessage());
     }
+    */
+    // TODO - wait and piece together lock responses until I get all my locks
+    return null;
   }
 
   @Override
   public LockResponse checkLock(CheckLockRequest rqst) throws NoSuchTxnException,
       NoSuchLockException, TxnAbortedException, MetaException {
-    // TODO -actually call co-processor
-    try {
-      return txnMgr.checkLocks(rqst);
-    } catch (IOException e) {
-      throw new MetaException(e.getMessage());
-    }
+    // TODO Should be a no-op in the new world, except for old clients.
+    return null;
   }
 
   @Override

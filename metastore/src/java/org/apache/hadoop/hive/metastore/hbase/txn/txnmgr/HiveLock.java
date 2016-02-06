@@ -28,7 +28,7 @@ class HiveLock {
   // db/table/part
   private final long txnId;
   // Lock list this lock is part of
-  private final TransactionManager.DTPLockQueue dtpQueue;
+  private final TransactionManager.DTPQueue dtpQueue;
   private final HbaseMetastoreProto.LockType type;
   private HbaseMetastoreProto.LockState state;
 
@@ -40,7 +40,7 @@ class HiveLock {
    * @param dtpQueue DTP list this will go in.
    */
   HiveLock(long id, long txnId, HbaseMetastoreProto.LockType type,
-           TransactionManager.DTPLockQueue dtpQueue) {
+           TransactionManager.DTPQueue dtpQueue) {
     this.id = id;
     this.txnId = txnId;
     this.type = type;
@@ -85,7 +85,7 @@ class HiveLock {
     this.state = state;
   }
 
-  public TransactionManager.DTPLockQueue getDtpQueue() {
+  public TransactionManager.DTPQueue getDtpQueue() {
     return dtpQueue;
   }
 

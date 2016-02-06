@@ -18,12 +18,6 @@
 package org.apache.hadoop.hive.metastore.hbase.txn.txnmgr;
 
 import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.metastore.api.CheckLockRequest;
-import org.apache.hadoop.hive.metastore.api.LockComponent;
-import org.apache.hadoop.hive.metastore.api.LockRequest;
-import org.apache.hadoop.hive.metastore.api.LockResponse;
-import org.apache.hadoop.hive.metastore.api.LockState;
-import org.apache.hadoop.hive.metastore.api.LockType;
 import org.apache.hadoop.hive.metastore.hbase.HBaseReadWrite;
 import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
 
@@ -33,12 +27,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -53,6 +48,7 @@ public class TransactionManager {
   // TODO see if we can make lock acquition active instead of passive
   // TODO remove the use of HiveConf, this won't have access to it, need to find another way to pass the required values.
   // TODO handle refusing new transactions once we reach a certain size.
+  // TODO handle lock promotion
 
 
   // Track what locks types are compatible.  First array is holder, second is requester
@@ -86,9 +82,12 @@ public class TransactionManager {
   private long nextLockId;
 
   // A structure to store the locks according to which database/table/partition they lock.
-  private Map<DTPKey, DTPLockQueue> dtps;
+  private Map<DTPKey, DTPQueue> dtps;
 
   private HBaseReadWrite hbase;
+
+  // A queue used to signal to the lockChecker which dtp queues it should look in.
+  private BlockingQueue<DTPKey> lockQueuesToCheck;
 
   public static synchronized TransactionManager getTransactionManager(HiveConf conf) {
     if (self == null) {
@@ -105,6 +104,7 @@ public class TransactionManager {
     abortedTxns = new HashMap<>();
     committedTxns = new HashSet<>();
     dtps = new HashMap<>(10000);
+    lockQueuesToCheck = new LinkedBlockingDeque<>();
     this.conf = conf;
     try {
       recover();
@@ -177,10 +177,19 @@ public class TransactionManager {
   // You must own the master write lock before entering this method.
   private void abortTxn(HiveTransaction txn) throws IOException {
     HiveLock[] locks = txn.getHiveLocks();
+    List<DTPKey> queuesToCheck = new ArrayList<>();
     if (locks != null) {
       for (HiveLock lock : locks) {
         lock.setState(HbaseMetastoreProto.LockState.TXN_ABORTED);
-        lock.getDtpQueue().hiveLocks.remove(lock.getId());
+        lock.getDtpQueue().queue.remove(lock.getId());
+        // It's ok to put these in the queue now even though we're still removing things because
+        // we hold the master write lock.  The lockChecker won't be able to run until we've
+        // released that lock anyway.
+        try {
+          lockQueuesToCheck.put(lock.getDtpQueue().key);
+        } catch (InterruptedException e) {
+          throw new IOException(e);
+        }
       }
     }
 
@@ -234,7 +243,15 @@ public class TransactionManager {
       if (locks != null) {
         for (HiveLock lock : locks) {
           lock.setState(HbaseMetastoreProto.LockState.RELEASED);
-          lock.getDtpQueue().hiveLocks.remove(lock.getId());
+          lock.getDtpQueue().queue.remove(lock.getId());
+          // It's ok to put these in the queue now even though we're still removing things because
+          // we hold the master write lock.  The lockChecker won't be able to run until we've
+          // released that lock anyway.
+          try {
+            lockQueuesToCheck.put(lock.getDtpQueue().key);
+          } catch (InterruptedException e) {
+            throw new IOException(e);
+          }
         }
       }
 
@@ -295,61 +312,44 @@ public class TransactionManager {
     return builder.build();
   }
 
-  public LockResponse lock(LockRequest rqst) throws IOException {
-    List<LockComponent> components = rqst.getComponent();
+  public void lock(HbaseMetastoreProto.LockRequest rqst) throws IOException {
+    List<HbaseMetastoreProto.LockComponent> components = rqst.getComponentsList();
     HiveLock[] hiveLocks = new HiveLock[components.size()];
     HiveTransaction txn;
     try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
-      txn = openTxns.get(rqst.getTxnid());
-      // TODO someone else may have altered the state of the transaction while we waited for the
-      // lock, deal with that.
+      txn = openTxns.get(rqst.getTxnId());
+      if (txn == null) throw new IOException("No such txn, " + rqst.getTxnId());
+      if (txn.getState() != HbaseMetastoreProto.TxnState.OPEN) {
+        throw new IOException("Can't request locks on a non-open txn");
+      }
       for (int i = 0; i < components.size(); i++) {
-        LockComponent component = components.get(i);
-        hiveLocks[i] = new HiveLock(nextLockId++, rqst.getTxnid(),
-            translateLockType(component.getType()),
-            findDTPQueue(component.getDbname(), component.getTablename(),
-                component.getPartitionname()));
+        HbaseMetastoreProto.LockComponent component = components.get(i);
+        hiveLocks[i] = new HiveLock(nextLockId++, rqst.getTxnId(), component.getType(),
+            findDTPQueue(component.getDb(), component.getTable(), component.getPartition()));
         // Add to the appropriate DTP queue
-        hiveLocks[i].getDtpQueue().hiveLocks.put(hiveLocks[i].getId(), hiveLocks[i]);
+        hiveLocks[i].getDtpQueue().queue.put(hiveLocks[i].getId(), hiveLocks[i]);
+        try {
+          lockQueuesToCheck.put(hiveLocks[i].getDtpQueue().key);
+        } catch (InterruptedException e) {
+          throw new IOException(e);
+        }
       }
       txn.addLocks(hiveLocks);
     }
-
-    // Must have the read lock before going into checkLocks
-    try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
-      return checkLocks(txn.getId(), hiveLocks);
-    }
-
   }
 
-  private HbaseMetastoreProto.LockType translateLockType(LockType thriftType) {
-    // TODO
-    return null;
-  }
-
-  DTPLockQueue findDTPQueue(String db, String table, String part) throws IOException {
+  DTPQueue findDTPQueue(String db, String table, String part) throws IOException {
     DTPKey key = new DTPKey(db, table, part);
-    DTPLockQueue queue = dtps.get(key);
+    DTPQueue queue = dtps.get(key);
     if (queue == null) {
-      queue = new DTPLockQueue();
+      queue = new DTPQueue(key);
       dtps.put(key, queue);
     }
     return queue;
   }
 
-  public LockResponse checkLocks(CheckLockRequest rqst) throws IOException {
-    try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
-      HiveTransaction txn = openTxns.get(rqst.getTxnid());
-      // TODO someone else may have altered the state of the transaction while we waited for the
-      // lock, deal with that.
-      HiveLock[] hiveLocks = txn.getHiveLocks();
-      return checkLocks(txn.getId(), hiveLocks);
-    }
-  }
-
-  // Assumes the master read lock is held
+  /*
   private LockResponse checkLocks(long txnId, HiveLock[] locks) {
-    // TODO handle lock promotion
     // TODO I don't think using txnId for lock state the way I'm trying to do here will work,
     // I'll have to have an artificial lock id I send the client.
     for (HiveLock lock : locks) {
@@ -387,6 +387,7 @@ public class TransactionManager {
     }
     return new LockResponse(txnId, LockState.ACQUIRED);
   }
+  */
 
   private boolean twoLocksCompatible(HbaseMetastoreProto.LockType holder,
                                      HbaseMetastoreProto.LockType requester) {
@@ -554,11 +555,13 @@ public class TransactionManager {
     }
   }
 
-  static class DTPLockQueue {
-    final SortedMap<Long, HiveLock> hiveLocks;
+  static class DTPQueue {
+    final SortedMap<Long, HiveLock> queue;
+    final DTPKey key; // backpointer to our key so that from the lock we can find the dtp
 
-    DTPLockQueue() {
-      hiveLocks = new TreeMap<>();
+    public DTPQueue(DTPKey key) {
+      queue = new TreeMap<>();
+      this.key = key;
     }
   }
 
@@ -677,8 +680,8 @@ public class TransactionManager {
         // lock, get the write lock and remove all those keys, checking again that they are
         // truly empty.
         try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
-          for (Map.Entry<DTPKey, DTPLockQueue> entry : dtps.entrySet()) {
-            if (entry.getValue().hiveLocks.size() == 0) empties.add(entry.getKey());
+          for (Map.Entry<DTPKey, DTPQueue> entry : dtps.entrySet()) {
+            if (entry.getValue().queue.size() == 0) empties.add(entry.getKey());
           }
         } catch (IOException e) {
           // TODO probably want to log this and ignore
@@ -687,8 +690,8 @@ public class TransactionManager {
         if (empties.size() > 0) {
           try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
             for (DTPKey key : empties) {
-              DTPLockQueue queue = dtps.get(key);
-              if (queue.hiveLocks.size() == 0) {
+              DTPQueue queue = dtps.get(key);
+              if (queue.queue.size() == 0) {
                 dtps.remove(key);
               }
             }
@@ -736,6 +739,43 @@ public class TransactionManager {
     }
   };
 
-  private Runnable[] serivces = {timedOutCleaner, deadlockDetector, dtpsShrinker, committedTxnCleaner};
+  private Runnable lockChecker = new Runnable() {
+    @Override
+    public void run() {
+      while (true) {
+        try {
+          DTPKey key = lockQueuesToCheck.take();
+          List<HiveLock> toNofify = new ArrayList<>();
+          try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
+            DTPQueue queue = dtps.get(key);
+            HiveLock lastLock = null;
+            for (HiveLock lock : queue.queue.values()) {
+              if (lock.getState() == HbaseMetastoreProto.LockState.WAITING) {
+                // See if we can acquire this lock
+                if (lastLock == null || twoLocksCompatible(lastLock.getType(), lock.getType())) {
+                  toNofify.add(lock);
+                } else {
+                  // If we can't acquire then nothing behind us can either
+                  // TODO prove to yourself this is true
+                  break;
+                }
+
+              }
+              lastLock = lock;
+            }
+          } // Now outside read lock
+          for (HiveLock lock : toNofify) {
+            // TODO figure out how to notify requester
+          }
+        } catch (Exception ie) {
+          // TODO probably want to log this and ignore
+        }
+      }
+
+    }
+  };
+
+  private Runnable[] serivces = {timedOutCleaner, deadlockDetector, dtpsShrinker,
+                                 committedTxnCleaner, lockChecker};
 
 }

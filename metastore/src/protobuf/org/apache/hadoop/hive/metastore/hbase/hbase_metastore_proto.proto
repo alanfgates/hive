@@ -387,19 +387,24 @@ message HeartbeatTxnRangeResponse {
   repeated int64 no_such = 2;
 }
 
-message LockRequest {
-  message Component {
-    required LockType type = 1;
-    required LockState state = 2;
-    required string db = 3;
-    optional string table = 4;
-    optional string partition = 5;
-  }
-
-  required int64 txn_id = 1;
-  repeated Component components = 2;
+message LockComponent {
+  required LockType type = 1;
+  required LockState state = 2;
+  required string db = 3;
+  optional string table = 4;
+  optional string partition = 5;
 }
 
+message LockRequest {
+  required int64 txn_id = 1;
+  repeated LockComponent components = 2;
+}
+
+message LockResponse {
+  required string db = 1;
+  optional string table = 2;
+  optional string partition = 3;
+}
 
 message OpenTxnsRequest {
   required int32 num_txns = 1;

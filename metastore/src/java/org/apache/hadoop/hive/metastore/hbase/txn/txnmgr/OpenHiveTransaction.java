@@ -57,7 +57,7 @@ class OpenHiveTransaction extends HiveTransaction {
       // locks, so don't add them in that case.
       if (hiveLocks[i].getState() == HbaseMetastoreProto.LockState.WAITING ||
           hiveLocks[i].getState() == HbaseMetastoreProto.LockState.ACQUIRED) {
-        hiveLocks[i].getDtpQueue().hiveLocks.put(hiveLocks[i].getId(), hiveLocks[i]);
+        hiveLocks[i].getDtpQueue().queue.put(hiveLocks[i].getId(), hiveLocks[i]);
       }
     }
   }
