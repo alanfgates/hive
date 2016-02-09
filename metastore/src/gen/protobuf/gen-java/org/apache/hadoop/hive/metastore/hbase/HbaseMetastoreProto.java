@@ -584,6 +584,88 @@ public final class HbaseMetastoreProto {
     // @@protoc_insertion_point(enum_scope:org.apache.hadoop.hive.metastore.hbase.TxnState)
   }
 
+  /**
+   * Protobuf enum {@code org.apache.hadoop.hive.metastore.hbase.TxnStateChangeResult}
+   */
+  public enum TxnStateChangeResult
+      implements com.google.protobuf.ProtocolMessageEnum {
+    /**
+     * <code>SUCCESS = 1;</code>
+     */
+    SUCCESS(0, 1),
+    /**
+     * <code>NO_SUCH_TXN = 2;</code>
+     */
+    NO_SUCH_TXN(1, 2),
+    ;
+
+    /**
+     * <code>SUCCESS = 1;</code>
+     */
+    public static final int SUCCESS_VALUE = 1;
+    /**
+     * <code>NO_SUCH_TXN = 2;</code>
+     */
+    public static final int NO_SUCH_TXN_VALUE = 2;
+
+
+    public final int getNumber() { return value; }
+
+    public static TxnStateChangeResult valueOf(int value) {
+      switch (value) {
+        case 1: return SUCCESS;
+        case 2: return NO_SUCH_TXN;
+        default: return null;
+      }
+    }
+
+    public static com.google.protobuf.Internal.EnumLiteMap<TxnStateChangeResult>
+        internalGetValueMap() {
+      return internalValueMap;
+    }
+    private static com.google.protobuf.Internal.EnumLiteMap<TxnStateChangeResult>
+        internalValueMap =
+          new com.google.protobuf.Internal.EnumLiteMap<TxnStateChangeResult>() {
+            public TxnStateChangeResult findValueByNumber(int number) {
+              return TxnStateChangeResult.valueOf(number);
+            }
+          };
+
+    public final com.google.protobuf.Descriptors.EnumValueDescriptor
+        getValueDescriptor() {
+      return getDescriptor().getValues().get(index);
+    }
+    public final com.google.protobuf.Descriptors.EnumDescriptor
+        getDescriptorForType() {
+      return getDescriptor();
+    }
+    public static final com.google.protobuf.Descriptors.EnumDescriptor
+        getDescriptor() {
+      return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.getDescriptor().getEnumTypes().get(6);
+    }
+
+    private static final TxnStateChangeResult[] VALUES = values();
+
+    public static TxnStateChangeResult valueOf(
+        com.google.protobuf.Descriptors.EnumValueDescriptor desc) {
+      if (desc.getType() != getDescriptor()) {
+        throw new java.lang.IllegalArgumentException(
+          "EnumValueDescriptor is not for this type.");
+      }
+      return VALUES[desc.getIndex()];
+    }
+
+    private final int index;
+    private final int value;
+
+    private TxnStateChangeResult(int index, int value) {
+      this.index = index;
+      this.value = value;
+    }
+
+    // @@protoc_insertion_point(enum_scope:org.apache.hadoop.hive.metastore.hbase.TxnStateChangeResult)
+  }
+
   public interface AggrStatsOrBuilder
       extends com.google.protobuf.MessageOrBuilder {
 
@@ -40557,7 +40639,7 @@ public final class HbaseMetastoreProto {
     // @@protoc_insertion_point(class_scope:org.apache.hadoop.hive.metastore.hbase.PotentialCompaction)
   }
 
-  public interface AddDynamicPartitionsOrBuilder
+  public interface AddDynamicPartitionsRequestOrBuilder
       extends com.google.protobuf.MessageOrBuilder {
 
     // required int64 txn_id = 1;
@@ -40621,24 +40703,24 @@ public final class HbaseMetastoreProto {
         getPartitionsBytes(int index);
   }
   /**
-   * Protobuf type {@code org.apache.hadoop.hive.metastore.hbase.AddDynamicPartitions}
+   * Protobuf type {@code org.apache.hadoop.hive.metastore.hbase.AddDynamicPartitionsRequest}
    */
-  public static final class AddDynamicPartitions extends
+  public static final class AddDynamicPartitionsRequest extends
       com.google.protobuf.GeneratedMessage
-      implements AddDynamicPartitionsOrBuilder {
-    // Use AddDynamicPartitions.newBuilder() to construct.
-    private AddDynamicPartitions(com.google.protobuf.GeneratedMessage.Builder<?> builder) {
+      implements AddDynamicPartitionsRequestOrBuilder {
+    // Use AddDynamicPartitionsRequest.newBuilder() to construct.
+    private AddDynamicPartitionsRequest(com.google.protobuf.GeneratedMessage.Builder<?> builder) {
       super(builder);
       this.unknownFields = builder.getUnknownFields();
     }
-    private AddDynamicPartitions(boolean noInit) { this.unknownFields = com.google.protobuf.UnknownFieldSet.getDefaultInstance(); }
+    private AddDynamicPartitionsRequest(boolean noInit) { this.unknownFields = com.google.protobuf.UnknownFieldSet.getDefaultInstance(); }
 
-    private static final AddDynamicPartitions defaultInstance;
-    public static AddDynamicPartitions getDefaultInstance() {
+    private static final AddDynamicPartitionsRequest defaultInstance;
+    public static AddDynamicPartitionsRequest getDefaultInstance() {
       return defaultInstance;
     }
 
-    public AddDynamicPartitions getDefaultInstanceForType() {
+    public AddDynamicPartitionsRequest getDefaultInstanceForType() {
       return defaultInstance;
     }
 
@@ -40648,7 +40730,7 @@ public final class HbaseMetastoreProto {
         getUnknownFields() {
       return this.unknownFields;
     }
-    private AddDynamicPartitions(
+    private AddDynamicPartitionsRequest(
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws com.google.protobuf.InvalidProtocolBufferException {
@@ -40711,28 +40793,28 @@ public final class HbaseMetastoreProto {
     }
     public static final com.google.protobuf.Descriptors.Descriptor
         getDescriptor() {
-      return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.internal_static_org_apache_hadoop_hive_metastore_hbase_AddDynamicPartitions_descriptor;
+      return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.internal_static_org_apache_hadoop_hive_metastore_hbase_AddDynamicPartitionsRequest_descriptor;
     }
 
     protected com.google.protobuf.GeneratedMessage.FieldAccessorTable
         internalGetFieldAccessorTable() {
-      return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.internal_static_org_apache_hadoop_hive_metastore_hbase_AddDynamicPartitions_fieldAccessorTable
+      return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.internal_static_org_apache_hadoop_hive_metastore_hbase_AddDynamicPartitionsRequest_fieldAccessorTable
           .ensureFieldAccessorsInitialized(
-              org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions.class, org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions.Builder.class);
+              org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest.class, org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest.Builder.class);
     }
 
-    public static com.google.protobuf.Parser<AddDynamicPartitions> PARSER =
-        new com.google.protobuf.AbstractParser<AddDynamicPartitions>() {
-      public AddDynamicPartitions parsePartialFrom(
+    public static com.google.protobuf.Parser<AddDynamicPartitionsRequest> PARSER =
+        new com.google.protobuf.AbstractParser<AddDynamicPartitionsRequest>() {
+      public AddDynamicPartitionsRequest parsePartialFrom(
           com.google.protobuf.CodedInputStream input,
           com.google.protobuf.ExtensionRegistryLite extensionRegistry)
           throws com.google.protobuf.InvalidProtocolBufferException {
-        return new AddDynamicPartitions(input, extensionRegistry);
+        return new AddDynamicPartitionsRequest(input, extensionRegistry);
       }
     };
 
     @java.lang.Override
-    public com.google.protobuf.Parser<AddDynamicPartitions> getParserForType() {
+    public com.google.protobuf.Parser<AddDynamicPartitionsRequest> getParserForType() {
       return PARSER;
     }
 
@@ -40953,53 +41035,53 @@ public final class HbaseMetastoreProto {
       return super.writeReplace();
     }
 
-    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions parseFrom(
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest parseFrom(
         com.google.protobuf.ByteString data)
         throws com.google.protobuf.InvalidProtocolBufferException {
       return PARSER.parseFrom(data);
     }
-    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions parseFrom(
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest parseFrom(
         com.google.protobuf.ByteString data,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws com.google.protobuf.InvalidProtocolBufferException {
       return PARSER.parseFrom(data, extensionRegistry);
     }
-    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions parseFrom(byte[] data)
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest parseFrom(byte[] data)
         throws com.google.protobuf.InvalidProtocolBufferException {
       return PARSER.parseFrom(data);
     }
-    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions parseFrom(
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest parseFrom(
         byte[] data,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws com.google.protobuf.InvalidProtocolBufferException {
       return PARSER.parseFrom(data, extensionRegistry);
     }
-    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions parseFrom(java.io.InputStream input)
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest parseFrom(java.io.InputStream input)
         throws java.io.IOException {
       return PARSER.parseFrom(input);
     }
-    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions parseFrom(
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest parseFrom(
         java.io.InputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws java.io.IOException {
       return PARSER.parseFrom(input, extensionRegistry);
     }
-    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions parseDelimitedFrom(java.io.InputStream input)
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest parseDelimitedFrom(java.io.InputStream input)
         throws java.io.IOException {
       return PARSER.parseDelimitedFrom(input);
     }
-    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions parseDelimitedFrom(
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest parseDelimitedFrom(
         java.io.InputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws java.io.IOException {
       return PARSER.parseDelimitedFrom(input, extensionRegistry);
     }
-    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions parseFrom(
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest parseFrom(
         com.google.protobuf.CodedInputStream input)
         throws java.io.IOException {
       return PARSER.parseFrom(input);
     }
-    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions parseFrom(
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest parseFrom(
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws java.io.IOException {
@@ -41008,7 +41090,7 @@ public final class HbaseMetastoreProto {
 
     public static Builder newBuilder() { return Builder.create(); }
     public Builder newBuilderForType() { return newBuilder(); }
-    public static Builder newBuilder(org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions prototype) {
+    public static Builder newBuilder(org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest prototype) {
       return newBuilder().mergeFrom(prototype);
     }
     public Builder toBuilder() { return newBuilder(this); }
@@ -41020,24 +41102,24 @@ public final class HbaseMetastoreProto {
       return builder;
     }
     /**
-     * Protobuf type {@code org.apache.hadoop.hive.metastore.hbase.AddDynamicPartitions}
+     * Protobuf type {@code org.apache.hadoop.hive.metastore.hbase.AddDynamicPartitionsRequest}
      */
     public static final class Builder extends
         com.google.protobuf.GeneratedMessage.Builder<Builder>
-       implements org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsOrBuilder {
+       implements org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequestOrBuilder {
       public static final com.google.protobuf.Descriptors.Descriptor
           getDescriptor() {
-        return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.internal_static_org_apache_hadoop_hive_metastore_hbase_AddDynamicPartitions_descriptor;
+        return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.internal_static_org_apache_hadoop_hive_metastore_hbase_AddDynamicPartitionsRequest_descriptor;
       }
 
       protected com.google.protobuf.GeneratedMessage.FieldAccessorTable
           internalGetFieldAccessorTable() {
-        return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.internal_static_org_apache_hadoop_hive_metastore_hbase_AddDynamicPartitions_fieldAccessorTable
+        return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.internal_static_org_apache_hadoop_hive_metastore_hbase_AddDynamicPartitionsRequest_fieldAccessorTable
             .ensureFieldAccessorsInitialized(
-                org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions.class, org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions.Builder.class);
+                org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest.class, org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest.Builder.class);
       }
 
-      // Construct using org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions.newBuilder()
+      // Construct using org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest.newBuilder()
       private Builder() {
         maybeForceBuilderInitialization();
       }
@@ -41074,23 +41156,23 @@ public final class HbaseMetastoreProto {
 
       public com.google.protobuf.Descriptors.Descriptor
           getDescriptorForType() {
-        return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.internal_static_org_apache_hadoop_hive_metastore_hbase_AddDynamicPartitions_descriptor;
+        return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.internal_static_org_apache_hadoop_hive_metastore_hbase_AddDynamicPartitionsRequest_descriptor;
       }
 
-      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions getDefaultInstanceForType() {
-        return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions.getDefaultInstance();
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest getDefaultInstanceForType() {
+        return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest.getDefaultInstance();
       }
 
-      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions build() {
-        org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions result = buildPartial();
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest build() {
+        org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest result = buildPartial();
         if (!result.isInitialized()) {
           throw newUninitializedMessageException(result);
         }
         return result;
       }
 
-      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions buildPartial() {
-        org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions result = new org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions(this);
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest buildPartial() {
+        org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest result = new org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest(this);
         int from_bitField0_ = bitField0_;
         int to_bitField0_ = 0;
         if (((from_bitField0_ & 0x00000001) == 0x00000001)) {
@@ -41117,16 +41199,16 @@ public final class HbaseMetastoreProto {
       }
 
       public Builder mergeFrom(com.google.protobuf.Message other) {
-        if (other instanceof org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions) {
-          return mergeFrom((org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions)other);
+        if (other instanceof org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest) {
+          return mergeFrom((org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest)other);
         } else {
           super.mergeFrom(other);
           return this;
         }
       }
 
-      public Builder mergeFrom(org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions other) {
-        if (other == org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions.getDefaultInstance()) return this;
+      public Builder mergeFrom(org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest other) {
+        if (other == org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest.getDefaultInstance()) return this;
         if (other.hasTxnId()) {
           setTxnId(other.getTxnId());
         }
@@ -41174,11 +41256,11 @@ public final class HbaseMetastoreProto {
           com.google.protobuf.CodedInputStream input,
           com.google.protobuf.ExtensionRegistryLite extensionRegistry)
           throws java.io.IOException {
-        org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions parsedMessage = null;
+        org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest parsedMessage = null;
         try {
           parsedMessage = PARSER.parsePartialFrom(input, extensionRegistry);
         } catch (com.google.protobuf.InvalidProtocolBufferException e) {
-          parsedMessage = (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitions) e.getUnfinishedMessage();
+          parsedMessage = (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest) e.getUnfinishedMessage();
           throw e;
         } finally {
           if (parsedMessage != null) {
@@ -41463,15 +41545,332 @@ public final class HbaseMetastoreProto {
         return this;
       }
 
-      // @@protoc_insertion_point(builder_scope:org.apache.hadoop.hive.metastore.hbase.AddDynamicPartitions)
+      // @@protoc_insertion_point(builder_scope:org.apache.hadoop.hive.metastore.hbase.AddDynamicPartitionsRequest)
     }
 
     static {
-      defaultInstance = new AddDynamicPartitions(true);
+      defaultInstance = new AddDynamicPartitionsRequest(true);
       defaultInstance.initFields();
     }
 
-    // @@protoc_insertion_point(class_scope:org.apache.hadoop.hive.metastore.hbase.AddDynamicPartitions)
+    // @@protoc_insertion_point(class_scope:org.apache.hadoop.hive.metastore.hbase.AddDynamicPartitionsRequest)
+  }
+
+  public interface GetOpenTxnsRequestOrBuilder
+      extends com.google.protobuf.MessageOrBuilder {
+  }
+  /**
+   * Protobuf type {@code org.apache.hadoop.hive.metastore.hbase.GetOpenTxnsRequest}
+   *
+   * <pre>
+   * Null for now and probably forever
+   * </pre>
+   */
+  public static final class GetOpenTxnsRequest extends
+      com.google.protobuf.GeneratedMessage
+      implements GetOpenTxnsRequestOrBuilder {
+    // Use GetOpenTxnsRequest.newBuilder() to construct.
+    private GetOpenTxnsRequest(com.google.protobuf.GeneratedMessage.Builder<?> builder) {
+      super(builder);
+      this.unknownFields = builder.getUnknownFields();
+    }
+    private GetOpenTxnsRequest(boolean noInit) { this.unknownFields = com.google.protobuf.UnknownFieldSet.getDefaultInstance(); }
+
+    private static final GetOpenTxnsRequest defaultInstance;
+    public static GetOpenTxnsRequest getDefaultInstance() {
+      return defaultInstance;
+    }
+
+    public GetOpenTxnsRequest getDefaultInstanceForType() {
+      return defaultInstance;
+    }
+
+    private final com.google.protobuf.UnknownFieldSet unknownFields;
+    @java.lang.Override
+    public final com.google.protobuf.UnknownFieldSet
+        getUnknownFields() {
+      return this.unknownFields;
+    }
+    private GetOpenTxnsRequest(
+        com.google.protobuf.CodedInputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      initFields();
+      com.google.protobuf.UnknownFieldSet.Builder unknownFields =
+          com.google.protobuf.UnknownFieldSet.newBuilder();
+      try {
+        boolean done = false;
+        while (!done) {
+          int tag = input.readTag();
+          switch (tag) {
+            case 0:
+              done = true;
+              break;
+            default: {
+              if (!parseUnknownField(input, unknownFields,
+                                     extensionRegistry, tag)) {
+                done = true;
+              }
+              break;
+            }
+          }
+        }
+      } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+        throw e.setUnfinishedMessage(this);
+      } catch (java.io.IOException e) {
+        throw new com.google.protobuf.InvalidProtocolBufferException(
+            e.getMessage()).setUnfinishedMessage(this);
+      } finally {
+        this.unknownFields = unknownFields.build();
+        makeExtensionsImmutable();
+      }
+    }
+    public static final com.google.protobuf.Descriptors.Descriptor
+        getDescriptor() {
+      return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.internal_static_org_apache_hadoop_hive_metastore_hbase_GetOpenTxnsRequest_descriptor;
+    }
+
+    protected com.google.protobuf.GeneratedMessage.FieldAccessorTable
+        internalGetFieldAccessorTable() {
+      return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.internal_static_org_apache_hadoop_hive_metastore_hbase_GetOpenTxnsRequest_fieldAccessorTable
+          .ensureFieldAccessorsInitialized(
+              org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest.class, org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest.Builder.class);
+    }
+
+    public static com.google.protobuf.Parser<GetOpenTxnsRequest> PARSER =
+        new com.google.protobuf.AbstractParser<GetOpenTxnsRequest>() {
+      public GetOpenTxnsRequest parsePartialFrom(
+          com.google.protobuf.CodedInputStream input,
+          com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+          throws com.google.protobuf.InvalidProtocolBufferException {
+        return new GetOpenTxnsRequest(input, extensionRegistry);
+      }
+    };
+
+    @java.lang.Override
+    public com.google.protobuf.Parser<GetOpenTxnsRequest> getParserForType() {
+      return PARSER;
+    }
+
+    private void initFields() {
+    }
+    private byte memoizedIsInitialized = -1;
+    public final boolean isInitialized() {
+      byte isInitialized = memoizedIsInitialized;
+      if (isInitialized != -1) return isInitialized == 1;
+
+      memoizedIsInitialized = 1;
+      return true;
+    }
+
+    public void writeTo(com.google.protobuf.CodedOutputStream output)
+                        throws java.io.IOException {
+      getSerializedSize();
+      getUnknownFields().writeTo(output);
+    }
+
+    private int memoizedSerializedSize = -1;
+    public int getSerializedSize() {
+      int size = memoizedSerializedSize;
+      if (size != -1) return size;
+
+      size = 0;
+      size += getUnknownFields().getSerializedSize();
+      memoizedSerializedSize = size;
+      return size;
+    }
+
+    private static final long serialVersionUID = 0L;
+    @java.lang.Override
+    protected java.lang.Object writeReplace()
+        throws java.io.ObjectStreamException {
+      return super.writeReplace();
+    }
+
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest parseFrom(
+        com.google.protobuf.ByteString data)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest parseFrom(
+        com.google.protobuf.ByteString data,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data, extensionRegistry);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest parseFrom(byte[] data)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest parseFrom(
+        byte[] data,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data, extensionRegistry);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest parseFrom(java.io.InputStream input)
+        throws java.io.IOException {
+      return PARSER.parseFrom(input);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest parseFrom(
+        java.io.InputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return PARSER.parseFrom(input, extensionRegistry);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest parseDelimitedFrom(java.io.InputStream input)
+        throws java.io.IOException {
+      return PARSER.parseDelimitedFrom(input);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest parseDelimitedFrom(
+        java.io.InputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return PARSER.parseDelimitedFrom(input, extensionRegistry);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest parseFrom(
+        com.google.protobuf.CodedInputStream input)
+        throws java.io.IOException {
+      return PARSER.parseFrom(input);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest parseFrom(
+        com.google.protobuf.CodedInputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return PARSER.parseFrom(input, extensionRegistry);
+    }
+
+    public static Builder newBuilder() { return Builder.create(); }
+    public Builder newBuilderForType() { return newBuilder(); }
+    public static Builder newBuilder(org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest prototype) {
+      return newBuilder().mergeFrom(prototype);
+    }
+    public Builder toBuilder() { return newBuilder(this); }
+
+    @java.lang.Override
+    protected Builder newBuilderForType(
+        com.google.protobuf.GeneratedMessage.BuilderParent parent) {
+      Builder builder = new Builder(parent);
+      return builder;
+    }
+    /**
+     * Protobuf type {@code org.apache.hadoop.hive.metastore.hbase.GetOpenTxnsRequest}
+     *
+     * <pre>
+     * Null for now and probably forever
+     * </pre>
+     */
+    public static final class Builder extends
+        com.google.protobuf.GeneratedMessage.Builder<Builder>
+       implements org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequestOrBuilder {
+      public static final com.google.protobuf.Descriptors.Descriptor
+          getDescriptor() {
+        return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.internal_static_org_apache_hadoop_hive_metastore_hbase_GetOpenTxnsRequest_descriptor;
+      }
+
+      protected com.google.protobuf.GeneratedMessage.FieldAccessorTable
+          internalGetFieldAccessorTable() {
+        return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.internal_static_org_apache_hadoop_hive_metastore_hbase_GetOpenTxnsRequest_fieldAccessorTable
+            .ensureFieldAccessorsInitialized(
+                org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest.class, org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest.Builder.class);
+      }
+
+      // Construct using org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest.newBuilder()
+      private Builder() {
+        maybeForceBuilderInitialization();
+      }
+
+      private Builder(
+          com.google.protobuf.GeneratedMessage.BuilderParent parent) {
+        super(parent);
+        maybeForceBuilderInitialization();
+      }
+      private void maybeForceBuilderInitialization() {
+        if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
+        }
+      }
+      private static Builder create() {
+        return new Builder();
+      }
+
+      public Builder clear() {
+        super.clear();
+        return this;
+      }
+
+      public Builder clone() {
+        return create().mergeFrom(buildPartial());
+      }
+
+      public com.google.protobuf.Descriptors.Descriptor
+          getDescriptorForType() {
+        return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.internal_static_org_apache_hadoop_hive_metastore_hbase_GetOpenTxnsRequest_descriptor;
+      }
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest getDefaultInstanceForType() {
+        return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest.getDefaultInstance();
+      }
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest build() {
+        org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest result = buildPartial();
+        if (!result.isInitialized()) {
+          throw newUninitializedMessageException(result);
+        }
+        return result;
+      }
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest buildPartial() {
+        org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest result = new org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest(this);
+        onBuilt();
+        return result;
+      }
+
+      public Builder mergeFrom(com.google.protobuf.Message other) {
+        if (other instanceof org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest) {
+          return mergeFrom((org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest)other);
+        } else {
+          super.mergeFrom(other);
+          return this;
+        }
+      }
+
+      public Builder mergeFrom(org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest other) {
+        if (other == org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest.getDefaultInstance()) return this;
+        this.mergeUnknownFields(other.getUnknownFields());
+        return this;
+      }
+
+      public final boolean isInitialized() {
+        return true;
+      }
+
+      public Builder mergeFrom(
+          com.google.protobuf.CodedInputStream input,
+          com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+          throws java.io.IOException {
+        org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest parsedMessage = null;
+        try {
+          parsedMessage = PARSER.parsePartialFrom(input, extensionRegistry);
+        } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+          parsedMessage = (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest) e.getUnfinishedMessage();
+          throw e;
+        } finally {
+          if (parsedMessage != null) {
+            mergeFrom(parsedMessage);
+          }
+        }
+        return this;
+      }
+
+      // @@protoc_insertion_point(builder_scope:org.apache.hadoop.hive.metastore.hbase.GetOpenTxnsRequest)
+    }
+
+    static {
+      defaultInstance = new GetOpenTxnsRequest(true);
+      defaultInstance.initFields();
+    }
+
+    // @@protoc_insertion_point(class_scope:org.apache.hadoop.hive.metastore.hbase.GetOpenTxnsRequest)
   }
 
   public interface GetOpenTxnsResponseOrBuilder
@@ -47314,6 +47713,1520 @@ public final class HbaseMetastoreProto {
     // @@protoc_insertion_point(class_scope:org.apache.hadoop.hive.metastore.hbase.TransactionId)
   }
 
+  public interface TransactionResultOrBuilder
+      extends com.google.protobuf.MessageOrBuilder {
+
+    // optional .org.apache.hadoop.hive.metastore.hbase.TxnStateChangeResult state = 1;
+    /**
+     * <code>optional .org.apache.hadoop.hive.metastore.hbase.TxnStateChangeResult state = 1;</code>
+     */
+    boolean hasState();
+    /**
+     * <code>optional .org.apache.hadoop.hive.metastore.hbase.TxnStateChangeResult state = 1;</code>
+     */
+    org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TxnStateChangeResult getState();
+  }
+  /**
+   * Protobuf type {@code org.apache.hadoop.hive.metastore.hbase.TransactionResult}
+   */
+  public static final class TransactionResult extends
+      com.google.protobuf.GeneratedMessage
+      implements TransactionResultOrBuilder {
+    // Use TransactionResult.newBuilder() to construct.
+    private TransactionResult(com.google.protobuf.GeneratedMessage.Builder<?> builder) {
+      super(builder);
+      this.unknownFields = builder.getUnknownFields();
+    }
+    private TransactionResult(boolean noInit) { this.unknownFields = com.google.protobuf.UnknownFieldSet.getDefaultInstance(); }
+
+    private static final TransactionResult defaultInstance;
+    public static TransactionResult getDefaultInstance() {
+      return defaultInstance;
+    }
+
+    public TransactionResult getDefaultInstanceForType() {
+      return defaultInstance;
+    }
+
+    private final com.google.protobuf.UnknownFieldSet unknownFields;
+    @java.lang.Override
+    public final com.google.protobuf.UnknownFieldSet
+        getUnknownFields() {
+      return this.unknownFields;
+    }
+    private TransactionResult(
+        com.google.protobuf.CodedInputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      initFields();
+      int mutable_bitField0_ = 0;
+      com.google.protobuf.UnknownFieldSet.Builder unknownFields =
+          com.google.protobuf.UnknownFieldSet.newBuilder();
+      try {
+        boolean done = false;
+        while (!done) {
+          int tag = input.readTag();
+          switch (tag) {
+            case 0:
+              done = true;
+              break;
+            default: {
+              if (!parseUnknownField(input, unknownFields,
+                                     extensionRegistry, tag)) {
+                done = true;
+              }
+              break;
+            }
+            case 8: {
+              int rawValue = input.readEnum();
+              org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TxnStateChangeResult value = org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TxnStateChangeResult.valueOf(rawValue);
+              if (value == null) {
+                unknownFields.mergeVarintField(1, rawValue);
+              } else {
+                bitField0_ |= 0x00000001;
+                state_ = value;
+              }
+              break;
+            }
+          }
+        }
+      } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+        throw e.setUnfinishedMessage(this);
+      } catch (java.io.IOException e) {
+        throw new com.google.protobuf.InvalidProtocolBufferException(
+            e.getMessage()).setUnfinishedMessage(this);
+      } finally {
+        this.unknownFields = unknownFields.build();
+        makeExtensionsImmutable();
+      }
+    }
+    public static final com.google.protobuf.Descriptors.Descriptor
+        getDescriptor() {
+      return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.internal_static_org_apache_hadoop_hive_metastore_hbase_TransactionResult_descriptor;
+    }
+
+    protected com.google.protobuf.GeneratedMessage.FieldAccessorTable
+        internalGetFieldAccessorTable() {
+      return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.internal_static_org_apache_hadoop_hive_metastore_hbase_TransactionResult_fieldAccessorTable
+          .ensureFieldAccessorsInitialized(
+              org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult.class, org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult.Builder.class);
+    }
+
+    public static com.google.protobuf.Parser<TransactionResult> PARSER =
+        new com.google.protobuf.AbstractParser<TransactionResult>() {
+      public TransactionResult parsePartialFrom(
+          com.google.protobuf.CodedInputStream input,
+          com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+          throws com.google.protobuf.InvalidProtocolBufferException {
+        return new TransactionResult(input, extensionRegistry);
+      }
+    };
+
+    @java.lang.Override
+    public com.google.protobuf.Parser<TransactionResult> getParserForType() {
+      return PARSER;
+    }
+
+    private int bitField0_;
+    // optional .org.apache.hadoop.hive.metastore.hbase.TxnStateChangeResult state = 1;
+    public static final int STATE_FIELD_NUMBER = 1;
+    private org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TxnStateChangeResult state_;
+    /**
+     * <code>optional .org.apache.hadoop.hive.metastore.hbase.TxnStateChangeResult state = 1;</code>
+     */
+    public boolean hasState() {
+      return ((bitField0_ & 0x00000001) == 0x00000001);
+    }
+    /**
+     * <code>optional .org.apache.hadoop.hive.metastore.hbase.TxnStateChangeResult state = 1;</code>
+     */
+    public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TxnStateChangeResult getState() {
+      return state_;
+    }
+
+    private void initFields() {
+      state_ = org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TxnStateChangeResult.SUCCESS;
+    }
+    private byte memoizedIsInitialized = -1;
+    public final boolean isInitialized() {
+      byte isInitialized = memoizedIsInitialized;
+      if (isInitialized != -1) return isInitialized == 1;
+
+      memoizedIsInitialized = 1;
+      return true;
+    }
+
+    public void writeTo(com.google.protobuf.CodedOutputStream output)
+                        throws java.io.IOException {
+      getSerializedSize();
+      if (((bitField0_ & 0x00000001) == 0x00000001)) {
+        output.writeEnum(1, state_.getNumber());
+      }
+      getUnknownFields().writeTo(output);
+    }
+
+    private int memoizedSerializedSize = -1;
+    public int getSerializedSize() {
+      int size = memoizedSerializedSize;
+      if (size != -1) return size;
+
+      size = 0;
+      if (((bitField0_ & 0x00000001) == 0x00000001)) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeEnumSize(1, state_.getNumber());
+      }
+      size += getUnknownFields().getSerializedSize();
+      memoizedSerializedSize = size;
+      return size;
+    }
+
+    private static final long serialVersionUID = 0L;
+    @java.lang.Override
+    protected java.lang.Object writeReplace()
+        throws java.io.ObjectStreamException {
+      return super.writeReplace();
+    }
+
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult parseFrom(
+        com.google.protobuf.ByteString data)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult parseFrom(
+        com.google.protobuf.ByteString data,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data, extensionRegistry);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult parseFrom(byte[] data)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult parseFrom(
+        byte[] data,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data, extensionRegistry);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult parseFrom(java.io.InputStream input)
+        throws java.io.IOException {
+      return PARSER.parseFrom(input);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult parseFrom(
+        java.io.InputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return PARSER.parseFrom(input, extensionRegistry);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult parseDelimitedFrom(java.io.InputStream input)
+        throws java.io.IOException {
+      return PARSER.parseDelimitedFrom(input);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult parseDelimitedFrom(
+        java.io.InputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return PARSER.parseDelimitedFrom(input, extensionRegistry);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult parseFrom(
+        com.google.protobuf.CodedInputStream input)
+        throws java.io.IOException {
+      return PARSER.parseFrom(input);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult parseFrom(
+        com.google.protobuf.CodedInputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return PARSER.parseFrom(input, extensionRegistry);
+    }
+
+    public static Builder newBuilder() { return Builder.create(); }
+    public Builder newBuilderForType() { return newBuilder(); }
+    public static Builder newBuilder(org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult prototype) {
+      return newBuilder().mergeFrom(prototype);
+    }
+    public Builder toBuilder() { return newBuilder(this); }
+
+    @java.lang.Override
+    protected Builder newBuilderForType(
+        com.google.protobuf.GeneratedMessage.BuilderParent parent) {
+      Builder builder = new Builder(parent);
+      return builder;
+    }
+    /**
+     * Protobuf type {@code org.apache.hadoop.hive.metastore.hbase.TransactionResult}
+     */
+    public static final class Builder extends
+        com.google.protobuf.GeneratedMessage.Builder<Builder>
+       implements org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResultOrBuilder {
+      public static final com.google.protobuf.Descriptors.Descriptor
+          getDescriptor() {
+        return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.internal_static_org_apache_hadoop_hive_metastore_hbase_TransactionResult_descriptor;
+      }
+
+      protected com.google.protobuf.GeneratedMessage.FieldAccessorTable
+          internalGetFieldAccessorTable() {
+        return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.internal_static_org_apache_hadoop_hive_metastore_hbase_TransactionResult_fieldAccessorTable
+            .ensureFieldAccessorsInitialized(
+                org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult.class, org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult.Builder.class);
+      }
+
+      // Construct using org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult.newBuilder()
+      private Builder() {
+        maybeForceBuilderInitialization();
+      }
+
+      private Builder(
+          com.google.protobuf.GeneratedMessage.BuilderParent parent) {
+        super(parent);
+        maybeForceBuilderInitialization();
+      }
+      private void maybeForceBuilderInitialization() {
+        if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
+        }
+      }
+      private static Builder create() {
+        return new Builder();
+      }
+
+      public Builder clear() {
+        super.clear();
+        state_ = org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TxnStateChangeResult.SUCCESS;
+        bitField0_ = (bitField0_ & ~0x00000001);
+        return this;
+      }
+
+      public Builder clone() {
+        return create().mergeFrom(buildPartial());
+      }
+
+      public com.google.protobuf.Descriptors.Descriptor
+          getDescriptorForType() {
+        return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.internal_static_org_apache_hadoop_hive_metastore_hbase_TransactionResult_descriptor;
+      }
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult getDefaultInstanceForType() {
+        return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult.getDefaultInstance();
+      }
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult build() {
+        org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult result = buildPartial();
+        if (!result.isInitialized()) {
+          throw newUninitializedMessageException(result);
+        }
+        return result;
+      }
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult buildPartial() {
+        org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult result = new org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult(this);
+        int from_bitField0_ = bitField0_;
+        int to_bitField0_ = 0;
+        if (((from_bitField0_ & 0x00000001) == 0x00000001)) {
+          to_bitField0_ |= 0x00000001;
+        }
+        result.state_ = state_;
+        result.bitField0_ = to_bitField0_;
+        onBuilt();
+        return result;
+      }
+
+      public Builder mergeFrom(com.google.protobuf.Message other) {
+        if (other instanceof org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult) {
+          return mergeFrom((org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult)other);
+        } else {
+          super.mergeFrom(other);
+          return this;
+        }
+      }
+
+      public Builder mergeFrom(org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult other) {
+        if (other == org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult.getDefaultInstance()) return this;
+        if (other.hasState()) {
+          setState(other.getState());
+        }
+        this.mergeUnknownFields(other.getUnknownFields());
+        return this;
+      }
+
+      public final boolean isInitialized() {
+        return true;
+      }
+
+      public Builder mergeFrom(
+          com.google.protobuf.CodedInputStream input,
+          com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+          throws java.io.IOException {
+        org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult parsedMessage = null;
+        try {
+          parsedMessage = PARSER.parsePartialFrom(input, extensionRegistry);
+        } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+          parsedMessage = (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult) e.getUnfinishedMessage();
+          throw e;
+        } finally {
+          if (parsedMessage != null) {
+            mergeFrom(parsedMessage);
+          }
+        }
+        return this;
+      }
+      private int bitField0_;
+
+      // optional .org.apache.hadoop.hive.metastore.hbase.TxnStateChangeResult state = 1;
+      private org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TxnStateChangeResult state_ = org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TxnStateChangeResult.SUCCESS;
+      /**
+       * <code>optional .org.apache.hadoop.hive.metastore.hbase.TxnStateChangeResult state = 1;</code>
+       */
+      public boolean hasState() {
+        return ((bitField0_ & 0x00000001) == 0x00000001);
+      }
+      /**
+       * <code>optional .org.apache.hadoop.hive.metastore.hbase.TxnStateChangeResult state = 1;</code>
+       */
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TxnStateChangeResult getState() {
+        return state_;
+      }
+      /**
+       * <code>optional .org.apache.hadoop.hive.metastore.hbase.TxnStateChangeResult state = 1;</code>
+       */
+      public Builder setState(org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TxnStateChangeResult value) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        bitField0_ |= 0x00000001;
+        state_ = value;
+        onChanged();
+        return this;
+      }
+      /**
+       * <code>optional .org.apache.hadoop.hive.metastore.hbase.TxnStateChangeResult state = 1;</code>
+       */
+      public Builder clearState() {
+        bitField0_ = (bitField0_ & ~0x00000001);
+        state_ = org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TxnStateChangeResult.SUCCESS;
+        onChanged();
+        return this;
+      }
+
+      // @@protoc_insertion_point(builder_scope:org.apache.hadoop.hive.metastore.hbase.TransactionResult)
+    }
+
+    static {
+      defaultInstance = new TransactionResult(true);
+      defaultInstance.initFields();
+    }
+
+    // @@protoc_insertion_point(class_scope:org.apache.hadoop.hive.metastore.hbase.TransactionResult)
+  }
+
+  public interface VoidOrBuilder
+      extends com.google.protobuf.MessageOrBuilder {
+  }
+  /**
+   * Protobuf type {@code org.apache.hadoop.hive.metastore.hbase.Void}
+   */
+  public static final class Void extends
+      com.google.protobuf.GeneratedMessage
+      implements VoidOrBuilder {
+    // Use Void.newBuilder() to construct.
+    private Void(com.google.protobuf.GeneratedMessage.Builder<?> builder) {
+      super(builder);
+      this.unknownFields = builder.getUnknownFields();
+    }
+    private Void(boolean noInit) { this.unknownFields = com.google.protobuf.UnknownFieldSet.getDefaultInstance(); }
+
+    private static final Void defaultInstance;
+    public static Void getDefaultInstance() {
+      return defaultInstance;
+    }
+
+    public Void getDefaultInstanceForType() {
+      return defaultInstance;
+    }
+
+    private final com.google.protobuf.UnknownFieldSet unknownFields;
+    @java.lang.Override
+    public final com.google.protobuf.UnknownFieldSet
+        getUnknownFields() {
+      return this.unknownFields;
+    }
+    private Void(
+        com.google.protobuf.CodedInputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      initFields();
+      com.google.protobuf.UnknownFieldSet.Builder unknownFields =
+          com.google.protobuf.UnknownFieldSet.newBuilder();
+      try {
+        boolean done = false;
+        while (!done) {
+          int tag = input.readTag();
+          switch (tag) {
+            case 0:
+              done = true;
+              break;
+            default: {
+              if (!parseUnknownField(input, unknownFields,
+                                     extensionRegistry, tag)) {
+                done = true;
+              }
+              break;
+            }
+          }
+        }
+      } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+        throw e.setUnfinishedMessage(this);
+      } catch (java.io.IOException e) {
+        throw new com.google.protobuf.InvalidProtocolBufferException(
+            e.getMessage()).setUnfinishedMessage(this);
+      } finally {
+        this.unknownFields = unknownFields.build();
+        makeExtensionsImmutable();
+      }
+    }
+    public static final com.google.protobuf.Descriptors.Descriptor
+        getDescriptor() {
+      return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.internal_static_org_apache_hadoop_hive_metastore_hbase_Void_descriptor;
+    }
+
+    protected com.google.protobuf.GeneratedMessage.FieldAccessorTable
+        internalGetFieldAccessorTable() {
+      return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.internal_static_org_apache_hadoop_hive_metastore_hbase_Void_fieldAccessorTable
+          .ensureFieldAccessorsInitialized(
+              org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void.class, org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void.Builder.class);
+    }
+
+    public static com.google.protobuf.Parser<Void> PARSER =
+        new com.google.protobuf.AbstractParser<Void>() {
+      public Void parsePartialFrom(
+          com.google.protobuf.CodedInputStream input,
+          com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+          throws com.google.protobuf.InvalidProtocolBufferException {
+        return new Void(input, extensionRegistry);
+      }
+    };
+
+    @java.lang.Override
+    public com.google.protobuf.Parser<Void> getParserForType() {
+      return PARSER;
+    }
+
+    private void initFields() {
+    }
+    private byte memoizedIsInitialized = -1;
+    public final boolean isInitialized() {
+      byte isInitialized = memoizedIsInitialized;
+      if (isInitialized != -1) return isInitialized == 1;
+
+      memoizedIsInitialized = 1;
+      return true;
+    }
+
+    public void writeTo(com.google.protobuf.CodedOutputStream output)
+                        throws java.io.IOException {
+      getSerializedSize();
+      getUnknownFields().writeTo(output);
+    }
+
+    private int memoizedSerializedSize = -1;
+    public int getSerializedSize() {
+      int size = memoizedSerializedSize;
+      if (size != -1) return size;
+
+      size = 0;
+      size += getUnknownFields().getSerializedSize();
+      memoizedSerializedSize = size;
+      return size;
+    }
+
+    private static final long serialVersionUID = 0L;
+    @java.lang.Override
+    protected java.lang.Object writeReplace()
+        throws java.io.ObjectStreamException {
+      return super.writeReplace();
+    }
+
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void parseFrom(
+        com.google.protobuf.ByteString data)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void parseFrom(
+        com.google.protobuf.ByteString data,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data, extensionRegistry);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void parseFrom(byte[] data)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void parseFrom(
+        byte[] data,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data, extensionRegistry);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void parseFrom(java.io.InputStream input)
+        throws java.io.IOException {
+      return PARSER.parseFrom(input);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void parseFrom(
+        java.io.InputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return PARSER.parseFrom(input, extensionRegistry);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void parseDelimitedFrom(java.io.InputStream input)
+        throws java.io.IOException {
+      return PARSER.parseDelimitedFrom(input);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void parseDelimitedFrom(
+        java.io.InputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return PARSER.parseDelimitedFrom(input, extensionRegistry);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void parseFrom(
+        com.google.protobuf.CodedInputStream input)
+        throws java.io.IOException {
+      return PARSER.parseFrom(input);
+    }
+    public static org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void parseFrom(
+        com.google.protobuf.CodedInputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return PARSER.parseFrom(input, extensionRegistry);
+    }
+
+    public static Builder newBuilder() { return Builder.create(); }
+    public Builder newBuilderForType() { return newBuilder(); }
+    public static Builder newBuilder(org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void prototype) {
+      return newBuilder().mergeFrom(prototype);
+    }
+    public Builder toBuilder() { return newBuilder(this); }
+
+    @java.lang.Override
+    protected Builder newBuilderForType(
+        com.google.protobuf.GeneratedMessage.BuilderParent parent) {
+      Builder builder = new Builder(parent);
+      return builder;
+    }
+    /**
+     * Protobuf type {@code org.apache.hadoop.hive.metastore.hbase.Void}
+     */
+    public static final class Builder extends
+        com.google.protobuf.GeneratedMessage.Builder<Builder>
+       implements org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.VoidOrBuilder {
+      public static final com.google.protobuf.Descriptors.Descriptor
+          getDescriptor() {
+        return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.internal_static_org_apache_hadoop_hive_metastore_hbase_Void_descriptor;
+      }
+
+      protected com.google.protobuf.GeneratedMessage.FieldAccessorTable
+          internalGetFieldAccessorTable() {
+        return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.internal_static_org_apache_hadoop_hive_metastore_hbase_Void_fieldAccessorTable
+            .ensureFieldAccessorsInitialized(
+                org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void.class, org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void.Builder.class);
+      }
+
+      // Construct using org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void.newBuilder()
+      private Builder() {
+        maybeForceBuilderInitialization();
+      }
+
+      private Builder(
+          com.google.protobuf.GeneratedMessage.BuilderParent parent) {
+        super(parent);
+        maybeForceBuilderInitialization();
+      }
+      private void maybeForceBuilderInitialization() {
+        if (com.google.protobuf.GeneratedMessage.alwaysUseFieldBuilders) {
+        }
+      }
+      private static Builder create() {
+        return new Builder();
+      }
+
+      public Builder clear() {
+        super.clear();
+        return this;
+      }
+
+      public Builder clone() {
+        return create().mergeFrom(buildPartial());
+      }
+
+      public com.google.protobuf.Descriptors.Descriptor
+          getDescriptorForType() {
+        return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.internal_static_org_apache_hadoop_hive_metastore_hbase_Void_descriptor;
+      }
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void getDefaultInstanceForType() {
+        return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void.getDefaultInstance();
+      }
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void build() {
+        org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void result = buildPartial();
+        if (!result.isInitialized()) {
+          throw newUninitializedMessageException(result);
+        }
+        return result;
+      }
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void buildPartial() {
+        org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void result = new org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void(this);
+        onBuilt();
+        return result;
+      }
+
+      public Builder mergeFrom(com.google.protobuf.Message other) {
+        if (other instanceof org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void) {
+          return mergeFrom((org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void)other);
+        } else {
+          super.mergeFrom(other);
+          return this;
+        }
+      }
+
+      public Builder mergeFrom(org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void other) {
+        if (other == org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void.getDefaultInstance()) return this;
+        this.mergeUnknownFields(other.getUnknownFields());
+        return this;
+      }
+
+      public final boolean isInitialized() {
+        return true;
+      }
+
+      public Builder mergeFrom(
+          com.google.protobuf.CodedInputStream input,
+          com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+          throws java.io.IOException {
+        org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void parsedMessage = null;
+        try {
+          parsedMessage = PARSER.parsePartialFrom(input, extensionRegistry);
+        } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+          parsedMessage = (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void) e.getUnfinishedMessage();
+          throw e;
+        } finally {
+          if (parsedMessage != null) {
+            mergeFrom(parsedMessage);
+          }
+        }
+        return this;
+      }
+
+      // @@protoc_insertion_point(builder_scope:org.apache.hadoop.hive.metastore.hbase.Void)
+    }
+
+    static {
+      defaultInstance = new Void(true);
+      defaultInstance.initFields();
+    }
+
+    // @@protoc_insertion_point(class_scope:org.apache.hadoop.hive.metastore.hbase.Void)
+  }
+
+  /**
+   * Protobuf service {@code org.apache.hadoop.hive.metastore.hbase.TxnMgr}
+   */
+  public static abstract class TxnMgr
+      implements com.google.protobuf.Service {
+    protected TxnMgr() {}
+
+    public interface Interface {
+      /**
+       * <code>rpc OpenTxns(.org.apache.hadoop.hive.metastore.hbase.OpenTxnsRequest) returns (.org.apache.hadoop.hive.metastore.hbase.OpenTxnsResponse);</code>
+       */
+      public abstract void openTxns(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.OpenTxnsRequest request,
+          com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.OpenTxnsResponse> done);
+
+      /**
+       * <code>rpc GetOpenTxns(.org.apache.hadoop.hive.metastore.hbase.GetOpenTxnsRequest) returns (.org.apache.hadoop.hive.metastore.hbase.GetOpenTxnsResponse);</code>
+       */
+      public abstract void getOpenTxns(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest request,
+          com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsResponse> done);
+
+      /**
+       * <code>rpc AbortTxn(.org.apache.hadoop.hive.metastore.hbase.TransactionId) returns (.org.apache.hadoop.hive.metastore.hbase.TransactionResult);</code>
+       */
+      public abstract void abortTxn(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId request,
+          com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult> done);
+
+      /**
+       * <code>rpc CommitTxn(.org.apache.hadoop.hive.metastore.hbase.TransactionId) returns (.org.apache.hadoop.hive.metastore.hbase.TransactionResult);</code>
+       */
+      public abstract void commitTxn(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId request,
+          com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult> done);
+
+      /**
+       * <code>rpc Heartbeat(.org.apache.hadoop.hive.metastore.hbase.HeartbeatTxnRangeRequest) returns (.org.apache.hadoop.hive.metastore.hbase.HeartbeatTxnRangeResponse);</code>
+       */
+      public abstract void heartbeat(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.HeartbeatTxnRangeRequest request,
+          com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.HeartbeatTxnRangeResponse> done);
+
+      /**
+       * <code>rpc Lock(.org.apache.hadoop.hive.metastore.hbase.LockRequest) returns (.org.apache.hadoop.hive.metastore.hbase.LockResponse);</code>
+       */
+      public abstract void lock(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockRequest request,
+          com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse> done);
+
+      /**
+       * <code>rpc CheckLocks(.org.apache.hadoop.hive.metastore.hbase.TransactionId) returns (.org.apache.hadoop.hive.metastore.hbase.LockResponse);</code>
+       */
+      public abstract void checkLocks(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId request,
+          com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse> done);
+
+      /**
+       * <code>rpc AddDynamicPartitions(.org.apache.hadoop.hive.metastore.hbase.AddDynamicPartitionsRequest) returns (.org.apache.hadoop.hive.metastore.hbase.TransactionResult);</code>
+       */
+      public abstract void addDynamicPartitions(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest request,
+          com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult> done);
+
+      /**
+       * <code>rpc RemoveCompleteCompactedAbortedTxn(.org.apache.hadoop.hive.metastore.hbase.TransactionId) returns (.org.apache.hadoop.hive.metastore.hbase.Void);</code>
+       */
+      public abstract void removeCompleteCompactedAbortedTxn(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId request,
+          com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void> done);
+
+    }
+
+    public static com.google.protobuf.Service newReflectiveService(
+        final Interface impl) {
+      return new TxnMgr() {
+        @java.lang.Override
+        public  void openTxns(
+            com.google.protobuf.RpcController controller,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.OpenTxnsRequest request,
+            com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.OpenTxnsResponse> done) {
+          impl.openTxns(controller, request, done);
+        }
+
+        @java.lang.Override
+        public  void getOpenTxns(
+            com.google.protobuf.RpcController controller,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest request,
+            com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsResponse> done) {
+          impl.getOpenTxns(controller, request, done);
+        }
+
+        @java.lang.Override
+        public  void abortTxn(
+            com.google.protobuf.RpcController controller,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId request,
+            com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult> done) {
+          impl.abortTxn(controller, request, done);
+        }
+
+        @java.lang.Override
+        public  void commitTxn(
+            com.google.protobuf.RpcController controller,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId request,
+            com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult> done) {
+          impl.commitTxn(controller, request, done);
+        }
+
+        @java.lang.Override
+        public  void heartbeat(
+            com.google.protobuf.RpcController controller,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.HeartbeatTxnRangeRequest request,
+            com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.HeartbeatTxnRangeResponse> done) {
+          impl.heartbeat(controller, request, done);
+        }
+
+        @java.lang.Override
+        public  void lock(
+            com.google.protobuf.RpcController controller,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockRequest request,
+            com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse> done) {
+          impl.lock(controller, request, done);
+        }
+
+        @java.lang.Override
+        public  void checkLocks(
+            com.google.protobuf.RpcController controller,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId request,
+            com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse> done) {
+          impl.checkLocks(controller, request, done);
+        }
+
+        @java.lang.Override
+        public  void addDynamicPartitions(
+            com.google.protobuf.RpcController controller,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest request,
+            com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult> done) {
+          impl.addDynamicPartitions(controller, request, done);
+        }
+
+        @java.lang.Override
+        public  void removeCompleteCompactedAbortedTxn(
+            com.google.protobuf.RpcController controller,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId request,
+            com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void> done) {
+          impl.removeCompleteCompactedAbortedTxn(controller, request, done);
+        }
+
+      };
+    }
+
+    public static com.google.protobuf.BlockingService
+        newReflectiveBlockingService(final BlockingInterface impl) {
+      return new com.google.protobuf.BlockingService() {
+        public final com.google.protobuf.Descriptors.ServiceDescriptor
+            getDescriptorForType() {
+          return getDescriptor();
+        }
+
+        public final com.google.protobuf.Message callBlockingMethod(
+            com.google.protobuf.Descriptors.MethodDescriptor method,
+            com.google.protobuf.RpcController controller,
+            com.google.protobuf.Message request)
+            throws com.google.protobuf.ServiceException {
+          if (method.getService() != getDescriptor()) {
+            throw new java.lang.IllegalArgumentException(
+              "Service.callBlockingMethod() given method descriptor for " +
+              "wrong service type.");
+          }
+          switch(method.getIndex()) {
+            case 0:
+              return impl.openTxns(controller, (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.OpenTxnsRequest)request);
+            case 1:
+              return impl.getOpenTxns(controller, (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest)request);
+            case 2:
+              return impl.abortTxn(controller, (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId)request);
+            case 3:
+              return impl.commitTxn(controller, (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId)request);
+            case 4:
+              return impl.heartbeat(controller, (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.HeartbeatTxnRangeRequest)request);
+            case 5:
+              return impl.lock(controller, (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockRequest)request);
+            case 6:
+              return impl.checkLocks(controller, (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId)request);
+            case 7:
+              return impl.addDynamicPartitions(controller, (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest)request);
+            case 8:
+              return impl.removeCompleteCompactedAbortedTxn(controller, (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId)request);
+            default:
+              throw new java.lang.AssertionError("Can't get here.");
+          }
+        }
+
+        public final com.google.protobuf.Message
+            getRequestPrototype(
+            com.google.protobuf.Descriptors.MethodDescriptor method) {
+          if (method.getService() != getDescriptor()) {
+            throw new java.lang.IllegalArgumentException(
+              "Service.getRequestPrototype() given method " +
+              "descriptor for wrong service type.");
+          }
+          switch(method.getIndex()) {
+            case 0:
+              return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.OpenTxnsRequest.getDefaultInstance();
+            case 1:
+              return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest.getDefaultInstance();
+            case 2:
+              return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId.getDefaultInstance();
+            case 3:
+              return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId.getDefaultInstance();
+            case 4:
+              return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.HeartbeatTxnRangeRequest.getDefaultInstance();
+            case 5:
+              return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockRequest.getDefaultInstance();
+            case 6:
+              return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId.getDefaultInstance();
+            case 7:
+              return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest.getDefaultInstance();
+            case 8:
+              return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId.getDefaultInstance();
+            default:
+              throw new java.lang.AssertionError("Can't get here.");
+          }
+        }
+
+        public final com.google.protobuf.Message
+            getResponsePrototype(
+            com.google.protobuf.Descriptors.MethodDescriptor method) {
+          if (method.getService() != getDescriptor()) {
+            throw new java.lang.IllegalArgumentException(
+              "Service.getResponsePrototype() given method " +
+              "descriptor for wrong service type.");
+          }
+          switch(method.getIndex()) {
+            case 0:
+              return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.OpenTxnsResponse.getDefaultInstance();
+            case 1:
+              return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsResponse.getDefaultInstance();
+            case 2:
+              return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult.getDefaultInstance();
+            case 3:
+              return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult.getDefaultInstance();
+            case 4:
+              return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.HeartbeatTxnRangeResponse.getDefaultInstance();
+            case 5:
+              return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse.getDefaultInstance();
+            case 6:
+              return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse.getDefaultInstance();
+            case 7:
+              return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult.getDefaultInstance();
+            case 8:
+              return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void.getDefaultInstance();
+            default:
+              throw new java.lang.AssertionError("Can't get here.");
+          }
+        }
+
+      };
+    }
+
+    /**
+     * <code>rpc OpenTxns(.org.apache.hadoop.hive.metastore.hbase.OpenTxnsRequest) returns (.org.apache.hadoop.hive.metastore.hbase.OpenTxnsResponse);</code>
+     */
+    public abstract void openTxns(
+        com.google.protobuf.RpcController controller,
+        org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.OpenTxnsRequest request,
+        com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.OpenTxnsResponse> done);
+
+    /**
+     * <code>rpc GetOpenTxns(.org.apache.hadoop.hive.metastore.hbase.GetOpenTxnsRequest) returns (.org.apache.hadoop.hive.metastore.hbase.GetOpenTxnsResponse);</code>
+     */
+    public abstract void getOpenTxns(
+        com.google.protobuf.RpcController controller,
+        org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest request,
+        com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsResponse> done);
+
+    /**
+     * <code>rpc AbortTxn(.org.apache.hadoop.hive.metastore.hbase.TransactionId) returns (.org.apache.hadoop.hive.metastore.hbase.TransactionResult);</code>
+     */
+    public abstract void abortTxn(
+        com.google.protobuf.RpcController controller,
+        org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId request,
+        com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult> done);
+
+    /**
+     * <code>rpc CommitTxn(.org.apache.hadoop.hive.metastore.hbase.TransactionId) returns (.org.apache.hadoop.hive.metastore.hbase.TransactionResult);</code>
+     */
+    public abstract void commitTxn(
+        com.google.protobuf.RpcController controller,
+        org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId request,
+        com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult> done);
+
+    /**
+     * <code>rpc Heartbeat(.org.apache.hadoop.hive.metastore.hbase.HeartbeatTxnRangeRequest) returns (.org.apache.hadoop.hive.metastore.hbase.HeartbeatTxnRangeResponse);</code>
+     */
+    public abstract void heartbeat(
+        com.google.protobuf.RpcController controller,
+        org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.HeartbeatTxnRangeRequest request,
+        com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.HeartbeatTxnRangeResponse> done);
+
+    /**
+     * <code>rpc Lock(.org.apache.hadoop.hive.metastore.hbase.LockRequest) returns (.org.apache.hadoop.hive.metastore.hbase.LockResponse);</code>
+     */
+    public abstract void lock(
+        com.google.protobuf.RpcController controller,
+        org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockRequest request,
+        com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse> done);
+
+    /**
+     * <code>rpc CheckLocks(.org.apache.hadoop.hive.metastore.hbase.TransactionId) returns (.org.apache.hadoop.hive.metastore.hbase.LockResponse);</code>
+     */
+    public abstract void checkLocks(
+        com.google.protobuf.RpcController controller,
+        org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId request,
+        com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse> done);
+
+    /**
+     * <code>rpc AddDynamicPartitions(.org.apache.hadoop.hive.metastore.hbase.AddDynamicPartitionsRequest) returns (.org.apache.hadoop.hive.metastore.hbase.TransactionResult);</code>
+     */
+    public abstract void addDynamicPartitions(
+        com.google.protobuf.RpcController controller,
+        org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest request,
+        com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult> done);
+
+    /**
+     * <code>rpc RemoveCompleteCompactedAbortedTxn(.org.apache.hadoop.hive.metastore.hbase.TransactionId) returns (.org.apache.hadoop.hive.metastore.hbase.Void);</code>
+     */
+    public abstract void removeCompleteCompactedAbortedTxn(
+        com.google.protobuf.RpcController controller,
+        org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId request,
+        com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void> done);
+
+    public static final
+        com.google.protobuf.Descriptors.ServiceDescriptor
+        getDescriptor() {
+      return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.getDescriptor().getServices().get(0);
+    }
+    public final com.google.protobuf.Descriptors.ServiceDescriptor
+        getDescriptorForType() {
+      return getDescriptor();
+    }
+
+    public final void callMethod(
+        com.google.protobuf.Descriptors.MethodDescriptor method,
+        com.google.protobuf.RpcController controller,
+        com.google.protobuf.Message request,
+        com.google.protobuf.RpcCallback<
+          com.google.protobuf.Message> done) {
+      if (method.getService() != getDescriptor()) {
+        throw new java.lang.IllegalArgumentException(
+          "Service.callMethod() given method descriptor for wrong " +
+          "service type.");
+      }
+      switch(method.getIndex()) {
+        case 0:
+          this.openTxns(controller, (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.OpenTxnsRequest)request,
+            com.google.protobuf.RpcUtil.<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.OpenTxnsResponse>specializeCallback(
+              done));
+          return;
+        case 1:
+          this.getOpenTxns(controller, (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest)request,
+            com.google.protobuf.RpcUtil.<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsResponse>specializeCallback(
+              done));
+          return;
+        case 2:
+          this.abortTxn(controller, (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId)request,
+            com.google.protobuf.RpcUtil.<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult>specializeCallback(
+              done));
+          return;
+        case 3:
+          this.commitTxn(controller, (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId)request,
+            com.google.protobuf.RpcUtil.<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult>specializeCallback(
+              done));
+          return;
+        case 4:
+          this.heartbeat(controller, (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.HeartbeatTxnRangeRequest)request,
+            com.google.protobuf.RpcUtil.<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.HeartbeatTxnRangeResponse>specializeCallback(
+              done));
+          return;
+        case 5:
+          this.lock(controller, (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockRequest)request,
+            com.google.protobuf.RpcUtil.<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse>specializeCallback(
+              done));
+          return;
+        case 6:
+          this.checkLocks(controller, (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId)request,
+            com.google.protobuf.RpcUtil.<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse>specializeCallback(
+              done));
+          return;
+        case 7:
+          this.addDynamicPartitions(controller, (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest)request,
+            com.google.protobuf.RpcUtil.<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult>specializeCallback(
+              done));
+          return;
+        case 8:
+          this.removeCompleteCompactedAbortedTxn(controller, (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId)request,
+            com.google.protobuf.RpcUtil.<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void>specializeCallback(
+              done));
+          return;
+        default:
+          throw new java.lang.AssertionError("Can't get here.");
+      }
+    }
+
+    public final com.google.protobuf.Message
+        getRequestPrototype(
+        com.google.protobuf.Descriptors.MethodDescriptor method) {
+      if (method.getService() != getDescriptor()) {
+        throw new java.lang.IllegalArgumentException(
+          "Service.getRequestPrototype() given method " +
+          "descriptor for wrong service type.");
+      }
+      switch(method.getIndex()) {
+        case 0:
+          return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.OpenTxnsRequest.getDefaultInstance();
+        case 1:
+          return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest.getDefaultInstance();
+        case 2:
+          return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId.getDefaultInstance();
+        case 3:
+          return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId.getDefaultInstance();
+        case 4:
+          return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.HeartbeatTxnRangeRequest.getDefaultInstance();
+        case 5:
+          return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockRequest.getDefaultInstance();
+        case 6:
+          return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId.getDefaultInstance();
+        case 7:
+          return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest.getDefaultInstance();
+        case 8:
+          return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId.getDefaultInstance();
+        default:
+          throw new java.lang.AssertionError("Can't get here.");
+      }
+    }
+
+    public final com.google.protobuf.Message
+        getResponsePrototype(
+        com.google.protobuf.Descriptors.MethodDescriptor method) {
+      if (method.getService() != getDescriptor()) {
+        throw new java.lang.IllegalArgumentException(
+          "Service.getResponsePrototype() given method " +
+          "descriptor for wrong service type.");
+      }
+      switch(method.getIndex()) {
+        case 0:
+          return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.OpenTxnsResponse.getDefaultInstance();
+        case 1:
+          return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsResponse.getDefaultInstance();
+        case 2:
+          return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult.getDefaultInstance();
+        case 3:
+          return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult.getDefaultInstance();
+        case 4:
+          return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.HeartbeatTxnRangeResponse.getDefaultInstance();
+        case 5:
+          return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse.getDefaultInstance();
+        case 6:
+          return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse.getDefaultInstance();
+        case 7:
+          return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult.getDefaultInstance();
+        case 8:
+          return org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void.getDefaultInstance();
+        default:
+          throw new java.lang.AssertionError("Can't get here.");
+      }
+    }
+
+    public static Stub newStub(
+        com.google.protobuf.RpcChannel channel) {
+      return new Stub(channel);
+    }
+
+    public static final class Stub extends org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TxnMgr implements Interface {
+      private Stub(com.google.protobuf.RpcChannel channel) {
+        this.channel = channel;
+      }
+
+      private final com.google.protobuf.RpcChannel channel;
+
+      public com.google.protobuf.RpcChannel getChannel() {
+        return channel;
+      }
+
+      public  void openTxns(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.OpenTxnsRequest request,
+          com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.OpenTxnsResponse> done) {
+        channel.callMethod(
+          getDescriptor().getMethods().get(0),
+          controller,
+          request,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.OpenTxnsResponse.getDefaultInstance(),
+          com.google.protobuf.RpcUtil.generalizeCallback(
+            done,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.OpenTxnsResponse.class,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.OpenTxnsResponse.getDefaultInstance()));
+      }
+
+      public  void getOpenTxns(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest request,
+          com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsResponse> done) {
+        channel.callMethod(
+          getDescriptor().getMethods().get(1),
+          controller,
+          request,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsResponse.getDefaultInstance(),
+          com.google.protobuf.RpcUtil.generalizeCallback(
+            done,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsResponse.class,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsResponse.getDefaultInstance()));
+      }
+
+      public  void abortTxn(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId request,
+          com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult> done) {
+        channel.callMethod(
+          getDescriptor().getMethods().get(2),
+          controller,
+          request,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult.getDefaultInstance(),
+          com.google.protobuf.RpcUtil.generalizeCallback(
+            done,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult.class,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult.getDefaultInstance()));
+      }
+
+      public  void commitTxn(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId request,
+          com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult> done) {
+        channel.callMethod(
+          getDescriptor().getMethods().get(3),
+          controller,
+          request,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult.getDefaultInstance(),
+          com.google.protobuf.RpcUtil.generalizeCallback(
+            done,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult.class,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult.getDefaultInstance()));
+      }
+
+      public  void heartbeat(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.HeartbeatTxnRangeRequest request,
+          com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.HeartbeatTxnRangeResponse> done) {
+        channel.callMethod(
+          getDescriptor().getMethods().get(4),
+          controller,
+          request,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.HeartbeatTxnRangeResponse.getDefaultInstance(),
+          com.google.protobuf.RpcUtil.generalizeCallback(
+            done,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.HeartbeatTxnRangeResponse.class,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.HeartbeatTxnRangeResponse.getDefaultInstance()));
+      }
+
+      public  void lock(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockRequest request,
+          com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse> done) {
+        channel.callMethod(
+          getDescriptor().getMethods().get(5),
+          controller,
+          request,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse.getDefaultInstance(),
+          com.google.protobuf.RpcUtil.generalizeCallback(
+            done,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse.class,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse.getDefaultInstance()));
+      }
+
+      public  void checkLocks(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId request,
+          com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse> done) {
+        channel.callMethod(
+          getDescriptor().getMethods().get(6),
+          controller,
+          request,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse.getDefaultInstance(),
+          com.google.protobuf.RpcUtil.generalizeCallback(
+            done,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse.class,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse.getDefaultInstance()));
+      }
+
+      public  void addDynamicPartitions(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest request,
+          com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult> done) {
+        channel.callMethod(
+          getDescriptor().getMethods().get(7),
+          controller,
+          request,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult.getDefaultInstance(),
+          com.google.protobuf.RpcUtil.generalizeCallback(
+            done,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult.class,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult.getDefaultInstance()));
+      }
+
+      public  void removeCompleteCompactedAbortedTxn(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId request,
+          com.google.protobuf.RpcCallback<org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void> done) {
+        channel.callMethod(
+          getDescriptor().getMethods().get(8),
+          controller,
+          request,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void.getDefaultInstance(),
+          com.google.protobuf.RpcUtil.generalizeCallback(
+            done,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void.class,
+            org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void.getDefaultInstance()));
+      }
+    }
+
+    public static BlockingInterface newBlockingStub(
+        com.google.protobuf.BlockingRpcChannel channel) {
+      return new BlockingStub(channel);
+    }
+
+    public interface BlockingInterface {
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.OpenTxnsResponse openTxns(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.OpenTxnsRequest request)
+          throws com.google.protobuf.ServiceException;
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsResponse getOpenTxns(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest request)
+          throws com.google.protobuf.ServiceException;
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult abortTxn(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId request)
+          throws com.google.protobuf.ServiceException;
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult commitTxn(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId request)
+          throws com.google.protobuf.ServiceException;
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.HeartbeatTxnRangeResponse heartbeat(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.HeartbeatTxnRangeRequest request)
+          throws com.google.protobuf.ServiceException;
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse lock(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockRequest request)
+          throws com.google.protobuf.ServiceException;
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse checkLocks(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId request)
+          throws com.google.protobuf.ServiceException;
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult addDynamicPartitions(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest request)
+          throws com.google.protobuf.ServiceException;
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void removeCompleteCompactedAbortedTxn(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId request)
+          throws com.google.protobuf.ServiceException;
+    }
+
+    private static final class BlockingStub implements BlockingInterface {
+      private BlockingStub(com.google.protobuf.BlockingRpcChannel channel) {
+        this.channel = channel;
+      }
+
+      private final com.google.protobuf.BlockingRpcChannel channel;
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.OpenTxnsResponse openTxns(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.OpenTxnsRequest request)
+          throws com.google.protobuf.ServiceException {
+        return (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.OpenTxnsResponse) channel.callBlockingMethod(
+          getDescriptor().getMethods().get(0),
+          controller,
+          request,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.OpenTxnsResponse.getDefaultInstance());
+      }
+
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsResponse getOpenTxns(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsRequest request)
+          throws com.google.protobuf.ServiceException {
+        return (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsResponse) channel.callBlockingMethod(
+          getDescriptor().getMethods().get(1),
+          controller,
+          request,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.GetOpenTxnsResponse.getDefaultInstance());
+      }
+
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult abortTxn(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId request)
+          throws com.google.protobuf.ServiceException {
+        return (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult) channel.callBlockingMethod(
+          getDescriptor().getMethods().get(2),
+          controller,
+          request,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult.getDefaultInstance());
+      }
+
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult commitTxn(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId request)
+          throws com.google.protobuf.ServiceException {
+        return (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult) channel.callBlockingMethod(
+          getDescriptor().getMethods().get(3),
+          controller,
+          request,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult.getDefaultInstance());
+      }
+
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.HeartbeatTxnRangeResponse heartbeat(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.HeartbeatTxnRangeRequest request)
+          throws com.google.protobuf.ServiceException {
+        return (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.HeartbeatTxnRangeResponse) channel.callBlockingMethod(
+          getDescriptor().getMethods().get(4),
+          controller,
+          request,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.HeartbeatTxnRangeResponse.getDefaultInstance());
+      }
+
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse lock(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockRequest request)
+          throws com.google.protobuf.ServiceException {
+        return (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse) channel.callBlockingMethod(
+          getDescriptor().getMethods().get(5),
+          controller,
+          request,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse.getDefaultInstance());
+      }
+
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse checkLocks(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId request)
+          throws com.google.protobuf.ServiceException {
+        return (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse) channel.callBlockingMethod(
+          getDescriptor().getMethods().get(6),
+          controller,
+          request,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.LockResponse.getDefaultInstance());
+      }
+
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult addDynamicPartitions(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.AddDynamicPartitionsRequest request)
+          throws com.google.protobuf.ServiceException {
+        return (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult) channel.callBlockingMethod(
+          getDescriptor().getMethods().get(7),
+          controller,
+          request,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionResult.getDefaultInstance());
+      }
+
+
+      public org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void removeCompleteCompactedAbortedTxn(
+          com.google.protobuf.RpcController controller,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.TransactionId request)
+          throws com.google.protobuf.ServiceException {
+        return (org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void) channel.callBlockingMethod(
+          getDescriptor().getMethods().get(8),
+          controller,
+          request,
+          org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto.Void.getDefaultInstance());
+      }
+
+    }
+
+    // @@protoc_insertion_point(class_scope:org.apache.hadoop.hive.metastore.hbase.TxnMgr)
+  }
+
   private static com.google.protobuf.Descriptors.Descriptor
     internal_static_org_apache_hadoop_hive_metastore_hbase_AggrStats_descriptor;
   private static
@@ -47530,10 +49443,15 @@ public final class HbaseMetastoreProto {
     com.google.protobuf.GeneratedMessage.FieldAccessorTable
       internal_static_org_apache_hadoop_hive_metastore_hbase_PotentialCompaction_fieldAccessorTable;
   private static com.google.protobuf.Descriptors.Descriptor
-    internal_static_org_apache_hadoop_hive_metastore_hbase_AddDynamicPartitions_descriptor;
+    internal_static_org_apache_hadoop_hive_metastore_hbase_AddDynamicPartitionsRequest_descriptor;
   private static
     com.google.protobuf.GeneratedMessage.FieldAccessorTable
-      internal_static_org_apache_hadoop_hive_metastore_hbase_AddDynamicPartitions_fieldAccessorTable;
+      internal_static_org_apache_hadoop_hive_metastore_hbase_AddDynamicPartitionsRequest_fieldAccessorTable;
+  private static com.google.protobuf.Descriptors.Descriptor
+    internal_static_org_apache_hadoop_hive_metastore_hbase_GetOpenTxnsRequest_descriptor;
+  private static
+    com.google.protobuf.GeneratedMessage.FieldAccessorTable
+      internal_static_org_apache_hadoop_hive_metastore_hbase_GetOpenTxnsRequest_fieldAccessorTable;
   private static com.google.protobuf.Descriptors.Descriptor
     internal_static_org_apache_hadoop_hive_metastore_hbase_GetOpenTxnsResponse_descriptor;
   private static
@@ -47579,6 +49497,16 @@ public final class HbaseMetastoreProto {
   private static
     com.google.protobuf.GeneratedMessage.FieldAccessorTable
       internal_static_org_apache_hadoop_hive_metastore_hbase_TransactionId_fieldAccessorTable;
+  private static com.google.protobuf.Descriptors.Descriptor
+    internal_static_org_apache_hadoop_hive_metastore_hbase_TransactionResult_descriptor;
+  private static
+    com.google.protobuf.GeneratedMessage.FieldAccessorTable
+      internal_static_org_apache_hadoop_hive_metastore_hbase_TransactionResult_fieldAccessorTable;
+  private static com.google.protobuf.Descriptors.Descriptor
+    internal_static_org_apache_hadoop_hive_metastore_hbase_Void_descriptor;
+  private static
+    com.google.protobuf.GeneratedMessage.FieldAccessorTable
+      internal_static_org_apache_hadoop_hive_metastore_hbase_Void_fieldAccessorTable;
 
   public static com.google.protobuf.Descriptors.FileDescriptor
       getDescriptor() {
@@ -47768,38 +49696,73 @@ public final class HbaseMetastoreProto {
       "ion\030\006 \001(\t\022\023\n\013acquired_at\030\007 \001(\003\022\021\n\tcompac" +
       "ted\030\010 \001(\010\"S\n\023PotentialCompaction\022\n\n\002db\030\001" +
       " \002(\t\022\r\n\005table\030\002 \002(\t\022\021\n\tpartition\030\003 \001(\t\022\016",
-      "\n\006txnIds\030\004 \003(\003\"U\n\024AddDynamicPartitions\022\016" +
-      "\n\006txn_id\030\001 \002(\003\022\n\n\002db\030\002 \002(\t\022\r\n\005table\030\003 \002(" +
-      "\t\022\022\n\npartitions\030\004 \003(\t\"g\n\023GetOpenTxnsResp" +
-      "onse\022\027\n\017high_water_mark\030\001 \002(\003\022\031\n\021open_tr" +
-      "ansactions\030\002 \003(\003\022\034\n\024aborted_transactions" +
-      "\030\003 \003(\003\"<\n\030HeartbeatTxnRangeRequest\022\017\n\007mi" +
-      "n_txn\030\001 \002(\003\022\017\n\007max_txn\030\002 \002(\003\"=\n\031Heartbea" +
-      "tTxnRangeResponse\022\017\n\007aborted\030\001 \003(\003\022\017\n\007no" +
-      "_such\030\002 \003(\003\"\277\001\n\rLockComponent\022>\n\004type\030\001 " +
-      "\002(\01620.org.apache.hadoop.hive.metastore.h",
-      "base.LockType\022@\n\005state\030\002 \002(\01621.org.apach" +
-      "e.hadoop.hive.metastore.hbase.LockState\022" +
-      "\n\n\002db\030\003 \002(\t\022\r\n\005table\030\004 \001(\t\022\021\n\tpartition\030" +
-      "\005 \001(\t\"h\n\013LockRequest\022\016\n\006txn_id\030\001 \002(\003\022I\n\n" +
-      "components\030\002 \003(\01325.org.apache.hadoop.hiv" +
-      "e.metastore.hbase.LockComponent\"P\n\014LockR" +
-      "esponse\022@\n\005state\030\001 \002(\01621.org.apache.hado" +
-      "op.hive.metastore.hbase.LockState\"W\n\017Ope" +
-      "nTxnsRequest\022\020\n\010num_txns\030\001 \002(\005\022\014\n\004user\030\002" +
-      " \002(\t\022\020\n\010hostname\030\003 \002(\t\022\022\n\nagent_info\030\004 \001",
-      "(\t\"#\n\020OpenTxnsResponse\022\017\n\007txn_ids\030\001 \003(\003\"" +
-      "\033\n\rTransactionId\022\n\n\002id\030\001 \002(\003*#\n\rPrincipa" +
-      "lType\022\010\n\004USER\020\000\022\010\n\004ROLE\020\001*`\n\017CompactionS" +
-      "tate\022\r\n\tINITIATED\020\001\022\013\n\007WORKING\020\002\022\026\n\022READ" +
-      "Y_FOR_CLEANING\020\003\022\n\n\006FAILED\020\004\022\r\n\tSUCCEEDE" +
-      "D\020\005*&\n\016CompactionType\022\t\n\005MINOR\020\001\022\t\n\005MAJO" +
-      "R\020\002*E\n\tLockState\022\014\n\010ACQUIRED\020\001\022\013\n\007WAITIN" +
-      "G\020\002\022\017\n\013TXN_ABORTED\020\003\022\014\n\010RELEASED\020\004*K\n\010Lo" +
-      "ckType\022\017\n\013SHARED_READ\020\001\022\020\n\014SHARED_WRITE\020" +
-      "\002\022\r\n\tEXCLUSIVE\020\003\022\r\n\tINTENTION\020\004*0\n\010TxnSt",
-      "ate\022\r\n\tCOMMITTED\020\001\022\013\n\007ABORTED\020\002\022\010\n\004OPEN\020" +
-      "\003"
+      "\n\006txnIds\030\004 \003(\003\"\\\n\033AddDynamicPartitionsRe" +
+      "quest\022\016\n\006txn_id\030\001 \002(\003\022\n\n\002db\030\002 \002(\t\022\r\n\005tab" +
+      "le\030\003 \002(\t\022\022\n\npartitions\030\004 \003(\t\"\024\n\022GetOpenT" +
+      "xnsRequest\"g\n\023GetOpenTxnsResponse\022\027\n\017hig" +
+      "h_water_mark\030\001 \002(\003\022\031\n\021open_transactions\030" +
+      "\002 \003(\003\022\034\n\024aborted_transactions\030\003 \003(\003\"<\n\030H" +
+      "eartbeatTxnRangeRequest\022\017\n\007min_txn\030\001 \002(\003" +
+      "\022\017\n\007max_txn\030\002 \002(\003\"=\n\031HeartbeatTxnRangeRe" +
+      "sponse\022\017\n\007aborted\030\001 \003(\003\022\017\n\007no_such\030\002 \003(\003" +
+      "\"\277\001\n\rLockComponent\022>\n\004type\030\001 \002(\01620.org.a",
+      "pache.hadoop.hive.metastore.hbase.LockTy" +
+      "pe\022@\n\005state\030\002 \002(\01621.org.apache.hadoop.hi" +
+      "ve.metastore.hbase.LockState\022\n\n\002db\030\003 \002(\t" +
+      "\022\r\n\005table\030\004 \001(\t\022\021\n\tpartition\030\005 \001(\t\"h\n\013Lo" +
+      "ckRequest\022\016\n\006txn_id\030\001 \002(\003\022I\n\ncomponents\030" +
+      "\002 \003(\01325.org.apache.hadoop.hive.metastore" +
+      ".hbase.LockComponent\"P\n\014LockResponse\022@\n\005" +
+      "state\030\001 \002(\01621.org.apache.hadoop.hive.met" +
+      "astore.hbase.LockState\"W\n\017OpenTxnsReques" +
+      "t\022\020\n\010num_txns\030\001 \002(\005\022\014\n\004user\030\002 \002(\t\022\020\n\010hos",
+      "tname\030\003 \002(\t\022\022\n\nagent_info\030\004 \001(\t\"#\n\020OpenT" +
+      "xnsResponse\022\017\n\007txn_ids\030\001 \003(\003\"\033\n\rTransact" +
+      "ionId\022\n\n\002id\030\001 \002(\003\"`\n\021TransactionResult\022K" +
+      "\n\005state\030\001 \001(\0162<.org.apache.hadoop.hive.m" +
+      "etastore.hbase.TxnStateChangeResult\"\006\n\004V" +
+      "oid*#\n\rPrincipalType\022\010\n\004USER\020\000\022\010\n\004ROLE\020\001" +
+      "*`\n\017CompactionState\022\r\n\tINITIATED\020\001\022\013\n\007WO" +
+      "RKING\020\002\022\026\n\022READY_FOR_CLEANING\020\003\022\n\n\006FAILE" +
+      "D\020\004\022\r\n\tSUCCEEDED\020\005*&\n\016CompactionType\022\t\n\005" +
+      "MINOR\020\001\022\t\n\005MAJOR\020\002*E\n\tLockState\022\014\n\010ACQUI",
+      "RED\020\001\022\013\n\007WAITING\020\002\022\017\n\013TXN_ABORTED\020\003\022\014\n\010R" +
+      "ELEASED\020\004*K\n\010LockType\022\017\n\013SHARED_READ\020\001\022\020" +
+      "\n\014SHARED_WRITE\020\002\022\r\n\tEXCLUSIVE\020\003\022\r\n\tINTEN" +
+      "TION\020\004*0\n\010TxnState\022\r\n\tCOMMITTED\020\001\022\013\n\007ABO" +
+      "RTED\020\002\022\010\n\004OPEN\020\003*4\n\024TxnStateChangeResult" +
+      "\022\013\n\007SUCCESS\020\001\022\017\n\013NO_SUCH_TXN\020\0022\262\t\n\006TxnMg" +
+      "r\022}\n\010OpenTxns\0227.org.apache.hadoop.hive.m" +
+      "etastore.hbase.OpenTxnsRequest\0328.org.apa" +
+      "che.hadoop.hive.metastore.hbase.OpenTxns" +
+      "Response\022\206\001\n\013GetOpenTxns\022:.org.apache.ha",
+      "doop.hive.metastore.hbase.GetOpenTxnsReq" +
+      "uest\032;.org.apache.hadoop.hive.metastore." +
+      "hbase.GetOpenTxnsResponse\022|\n\010AbortTxn\0225." +
+      "org.apache.hadoop.hive.metastore.hbase.T" +
+      "ransactionId\0329.org.apache.hadoop.hive.me" +
+      "tastore.hbase.TransactionResult\022}\n\tCommi" +
+      "tTxn\0225.org.apache.hadoop.hive.metastore." +
+      "hbase.TransactionId\0329.org.apache.hadoop." +
+      "hive.metastore.hbase.TransactionResult\022\220" +
+      "\001\n\tHeartbeat\022@.org.apache.hadoop.hive.me",
+      "tastore.hbase.HeartbeatTxnRangeRequest\032A" +
+      ".org.apache.hadoop.hive.metastore.hbase." +
+      "HeartbeatTxnRangeResponse\022q\n\004Lock\0223.org." +
+      "apache.hadoop.hive.metastore.hbase.LockR" +
+      "equest\0324.org.apache.hadoop.hive.metastor" +
+      "e.hbase.LockResponse\022y\n\nCheckLocks\0225.org" +
+      ".apache.hadoop.hive.metastore.hbase.Tran" +
+      "sactionId\0324.org.apache.hadoop.hive.metas" +
+      "tore.hbase.LockResponse\022\226\001\n\024AddDynamicPa" +
+      "rtitions\022C.org.apache.hadoop.hive.metast",
+      "ore.hbase.AddDynamicPartitionsRequest\0329." +
+      "org.apache.hadoop.hive.metastore.hbase.T" +
+      "ransactionResult\022\210\001\n!RemoveCompleteCompa" +
+      "ctedAbortedTxn\0225.org.apache.hadoop.hive." +
+      "metastore.hbase.TransactionId\032,.org.apac" +
+      "he.hadoop.hive.metastore.hbase.VoidB\005H\001\210" +
+      "\001\001"
     };
     com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner assigner =
       new com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner() {
@@ -48064,66 +50027,84 @@ public final class HbaseMetastoreProto {
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
               internal_static_org_apache_hadoop_hive_metastore_hbase_PotentialCompaction_descriptor,
               new java.lang.String[] { "Db", "Table", "Partition", "TxnIds", });
-          internal_static_org_apache_hadoop_hive_metastore_hbase_AddDynamicPartitions_descriptor =
+          internal_static_org_apache_hadoop_hive_metastore_hbase_AddDynamicPartitionsRequest_descriptor =
             getDescriptor().getMessageTypes().get(25);
-          internal_static_org_apache_hadoop_hive_metastore_hbase_AddDynamicPartitions_fieldAccessorTable = new
+          internal_static_org_apache_hadoop_hive_metastore_hbase_AddDynamicPartitionsRequest_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
-              internal_static_org_apache_hadoop_hive_metastore_hbase_AddDynamicPartitions_descriptor,
+              internal_static_org_apache_hadoop_hive_metastore_hbase_AddDynamicPartitionsRequest_descriptor,
               new java.lang.String[] { "TxnId", "Db", "Table", "Partitions", });
-          internal_static_org_apache_hadoop_hive_metastore_hbase_GetOpenTxnsResponse_descriptor =
+          internal_static_org_apache_hadoop_hive_metastore_hbase_GetOpenTxnsRequest_descriptor =
             getDescriptor().getMessageTypes().get(26);
+          internal_static_org_apache_hadoop_hive_metastore_hbase_GetOpenTxnsRequest_fieldAccessorTable = new
+            com.google.protobuf.GeneratedMessage.FieldAccessorTable(
+              internal_static_org_apache_hadoop_hive_metastore_hbase_GetOpenTxnsRequest_descriptor,
+              new java.lang.String[] { });
+          internal_static_org_apache_hadoop_hive_metastore_hbase_GetOpenTxnsResponse_descriptor =
+            getDescriptor().getMessageTypes().get(27);
           internal_static_org_apache_hadoop_hive_metastore_hbase_GetOpenTxnsResponse_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
               internal_static_org_apache_hadoop_hive_metastore_hbase_GetOpenTxnsResponse_descriptor,
               new java.lang.String[] { "HighWaterMark", "OpenTransactions", "AbortedTransactions", });
           internal_static_org_apache_hadoop_hive_metastore_hbase_HeartbeatTxnRangeRequest_descriptor =
-            getDescriptor().getMessageTypes().get(27);
+            getDescriptor().getMessageTypes().get(28);
           internal_static_org_apache_hadoop_hive_metastore_hbase_HeartbeatTxnRangeRequest_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
               internal_static_org_apache_hadoop_hive_metastore_hbase_HeartbeatTxnRangeRequest_descriptor,
               new java.lang.String[] { "MinTxn", "MaxTxn", });
           internal_static_org_apache_hadoop_hive_metastore_hbase_HeartbeatTxnRangeResponse_descriptor =
-            getDescriptor().getMessageTypes().get(28);
+            getDescriptor().getMessageTypes().get(29);
           internal_static_org_apache_hadoop_hive_metastore_hbase_HeartbeatTxnRangeResponse_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
               internal_static_org_apache_hadoop_hive_metastore_hbase_HeartbeatTxnRangeResponse_descriptor,
               new java.lang.String[] { "Aborted", "NoSuch", });
           internal_static_org_apache_hadoop_hive_metastore_hbase_LockComponent_descriptor =
-            getDescriptor().getMessageTypes().get(29);
+            getDescriptor().getMessageTypes().get(30);
           internal_static_org_apache_hadoop_hive_metastore_hbase_LockComponent_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
               internal_static_org_apache_hadoop_hive_metastore_hbase_LockComponent_descriptor,
               new java.lang.String[] { "Type", "State", "Db", "Table", "Partition", });
           internal_static_org_apache_hadoop_hive_metastore_hbase_LockRequest_descriptor =
-            getDescriptor().getMessageTypes().get(30);
+            getDescriptor().getMessageTypes().get(31);
           internal_static_org_apache_hadoop_hive_metastore_hbase_LockRequest_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
               internal_static_org_apache_hadoop_hive_metastore_hbase_LockRequest_descriptor,
               new java.lang.String[] { "TxnId", "Components", });
           internal_static_org_apache_hadoop_hive_metastore_hbase_LockResponse_descriptor =
-            getDescriptor().getMessageTypes().get(31);
+            getDescriptor().getMessageTypes().get(32);
           internal_static_org_apache_hadoop_hive_metastore_hbase_LockResponse_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
               internal_static_org_apache_hadoop_hive_metastore_hbase_LockResponse_descriptor,
               new java.lang.String[] { "State", });
           internal_static_org_apache_hadoop_hive_metastore_hbase_OpenTxnsRequest_descriptor =
-            getDescriptor().getMessageTypes().get(32);
+            getDescriptor().getMessageTypes().get(33);
           internal_static_org_apache_hadoop_hive_metastore_hbase_OpenTxnsRequest_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
               internal_static_org_apache_hadoop_hive_metastore_hbase_OpenTxnsRequest_descriptor,
               new java.lang.String[] { "NumTxns", "User", "Hostname", "AgentInfo", });
           internal_static_org_apache_hadoop_hive_metastore_hbase_OpenTxnsResponse_descriptor =
-            getDescriptor().getMessageTypes().get(33);
+            getDescriptor().getMessageTypes().get(34);
           internal_static_org_apache_hadoop_hive_metastore_hbase_OpenTxnsResponse_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
               internal_static_org_apache_hadoop_hive_metastore_hbase_OpenTxnsResponse_descriptor,
               new java.lang.String[] { "TxnIds", });
           internal_static_org_apache_hadoop_hive_metastore_hbase_TransactionId_descriptor =
-            getDescriptor().getMessageTypes().get(34);
+            getDescriptor().getMessageTypes().get(35);
           internal_static_org_apache_hadoop_hive_metastore_hbase_TransactionId_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
               internal_static_org_apache_hadoop_hive_metastore_hbase_TransactionId_descriptor,
               new java.lang.String[] { "Id", });
+          internal_static_org_apache_hadoop_hive_metastore_hbase_TransactionResult_descriptor =
+            getDescriptor().getMessageTypes().get(36);
+          internal_static_org_apache_hadoop_hive_metastore_hbase_TransactionResult_fieldAccessorTable = new
+            com.google.protobuf.GeneratedMessage.FieldAccessorTable(
+              internal_static_org_apache_hadoop_hive_metastore_hbase_TransactionResult_descriptor,
+              new java.lang.String[] { "State", });
+          internal_static_org_apache_hadoop_hive_metastore_hbase_Void_descriptor =
+            getDescriptor().getMessageTypes().get(37);
+          internal_static_org_apache_hadoop_hive_metastore_hbase_Void_fieldAccessorTable = new
+            com.google.protobuf.GeneratedMessage.FieldAccessorTable(
+              internal_static_org_apache_hadoop_hive_metastore_hbase_Void_descriptor,
+              new java.lang.String[] { });
           return null;
         }
       };

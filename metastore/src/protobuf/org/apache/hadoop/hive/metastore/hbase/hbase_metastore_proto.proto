@@ -17,6 +17,9 @@
  */
 package org.apache.hadoop.hive.metastore.hbase;
 
+option java_generic_services = true;
+option optimize_for = SPEED;
+
 // Metadata catalog objects
 
 enum PrincipalType {
@@ -318,6 +321,11 @@ enum TxnState {
   OPEN = 3;
 }
 
+enum TxnStateChangeResult {
+  SUCCESS = 1;
+  NO_SUCH_TXN = 2;
+}
+
 message Compaction {
   required int64 id = 1;
   optional string db = 2;
@@ -364,11 +372,15 @@ message PotentialCompaction {
 
 // Co-processor transaction service related messages
 
-message AddDynamicPartitions {
+message AddDynamicPartitionsRequest {
   required int64 txn_id = 1;
   required string db = 2;
   required string table = 3;
   repeated string partitions = 4;
+}
+
+message GetOpenTxnsRequest {
+  // Null for now and probably forever
 }
 
 message GetOpenTxnsResponse {
@@ -417,6 +429,27 @@ message OpenTxnsResponse {
 
 message TransactionId {
   required int64 id = 1;
+}
+
+message TransactionResult {
+  optional TxnStateChangeResult state = 1;
+}
+
+message Void {
+
+}
+
+service TxnMgr {
+  rpc OpenTxns(OpenTxnsRequest) returns (OpenTxnsResponse);
+  rpc GetOpenTxns(GetOpenTxnsRequest) returns (GetOpenTxnsResponse);
+  rpc AbortTxn(TransactionId) returns (TransactionResult);
+  rpc CommitTxn(TransactionId) returns (TransactionResult);
+  rpc Heartbeat(HeartbeatTxnRangeRequest) returns (HeartbeatTxnRangeResponse);
+  rpc Lock(LockRequest) returns (LockResponse);
+  rpc CheckLocks(TransactionId) returns (LockResponse);
+  rpc AddDynamicPartitions(AddDynamicPartitionsRequest) returns (TransactionResult);
+  rpc RemoveCompleteCompactedAbortedTxn(TransactionId) returns (Void);
+
 }
 
 
