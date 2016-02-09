@@ -49,6 +49,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Coprocessor,
                                                                               CoprocessorService {
 
+  // TODO fix missing sequence management
   // TODO prove out compaction operations
   // TODO solve lost update problem
   // TODO Convert to actual service
