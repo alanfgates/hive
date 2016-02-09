@@ -20,6 +20,7 @@ package org.apache.hadoop.hive.metastore.hbase;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterators;
+import com.google.protobuf.Message;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
@@ -34,12 +35,14 @@ import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Row;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.client.coprocessor.Batch;
 import org.apache.hadoop.hbase.filter.BinaryPrefixComparator;
 import org.apache.hadoop.hbase.filter.CompareFilter;
 import org.apache.hadoop.hbase.filter.Filter;
 import org.apache.hadoop.hbase.filter.FirstKeyOnlyFilter;
 import org.apache.hadoop.hbase.filter.RegexStringComparator;
 import org.apache.hadoop.hbase.filter.RowFilter;
+import org.apache.hadoop.hbase.ipc.BlockingRpcCallback;
 import org.apache.hadoop.hive.common.ObjectPair;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.AggrStats;
@@ -57,6 +60,7 @@ import org.apache.hadoop.hive.metastore.api.Role;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.hbase.PartitionKeyComparator.Operator;
+import org.apache.hadoop.hive.metastore.hbase.txn.txnmgr.TransactionManager;
 import org.apache.hive.common.util.BloomFilter;
 import org.apache.thrift.TBase;
 import org.apache.thrift.TException;
@@ -2885,6 +2889,31 @@ public class HBaseReadWrite implements MetadataStore {
     }
     return sequences;
   }
+
+  /**********************************************************************************************
+   * Co-processor methods
+   *********************************************************************************************/
+  // TODO I don't know if this will work with Omid or Tephra.  See what they do with table
+  // .coprocessorServer()
+
+  public <M extends Message, R extends Message> R callTransactionManager(final M input)
+      throws IOException {
+    HTableInterface htab = conn.getHBaseTable(TXN_TABLE);
+    Map<byte[], R> result = htab.coprocessorService(TransactionManager.class, null, null,
+        new Batch.Call<TransactionManager, R>() {
+          @Override
+          public R call(TransactionManager txnMgr) throws IOException {
+            BlockingRpcCallback<R> rpcCallback = new BlockingRpcCallback<R>();
+            txnMgr.getOpenTxns(null, input, rpcCallback);
+            return rpcCallback.get();
+          }
+        });
+    if (result.size() > 1) {
+      throw new RuntimeException("Logic error! Got result from more than one co-processor");
+    }
+    return result.values().iterator().next();
+  }
+
 
   /**********************************************************************************************
    * Cache methods

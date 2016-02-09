@@ -65,6 +65,8 @@ import org.apache.hadoop.hive.metastore.api.SkewedInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.StringColumnStatsData;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.api.TxnInfo;
+import org.apache.hadoop.hive.metastore.api.TxnState;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.ByteStream.Output;
 import org.apache.hadoop.hive.serde2.SerDeException;
@@ -1417,6 +1419,30 @@ public class HBaseUtils {
   static HbaseMetastoreProto.Transaction deserializeTransaction(byte[] value)
       throws InvalidProtocolBufferException {
     return HbaseMetastoreProto.Transaction.parseFrom(value);
+  }
+
+  static TxnInfo pbTxnToThriftTxnInfo(HbaseMetastoreProto.Transaction txn) {
+    // Use empty constructor because requireds aren't the same between the two, and we need to
+    // fill in defaults for requireds in thrift that aren't in pb.
+    TxnInfo txnInfo = new TxnInfo();
+    txnInfo.setId(txn.getId());
+    txnInfo.setState(pbTxnStateToThriftTxnState(txn.getTxnState()));
+    if (txn.hasUser()) txnInfo.setUser(txn.getUser());
+    else txnInfo.setUser("unknown");
+    if (txn.hasHostname()) txnInfo.setHostname(txn.getHostname());
+    else txnInfo.setHostname("unknown");
+    if (txn.hasAgentInfo()) txnInfo.setAgentInfo(txn.getAgentInfo());
+    if (txn.hasMetaInfo()) txnInfo.setMetaInfo(txn.getMetaInfo());
+    return txnInfo;
+  }
+
+  static TxnState pbTxnStateToThriftTxnState(HbaseMetastoreProto.TxnState pbState) {
+    switch (pbState) {
+    case COMMITTED: return TxnState.COMMITTED;
+    case OPEN: return TxnState.OPEN;
+    case ABORTED: return TxnState.ABORTED;
+    default: throw new RuntimeException("Unknown txn type");
+    }
   }
 
   /**

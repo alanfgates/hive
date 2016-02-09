@@ -42,18 +42,23 @@ import org.apache.hadoop.hive.metastore.api.ShowLocksResponse;
 import org.apache.hadoop.hive.metastore.api.TxnAbortedException;
 import org.apache.hadoop.hive.metastore.api.TxnOpenException;
 import org.apache.hadoop.hive.metastore.api.UnlockRequest;
-import org.apache.hadoop.hive.metastore.hbase.txn.txnmgr.TransactionManager;
+import org.apache.hadoop.hive.metastore.hbase.HBaseReadWrite;
+import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
 import org.apache.hadoop.hive.metastore.txn.CompactionInfo;
 import org.apache.hadoop.hive.metastore.txn.TxnStore;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Set;
 
 public class HBaseTxnHandler implements TxnStore {
-  HiveConf conf;
-  // TODO - it won't actually work like this, as they'll all actually be co-processor calls.
-  TransactionManager txnMgr;
+  static final private Logger LOG = LoggerFactory.getLogger(HBaseTxnHandler.class.getName());
+
+  private HBaseReadWrite hbase = null;
+  private HiveConf conf;
 
   @Override
   public void setConf(HiveConf conf) {
@@ -62,9 +67,15 @@ public class HBaseTxnHandler implements TxnStore {
 
   @Override
   public GetOpenTxnsInfoResponse getOpenTxnsInfo() throws MetaException {
-    // TODO - read open txns from HBase table.  Can't do it from memory because we don't keep all
-    // the necessary info in memory.
-    return null;
+    // We have to go to the table to get this information because much of it isn't kept in memory.
+    try {
+      List<HbaseMetastoreProto.Transaction> txns = getHBase().scanTransactions();
+      long hwm = getHBase().readCurrentSequence()
+      return new GetOpenTxnsInfoResponse(hwm, openTxns);
+    } catch (IOException e) {
+      LOG.error("Failed to scan transactions", e);
+      throw new MetaException(e.getMessage());
+    }
   }
 
   @Override
@@ -316,4 +327,13 @@ public class HBaseTxnHandler implements TxnStore {
   public long setTimeout(long milliseconds) {
     return 0;
   }
+
+  private HBaseReadWrite getHBase() {
+    if (hbase == null) {
+      HBaseReadWrite.setConf(conf);
+      hbase = HBaseReadWrite.getInstance();
+    }
+    return hbase;
+  }
+
 }
