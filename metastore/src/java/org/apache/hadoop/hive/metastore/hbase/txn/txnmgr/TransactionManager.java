@@ -69,13 +69,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Coprocessor,
                                                                               CoprocessorService {
 
-  // TODO add transaction open/close to HBaseTxnHandler (and here as well?)
-  // TODO may need to keep my own sequences to avoid hbase transactions
-  // TODO prove out compaction operations
   // TODO solve lost update problem
-  // TODO Convert to actual service
-  // TODO get rid of all of the exceptions and send them back in a message
-  // TODO remove the use of HiveConf, this won't have access to it, need to find another way to pass the required values.
   // TODO handle refusing new transactions once we reach a certain size.
   // TODO add logging
   // TODO add new object types in HBaseSchemaTool
@@ -177,6 +171,8 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
   public void openTxns(RpcController controller, HbaseMetastoreProto.OpenTxnsRequest request,
                        RpcCallback<HbaseMetastoreProto.OpenTxnsResponse> done) {
     HbaseMetastoreProto.OpenTxnsResponse response = null;
+    boolean shouldCommit = false;
+    getHBase().begin();
     try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
       List<HbaseMetastoreProto.Transaction> hbaseTxns = new ArrayList<>();
       HbaseMetastoreProto.OpenTxnsResponse.Builder rspBuilder =
@@ -200,11 +196,13 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
       long newTxnVal = getHBase().addToSequence(HBaseReadWrite.TXN_SEQUENCE, request.getNumTxns());
       assert newTxnVal == nextTxnId;
       getHBase().putTransactions(hbaseTxns);
-
-
+      shouldCommit = true;
       response = rspBuilder.build();
     } catch (IOException e) {
       ResponseConverter.setControllerException(controller, e);
+    } finally {
+      if (shouldCommit) getHBase().commit();
+      else getHBase().rollback();
     }
     done.run(response);
   }
@@ -295,8 +293,16 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
               .getTable(), hbaseLock.getPartition()));
         }
       }
-      getHBase().putTransaction(txnBuilder.build());
-      getHBase().putPotentialCompactions(abortedTxn.getId(), pces);
+      boolean shouldCommit = false;
+      getHBase().begin();
+      try {
+        getHBase().putTransaction(txnBuilder.build());
+        getHBase().putPotentialCompactions(abortedTxn.getId(), pces);
+        shouldCommit = true;
+      } finally {
+        if (shouldCommit) getHBase().commit();
+        else getHBase().rollback();
+      }
     } else {
       // There's no reason to remember this txn anymore, it either had no locks or was read only.
       getHBase().deleteTransaction(txn.getId());
@@ -307,6 +313,8 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
   public void commitTxn(RpcController controller, HbaseMetastoreProto.TransactionId request,
                         RpcCallback<HbaseMetastoreProto.TransactionResult> done) {
     HbaseMetastoreProto.TransactionResult response = null;
+    boolean shouldCommit = false;
+    getHBase().begin();
     try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
       OpenHiveTransaction txn = openTxns.get(request.getId());
       if (txn == null) {
@@ -368,11 +376,15 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
       } else {
         getHBase().deleteTransaction(txn.getId());
       }
+      shouldCommit = true;
       response = HbaseMetastoreProto.TransactionResult.newBuilder()
           .setState(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS)
           .build();
     } catch (IOException e) {
       ResponseConverter.setControllerException(controller, e);
+    } finally {
+      if (shouldCommit) getHBase().commit();
+      else getHBase().rollback();
     }
     done.run(response);
   }
@@ -460,7 +472,15 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
         HbaseMetastoreProto.Transaction.Builder txnBuilder =
             HbaseMetastoreProto.Transaction.newBuilder(hbaseTxn);
         txnBuilder.addAllLocks(lockBuilders);
-        getHBase().putTransaction(txnBuilder.build());
+        boolean shouldCommit = false;
+        getHBase().begin();
+        try {
+          getHBase().putTransaction(txnBuilder.build());
+          shouldCommit = true;
+        } finally {
+          if (shouldCommit) getHBase().commit();
+          else getHBase().rollback();
+        }
       }
       // Poll on the state of all the locks, return once they've all gone acquired.  But don't wait
       // more than a few seconds, as this is tying down a thread in HBase.  After that they can call
@@ -572,6 +592,8 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
                                    HbaseMetastoreProto.AddDynamicPartitionsRequest request,
                                    RpcCallback<HbaseMetastoreProto.TransactionResult> done) {
     HbaseMetastoreProto.TransactionResult response = null;
+    boolean shouldCommit = false;
+    getHBase().begin();
     // This needs to acquire the write lock because it might add entries to dtps, which is
     // unfortunate.
     try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
@@ -618,11 +640,15 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
 
       getHBase().putTransaction(txnBuilder.build());
       getHBase().putPotentialCompactions(txn.getId(), pces);
+      shouldCommit = true;
       response = HbaseMetastoreProto.TransactionResult.newBuilder()
           .setState(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS)
           .build();
     } catch (IOException e) {
       ResponseConverter.setControllerException(controller, e);
+    } finally {
+      if (shouldCommit) getHBase().commit();
+      else getHBase().rollback();
     }
     done.run(response);
   }
@@ -700,17 +726,25 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
               getHBase().putTransactions(toWrite);
             }
             // rewrite potential compaction
-            if (uncompactedTxns.size() > 0) {
-              // Rewrite the potential compaction to remove txns that have been compacted out
-              HbaseMetastoreProto.PotentialCompaction.Builder potentialBldr =
-                  HbaseMetastoreProto.PotentialCompaction.newBuilder(potential);
-              potentialBldr.clearTxnIds();
-              potentialBldr.addAllTxnIds(uncompactedTxns);
-              getHBase().putPotentialCompaction(potentialBldr.build());
-            } else {
-              // This was the last transaction in this potential compaction, so remove it
-              getHBase().deletePotentialCompaction(potential.getDb(), potential.getTable(),
-                  potential.hasPartition() ? potential.getPartition() : null);
+            boolean shouldCommit = false;
+            getHBase().begin();
+            try {
+              if (uncompactedTxns.size() > 0) {
+                // Rewrite the potential compaction to remove txns that have been compacted out
+                HbaseMetastoreProto.PotentialCompaction.Builder potentialBldr =
+                    HbaseMetastoreProto.PotentialCompaction.newBuilder(potential);
+                potentialBldr.clearTxnIds();
+                potentialBldr.addAllTxnIds(uncompactedTxns);
+                getHBase().putPotentialCompaction(potentialBldr.build());
+              } else {
+                // This was the last transaction in this potential compaction, so remove it
+                getHBase().deletePotentialCompaction(potential.getDb(), potential.getTable(),
+                    potential.hasPartition() ? potential.getPartition() : null);
+              }
+              shouldCommit = true;
+            } finally {
+              if (shouldCommit) getHBase().commit();
+              else getHBase().rollback();
             }
           }
         }
@@ -775,29 +809,35 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
     // No locking is required here because we're still in the constructor and we're guaranteed no
     // one else is muddying the waters.
     // Get existing transactions from HBase
-    List<HbaseMetastoreProto.Transaction> hbaseTxns = getHBase().scanTransactions();
-    if (hbaseTxns != null) {
-      for (HbaseMetastoreProto.Transaction hbaseTxn : hbaseTxns) {
-        switch (hbaseTxn.getTxnState()) {
-        case ABORTED:
-          AbortedHiveTransaction abortedTxn = new AbortedHiveTransaction(hbaseTxn, this);
-          abortedTxns.put(abortedTxn.getId(), abortedTxn);
-          break;
+    boolean shouldCommit = false;
+    try {
+      List<HbaseMetastoreProto.Transaction> hbaseTxns = getHBase().scanTransactions();
+      if (hbaseTxns != null) {
+        for (HbaseMetastoreProto.Transaction hbaseTxn : hbaseTxns) {
+          switch (hbaseTxn.getTxnState()) {
+          case ABORTED:
+            AbortedHiveTransaction abortedTxn = new AbortedHiveTransaction(hbaseTxn, this);
+            abortedTxns.put(abortedTxn.getId(), abortedTxn);
+            break;
 
-        case OPEN:
-          OpenHiveTransaction openTxn = new OpenHiveTransaction(hbaseTxn, this);
-          openTxns.put(openTxn.getId(), openTxn);
-          break;
+          case OPEN:
+            OpenHiveTransaction openTxn = new OpenHiveTransaction(hbaseTxn, this);
+            openTxns.put(openTxn.getId(), openTxn);
+            break;
 
-        case COMMITTED:
-          CommittedHiveTransaction commitedTxn = new CommittedHiveTransaction(hbaseTxn, this);
-          committedTxns.add(commitedTxn);
-          break;
+          case COMMITTED:
+            CommittedHiveTransaction commitedTxn = new CommittedHiveTransaction(hbaseTxn, this);
+            committedTxns.add(commitedTxn);
+            break;
+          }
         }
       }
+      nextTxnId = getHBase().readCurrentSequence(HBaseReadWrite.TXN_SEQUENCE);
+      nextLockId = getHBase().readCurrentSequence(HBaseReadWrite.LOCK_SEQUENCE);
+    } finally {
+      // It's a read only operation, so always commit
+      getHBase().commit();
     }
-    nextTxnId = getHBase().readCurrentSequence(HBaseReadWrite.TXN_SEQUENCE);
-    nextLockId = getHBase().readCurrentSequence(HBaseReadWrite.LOCK_SEQUENCE);
   }
 
   private HBaseReadWrite getHBase() {

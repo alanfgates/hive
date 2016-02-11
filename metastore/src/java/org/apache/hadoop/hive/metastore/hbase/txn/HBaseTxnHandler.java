@@ -77,12 +77,11 @@ public class HBaseTxnHandler implements TxnStore {
     this.conf = conf;
   }
 
-  // TODO I'm not sure how the exceptions come back to me.  Need to figure that out.
-
   @Override
   public GetOpenTxnsInfoResponse getOpenTxnsInfo() throws MetaException {
     // We have to go to the table to get this information because much of it isn't kept in memory.
     try {
+      getHBase().begin();
       List<HbaseMetastoreProto.Transaction> txns = getHBase().scanTransactions();
       long hwm = getHBase().readCurrentSequence(HBaseReadWrite.TXN_SEQUENCE);
       List<TxnInfo> openTxns = new ArrayList<>(txns.size());
@@ -91,11 +90,15 @@ public class HBaseTxnHandler implements TxnStore {
     } catch (IOException e) {
       LOG.error("Failed to scan transactions", e);
       throw new MetaException(e.getMessage());
+    } finally {
+      // It's a read only operation, so always commit
+      getHBase().commit();
     }
   }
 
   @Override
   public GetOpenTxnsResponse getOpenTxns() throws MetaException {
+    // No HBase txn as we're relying on the co-processor here
     Batch.Call<TransactionManager, HbaseMetastoreProto.GetOpenTxnsResponse> call =
         new Batch.Call<TransactionManager, HbaseMetastoreProto.GetOpenTxnsResponse>() {
           @Override
@@ -116,6 +119,7 @@ public class HBaseTxnHandler implements TxnStore {
 
   @Override
   public OpenTxnsResponse openTxns(OpenTxnRequest rqst) throws MetaException {
+    // No HBase txn as we're relying on the co-processor here
     final HbaseMetastoreProto.OpenTxnsRequest pbRqst = HBaseUtils.thriftToPb(rqst);
     Batch.Call<TransactionManager, HbaseMetastoreProto.OpenTxnsResponse> call =
         new Batch.Call<TransactionManager, HbaseMetastoreProto.OpenTxnsResponse>() {
@@ -138,6 +142,7 @@ public class HBaseTxnHandler implements TxnStore {
 
   @Override
   public void abortTxn(AbortTxnRequest rqst) throws NoSuchTxnException, MetaException {
+    // No HBase txn as we're relying on the co-processor here
     final HbaseMetastoreProto.TransactionId pbRqst = HBaseUtils.thriftToPb(rqst);
     Batch.Call<TransactionManager, HbaseMetastoreProto.TransactionResult> call =
         new Batch.Call<TransactionManager, HbaseMetastoreProto.TransactionResult>() {
@@ -162,6 +167,7 @@ public class HBaseTxnHandler implements TxnStore {
   @Override
   public void commitTxn(CommitTxnRequest rqst) throws NoSuchTxnException, TxnAbortedException,
       MetaException {
+    // No HBase txn as we're relying on the co-processor here
     final HbaseMetastoreProto.TransactionId pbRqst = HBaseUtils.thriftToPb(rqst);
     Batch.Call<TransactionManager, HbaseMetastoreProto.TransactionResult> call =
         new Batch.Call<TransactionManager, HbaseMetastoreProto.TransactionResult>() {
@@ -186,6 +192,7 @@ public class HBaseTxnHandler implements TxnStore {
   @Override
   public LockResponse lock(LockRequest rqst) throws NoSuchTxnException, TxnAbortedException,
       MetaException {
+    // No HBase txn as we're relying on the co-processor here
     if (!rqst.isSetTxnid()) {
       throw new MetaException("You must now set a transaction id when requesting locks");
     }
@@ -213,6 +220,7 @@ public class HBaseTxnHandler implements TxnStore {
   @Override
   public LockResponse checkLock(CheckLockRequest rqst) throws NoSuchTxnException,
       NoSuchLockException, TxnAbortedException, MetaException {
+    // No HBase txn as we're relying on the co-processor here
     if (!rqst.isSetTxnid()) {
       throw new MetaException("You must now set a transaction id when requesting locks");
     }
@@ -262,6 +270,7 @@ public class HBaseTxnHandler implements TxnStore {
   @Override
   public HeartbeatTxnRangeResponse heartbeatTxnRange(HeartbeatTxnRangeRequest rqst) throws
       MetaException {
+    // No HBase txn as we're relying on the co-processor here
     final HbaseMetastoreProto.HeartbeatTxnRangeRequest pbRqst = HBaseUtils.thriftToPb(rqst);
     Batch.Call<TransactionManager, HbaseMetastoreProto.HeartbeatTxnRangeResponse> call =
         new Batch.Call<TransactionManager, HbaseMetastoreProto.HeartbeatTxnRangeResponse>() {
@@ -284,7 +293,9 @@ public class HBaseTxnHandler implements TxnStore {
 
   @Override
   public long compact(CompactionRequest rqst) throws MetaException {
+    boolean shouldCommit = false;
     try {
+      getHBase().begin();
       HbaseMetastoreProto.Compaction.Builder builder = HbaseMetastoreProto.Compaction.newBuilder();
       long compactionId = getHBase().getNextSequence(HBaseReadWrite.COMPACTION_SEQUENCE);
       builder.setId(compactionId);
@@ -294,16 +305,21 @@ public class HBaseTxnHandler implements TxnStore {
       builder.setState(HbaseMetastoreProto.CompactionState.INITIATED);
       builder.setType(HBaseUtils.thriftToPb(rqst.getType()));
       getHBase().putCompaction(builder.build());
+      shouldCommit = true;
+      return compactionId;
     } catch (IOException e) {
       LOG.error("Failed to request compaction", e);
       throw new MetaException(e.getMessage());
+    } finally {
+      if (shouldCommit) getHBase().commit();
+      else getHBase().rollback();
     }
-    return 0;
   }
 
   @Override
   public ShowCompactResponse showCompact(ShowCompactRequest rqst) throws MetaException {
     try {
+      getHBase().begin();
       List<HbaseMetastoreProto.Compaction> compactions = getHBase().scanCompactions(null);
       List<ShowCompactResponseElement> elements = new ArrayList<>(compactions.size());
       for (HbaseMetastoreProto.Compaction compaction : compactions) {
@@ -313,12 +329,16 @@ public class HBaseTxnHandler implements TxnStore {
     } catch (IOException e) {
       LOG.error("Failed to get compactions", e);
       throw new MetaException(e.getMessage());
+    } finally {
+      // It's a read only operation, so always commit
+      getHBase().commit();
     }
   }
 
   @Override
   public void addDynamicPartitions(AddDynamicPartitions rqst) throws NoSuchTxnException,
       TxnAbortedException, MetaException {
+    // No HBase txn as we're relying on the co-processor here
     final HbaseMetastoreProto.AddDynamicPartitionsRequest pbRqst = HBaseUtils.thriftToPb(rqst);
     Batch.Call<TransactionManager, HbaseMetastoreProto.TransactionResult> call =
         new Batch.Call<TransactionManager, HbaseMetastoreProto.TransactionResult>() {
@@ -350,6 +370,7 @@ public class HBaseTxnHandler implements TxnStore {
     // We ignore max aborted.
     // TODO change initiator to compact based on number of txns instead of number of aborts
     try {
+      getHBase().begin();
       Set<CompactionInfo> cis = new HashSet<>();
       Iterator<HbaseMetastoreProto.PotentialCompaction> iter =
           getHBase().scanPotentialCompactions();
@@ -358,28 +379,38 @@ public class HBaseTxnHandler implements TxnStore {
     } catch (IOException e) {
       LOG.error("Failed to find potential compactions", e);
       throw new MetaException(e.getMessage());
+    } finally {
+      // It's a read only operation, so always commit
+      getHBase().commit();
     }
   }
 
   @Override
   public void setRunAs(long cq_id, String user) throws MetaException {
+    boolean shouldCommit = false;
     try {
+      getHBase().begin();
       HbaseMetastoreProto.Compaction compaction = getHBase().getCompaction(cq_id);
       HbaseMetastoreProto.Compaction newCompaction =
           HbaseMetastoreProto.Compaction.newBuilder(compaction)
           .setRunAs(user)
           .build();
       getHBase().putCompaction(newCompaction);
+      shouldCommit = true;
     } catch (IOException e) {
       LOG.error("Failed to set run as", e);
       throw new MetaException(e.getMessage());
-
+    } finally {
+      if (shouldCommit) getHBase().commit();
+      else getHBase().rollback();
     }
   }
 
   @Override
   public CompactionInfo findNextToCompact(String workerId) throws MetaException {
+    boolean shouldCommit = false;
     try {
+      getHBase().begin();
       List<HbaseMetastoreProto.Compaction> initiated =
           getHBase().scanCompactions(HbaseMetastoreProto.CompactionState.INITIATED);
       if (initiated.size() == 0) return null;
@@ -392,16 +423,22 @@ public class HBaseTxnHandler implements TxnStore {
               .setStartedWorkingAt(System.currentTimeMillis())
               .build();
       getHBase().putCompaction(toWorkOn);
+      shouldCommit = true;
       return HBaseUtils.pbToCompactor(toWorkOn);
     } catch (IOException e) {
       LOG.error("Failed to find next compaction to work on", e);
       throw new MetaException(e.getMessage());
+    } finally {
+      if (shouldCommit) getHBase().commit();
+      else getHBase().rollback();
     }
   }
 
   @Override
   public void markCompacted(CompactionInfo info) throws MetaException {
+    boolean shouldCommit = false;
     try {
+      getHBase().begin();  // TODO - not sure if it's ok to go into the co-processor with an open txn or not
       final HbaseMetastoreProto.Compaction pbRqst = getHBase().getCompaction(info.id);
       if (pbRqst == null) {
         throw new MetaException("No such compaction " + info.id);
@@ -422,15 +459,21 @@ public class HBaseTxnHandler implements TxnStore {
               .setState(HbaseMetastoreProto.CompactionState.READY_FOR_CLEANING)
               .build();
       getHBase().putCompaction(toWorkOn);
+      shouldCommit = true;
     } catch (Throwable e) {
       LOG.error("Failed to cleanup after compaction", e);
       throw new MetaException(e.getMessage());
+    } finally {
+      if (shouldCommit) getHBase().commit();
+      else getHBase().rollback();
     }
   }
 
   @Override
   public List<CompactionInfo> findReadyToClean() throws MetaException {
+    boolean shouldCommit = false;
     try {
+      getHBase().begin();  // TODO - not sure if it's ok to go into the co-processor with an open txn or not
       List<HbaseMetastoreProto.Compaction> compacted =
           getHBase().scanCompactions(HbaseMetastoreProto.CompactionState.READY_FOR_CLEANING);
       if (compacted.size() == 0) return null;
@@ -468,10 +511,14 @@ public class HBaseTxnHandler implements TxnStore {
       for (HbaseMetastoreProto.Compaction compaction : cleanable) {
         returns.add(HBaseUtils.pbToCompactor(compaction));
       }
+      shouldCommit = true;
       return returns;
     } catch (Throwable e) {
       LOG.error("Failed to find next compaction to work on", e);
       throw new MetaException(e.getMessage());
+    } finally {
+      if (shouldCommit) getHBase().commit();
+      else getHBase().rollback();
     }
   }
 
@@ -488,7 +535,9 @@ public class HBaseTxnHandler implements TxnStore {
   private void changeCompactionState(CompactionInfo info,
                                      HbaseMetastoreProto.CompactionState state)
       throws MetaException {
+    boolean shouldCommit = false;
     try {
+      getHBase().begin();
       final HbaseMetastoreProto.Compaction pbRqst = getHBase().getCompaction(info.id);
       if (pbRqst == null) {
         throw new MetaException("No such compaction " + info.id);
@@ -499,9 +548,13 @@ public class HBaseTxnHandler implements TxnStore {
               .setState(state)
               .build();
       getHBase().putCompaction(toMarkCleaned);
+      shouldCommit = true;
     } catch (IOException e) {
       LOG.error("Failed to change compaction state", e);
       throw new MetaException(e.getMessage());
+    } finally {
+      if (shouldCommit) getHBase().commit();
+      else getHBase().rollback();
     }
   }
 
@@ -512,7 +565,9 @@ public class HBaseTxnHandler implements TxnStore {
 
   @Override
   public void revokeFromLocalWorkers(String hostname) throws MetaException {
+    boolean shouldCommit = false;
     try {
+      getHBase().begin();
       List<HbaseMetastoreProto.Compaction> working =
           getHBase().scanCompactions(HbaseMetastoreProto.CompactionState.WORKING);
       if (working.size() == 0) return;
@@ -535,15 +590,21 @@ public class HBaseTxnHandler implements TxnStore {
       }
 
       getHBase().putCompactions(newCompactions);
+      shouldCommit = true;
     } catch (Throwable e) {
       LOG.error("Failed to find next compaction to work on", e);
       throw new MetaException(e.getMessage());
+    } finally {
+      if (shouldCommit) getHBase().commit();
+      else getHBase().rollback();
     }
   }
 
   @Override
   public void revokeTimedoutWorkers(long timeout) throws MetaException {
+    boolean shouldCommit = false;
     try {
+      getHBase().begin();
       List<HbaseMetastoreProto.Compaction> working =
           getHBase().scanCompactions(HbaseMetastoreProto.CompactionState.WORKING);
       if (working.size() == 0) return;
@@ -568,9 +629,13 @@ public class HBaseTxnHandler implements TxnStore {
       }
 
       getHBase().putCompactions(newCompactions);
+      shouldCommit = true;
     } catch (Throwable e) {
       LOG.error("Failed to find next compaction to work on", e);
       throw new MetaException(e.getMessage());
+    } finally {
+      if (shouldCommit) getHBase().commit();
+      else getHBase().rollback();
     }
   }
 
@@ -582,22 +647,30 @@ public class HBaseTxnHandler implements TxnStore {
 
   @Override
   public void setCompactionHighestTxnId(CompactionInfo ci, long highestTxnId) throws MetaException {
+    boolean shouldCommit = false;
     try {
+      getHBase().begin();
       HbaseMetastoreProto.Compaction compaction = getHBase().getCompaction(ci.id);
       HbaseMetastoreProto.Compaction newCompaction =
           HbaseMetastoreProto.Compaction.newBuilder(compaction)
           .setHighestTxnId(highestTxnId)
           .build();
       getHBase().putCompaction(newCompaction);
+      shouldCommit = true;
     } catch (IOException e) {
       LOG.error("Failed to set highest txn id", e);
       throw new MetaException(e.getMessage());
+    } finally {
+      if (shouldCommit) getHBase().commit();
+      else getHBase().rollback();
     }
   }
 
   @Override
   public void purgeCompactionHistory() throws MetaException {
+    boolean shouldCommit = false;
     try {
+      getHBase().begin();
       List<HbaseMetastoreProto.Compaction> compactions = getHBase().scanCompactions(null);
       if (compactions.size() == 0) return;
 
@@ -620,17 +693,20 @@ public class HBaseTxnHandler implements TxnStore {
       if (deleteSet.size() > 0) {
         getHBase().deleteCompactions(deleteSet);
       }
+      shouldCommit = true;
     } catch (IOException e) {
       LOG.error("Failed to purge compaction history", e);
       throw new MetaException(e.getMessage());
-
+    } finally {
+      if (shouldCommit) getHBase().commit();
+      else getHBase().rollback();
     }
-
   }
 
   @Override
   public boolean checkFailedCompactions(CompactionInfo ci) throws MetaException {
     try {
+      getHBase().begin();
       List<HbaseMetastoreProto.Compaction> compactions =
           getHBase().scanCompactions(HbaseMetastoreProto.CompactionState.FAILED);
       if (compactions.size() == 0) return false;
@@ -651,9 +727,10 @@ public class HBaseTxnHandler implements TxnStore {
     } catch (IOException e) {
       LOG.error("Failed to purge compaction history", e);
       throw new MetaException(e.getMessage());
-
+    } finally {
+      // It's a read only operation, so always commit
+      getHBase().commit();
     }
-
   }
 
   @Override

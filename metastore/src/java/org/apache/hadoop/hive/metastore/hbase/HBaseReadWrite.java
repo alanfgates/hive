@@ -324,7 +324,7 @@ public class HBaseReadWrite implements MetadataStore {
   /**
    * Begin a transaction
    */
-  void begin() {
+  public void begin() {
     try {
       conn.beginTransaction();
     } catch (IOException e) {
@@ -335,7 +335,7 @@ public class HBaseReadWrite implements MetadataStore {
   /**
    * Commit a transaction
    */
-  void commit() {
+  public void commit() {
     try {
       conn.commitTransaction();
     } catch (IOException e) {
@@ -343,7 +343,7 @@ public class HBaseReadWrite implements MetadataStore {
     }
   }
 
-  void rollback() {
+  public void rollback() {
     try {
       conn.rollbackTransaction();
     } catch (IOException e) {
