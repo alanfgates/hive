@@ -292,8 +292,9 @@ enum CompactionState {
   INITIATED = 1;
   WORKING = 2;
   READY_FOR_CLEANING = 3;
-  FAILED = 4;
-  SUCCEEDED = 5;
+  CLEANING = 4;
+  FAILED = 5;
+  SUCCEEDED = 6;
 }
 
 enum CompactionType {
@@ -339,6 +340,7 @@ message Compaction {
   optional int64 highest_txn_id = 10;
   optional string meta_info = 11;
   optional string hadoop_job_id = 12;
+  optional int64 end_time = 13;
 }
 
 message Transaction {
@@ -350,7 +352,6 @@ message Transaction {
     optional string table = 5;
     optional string partition = 6;
     optional int64 acquired_at = 7;
-    optional bool compacted = 8;
   }
 
   required int64 id = 1;
@@ -379,8 +380,8 @@ message AddDynamicPartitionsRequest {
   repeated string partitions = 4;
 }
 
-message GetOpenTxnsRequest {
-  // Null for now and probably forever
+message CompactionList {
+  repeated Compaction compactions = 1;
 }
 
 message GetOpenTxnsResponse {
@@ -401,7 +402,7 @@ message HeartbeatTxnRangeResponse {
 
 message LockComponent {
   required LockType type = 1;
-  required LockState state = 2;
+  optional LockState state = 2;
   required string db = 3;
   optional string table = 4;
   optional string partition = 5;
@@ -441,14 +442,15 @@ message Void {
 
 service TxnMgr {
   rpc OpenTxns(OpenTxnsRequest) returns (OpenTxnsResponse);
-  rpc GetOpenTxns(GetOpenTxnsRequest) returns (GetOpenTxnsResponse);
+  rpc GetOpenTxns(Void) returns (GetOpenTxnsResponse);
   rpc AbortTxn(TransactionId) returns (TransactionResult);
   rpc CommitTxn(TransactionId) returns (TransactionResult);
   rpc Heartbeat(HeartbeatTxnRangeRequest) returns (HeartbeatTxnRangeResponse);
   rpc Lock(LockRequest) returns (LockResponse);
   rpc CheckLocks(TransactionId) returns (LockResponse);
   rpc AddDynamicPartitions(AddDynamicPartitionsRequest) returns (TransactionResult);
-  rpc RemoveCompleteCompactedAbortedTxn(TransactionId) returns (Void);
+  rpc cleanupAfterCompaction(Compaction) returns (Void);
+  rpc verifyCompactionCanBeCleaned(CompactionList) returns (CompactionList);
 
 }
 

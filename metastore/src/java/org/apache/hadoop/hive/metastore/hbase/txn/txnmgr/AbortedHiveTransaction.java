@@ -20,29 +20,41 @@ package org.apache.hadoop.hive.metastore.hbase.txn.txnmgr;
 import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class AbortedHiveTransaction extends HiveTransaction {
+
+  private Map<TransactionManager.DTPKey, HiveLock> compactableLocks;
 
   /**
    * For use when creating a new aborted transaction.
    * @param openTxn open transaction moving into aborted state.
    */
-  AbortedHiveTransaction(HiveTransaction openTxn) {
+  AbortedHiveTransaction(OpenHiveTransaction openTxn) {
     super(openTxn.getId());
-    if (openTxn.getState() != HbaseMetastoreProto.TxnState.OPEN) {
-      throw new RuntimeException("Logic error, attempt to abort transaction in state " +
-          openTxn.getState());
+    compactableLocks = new HashMap<>();
+    for (HiveLock lock : openTxn.getHiveLocks()) {
+      if (lock.getType() == HbaseMetastoreProto.LockType.SHARED_WRITE) {
+        compactableLocks.put(lock.getDtpQueue().key, lock);
+      }
     }
   }
 
   /**
    * For use when recovering transactions from HBase.
    * @param hbaseTxn transaction record from HBase.
+   * @param txnMgr ptr to the transaction manager
    * @throws IOException
    */
-  AbortedHiveTransaction(HbaseMetastoreProto.Transaction hbaseTxn)
+  AbortedHiveTransaction(HbaseMetastoreProto.Transaction hbaseTxn, TransactionManager txnMgr)
       throws IOException {
     super(hbaseTxn.getId());
+    compactableLocks = new HashMap<>();
+    for (HbaseMetastoreProto.Transaction.Lock hbaseLock : hbaseTxn.getLocksList()) {
+      HiveLock hiveLock = new HiveLock(id, hbaseLock, txnMgr);
+      compactableLocks.put(hiveLock.getDtpQueue().key, hiveLock);
+    }
   }
 
   @Override
@@ -50,33 +62,22 @@ public class AbortedHiveTransaction extends HiveTransaction {
     return HbaseMetastoreProto.TxnState.ABORTED;
   }
 
-  @Override
-  long getLastHeartbeat() {
-    throw new UnsupportedOperationException("Logic error, no heartbeats for aborted transactions");
+  /**
+   * Note that a dtp a lock is associated with has been compacted, so we can forget about the lock
+   * @param key dtp lock is associated with
+   */
+  HiveLock compactLock(TransactionManager.DTPKey key) {
+    return compactableLocks.remove(key);
   }
 
-  @Override
-  void setLastHeartbeat(long lastHeartbeat) {
-    throw new UnsupportedOperationException("Logic error, no heartbeats for aborted transactions");
+  /**
+   * Determine whether all dtps written to by an aborted transaction have been compacted.
+   * @return true if all have been compacted, false otherwise.
+   */
+  boolean fullyCompacted() {
+    return compactableLocks.size() == 0;
   }
 
-  @Override
-  HiveLock[] getHiveLocks() {
-    throw new UnsupportedOperationException("Logic error, no locks for aborted transactions");
-  }
 
-  @Override
-  void addLocks(HiveLock[] newLocks) {
-    throw new UnsupportedOperationException("Logic error, no locks for aborted transactions");
-  }
 
-  @Override
-  boolean hasWriteLocks() {
-    return true;
-  }
-
-  @Override
-  long getCommitId() {
-    throw new UnsupportedOperationException("Logic error, no commit id for an aborted transaction");
-  }
 }

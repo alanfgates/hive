@@ -91,13 +91,6 @@ import java.util.concurrent.locks.ReentrantLock;
 @InterfaceStability.Evolving
 abstract class TxnHandler implements TxnStore, TxnStore.MutexAPI {
 
-  static final protected char INITIATED_STATE = 'i';
-  static final protected char WORKING_STATE = 'w';
-  static final protected char READY_FOR_CLEANING = 'r';
-  static final char FAILED_STATE = 'f';
-  static final char SUCCEEDED_STATE = 's';
-  static final char ATTEMPTED_STATE = 'a';
-
   // Compactor types
   static final protected char MAJOR_TYPE = 'a';
   static final protected char MINOR_TYPE = 'i';

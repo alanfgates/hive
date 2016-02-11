@@ -207,4 +207,44 @@ public class TxnUtils {
     long sizeInBytes = 8 * (((sb.length() * 2) + 45) / 8);
     return sizeInBytes / 1024 > queryMemoryLimit;
   }
+
+  /**
+   * this ensures that the number of failed compaction entries retained is > than number of failed
+   * compaction threshold which prevents new compactions from being scheduled.
+   */
+  public static int getFailedCompactionRetention(HiveConf conf) {
+    int failedThreshold = conf.getIntVar(HiveConf.ConfVars.COMPACTOR_INITIATOR_FAILED_THRESHOLD);
+    int failedRetention = conf.getIntVar(HiveConf.ConfVars.COMPACTOR_HISTORY_RETENTION_FAILED);
+    if(failedRetention < failedThreshold) {
+      LOG.warn("Invalid configuration " + HiveConf.ConfVars.COMPACTOR_INITIATOR_FAILED_THRESHOLD.varname +
+          "=" + failedRetention + " < " + HiveConf.ConfVars.COMPACTOR_HISTORY_RETENTION_FAILED + "=" +
+          failedRetention + ".  Will use " + HiveConf.ConfVars.COMPACTOR_INITIATOR_FAILED_THRESHOLD.varname +
+          "=" + failedRetention);
+      failedRetention = failedThreshold;
+    }
+    return failedRetention;
+  }
+
+  public static void checkForDeletion(List<Long> deleteSet, CompactionInfo ci, TxnStore.RetentionCounters
+      rc) {
+    switch (ci.state) {
+      case TxnStore.ATTEMPTED_STATE:
+        if(--rc.attemptedRetention < 0) {
+          deleteSet.add(ci.id);
+        }
+        break;
+      case TxnStore.FAILED_STATE:
+        if(--rc.failedRetention < 0) {
+          deleteSet.add(ci.id);
+        }
+        break;
+      case TxnStore.SUCCEEDED_STATE:
+        if(--rc.succeededRetention < 0) {
+          deleteSet.add(ci.id);
+        }
+        break;
+      default:
+        //do nothing to hanlde future RU/D where we may want to add new state types
+    }
+  }
 }

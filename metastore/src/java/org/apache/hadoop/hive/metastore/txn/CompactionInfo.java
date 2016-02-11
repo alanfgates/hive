@@ -32,12 +32,14 @@ public class CompactionInfo implements Comparable<CompactionInfo> {
   public String dbname;
   public String tableName;
   public String partName;
-  char state;
+  public char state;
   public CompactionType type;
-  String workerId;
-  long start;
+  public String workerId;
+  public long start;
   public String runAs;
   public boolean tooManyAborts = false;
+  public int numTxns = 0;
+
   /**
    * {@code 0} means it wasn't set (e.g. in case of upgrades, since ResultSet.getLong() will return 0 if field is NULL) 
    * See {@link TxnStore#setCompactionHighestTxnId(CompactionInfo, long)} for precise definition.
@@ -45,8 +47,8 @@ public class CompactionInfo implements Comparable<CompactionInfo> {
    * {@link ValidCompactorTxnList#highWatermark}
    */
   public long highestTxnId;
-  byte[] metaInfo;
-  String hadoopJobId;
+  public byte[] metaInfo;
+  public String hadoopJobId;
 
   private String fullPartitionName = null;
   private String fullTableName = null;
@@ -62,7 +64,7 @@ public class CompactionInfo implements Comparable<CompactionInfo> {
     this.id = id;
     this.state = state;
   }
-  CompactionInfo() {}
+  public CompactionInfo() {}
   
   public String getFullPartitionName() {
     if (fullPartitionName == null) {

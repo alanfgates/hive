@@ -56,6 +56,15 @@ public interface TxnStore {
   static final public String SUCCEEDED_RESPONSE = "succeeded";
   static final public String ATTEMPTED_RESPONSE = "attempted";
 
+  // Compactor states (Should really be enum)
+  static final public char INITIATED_STATE = 'i';
+  static final public char WORKING_STATE = 'w';
+  static final public char READY_FOR_CLEANING = 'r';
+
+  static final public char FAILED_STATE = 'f';
+  static final public char SUCCEEDED_STATE = 's';
+  static final public char ATTEMPTED_STATE = 'a';
+
   public static final int TIMED_OUT_TXN_ABORT_BATCH_SIZE = 1000;
 
   public void setConf(HiveConf conf);
@@ -329,6 +338,17 @@ public interface TxnStore {
    * @throws MetaException
    */
   public boolean checkFailedCompactions(CompactionInfo ci) throws MetaException;
+
+  public static class RetentionCounters {
+    public int attemptedRetention = 0;
+    public int failedRetention = 0;
+    public int succeededRetention = 0;
+    public RetentionCounters(int attemptedRetention, int failedRetention, int succeededRetention) {
+      this.attemptedRetention = attemptedRetention;
+      this.failedRetention = failedRetention;
+      this.succeededRetention = succeededRetention;
+    }
+  }
 
   @VisibleForTesting
   public int numLocksInLockTable() throws SQLException, MetaException;

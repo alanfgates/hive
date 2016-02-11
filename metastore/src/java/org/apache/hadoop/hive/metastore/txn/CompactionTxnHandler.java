@@ -657,37 +657,6 @@ class CompactionTxnHandler extends TxnHandler {
       setCompactionHighestTxnId(ci, highestTxnId);
     }
   }
-  private static class RetentionCounters {
-    int attemptedRetention = 0;
-    int failedRetention = 0;
-    int succeededRetention = 0;
-    RetentionCounters(int attemptedRetention, int failedRetention, int succeededRetention) {
-      this.attemptedRetention = attemptedRetention;
-      this.failedRetention = failedRetention;
-      this.succeededRetention = succeededRetention;
-    }
-  }
-  private void checkForDeletion(List<Long> deleteSet, CompactionInfo ci, RetentionCounters rc) {
-    switch (ci.state) {
-      case ATTEMPTED_STATE:
-        if(--rc.attemptedRetention < 0) {
-          deleteSet.add(ci.id);
-        }
-        break;
-      case FAILED_STATE:
-        if(--rc.failedRetention < 0) {
-          deleteSet.add(ci.id);
-        }
-        break;
-      case SUCCEEDED_STATE:
-        if(--rc.succeededRetention < 0) {
-          deleteSet.add(ci.id);
-        }
-        break;
-      default:
-        //do nothing to hanlde future RU/D where we may want to add new state types
-    }
-  }
 
   /**
    * For any given compactable entity (partition, table if not partitioned) the history of compactions
@@ -720,10 +689,10 @@ class CompactionTxnHandler extends TxnHandler {
           if(!ci.getFullPartitionName().equals(lastCompactedEntity)) {
             lastCompactedEntity = ci.getFullPartitionName();
             rc = new RetentionCounters(conf.getIntVar(HiveConf.ConfVars.COMPACTOR_HISTORY_RETENTION_ATTEMPTED),
-              getFailedCompactionRetention(),
+              TxnUtils.getFailedCompactionRetention(conf),
               conf.getIntVar(HiveConf.ConfVars.COMPACTOR_HISTORY_RETENTION_SUCCEEDED));
           }
-          checkForDeletion(deleteSet, ci, rc);
+          TxnUtils.checkForDeletion(deleteSet, ci, rc);
         }
         close(rs);
 
@@ -755,22 +724,7 @@ class CompactionTxnHandler extends TxnHandler {
       purgeCompactionHistory();
     }
   }
-  /**
-   * this ensures that the number of failed compaction entries retained is > than number of failed
-   * compaction threshold which prevents new compactions from being scheduled.
-   */
-  public int getFailedCompactionRetention() {
-    int failedThreshold = conf.getIntVar(HiveConf.ConfVars.COMPACTOR_INITIATOR_FAILED_THRESHOLD);
-    int failedRetention = conf.getIntVar(HiveConf.ConfVars.COMPACTOR_HISTORY_RETENTION_FAILED);
-    if(failedRetention < failedThreshold) {
-      LOG.warn("Invalid configuration " + HiveConf.ConfVars.COMPACTOR_INITIATOR_FAILED_THRESHOLD.varname +
-        "=" + failedRetention + " < " + HiveConf.ConfVars.COMPACTOR_HISTORY_RETENTION_FAILED + "=" +
-        failedRetention + ".  Will use " + HiveConf.ConfVars.COMPACTOR_INITIATOR_FAILED_THRESHOLD.varname +
-        "=" + failedRetention);
-      failedRetention = failedThreshold;
-    }
-    return failedRetention;
-  }
+
   /**
    * Returns {@code true} if there already exists sufficient number of consecutive failures for
    * this table/partition so that no new automatic compactions will be scheduled.

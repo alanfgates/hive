@@ -36,13 +36,11 @@ import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Row;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.client.coprocessor.Batch;
-import org.apache.hadoop.hbase.filter.BinaryPrefixComparator;
 import org.apache.hadoop.hbase.filter.CompareFilter;
 import org.apache.hadoop.hbase.filter.Filter;
 import org.apache.hadoop.hbase.filter.FirstKeyOnlyFilter;
 import org.apache.hadoop.hbase.filter.RegexStringComparator;
 import org.apache.hadoop.hbase.filter.RowFilter;
-import org.apache.hadoop.hbase.ipc.BlockingRpcCallback;
 import org.apache.hadoop.hive.common.ObjectPair;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.AggrStats;
@@ -86,6 +84,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
+import java.util.TreeMap;
 
 
 /**
@@ -140,11 +139,6 @@ public class HBaseReadWrite implements MetadataStore {
     columnFamilies.put(FILE_METADATA_TABLE, Arrays.asList(CATALOG_CF, STATS_CF));
   }
 
-  final static byte[] MASTER_KEY_SEQUENCE = "master_key".getBytes(HBaseUtils.ENCODING);
-  // The change version functionality uses the sequences table, but we don't want to give the
-  // caller complete control over the sequence name as they might inadvertently clash with one of
-  // our sequence keys, so add a prefix to their topic name.
-  final static String CHANGE_VERSION_SEQUENCE_PREFIX = "cv_";
 
   final static byte[] AGGR_STATS_BLOOM_COL = "b".getBytes(HBaseUtils.ENCODING);
   private final static byte[] AGGR_STATS_STATS_COL = "s".getBytes(HBaseUtils.ENCODING);
@@ -153,7 +147,18 @@ public class HBaseReadWrite implements MetadataStore {
   private final static byte[] REF_COUNT_COL = "ref".getBytes(HBaseUtils.ENCODING);
   private final static byte[] DELEGATION_TOKEN_COL = "dt".getBytes(HBaseUtils.ENCODING);
   private final static byte[] MASTER_KEY_COL = "mk".getBytes(HBaseUtils.ENCODING);
+
+  final static byte[] MASTER_KEY_SEQUENCE = "master_key".getBytes(HBaseUtils.ENCODING);
+  public final static byte[] TXN_SEQUENCE = "txn_seq".getBytes(HBaseUtils.ENCODING);
+  public final static byte[] LOCK_SEQUENCE = "lock_seq".getBytes(HBaseUtils.ENCODING);
+  public final static byte[] COMPACTION_SEQUENCE = "lock_seq".getBytes(HBaseUtils.ENCODING);
+  // The change version functionality uses the sequences table, but we don't want to give the
+  // caller complete control over the sequence name as they might inadvertently clash with one of
+  // our sequence keys, so add a prefix to their topic name.
+  final static String CHANGE_VERSION_SEQUENCE_PREFIX = "cv_";
+
   private final static byte[] GLOBAL_PRIVS_KEY = "gp".getBytes(HBaseUtils.ENCODING);
+
   private final static int TABLES_TO_CACHE = 10;
   // False positives are very bad here because they cause us to invalidate entries we shouldn't.
   // Space used and # of hash functions grows in proportion to ln of num bits so a 10x increase
@@ -2418,6 +2423,25 @@ public class HBaseReadWrite implements MetadataStore {
     return HBaseUtils.deserializeTransaction(serialized);
   }
 
+  public List<HbaseMetastoreProto.Transaction> getTransactions(Collection<Long> txnIds)
+      throws IOException {
+    List<Get> gets = new ArrayList<>(txnIds.size());
+    for (long txnId : txnIds) {
+      byte[] key = HBaseUtils.buildKey(Long.toString(txnId));
+      Get g = new Get(key);
+      g.addColumn(CATALOG_CF, CATALOG_COL);
+      gets.add(g);
+    }
+
+    HTableInterface htab = conn.getHBaseTable(TXN_TABLE);
+    Result[] results = htab.get(gets);
+    List<HbaseMetastoreProto.Transaction> txns = new ArrayList<>(results.length);
+    for (Result result : results) {
+      txns.add(HBaseUtils.deserializeTransaction(result.getValue(CATALOG_CF, CATALOG_COL)));
+    }
+    return txns;
+  }
+
   /**
    * Get an iterator to all of the transactions in the table.
    * @return iterator
@@ -2469,6 +2493,21 @@ public class HBaseReadWrite implements MetadataStore {
   public void deleteTransaction(long txnId) throws IOException {
     byte[] key = HBaseUtils.buildKey(Long.toString(txnId));
     delete(TXN_TABLE, key, null, null);
+  }
+
+  /**
+   * Delete a group of transactions.
+   * @param txnIds txns to delete
+   * @throws IOException
+   */
+  public void deleteTransactions(List<Long> txnIds) throws IOException {
+    List<Delete> deletes = new ArrayList<>(txnIds.size());
+    for (Long txnId : txnIds) {
+      deletes.add(new Delete(HBaseUtils.buildKey(Long.toString(txnId))));
+    }
+    HTableInterface htab = conn.getHBaseTable(TXN_TABLE);
+    htab.delete(deletes);
+    conn.flush(htab);
   }
 
   /**
@@ -2558,11 +2597,6 @@ public class HBaseReadWrite implements MetadataStore {
             .append("acquiredAt: ")
             .append(lock.getAcquiredAt());
       }
-      if (lock.hasCompacted()) {
-        buf.append(", ")
-            .append("compacted: ")
-            .append(lock.getCompacted());
-      }
       buf.append("}");
     }
     buf.append("]}");
@@ -2591,10 +2625,7 @@ public class HBaseReadWrite implements MetadataStore {
   public List<HbaseMetastoreProto.Compaction> scanCompactions(HbaseMetastoreProto.CompactionState state)
       throws  IOException {
     Filter filter = null;
-    if (state != null) {
-      filter = new RowFilter(CompareFilter.CompareOp.EQUAL,
-          new BinaryPrefixComparator(HBaseUtils.buildKey(state.toString())));
-    }
+    // TODO figure out how to set a filter that only pulls out entries that match the desired state.
     Iterator<Result> iter = scan(COMPACTION_TABLE, null, null, CATALOG_CF, CATALOG_COL, filter);
     List<HbaseMetastoreProto.Compaction> compactions = new ArrayList<>();
     while (iter.hasNext()) {
@@ -2615,6 +2646,19 @@ public class HBaseReadWrite implements MetadataStore {
     store(COMPACTION_TABLE, serialized[0], CATALOG_CF, CATALOG_COL, serialized[1]);
   }
 
+  public void putCompactions(List<HbaseMetastoreProto.Compaction> compactions) throws IOException {
+    List<Put> puts = new ArrayList<>(compactions.size());
+    for (HbaseMetastoreProto.Compaction compaction : compactions) {
+      byte[][] serialized = HBaseUtils.serializeCompaction(compaction);
+      Put p = new Put(serialized[0]);
+      p.add(CATALOG_CF, CATALOG_COL, serialized[1]);
+      puts.add(p);
+    }
+    HTableInterface htab = conn.getHBaseTable(COMPACTION_TABLE);
+    htab.put(puts);
+    conn.flush(htab);
+  }
+
   /**
    * Remove a compaction from HBase.
    * @param compactionId id of compaction to remove.
@@ -2623,6 +2667,16 @@ public class HBaseReadWrite implements MetadataStore {
   public void deleteCompaction(long compactionId) throws IOException {
     byte[] key = HBaseUtils.buildKey(Long.toString(compactionId));
     delete(COMPACTION_TABLE, key, null, null);
+  }
+
+  public void deleteCompactions(List<Long> compactionIds) throws IOException {
+    List<Delete> deletes = new ArrayList<>(compactionIds.size());
+    for (long id : compactionIds) {
+      deletes.add(new Delete(HBaseUtils.buildKey(Long.toString(id))));
+    }
+    HTableInterface htab = conn.getHBaseTable(COMPACTION_TABLE);
+    htab.delete(deletes);
+    conn.flush(htab);
   }
 
   /**
@@ -2723,19 +2777,29 @@ public class HBaseReadWrite implements MetadataStore {
   }
 
   /**
-   * Get an iterator to all of the potential compactions in the table.
+   * Get an iterator to all of the potential compactions in the table.  Compactions are ordered
+   * by those with the most transactions (and thus likely to have the most outstanding delta files).
    * @return iterator
    * @throws IOException
    */
-  public List<HbaseMetastoreProto.PotentialCompaction> scanPotentialCompactions() throws IOException {
+  public Iterator<HbaseMetastoreProto.PotentialCompaction> scanPotentialCompactions()
+      throws IOException {
     Iterator<Result> iter = scan(POTENTIAL_COMPACTION_TABLE, null, null, CATALOG_CF, CATALOG_COL,
         null);
-    List<HbaseMetastoreProto.PotentialCompaction> potentials = new ArrayList<>();
+    NavigableMap<Integer, HbaseMetastoreProto.PotentialCompaction> potentials = new TreeMap<>();
     while (iter.hasNext()) {
       Result result = iter.next();
-      potentials.add(HBaseUtils.deserializePotentialCompaction(result.getValue(CATALOG_CF, CATALOG_COL)));
+      HbaseMetastoreProto.PotentialCompaction pc =
+          HBaseUtils.deserializePotentialCompaction(result.getValue(CATALOG_CF, CATALOG_COL));
+      potentials.put(pc.getTxnIdsCount(), pc);
     }
-    return potentials;
+    return potentials.descendingMap().values().iterator();
+  }
+
+  public void putPotentialCompaction(HbaseMetastoreProto.PotentialCompaction potential)
+      throws IOException {
+    byte[][] serialized = HBaseUtils.serializePotentialCompaction(potential);
+    store(POTENTIAL_COMPACTION_TABLE, serialized[0], CATALOG_CF, CATALOG_COL, serialized[1]);
   }
 
   public static class PotentialCompactionEntity {
@@ -2820,8 +2884,9 @@ public class HBaseReadWrite implements MetadataStore {
    */
   List<String> printPotentialCompactions() throws IOException {
     List<String> lines = new ArrayList<>();
-    for (HbaseMetastoreProto.PotentialCompaction potential : scanPotentialCompactions()) {
-      lines.add(printPotentialCompaction(potential));
+    Iterator<HbaseMetastoreProto.PotentialCompaction> iter =  scanPotentialCompactions();
+    while (iter.hasNext()) {
+      lines.add(printPotentialCompaction(iter.next()));
     }
     return lines;
   }
@@ -2858,13 +2923,30 @@ public class HBaseReadWrite implements MetadataStore {
     return serialized == null ? 0 : Long.valueOf(new String(serialized, HBaseUtils.ENCODING));
   }
 
-  long getNextSequence(byte[] sequence) throws IOException {
+  /**
+   * Increment a sequence by one.
+   * @param sequence sequence to increment
+   * @return Current sequence number
+   * @throws IOException
+   */
+  public long getNextSequence(byte[] sequence) throws IOException {
+    return addToSequence(sequence, 1);
+  }
+
+  /**
+   * Increment a sequence by a given amount.
+   * @param sequence sequence to add to
+   * @param toAdd amount to add
+   * @return Current sequence value
+   * @throws IOException
+   */
+  public long addToSequence(byte[] sequence, long toAdd) throws IOException {
     byte[] serialized = read(SEQUENCES_TABLE, sequence, CATALOG_CF, CATALOG_COL);
     long val = 0;
     if (serialized != null) {
       val = Long.valueOf(new String(serialized, HBaseUtils.ENCODING));
     }
-    byte[] incrSerialized = new Long(val + 1).toString().getBytes(HBaseUtils.ENCODING);
+    byte[] incrSerialized = Long.toString(val + toAdd).getBytes(HBaseUtils.ENCODING);
     store(SEQUENCES_TABLE, sequence, CATALOG_CF, CATALOG_COL, incrSerialized);
     return val;
   }
@@ -2896,18 +2978,10 @@ public class HBaseReadWrite implements MetadataStore {
   // TODO I don't know if this will work with Omid or Tephra.  See what they do with table
   // .coprocessorServer()
 
-  public <M extends Message, R extends Message> R callTransactionManager(final M input)
-      throws IOException {
+  public <R extends Message> R callTransactionManager(Batch.Call<TransactionManager, R> call )
+      throws Throwable {
     HTableInterface htab = conn.getHBaseTable(TXN_TABLE);
-    Map<byte[], R> result = htab.coprocessorService(TransactionManager.class, null, null,
-        new Batch.Call<TransactionManager, R>() {
-          @Override
-          public R call(TransactionManager txnMgr) throws IOException {
-            BlockingRpcCallback<R> rpcCallback = new BlockingRpcCallback<R>();
-            txnMgr.getOpenTxns(null, input, rpcCallback);
-            return rpcCallback.get();
-          }
-        });
+    Map<byte[], R> result = htab.coprocessorService(TransactionManager.class, null, null, call);
     if (result.size() > 1) {
       throw new RuntimeException("Logic error! Got result from more than one co-processor");
     }
@@ -2995,31 +3069,6 @@ public class HBaseReadWrite implements MetadataStore {
             cell.getValueArray(), cell.getValueOffset(), cell.getValueLength());
       }
     }
-  }
-
-  private void multiModify(String table, byte[][] keys, byte[] colFam,
-      byte[] colName, List<ByteBuffer> values) throws IOException, InterruptedException {
-    assert values == null || keys.length == values.size();
-    // HBase APIs are weird. To supply bytebuffer value, you have to also have bytebuffer
-    // column name, but not column family. So there. Perhaps we should add these to constants too.
-    ByteBuffer colNameBuf = ByteBuffer.wrap(colName);
-    @SuppressWarnings("deprecation")
-    HTableInterface htab = conn.getHBaseTable(table);
-    List<Row> actions = new ArrayList<>(keys.length);
-    for (int i = 0; i < keys.length; ++i) {
-      ByteBuffer value = (values != null) ? values.get(i) : null;
-      if (value == null) {
-        actions.add(new Delete(keys[i]));
-      } else {
-        Put p = new Put(keys[i]);
-        p.addColumn(colFam, colNameBuf, HConstants.LATEST_TIMESTAMP, value);
-        actions.add(p);
-      }
-    }
-    Object[] results = new Object[keys.length];
-    htab.batch(actions, results);
-    // TODO: should we check results array? we don't care about partial results
-    conn.flush(htab);
   }
 
   private Result read(String table, byte[] key, byte[] colFam, byte[][] colNames)

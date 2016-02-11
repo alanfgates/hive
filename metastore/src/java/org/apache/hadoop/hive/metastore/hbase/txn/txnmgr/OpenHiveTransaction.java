@@ -66,17 +66,14 @@ class OpenHiveTransaction extends HiveTransaction {
     return HbaseMetastoreProto.TxnState.OPEN;
   }
 
-  @Override
   long getLastHeartbeat() {
     return lastHeartbeat;
   }
 
-  @Override
   void setLastHeartbeat(long lastHeartbeat) {
     this.lastHeartbeat = lastHeartbeat;
   }
 
-  @Override
   HiveLock[] getHiveLocks() {
     return hiveLocks;
   }
@@ -87,7 +84,6 @@ class OpenHiveTransaction extends HiveTransaction {
    *                 array, so don't plan to do anything else with it.  All your locks are belong to
    *                 us.
    */
-  @Override
   void addLocks(HiveLock[] newLocks) {
     if (hiveLocks == null) {
       hiveLocks = newLocks;
@@ -98,7 +94,6 @@ class OpenHiveTransaction extends HiveTransaction {
     }
   }
 
-  @Override
   boolean hasWriteLocks() {
     for (HiveLock hiveLock : hiveLocks) {
       if (hiveLock.getType() == HbaseMetastoreProto.LockType.SHARED_WRITE) {
@@ -108,8 +103,4 @@ class OpenHiveTransaction extends HiveTransaction {
     return false;
   }
 
-  @Override
-  long getCommitId() {
-    throw new UnsupportedOperationException("Logic error, no commit id for an open transaction");
-  }
 }

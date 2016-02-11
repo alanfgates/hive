@@ -27,6 +27,7 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -38,12 +39,17 @@ import java.util.TreeSet;
 import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.metastore.api.AbortTxnRequest;
+import org.apache.hadoop.hive.metastore.api.AddDynamicPartitions;
 import org.apache.hadoop.hive.metastore.api.AggrStats;
 import org.apache.hadoop.hive.metastore.api.BinaryColumnStatsData;
 import org.apache.hadoop.hive.metastore.api.BooleanColumnStatsData;
+import org.apache.hadoop.hive.metastore.api.CheckLockRequest;
 import org.apache.hadoop.hive.metastore.api.ColumnStatistics;
 import org.apache.hadoop.hive.metastore.api.ColumnStatisticsData;
 import org.apache.hadoop.hive.metastore.api.ColumnStatisticsObj;
+import org.apache.hadoop.hive.metastore.api.CommitTxnRequest;
+import org.apache.hadoop.hive.metastore.api.CompactionType;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.Decimal;
 import org.apache.hadoop.hive.metastore.api.DecimalColumnStatsData;
@@ -51,7 +57,17 @@ import org.apache.hadoop.hive.metastore.api.DoubleColumnStatsData;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.Function;
 import org.apache.hadoop.hive.metastore.api.FunctionType;
+import org.apache.hadoop.hive.metastore.api.GetOpenTxnsResponse;
+import org.apache.hadoop.hive.metastore.api.HeartbeatTxnRangeRequest;
+import org.apache.hadoop.hive.metastore.api.HeartbeatTxnRangeResponse;
+import org.apache.hadoop.hive.metastore.api.LockComponent;
+import org.apache.hadoop.hive.metastore.api.LockRequest;
+import org.apache.hadoop.hive.metastore.api.LockResponse;
+import org.apache.hadoop.hive.metastore.api.LockState;
+import org.apache.hadoop.hive.metastore.api.LockType;
 import org.apache.hadoop.hive.metastore.api.LongColumnStatsData;
+import org.apache.hadoop.hive.metastore.api.OpenTxnRequest;
+import org.apache.hadoop.hive.metastore.api.OpenTxnsResponse;
 import org.apache.hadoop.hive.metastore.api.Order;
 import org.apache.hadoop.hive.metastore.api.Partition;
 import org.apache.hadoop.hive.metastore.api.PrincipalPrivilegeSet;
@@ -61,12 +77,14 @@ import org.apache.hadoop.hive.metastore.api.ResourceType;
 import org.apache.hadoop.hive.metastore.api.ResourceUri;
 import org.apache.hadoop.hive.metastore.api.Role;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
+import org.apache.hadoop.hive.metastore.api.ShowCompactResponseElement;
 import org.apache.hadoop.hive.metastore.api.SkewedInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.StringColumnStatsData;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.TxnInfo;
 import org.apache.hadoop.hive.metastore.api.TxnState;
+import org.apache.hadoop.hive.metastore.txn.CompactionInfo;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.ByteStream.Output;
 import org.apache.hadoop.hive.serde2.SerDeException;
@@ -1421,28 +1439,208 @@ public class HBaseUtils {
     return HbaseMetastoreProto.Transaction.parseFrom(value);
   }
 
-  static TxnInfo pbTxnToThriftTxnInfo(HbaseMetastoreProto.Transaction txn) {
+  public static TxnInfo pbToThrift(HbaseMetastoreProto.Transaction pb) {
     // Use empty constructor because requireds aren't the same between the two, and we need to
     // fill in defaults for requireds in thrift that aren't in pb.
-    TxnInfo txnInfo = new TxnInfo();
-    txnInfo.setId(txn.getId());
-    txnInfo.setState(pbTxnStateToThriftTxnState(txn.getTxnState()));
-    if (txn.hasUser()) txnInfo.setUser(txn.getUser());
-    else txnInfo.setUser("unknown");
-    if (txn.hasHostname()) txnInfo.setHostname(txn.getHostname());
-    else txnInfo.setHostname("unknown");
-    if (txn.hasAgentInfo()) txnInfo.setAgentInfo(txn.getAgentInfo());
-    if (txn.hasMetaInfo()) txnInfo.setMetaInfo(txn.getMetaInfo());
-    return txnInfo;
+    TxnInfo thrift = new TxnInfo();
+    thrift.setId(pb.getId());
+    thrift.setState(pbToThrift(pb.getTxnState()));
+    if (pb.hasUser()) thrift.setUser(pb.getUser());
+    else thrift.setUser("unknown");
+    if (pb.hasHostname()) thrift.setHostname(pb.getHostname());
+    else thrift.setHostname("unknown");
+    if (pb.hasAgentInfo()) thrift.setAgentInfo(pb.getAgentInfo());
+    if (pb.hasMetaInfo()) thrift.setMetaInfo(pb.getMetaInfo());
+    return thrift;
   }
 
-  static TxnState pbTxnStateToThriftTxnState(HbaseMetastoreProto.TxnState pbState) {
-    switch (pbState) {
+  private static TxnState pbToThrift(HbaseMetastoreProto.TxnState pb) {
+    switch (pb) {
     case COMMITTED: return TxnState.COMMITTED;
     case OPEN: return TxnState.OPEN;
     case ABORTED: return TxnState.ABORTED;
-    default: throw new RuntimeException("Unknown txn type");
+    default: throw new RuntimeException("Unknown txn type: " + pb.toString());
     }
+  }
+
+  public static GetOpenTxnsResponse pbToThrift(HbaseMetastoreProto.GetOpenTxnsResponse pb) {
+    GetOpenTxnsResponse thrift = new GetOpenTxnsResponse(pb.getHighWaterMark(),
+        new HashSet<>(pb.getAbortedTransactionsList()));
+    thrift.getOpen_txns().addAll(pb.getOpenTransactionsList());
+    return thrift;
+  }
+
+  public static HbaseMetastoreProto.OpenTxnsRequest thriftToPb(OpenTxnRequest thrift) {
+    HbaseMetastoreProto.OpenTxnsRequest.Builder builder =
+        HbaseMetastoreProto.OpenTxnsRequest.newBuilder();
+    builder.setNumTxns(thrift.getNum_txns());
+    builder.setUser(thrift.getUser());
+    builder.setHostname(thrift.getHostname());
+    if (thrift.isSetAgentInfo()) builder.setAgentInfo(thrift.getAgentInfo());
+    return builder.build();
+  }
+
+  public static OpenTxnsResponse pbToThrift(HbaseMetastoreProto.OpenTxnsResponse pb) {
+    return new OpenTxnsResponse(pb.getTxnIdsList());
+  }
+
+  public static HbaseMetastoreProto.TransactionId thriftToPb(AbortTxnRequest thrift) {
+    return HbaseMetastoreProto.TransactionId.newBuilder()
+        .setId(thrift.getTxnid())
+        .build();
+  }
+
+  public static HbaseMetastoreProto.TransactionId thriftToPb(CommitTxnRequest thrift) {
+    return HbaseMetastoreProto.TransactionId.newBuilder()
+        .setId(thrift.getTxnid())
+        .build();
+  }
+
+  public static HbaseMetastoreProto.LockRequest thriftToPb(LockRequest thrift) {
+    HbaseMetastoreProto.LockRequest.Builder lrBuilder = HbaseMetastoreProto.LockRequest.newBuilder();
+    lrBuilder.setTxnId(thrift.getTxnid());
+    for (LockComponent lc : thrift.getComponent()) {
+      HbaseMetastoreProto.LockComponent.Builder lcBuilder =
+          HbaseMetastoreProto.LockComponent.newBuilder();
+      lcBuilder.setType(thriftToPb(lc.getType()));
+      lcBuilder.setDb(lc.getDbname());
+
+      // Add intention locks
+      // This is a strange place to do this but it's the only place at the moment since Thrift
+      // doesn't know about intention locks and there's no convenient way to add them to the PB
+      // later.
+      switch (lc.getLevel()) {
+      case PARTITION:
+        lcBuilder.setPartition(lc.getPartitionname());
+        // Add an intention lock for the table
+        lrBuilder.addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+            .setType(HbaseMetastoreProto.LockType.INTENTION)
+            .setDb(lc.getDbname())
+            .setTable(lc.getTablename()));
+        // FALL THROUGH INTENTIONAL
+
+      case TABLE:
+        lcBuilder.setTable(lc.getTablename());
+        // Add an intention lock for the db
+        lrBuilder.addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+            .setType(HbaseMetastoreProto.LockType.INTENTION)
+            .setDb(lc.getDbname()));
+
+        // NO DB OR default INTENTIONAL
+      }
+      lrBuilder.addComponents(lcBuilder);
+    }
+    return lrBuilder.build();
+  }
+
+  private static HbaseMetastoreProto.LockType thriftToPb(LockType thrift) {
+    switch (thrift) {
+    case SHARED_READ: return HbaseMetastoreProto.LockType.SHARED_READ;
+    case SHARED_WRITE: return HbaseMetastoreProto.LockType.SHARED_WRITE;
+    case EXCLUSIVE: return HbaseMetastoreProto.LockType.EXCLUSIVE;
+    // TODO handle intention
+    default: throw new RuntimeException("Unknown lock type " + thrift.toString());
+    }
+  }
+
+  public static LockResponse pbToThrift(HbaseMetastoreProto.LockResponse pb) {
+    return new LockResponse(-1, pbToThrift(pb.getState()));
+  }
+
+  private static LockState pbToThrift(HbaseMetastoreProto.LockState pb) {
+    switch (pb) {
+    case ACQUIRED: return LockState.ACQUIRED;
+    case WAITING: return LockState.WAITING;
+    case TXN_ABORTED: return LockState.ABORT;
+    case RELEASED: throw new RuntimeException("Need to fix this");
+    default: throw new RuntimeException("Unknown lock state " + pb.toString());
+    }
+  }
+
+  public static HbaseMetastoreProto.TransactionId thriftToPb(CheckLockRequest thrift) {
+    return HbaseMetastoreProto.TransactionId.newBuilder()
+        .setId(thrift.getTxnid())
+        .build();
+  }
+
+  public static HbaseMetastoreProto.HeartbeatTxnRangeRequest thriftToPb(HeartbeatTxnRangeRequest thrift) {
+    return HbaseMetastoreProto.HeartbeatTxnRangeRequest.newBuilder()
+        .setMinTxn(thrift.getMin())
+        .setMaxTxn(thrift.getMax())
+        .build();
+  }
+
+  public static HeartbeatTxnRangeResponse pbToThrift(HbaseMetastoreProto.HeartbeatTxnRangeResponse pb) {
+    return new HeartbeatTxnRangeResponse(
+        new HashSet<>(pb.getAbortedList()),
+        new HashSet<>(pb.getNoSuchList()));
+  }
+
+  public static HbaseMetastoreProto.CompactionType thriftToPb(CompactionType thrift) {
+    switch (thrift) {
+    case MINOR: return HbaseMetastoreProto.CompactionType.MINOR;
+    case MAJOR: return HbaseMetastoreProto.CompactionType.MAJOR;
+    default: throw new RuntimeException("Unknown compaction type " + thrift.toString());
+    }
+  }
+
+  public static ShowCompactResponseElement pbToThrift(HbaseMetastoreProto.Compaction pb) {
+    ShowCompactResponseElement thrift = new ShowCompactResponseElement();
+    thrift.setDbname(pb.getDb());
+    thrift.setTablename(pb.getTable());
+    if (pb.hasPartition()) thrift.setPartitionname(pb.getPartition());
+    thrift.setType(pbToThrift(pb.getType()));
+    thrift.setState(pb.getState().toString());
+    if (pb.hasWorkerId()) thrift.setWorkerid(pb.getWorkerId());
+    if (pb.hasStartedWorkingAt()) thrift.setStart(pb.getStartedWorkingAt());
+    if (pb.hasRunAs()) thrift.setRunAs(pb.getRunAs());
+    if (pb.hasHighestTxnId()) thrift.setHightestTxnId(pb.getHighestTxnId());
+    if (pb.hasMetaInfo()) thrift.setMetaInfo(pb.getMetaInfo());
+    if (pb.hasEndTime()) thrift.setEndTime(pb.getEndTime());
+    if (pb.hasHadoopJobId()) thrift.setHadoopJobId(pb.getHadoopJobId());
+    return thrift;
+  }
+
+  private static CompactionType pbToThrift(HbaseMetastoreProto.CompactionType pb) {
+    switch (pb) {
+    case MINOR: return CompactionType.MINOR;
+    case MAJOR: return CompactionType.MAJOR;
+    default: throw new RuntimeException("Unknown compaction type " + pb.toString());
+    }
+  }
+
+  public static HbaseMetastoreProto.AddDynamicPartitionsRequest thriftToPb(AddDynamicPartitions thrift) {
+    return HbaseMetastoreProto.AddDynamicPartitionsRequest.newBuilder()
+        .setTxnId(thrift.getTxnid())
+        .setDb(thrift.getDbname())
+        .setTable(thrift.getTablename())
+        .addAllPartitions(thrift.getPartitionnames())
+        .build();
+  }
+
+  public static CompactionInfo pbToCompactor(HbaseMetastoreProto.PotentialCompaction pb) {
+    CompactionInfo ci = new CompactionInfo();
+    ci.dbname = pb.getDb();
+    ci.tableName = pb.getTable();
+    if (pb.hasPartition()) ci.partName = pb.getPartition();
+    ci.numTxns = pb.getTxnIdsCount();
+    return ci;
+  }
+
+  public static CompactionInfo pbToCompactor(HbaseMetastoreProto.Compaction pb) {
+    CompactionInfo ci = new CompactionInfo();
+    ci.id = pb.getId();
+    ci.dbname = pb.getDb();
+    ci.tableName = pb.getTable();
+    if (pb.hasPartition()) ci.partName = pb.getPartition();
+    ci.type = pbToThrift(pb.getType());
+    if (pb.hasWorkerId()) ci.workerId = pb.getWorkerId();
+    if (pb.hasStartedWorkingAt()) ci.start = pb.getStartedWorkingAt();
+    if (pb.hasRunAs()) ci.runAs = pb.getRunAs();
+    if (pb.hasHighestTxnId()) ci.highestTxnId = pb.getHighestTxnId();
+    if (pb.hasMetaInfo()) ci.metaInfo = pb.getMetaInfo().getBytes();
+    if (pb.hasHadoopJobId()) ci.hadoopJobId = pb.getHadoopJobId();
+    return ci;
   }
 
   /**
@@ -1452,7 +1650,7 @@ public class HBaseUtils {
    */
   static byte[][] serializeCompaction(HbaseMetastoreProto.Compaction compaction) {
     byte[][] result = new byte[2][];
-    result[0] = buildKey(compaction.getState().toString(), Long.toString(compaction.getId()));
+    result[0] = buildKey(Long.toString(compaction.getId()));
     result[1] = compaction.toByteArray();
     return result;
   }

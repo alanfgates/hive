@@ -17,6 +17,8 @@
  */
 package org.apache.hadoop.hive.metastore.hbase.txn;
 
+import org.apache.hadoop.hbase.client.coprocessor.Batch;
+import org.apache.hadoop.hbase.ipc.BlockingRpcCallback;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.AbortTxnRequest;
 import org.apache.hadoop.hive.metastore.api.AddDynamicPartitions;
@@ -37,21 +39,31 @@ import org.apache.hadoop.hive.metastore.api.OpenTxnRequest;
 import org.apache.hadoop.hive.metastore.api.OpenTxnsResponse;
 import org.apache.hadoop.hive.metastore.api.ShowCompactRequest;
 import org.apache.hadoop.hive.metastore.api.ShowCompactResponse;
+import org.apache.hadoop.hive.metastore.api.ShowCompactResponseElement;
 import org.apache.hadoop.hive.metastore.api.ShowLocksRequest;
 import org.apache.hadoop.hive.metastore.api.ShowLocksResponse;
 import org.apache.hadoop.hive.metastore.api.TxnAbortedException;
+import org.apache.hadoop.hive.metastore.api.TxnInfo;
 import org.apache.hadoop.hive.metastore.api.TxnOpenException;
 import org.apache.hadoop.hive.metastore.api.UnlockRequest;
 import org.apache.hadoop.hive.metastore.hbase.HBaseReadWrite;
+import org.apache.hadoop.hive.metastore.hbase.HBaseUtils;
 import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
+import org.apache.hadoop.hive.metastore.hbase.txn.txnmgr.TransactionManager;
 import org.apache.hadoop.hive.metastore.txn.CompactionInfo;
 import org.apache.hadoop.hive.metastore.txn.TxnStore;
+import org.apache.hadoop.hive.metastore.txn.TxnUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class HBaseTxnHandler implements TxnStore {
@@ -65,12 +77,16 @@ public class HBaseTxnHandler implements TxnStore {
     this.conf = conf;
   }
 
+  // TODO I'm not sure how the exceptions come back to me.  Need to figure that out.
+
   @Override
   public GetOpenTxnsInfoResponse getOpenTxnsInfo() throws MetaException {
     // We have to go to the table to get this information because much of it isn't kept in memory.
     try {
       List<HbaseMetastoreProto.Transaction> txns = getHBase().scanTransactions();
-      long hwm = getHBase().readCurrentSequence()
+      long hwm = getHBase().readCurrentSequence(HBaseReadWrite.TXN_SEQUENCE);
+      List<TxnInfo> openTxns = new ArrayList<>(txns.size());
+      for (HbaseMetastoreProto.Transaction txn : txns) openTxns.add(HBaseUtils.pbToThrift(txn));
       return new GetOpenTxnsInfoResponse(hwm, openTxns);
     } catch (IOException e) {
       LOG.error("Failed to scan transactions", e);
@@ -80,218 +96,482 @@ public class HBaseTxnHandler implements TxnStore {
 
   @Override
   public GetOpenTxnsResponse getOpenTxns() throws MetaException {
-    // TODO -actually call co-processor
-    /*
+    Batch.Call<TransactionManager, HbaseMetastoreProto.GetOpenTxnsResponse> call =
+        new Batch.Call<TransactionManager, HbaseMetastoreProto.GetOpenTxnsResponse>() {
+          @Override
+          public HbaseMetastoreProto.GetOpenTxnsResponse call(TransactionManager txnMgr) throws IOException {
+            BlockingRpcCallback<HbaseMetastoreProto.GetOpenTxnsResponse> rpcCallback =
+                new BlockingRpcCallback<>();
+            txnMgr.getOpenTxns(null, HbaseMetastoreProto.Void.getDefaultInstance(), rpcCallback);
+            return rpcCallback.get();
+          }
+        };
     try {
-      return txnMgr.getOpenTxns();
-    } catch (IOException e) {
+      return HBaseUtils.pbToThrift(getHBase().callTransactionManager(call));
+    } catch (Throwable e) {
+      LOG.error("Failed to get open transactions", e);
       throw new MetaException(e.getMessage());
     }
-    */
-    return null;
   }
 
   @Override
   public OpenTxnsResponse openTxns(OpenTxnRequest rqst) throws MetaException {
-    // TODO -actually call co-processor
-    /*
+    final HbaseMetastoreProto.OpenTxnsRequest pbRqst = HBaseUtils.thriftToPb(rqst);
+    Batch.Call<TransactionManager, HbaseMetastoreProto.OpenTxnsResponse> call =
+        new Batch.Call<TransactionManager, HbaseMetastoreProto.OpenTxnsResponse>() {
+          @Override
+          public HbaseMetastoreProto.OpenTxnsResponse call(TransactionManager txnMgr) throws
+              IOException {
+            BlockingRpcCallback<HbaseMetastoreProto.OpenTxnsResponse> rpcCallback =
+                new BlockingRpcCallback<>();
+            txnMgr.openTxns(null, pbRqst, rpcCallback);
+            return rpcCallback.get();
+          }
+        };
     try {
-      return txnMgr.openTxns(rqst);
-    } catch (IOException e) {
+      return HBaseUtils.pbToThrift(getHBase().callTransactionManager(call));
+    } catch (Throwable e) {
+      LOG.error("Failed to open transactions", e);
       throw new MetaException(e.getMessage());
     }
-    */
-    return null;
   }
 
   @Override
   public void abortTxn(AbortTxnRequest rqst) throws NoSuchTxnException, MetaException {
-    // TODO -actually call co-processor
-    /*
+    final HbaseMetastoreProto.TransactionId pbRqst = HBaseUtils.thriftToPb(rqst);
+    Batch.Call<TransactionManager, HbaseMetastoreProto.TransactionResult> call =
+        new Batch.Call<TransactionManager, HbaseMetastoreProto.TransactionResult>() {
+          @Override
+          public HbaseMetastoreProto.TransactionResult call(TransactionManager txnMgr) throws
+              IOException {
+            BlockingRpcCallback<HbaseMetastoreProto.TransactionResult> rpcCallback =
+                new BlockingRpcCallback<>();
+            txnMgr.abortTxn(null, pbRqst, rpcCallback);
+            return rpcCallback.get();
+          }
+        };
     try {
-      txnMgr.abortTxn(rqst);
-    } catch (IOException e) {
+      // Thrift doesn't return a value for abort, even though the co-processor does.
+      getHBase().callTransactionManager(call);
+    } catch (Throwable e) {
+      LOG.error("Failed to abort transaction", e);
       throw new MetaException(e.getMessage());
     }
-    */
   }
 
   @Override
   public void commitTxn(CommitTxnRequest rqst) throws NoSuchTxnException, TxnAbortedException,
       MetaException {
-    // TODO -actually call co-processor
-    /*
+    final HbaseMetastoreProto.TransactionId pbRqst = HBaseUtils.thriftToPb(rqst);
+    Batch.Call<TransactionManager, HbaseMetastoreProto.TransactionResult> call =
+        new Batch.Call<TransactionManager, HbaseMetastoreProto.TransactionResult>() {
+          @Override
+          public HbaseMetastoreProto.TransactionResult call(TransactionManager txnMgr) throws
+              IOException {
+            BlockingRpcCallback<HbaseMetastoreProto.TransactionResult> rpcCallback =
+                new BlockingRpcCallback<>();
+            txnMgr.commitTxn(null, pbRqst, rpcCallback);
+            return rpcCallback.get();
+          }
+        };
     try {
-      txnMgr.commitTxn(rqst);
-    } catch (IOException e) {
+      // Thrift doesn't return a value for abort, even though the co-processor does.
+      getHBase().callTransactionManager(call);
+    } catch (Throwable e) {
+      LOG.error("Failed to abort transaction", e);
       throw new MetaException(e.getMessage());
     }
-    */
   }
 
   @Override
   public LockResponse lock(LockRequest rqst) throws NoSuchTxnException, TxnAbortedException,
       MetaException {
-    // TODO -actually call co-processor
-    /*
+    if (!rqst.isSetTxnid()) {
+      throw new MetaException("You must now set a transaction id when requesting locks");
+    }
+
+    final HbaseMetastoreProto.LockRequest pbRqst = HBaseUtils.thriftToPb(rqst);
+    Batch.Call<TransactionManager, HbaseMetastoreProto.LockResponse> call =
+        new Batch.Call<TransactionManager, HbaseMetastoreProto.LockResponse>() {
+          @Override
+          public HbaseMetastoreProto.LockResponse call(TransactionManager txnMgr) throws
+              IOException {
+            BlockingRpcCallback<HbaseMetastoreProto.LockResponse> rpcCallback =
+                new BlockingRpcCallback<>();
+            txnMgr.lock(null, pbRqst, rpcCallback);
+            return rpcCallback.get();
+          }
+        };
     try {
-      return txnMgr.lock(rqst);
-    } catch (IOException e) {
+      return HBaseUtils.pbToThrift(getHBase().callTransactionManager(call));
+    } catch (Throwable e) {
+      LOG.error("Failed to get locks", e);
       throw new MetaException(e.getMessage());
     }
-    */
-    // TODO - wait and piece together lock responses until I get all my locks
-    return null;
   }
 
   @Override
   public LockResponse checkLock(CheckLockRequest rqst) throws NoSuchTxnException,
       NoSuchLockException, TxnAbortedException, MetaException {
-    // TODO Should be a no-op in the new world, except for old clients.
-    return null;
+    if (!rqst.isSetTxnid()) {
+      throw new MetaException("You must now set a transaction id when requesting locks");
+    }
+    final HbaseMetastoreProto.TransactionId pbRqst = HBaseUtils.thriftToPb(rqst);
+    Batch.Call<TransactionManager, HbaseMetastoreProto.LockResponse> call =
+        new Batch.Call<TransactionManager, HbaseMetastoreProto.LockResponse>() {
+          @Override
+          public HbaseMetastoreProto.LockResponse call(TransactionManager txnMgr) throws
+              IOException {
+            BlockingRpcCallback<HbaseMetastoreProto.LockResponse> rpcCallback =
+                new BlockingRpcCallback<>();
+            txnMgr.checkLocks(null, pbRqst, rpcCallback);
+            return rpcCallback.get();
+          }
+        };
+    try {
+      return HBaseUtils.pbToThrift(getHBase().callTransactionManager(call));
+    } catch (Throwable e) {
+      LOG.error("Failed to check locks", e);
+      throw new MetaException(e.getMessage());
+    }
   }
 
   @Override
   public void unlock(UnlockRequest rqst) throws NoSuchLockException, TxnOpenException,
       MetaException {
-    // TODO likely to make this an invalid call
+    throw new TxnOpenException("All locks must now be part of a txn, unlocking not allowed.");
 
   }
 
   @Override
   public ShowLocksResponse showLocks(ShowLocksRequest rqst) throws MetaException {
-    // TODO get lock info from HBase table
+    // TODO get lock info from HBase table.
+    // TODO implement a filter to look for dbname etc. info early
     return null;
   }
 
   @Override
   public void heartbeat(HeartbeatRequest ids) throws NoSuchTxnException, NoSuchLockException,
       TxnAbortedException, MetaException {
-    // TODO call heartbeatTxnRange with range of 1
-
+    if (!ids.isSetTxnid()) {
+      throw new NoSuchLockException("You must now set a transaction id when heartbeating");
+    }
+    heartbeatTxnRange(new HeartbeatTxnRangeRequest(ids.getTxnid(), ids.getTxnid()));
   }
 
   @Override
   public HeartbeatTxnRangeResponse heartbeatTxnRange(HeartbeatTxnRangeRequest rqst) throws
       MetaException {
-    // TODO -actually call co-processor
-    /*
+    final HbaseMetastoreProto.HeartbeatTxnRangeRequest pbRqst = HBaseUtils.thriftToPb(rqst);
+    Batch.Call<TransactionManager, HbaseMetastoreProto.HeartbeatTxnRangeResponse> call =
+        new Batch.Call<TransactionManager, HbaseMetastoreProto.HeartbeatTxnRangeResponse>() {
+          @Override
+          public HbaseMetastoreProto.HeartbeatTxnRangeResponse call(TransactionManager txnMgr) throws
+              IOException {
+            BlockingRpcCallback<HbaseMetastoreProto.HeartbeatTxnRangeResponse> rpcCallback =
+                new BlockingRpcCallback<>();
+            txnMgr.heartbeat(null, pbRqst, rpcCallback);
+            return rpcCallback.get();
+          }
+        };
     try {
-      return txnMgr.heartbeat(rqst);
-    } catch (IOException e) {
+      return HBaseUtils.pbToThrift(getHBase().callTransactionManager(call));
+    } catch (Throwable e) {
+      LOG.error("Failed to heartbeat", e);
       throw new MetaException(e.getMessage());
     }
-    */
-    return null;
   }
 
   @Override
   public long compact(CompactionRequest rqst) throws MetaException {
-    // TODO - add initiated request to queue
+    try {
+      HbaseMetastoreProto.Compaction.Builder builder = HbaseMetastoreProto.Compaction.newBuilder();
+      long compactionId = getHBase().getNextSequence(HBaseReadWrite.COMPACTION_SEQUENCE);
+      builder.setId(compactionId);
+      builder.setDb(rqst.getDbname());
+      builder.setTable(rqst.getTablename());
+      if (rqst.isSetPartitionname()) builder.setPartition(rqst.getPartitionname());
+      builder.setState(HbaseMetastoreProto.CompactionState.INITIATED);
+      builder.setType(HBaseUtils.thriftToPb(rqst.getType()));
+      getHBase().putCompaction(builder.build());
+    } catch (IOException e) {
+      LOG.error("Failed to request compaction", e);
+      throw new MetaException(e.getMessage());
+    }
     return 0;
   }
 
   @Override
   public ShowCompactResponse showCompact(ShowCompactRequest rqst) throws MetaException {
-    // TODO - get all current requests from queue
-    return null;
+    try {
+      List<HbaseMetastoreProto.Compaction> compactions = getHBase().scanCompactions(null);
+      List<ShowCompactResponseElement> elements = new ArrayList<>(compactions.size());
+      for (HbaseMetastoreProto.Compaction compaction : compactions) {
+        elements.add(HBaseUtils.pbToThrift(compaction));
+      }
+      return new ShowCompactResponse(elements);
+    } catch (IOException e) {
+      LOG.error("Failed to get compactions", e);
+      throw new MetaException(e.getMessage());
+    }
   }
 
   @Override
   public void addDynamicPartitions(AddDynamicPartitions rqst) throws NoSuchTxnException,
       TxnAbortedException, MetaException {
-    // TODO -actually call co-processor
-    /*
+    final HbaseMetastoreProto.AddDynamicPartitionsRequest pbRqst = HBaseUtils.thriftToPb(rqst);
+    Batch.Call<TransactionManager, HbaseMetastoreProto.TransactionResult> call =
+        new Batch.Call<TransactionManager, HbaseMetastoreProto.TransactionResult>() {
+          @Override
+          public HbaseMetastoreProto.TransactionResult call(TransactionManager txnMgr) throws
+              IOException {
+            BlockingRpcCallback<HbaseMetastoreProto.TransactionResult> rpcCallback =
+                new BlockingRpcCallback<>();
+            txnMgr.addDynamicPartitions(null, pbRqst, rpcCallback);
+            return rpcCallback.get();
+          }
+        };
     try {
-      txnMgr.addDynamicPartitions(rqst);
-    } catch (IOException e) {
+      getHBase().callTransactionManager(call);
+    } catch (Throwable e) {
+      LOG.error("Failed to heartbeat", e);
       throw new MetaException(e.getMessage());
     }
-    */
   }
 
   @Override
   public void performTimeOuts() {
-    // TODO - I think this goes away and we get rid of AcidHouseKeeperService
-
+    // TODO - Figure out how to shut off AcidHouseKeeperService when running the HBase metastore
+    // NOP
   }
 
   @Override
   public Set<CompactionInfo> findPotentialCompactions(int maxAborted) throws MetaException {
-    // TODO look list potentialCompactionsTable in HBase (or use new column family in table and
-    // partition tables) and find entries with high number of potentials.
-    return null;
+    // We ignore max aborted.
+    // TODO change initiator to compact based on number of txns instead of number of aborts
+    try {
+      Set<CompactionInfo> cis = new HashSet<>();
+      Iterator<HbaseMetastoreProto.PotentialCompaction> iter =
+          getHBase().scanPotentialCompactions();
+      while (iter.hasNext()) cis.add(HBaseUtils.pbToCompactor(iter.next()));
+      return cis;
+    } catch (IOException e) {
+      LOG.error("Failed to find potential compactions", e);
+      throw new MetaException(e.getMessage());
+    }
   }
 
   @Override
   public void setRunAs(long cq_id, String user) throws MetaException {
-    // TODO modify compaction in HBase
+    try {
+      HbaseMetastoreProto.Compaction compaction = getHBase().getCompaction(cq_id);
+      HbaseMetastoreProto.Compaction newCompaction =
+          HbaseMetastoreProto.Compaction.newBuilder(compaction)
+          .setRunAs(user)
+          .build();
+      getHBase().putCompaction(newCompaction);
+    } catch (IOException e) {
+      LOG.error("Failed to set run as", e);
+      throw new MetaException(e.getMessage());
 
+    }
   }
 
   @Override
   public CompactionInfo findNextToCompact(String workerId) throws MetaException {
-    // TODO get next initiated compaction out of the queue
-    return null;
+    try {
+      List<HbaseMetastoreProto.Compaction> initiated =
+          getHBase().scanCompactions(HbaseMetastoreProto.CompactionState.INITIATED);
+      if (initiated.size() == 0) return null;
+
+      // Pick the first one and set the worker id and the start time
+      HbaseMetastoreProto.Compaction toWorkOn =
+          HbaseMetastoreProto.Compaction.newBuilder(initiated.get(0))
+              .setState(HbaseMetastoreProto.CompactionState.WORKING)
+              .setWorkerId(workerId)
+              .setStartedWorkingAt(System.currentTimeMillis())
+              .build();
+      getHBase().putCompaction(toWorkOn);
+      return HBaseUtils.pbToCompactor(toWorkOn);
+    } catch (IOException e) {
+      LOG.error("Failed to find next compaction to work on", e);
+      throw new MetaException(e.getMessage());
+    }
   }
 
   @Override
   public void markCompacted(CompactionInfo info) throws MetaException {
-    // TODO get list of txns from potentialCompactionsTable compacted this (modified by
-    // highestCompaction listed in info), look up those compactions in aborted list and remove them.
-
-    // TODO modify state in HBase for each txn as well, and set lock states to compacted
-
-    /*
-    HbaseMetastoreProto.Transaction txn = null;
-    for (HbaseMetastoreProto.Transaction.Lock lock : txn.getLocksList()) {
-      if (!lock.getCompacted()) return;
-    }
-    // TODO -actually call co-processor
     try {
-      txnMgr.removeCompletelyCompactedAbortedTxn(txn.getId());
-    } catch (IOException e) {
+      final HbaseMetastoreProto.Compaction pbRqst = getHBase().getCompaction(info.id);
+      if (pbRqst == null) {
+        throw new MetaException("No such compaction " + info.id);
+      }
+      Batch.Call<TransactionManager, HbaseMetastoreProto.Void> call =
+        new Batch.Call<TransactionManager, HbaseMetastoreProto.Void>() {
+          @Override
+          public HbaseMetastoreProto.Void call(TransactionManager txnMgr) throws IOException {
+            BlockingRpcCallback<HbaseMetastoreProto.Void> rpcCallback = new BlockingRpcCallback<>();
+            txnMgr.cleanupAfterCompaction(null, pbRqst, rpcCallback);
+            return rpcCallback.get();
+          }
+        };
+      getHBase().callTransactionManager(call);
+
+      HbaseMetastoreProto.Compaction toWorkOn =
+          HbaseMetastoreProto.Compaction.newBuilder(pbRqst)
+              .setState(HbaseMetastoreProto.CompactionState.READY_FOR_CLEANING)
+              .build();
+      getHBase().putCompaction(toWorkOn);
+    } catch (Throwable e) {
+      LOG.error("Failed to cleanup after compaction", e);
       throw new MetaException(e.getMessage());
     }
-    */
   }
 
   @Override
   public List<CompactionInfo> findReadyToClean() throws MetaException {
-    // TODO get list of entries that are ready to clean
-    // TODO need to understand if all overlapping txns are finished before allowing cleaning
-    // something real to do
-    return null;
+    try {
+      List<HbaseMetastoreProto.Compaction> compacted =
+          getHBase().scanCompactions(HbaseMetastoreProto.CompactionState.READY_FOR_CLEANING);
+      if (compacted.size() == 0) return null;
+
+      // For each of these we also need to assure that all overlapping transactions have already
+      // completed.  Otherwise we have to not clean yet because there could still be readers
+      // making use of the old files
+      final HbaseMetastoreProto.CompactionList pbRqst = HbaseMetastoreProto.CompactionList
+          .newBuilder()
+          .addAllCompactions(compacted)
+          .build();
+      Batch.Call<TransactionManager, HbaseMetastoreProto.CompactionList> call =
+          new Batch.Call<TransactionManager, HbaseMetastoreProto.CompactionList>() {
+            @Override
+            public HbaseMetastoreProto.CompactionList call(TransactionManager txnMgr) throws IOException {
+              BlockingRpcCallback<HbaseMetastoreProto.CompactionList> rpcCallback = new BlockingRpcCallback<>();
+              txnMgr.verifyCompactionCanBeCleaned(null, pbRqst, rpcCallback);
+              return rpcCallback.get();
+            }
+          };
+      HbaseMetastoreProto.CompactionList cleaningList = getHBase().callTransactionManager(call);
+
+      // Put each of these in the cleaning state and return them
+      List<HbaseMetastoreProto.Compaction> cleanable =
+          new ArrayList<>(cleaningList.getCompactionsCount());
+      for (HbaseMetastoreProto.Compaction compaction : cleaningList.getCompactionsList()) {
+        cleanable.add(HbaseMetastoreProto.Compaction.newBuilder(compaction)
+            .setState(HbaseMetastoreProto.CompactionState.CLEANING)
+            .build());
+      }
+
+      getHBase().putCompactions(cleanable);
+
+      List<CompactionInfo> returns = new ArrayList<>(cleanable.size());
+      for (HbaseMetastoreProto.Compaction compaction : cleanable) {
+        returns.add(HBaseUtils.pbToCompactor(compaction));
+      }
+      return returns;
+    } catch (Throwable e) {
+      LOG.error("Failed to find next compaction to work on", e);
+      throw new MetaException(e.getMessage());
+    }
   }
 
   @Override
   public void markCleaned(CompactionInfo info) throws MetaException {
-    // TODO update state in HBase
-
+    changeCompactionState(info, HbaseMetastoreProto.CompactionState.SUCCEEDED);
   }
 
   @Override
   public void markFailed(CompactionInfo info) throws MetaException {
-    // TODO update state in HBase
+    changeCompactionState(info, HbaseMetastoreProto.CompactionState.FAILED);
+  }
 
+  private void changeCompactionState(CompactionInfo info,
+                                     HbaseMetastoreProto.CompactionState state)
+      throws MetaException {
+    try {
+      final HbaseMetastoreProto.Compaction pbRqst = getHBase().getCompaction(info.id);
+      if (pbRqst == null) {
+        throw new MetaException("No such compaction " + info.id);
+      }
+
+      HbaseMetastoreProto.Compaction toMarkCleaned =
+          HbaseMetastoreProto.Compaction.newBuilder(pbRqst)
+              .setState(state)
+              .build();
+      getHBase().putCompaction(toMarkCleaned);
+    } catch (IOException e) {
+      LOG.error("Failed to change compaction state", e);
+      throw new MetaException(e.getMessage());
+    }
   }
 
   @Override
   public void cleanEmptyAbortedTxns() throws MetaException {
-    // TODO I think we can ignore this now, as the TransactionManager will decide
-
+    // NOP
   }
 
   @Override
   public void revokeFromLocalWorkers(String hostname) throws MetaException {
-    // TODO - change state in metastore
+    try {
+      List<HbaseMetastoreProto.Compaction> working =
+          getHBase().scanCompactions(HbaseMetastoreProto.CompactionState.WORKING);
+      if (working.size() == 0) return;
 
+      List<HbaseMetastoreProto.Compaction> revokable = new ArrayList<>(working.size());
+      for (HbaseMetastoreProto.Compaction compaction : working) {
+        if (compaction.hasWorkerId() && compaction.getWorkerId().startsWith(hostname)) {
+          revokable.add(compaction);
+        }
+      }
+      if (revokable.size() == 0) return;
+
+      List<HbaseMetastoreProto.Compaction> newCompactions = new ArrayList<>(revokable.size());
+      for (HbaseMetastoreProto.Compaction compaction : revokable) {
+        newCompactions.add(HbaseMetastoreProto.Compaction.newBuilder(compaction)
+            .setState(HbaseMetastoreProto.CompactionState.INITIATED)
+            .clearWorkerId()
+            .clearStartedWorkingAt()
+            .build());
+      }
+
+      getHBase().putCompactions(newCompactions);
+    } catch (Throwable e) {
+      LOG.error("Failed to find next compaction to work on", e);
+      throw new MetaException(e.getMessage());
+    }
   }
 
   @Override
   public void revokeTimedoutWorkers(long timeout) throws MetaException {
-    // TODO - change state in metastore
+    try {
+      List<HbaseMetastoreProto.Compaction> working =
+          getHBase().scanCompactions(HbaseMetastoreProto.CompactionState.WORKING);
+      if (working.size() == 0) return;
 
+      long mustBeStartedBefore = System.currentTimeMillis() - timeout;
+      List<HbaseMetastoreProto.Compaction> revokable = new ArrayList<>(working.size());
+      for (HbaseMetastoreProto.Compaction compaction : working) {
+        if (compaction.hasStartedWorkingAt() &&
+            compaction.getStartedWorkingAt() < mustBeStartedBefore) {
+          revokable.add(compaction);
+        }
+      }
+      if (revokable.size() == 0) return;
+
+      List<HbaseMetastoreProto.Compaction> newCompactions = new ArrayList<>(revokable.size());
+      for (HbaseMetastoreProto.Compaction compaction : revokable) {
+        newCompactions.add(HbaseMetastoreProto.Compaction.newBuilder(compaction)
+            .setState(HbaseMetastoreProto.CompactionState.INITIATED)
+            .clearWorkerId()
+            .clearStartedWorkingAt()
+            .build());
+      }
+
+      getHBase().putCompactions(newCompactions);
+    } catch (Throwable e) {
+      LOG.error("Failed to find next compaction to work on", e);
+      throw new MetaException(e.getMessage());
+    }
   }
 
   @Override
@@ -302,20 +582,78 @@ public class HBaseTxnHandler implements TxnStore {
 
   @Override
   public void setCompactionHighestTxnId(CompactionInfo ci, long highestTxnId) throws MetaException {
-    // TODO - modify info in HBase
-
+    try {
+      HbaseMetastoreProto.Compaction compaction = getHBase().getCompaction(ci.id);
+      HbaseMetastoreProto.Compaction newCompaction =
+          HbaseMetastoreProto.Compaction.newBuilder(compaction)
+          .setHighestTxnId(highestTxnId)
+          .build();
+      getHBase().putCompaction(newCompaction);
+    } catch (IOException e) {
+      LOG.error("Failed to set highest txn id", e);
+      throw new MetaException(e.getMessage());
+    }
   }
 
   @Override
   public void purgeCompactionHistory() throws MetaException {
-    // TODO - change state in metastore
+    try {
+      List<HbaseMetastoreProto.Compaction> compactions = getHBase().scanCompactions(null);
+      if (compactions.size() == 0) return;
+
+      TxnStore.RetentionCounters rc = new RetentionCounters(
+          conf.getIntVar(HiveConf.ConfVars.COMPACTOR_HISTORY_RETENTION_ATTEMPTED),
+          TxnUtils.getFailedCompactionRetention(conf),
+          conf.getIntVar(HiveConf.ConfVars.COMPACTOR_HISTORY_RETENTION_SUCCEEDED));
+
+      List<Long> deleteSet = new ArrayList<>();
+      Map<Long, HbaseMetastoreProto.Compaction> lookups = new HashMap<>(compactions.size());
+      for (HbaseMetastoreProto.Compaction compaction : compactions) {
+        if (compaction.getState() == HbaseMetastoreProto.CompactionState.FAILED ||
+            compaction.getState() == HbaseMetastoreProto.CompactionState.SUCCEEDED) {
+          lookups.put(compaction.getId(), compaction);
+          CompactionInfo ci = HBaseUtils.pbToCompactor(compaction);
+          TxnUtils.checkForDeletion(deleteSet, ci, rc);
+        }
+      }
+
+      if (deleteSet.size() > 0) {
+        getHBase().deleteCompactions(deleteSet);
+      }
+    } catch (IOException e) {
+      LOG.error("Failed to purge compaction history", e);
+      throw new MetaException(e.getMessage());
+
+    }
 
   }
 
   @Override
   public boolean checkFailedCompactions(CompactionInfo ci) throws MetaException {
-    // TODO - get info from HBase
-    return false;
+    try {
+      List<HbaseMetastoreProto.Compaction> compactions =
+          getHBase().scanCompactions(HbaseMetastoreProto.CompactionState.FAILED);
+      if (compactions.size() == 0) return false;
+
+      int failedThreshold = conf.getIntVar(HiveConf.ConfVars.COMPACTOR_INITIATOR_FAILED_THRESHOLD);
+
+      int numFails = 0;
+      for (HbaseMetastoreProto.Compaction compaction : compactions) {
+        if (compaction.getDb().equals(ci.dbname) &&
+            compaction.getTable().equals(ci.tableName) &&
+            (compaction.hasPartition() && compaction.getPartition().equals(ci.partName) ||
+                !compaction.hasPartition() && ci.partName == null)) {
+          numFails++;
+        }
+      }
+
+      return numFails > failedThreshold;
+    } catch (IOException e) {
+      LOG.error("Failed to purge compaction history", e);
+      throw new MetaException(e.getMessage());
+
+    }
+
   }
 
   @Override
