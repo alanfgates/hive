@@ -25,6 +25,7 @@ import org.apache.hadoop.hbase.Coprocessor;
 import org.apache.hadoop.hbase.CoprocessorEnvironment;
 import org.apache.hadoop.hbase.coprocessor.CoprocessorService;
 import org.apache.hadoop.hbase.protobuf.ResponseConverter;
+import org.apache.hadoop.hive.common.ObjectPair;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.hbase.HBaseReadWrite;
 import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
@@ -71,10 +72,10 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Coprocessor,
                                                                               CoprocessorService {
 
-  // TODO switch HiveLock to keep pointer to key instead of queue so we can get rid of back pointer
   // TODO handle refusing new transactions once we reach a certain size.
   // TODO add logging
   // TODO add new object types in HBaseSchemaTool
+  // TODO Write some tests so you have some clue if this works
 
   // Someday - handle lock promotion
 
@@ -109,12 +110,12 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
   private long nextLockId;
 
   // A structure to store the locks according to which database/table/partition they lock.
-  private Map<DTPKey, DTPQueue> dtps;
+  private Map<EntityKey, LockQueue> lockQueues;
 
   private HBaseReadWrite hbase;
 
   // A queue used to signal to the lockChecker which dtp queues it should look in.
-  private BlockingQueue<DTPKey> lockQueuesToCheck;
+  private BlockingQueue<EntityKey> lockQueuesToCheck;
 
   // Keep track of all our service threads so we can stop them when we shut down.
   private List<Thread> serviceThreads;
@@ -134,7 +135,7 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
     openTxns = new HashMap<>();
     abortedTxns = new HashMap<>();
     committedTxns = new HashSet<>();
-    dtps = new HashMap<>(10000);
+    lockQueues = new HashMap<>(10000);
     lockQueuesToCheck = new LinkedBlockingDeque<>();
     conf = coprocessorEnvironment.getConfiguration();
     try {
@@ -264,16 +265,16 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
   private void abortTxn(OpenHiveTransaction txn)
       throws IOException {
     HiveLock[] locks = txn.getHiveLocks();
-    List<DTPKey> queuesToCheck = new ArrayList<>();
+    List<EntityKey> queuesToCheck = new ArrayList<>();
     if (locks != null) {
       for (HiveLock lock : locks) {
         lock.setState(HbaseMetastoreProto.LockState.TXN_ABORTED);
-        lock.getDtpQueue().queue.remove(lock.getId());
+        lockQueues.get(lock.getEntityLocked()).queue.remove(lock.getId());
         // It's ok to put these in the queue now even though we're still removing things because
         // we hold the master write lock.  The lockChecker won't be able to run until we've
         // released that lock anyway.
         try {
-          lockQueuesToCheck.put(lock.getDtpQueue().key);
+          lockQueuesToCheck.put(lock.getEntityLocked());
         } catch (InterruptedException e) {
           throw new IOException(e);
         }
@@ -344,12 +345,12 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
       if (locks != null) {
         for (HiveLock lock : locks) {
           lock.setState(HbaseMetastoreProto.LockState.RELEASED);
-          lock.getDtpQueue().queue.remove(lock.getId());
+          lockQueues.get(lock.getEntityLocked()).queue.remove(lock.getId());
           // It's ok to put these in the queue now even though we're still removing things because
           // we hold the master write lock.  The lockChecker won't be able to run until we've
           // released that lock anyway.
           try {
-            lockQueuesToCheck.put(lock.getDtpQueue().key);
+            lockQueuesToCheck.put(lock.getEntityLocked());
           } catch (InterruptedException e) {
             throw new IOException(e);
           }
@@ -367,8 +368,8 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
         // Record all of the commit ids in the dtps so other transactions can quickly look it up
         // when getting locks.
         for (HiveLock lock : txn.getHiveLocks()) {
-          lock.getDtpQueue().gtCommitId =
-              Math.max(lock.getDtpQueue().gtCommitId, committedTxn.getCommitId());
+          LockQueue queue = lockQueues.get(lock.getEntityLocked());
+          queue.gtCommitId = Math.max(queue.gtCommitId, committedTxn.getCommitId());
         }
         List<HBaseReadWrite.PotentialCompactionEntity> pces = new ArrayList<>();
 
@@ -459,7 +460,8 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
           HbaseMetastoreProto.LockComponent component = components.get(i);
           long lockId = nextLockId++;
           hiveLocks[i] = new HiveLock(lockId, request.getTxnId(), component.getType(),
-              findDTPQueue(component.getDb(), component.getTable(), component.getPartition()));
+              findOrCreateLockQueue(component.getDb(), component.getTable(),
+                  component.getPartition()).getFirst());
           // Build the hbase lock so we have it later when we need to record the locks in HBase
           HbaseMetastoreProto.Transaction.Lock.Builder builder =
               HbaseMetastoreProto.Transaction.Lock
@@ -473,9 +475,9 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
           lockBuilders.add(builder.build());
 
           // Add to the appropriate DTP queue
-          hiveLocks[i].getDtpQueue().queue.put(hiveLocks[i].getId(), hiveLocks[i]);
+          lockQueues.get(hiveLocks[i].getEntityLocked()).queue.put(hiveLocks[i].getId(), hiveLocks[i]);
           try {
-            lockQueuesToCheck.put(hiveLocks[i].getDtpQueue().key);
+            lockQueuesToCheck.put(hiveLocks[i].getEntityLocked());
           } catch (InterruptedException e) {
             throw new IOException(e);
           }
@@ -509,16 +511,6 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
       ResponseConverter.setControllerException(controller, e);
     }
     done.run(response);
-  }
-
-  DTPQueue findDTPQueue(String db, String table, String part) throws IOException {
-    DTPKey key = new DTPKey(db, table, part);
-    DTPQueue queue = dtps.get(key);
-    if (queue == null) {
-      queue = new DTPQueue(key);
-      dtps.put(key, queue);
-    }
-    return queue;
   }
 
   // This checks that all locks in the transaction are acquired.  It will hold for a few seconds
@@ -625,6 +617,8 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
         response = HbaseMetastoreProto.TransactionResult.newBuilder()
             .setState(HbaseMetastoreProto.TxnStateChangeResult.NO_SUCH_TXN)
             .build();
+        done.run(response);
+        return;
       }
       if (txn.getState() != HbaseMetastoreProto.TxnState.OPEN) {
         suicide("Attempt to add dynamic partitions to aborted or committed txn");
@@ -640,7 +634,7 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
       for (int i = 0; i < partitionNames.size(); i++) {
         partitionsWrittenTo[i] = new HiveLock(-1, request.getTxnId(),
             HbaseMetastoreProto.LockType.SHARED_WRITE,
-            findDTPQueue(request.getDb(), request.getTable(), partitionNames.get(i)));
+            findOrCreateLockQueue(request.getDb(), request.getTable(), partitionNames.get(i)).getFirst());
         // Set the lock in released state so it doesn't get put in the DTP queue on recovery
         partitionsWrittenTo[i].setState(HbaseMetastoreProto.LockState.RELEASED);
 
@@ -713,7 +707,7 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
               // aborted one.
               if (txn != null) {
                 // Mark the lock on that partition in this aborted txn as compacted.
-                HiveLock compactedLock = txn.compactLock(new DTPKey(request.getDb(),
+                HiveLock compactedLock = txn.compactLock(new EntityKey(request.getDb(),
                     request.getTable(), request.hasPartition() ? request.getPartition() : null));
                 if (txn.fullyCompacted()) {
                   fullyCompacted.add(txnId);
@@ -804,6 +798,44 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
     done.run(builder.build());
   }
 
+  /**
+   * Find the appropriate lock queue given entity information.  If an appropriate entry is not in
+   * the lockQueues it will be added.  This method does not acquire any locks, but you should *
+   * assure that you are inside the write lock before calling it, or you're in recover and thus *
+   * don't need any locks.
+   * @param hbaseLock hbase lock
+   * @return object pair, first element is EntityKey, second is LockQueue.
+   * @throws IOException
+   */
+  ObjectPair<EntityKey, LockQueue> findOrCreateLockQueue(HbaseMetastoreProto.Transaction.Lock hbaseLock)
+      throws IOException {
+    return findOrCreateLockQueue(hbaseLock.getDb(),
+        hbaseLock.hasTable() ? hbaseLock.getTable() : null,
+        hbaseLock.hasPartition() ? hbaseLock.getPartition() : null);
+  }
+
+  /**
+   * Find the appropriate lock queue given entity information.  If an appropriate entry is not in
+   * the lockQueues it will be added.  This method does not acquire any locks, but you should
+   * assure that you are inside the write lock before calling it, or you're in recover and thus
+   * don't need any locks.
+   * @param db database
+   * @param table table name (may be null)
+   * @param part partition name (may be null)
+   * @return object pair, first element is EntityKey, second is LockQueue.
+   * @throws IOException
+   */
+  ObjectPair<EntityKey, LockQueue> findOrCreateLockQueue(String db, String table, String part)
+      throws IOException {
+    EntityKey key = new EntityKey(db, table, part);
+    LockQueue queue = lockQueues.get(key);
+    if (queue == null) {
+      queue = new LockQueue();
+      lockQueues.put(key, queue);
+    }
+    return new ObjectPair<>(key, queue);
+  }
+
   // This method assumes you are holding the read lock.
   private long findMinOpenTxn() {
     long minOpenTxn = Long.MAX_VALUE;
@@ -823,7 +855,6 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
     // No locking is required here because we're still in the constructor and we're guaranteed no
     // one else is muddying the waters.
     // Get existing transactions from HBase
-    boolean shouldCommit = false;
     try {
       List<HbaseMetastoreProto.Transaction> hbaseTxns = getHBase().scanTransactions();
       if (hbaseTxns != null) {
@@ -841,8 +872,8 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
 
           case COMMITTED:
             for (HbaseMetastoreProto.Transaction.Lock hbaseLock : hbaseTxn.getLocksList()) {
-              DTPQueue queue = findDTPQueue(hbaseLock.getDb(), hbaseLock.getTable(),
-                  hbaseLock.hasPartition() ? hbaseLock.getPartition() : null);
+              LockQueue queue = findOrCreateLockQueue(hbaseLock.getDb(), hbaseLock.getTable(),
+                  hbaseLock.hasPartition() ? hbaseLock.getPartition() : null).getSecond();
               queue.gtCommitId = Math.max(queue.gtCommitId, hbaseTxn.getCommitId());
             }
             committedTxns.add(new CommittedHiveTransaction(hbaseTxn));
@@ -879,12 +910,12 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
     }
   }
 
-  static class DTPKey {
+  static class EntityKey {
     final String db;
     final String table;
     final String part;
 
-    DTPKey(String db, String table, String part) {
+    private EntityKey(String db, String table, String part) {
       this.db = db;
       this.table = table;
       this.part = part;
@@ -901,8 +932,8 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
 
     @Override
     public boolean equals(Object obj) {
-      if (!(obj instanceof DTPKey)) return false;
-      DTPKey other = (DTPKey)obj;
+      if (!(obj instanceof EntityKey)) return false;
+      EntityKey other = (EntityKey)obj;
       // db should never be null
       if (db.equals(other.db)) {
         if (table == null && other.table == null ||
@@ -932,14 +963,12 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
     }
   }
 
-  static class DTPQueue {
+  static class LockQueue {
     final SortedMap<Long, HiveLock> queue;
-    final DTPKey key; // backpointer to our key so that from the lock we can find the dtp
     long gtCommitId; // commit id of highest transaction that wrote to this DTP
 
-    public DTPQueue(DTPKey key) {
+    private LockQueue() {
       queue = new TreeMap<>();
-      this.key = key;
       gtCommitId = 0;
     }
   }
@@ -1063,12 +1092,12 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
           // Go back through the while loop, as this might mean it's time to quit
           continue;
         }
-        List<DTPKey> empties = new ArrayList<>();
+        List<EntityKey> empties = new ArrayList<>();
         // First get the read lock and find all currently empty keys.  Then release the read
         // lock, get the write lock and remove all those keys, checking again that they are
         // truly empty.
         try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
-          for (Map.Entry<DTPKey, DTPQueue> entry : dtps.entrySet()) {
+          for (Map.Entry<EntityKey, LockQueue> entry : lockQueues.entrySet()) {
             if (entry.getValue().queue.size() == 0 && entry.getValue().gtCommitId == 0) {
               empties.add(entry.getKey());
             }
@@ -1079,10 +1108,10 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
 
         if (empties.size() > 0) {
           try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
-            for (DTPKey key : empties) {
-              DTPQueue queue = dtps.get(key);
+            for (EntityKey key : empties) {
+              LockQueue queue = lockQueues.get(key);
               if (queue.queue.size() == 0 && queue.gtCommitId == 0) {
-                dtps.remove(key);
+                lockQueues.remove(key);
               }
             }
           } catch (IOException e) {
@@ -1104,7 +1133,7 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
           Set<Long> forgetableIds = new HashSet<>();
           Set<Long> forgetableCommitIds = new HashSet<>();
           List<CommittedHiveTransaction> forgetableTxns = new ArrayList<>();
-          Map<DTPQueue, Long> forgetableDtps = new HashMap<>();
+          Map<LockQueue, Long> forgetableDtps = new HashMap<>();
           long minOpenTxn;
           try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
             minOpenTxn = findMinOpenTxn();
@@ -1118,7 +1147,7 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
             }
             // For any of these found transactions, see if we can remove them from the dtps.
             // This is important because it enables us eventually to shrink the dtps
-            for (DTPQueue queue : dtps.values()) {
+            for (LockQueue queue : lockQueues.values()) {
               if (forgetableCommitIds.contains(queue.gtCommitId)) {
                 forgetableDtps.put(queue, queue.gtCommitId);
               }
@@ -1135,7 +1164,7 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
               if (shouldCommit) getHBase().commit();
               else getHBase().rollback();
             }
-            for (Map.Entry<DTPQueue, Long> entry : forgetableDtps.entrySet()) {
+            for (Map.Entry<LockQueue, Long> entry : forgetableDtps.entrySet()) {
               // Make sure no one else has changed the value in the meantime
               if (entry.getKey().gtCommitId == entry.getValue()) {
                 entry.getKey().gtCommitId = 0;
@@ -1157,7 +1186,7 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
     public void run() {
       while (go) {
         try {
-          List<DTPKey> keys = new ArrayList<>();
+          List<EntityKey> keys = new ArrayList<>();
           keys.add(lockQueuesToCheck.take());
           Map<Long, HiveLock> toAcquire = new HashMap<>();
           Set<OpenHiveTransaction> acquiringTxns = new HashSet<>();
@@ -1165,12 +1194,12 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
           try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
             // Many keys may have been added to the queue, grab them all so we can do this just
             // once.
-            DTPKey k;
+            EntityKey k;
             while ((k = lockQueuesToCheck.poll()) != null) {
               keys.add(k);
             }
-            for (DTPKey key : keys) {
-              DTPQueue queue = dtps.get(key);
+            for (EntityKey key : keys) {
+              LockQueue queue = lockQueues.get(key);
               HiveLock lastLock = null;
               for (HiveLock lock : queue.queue.values()) {
                 if (lock.getState() == HbaseMetastoreProto.LockState.WAITING) {
@@ -1180,10 +1209,11 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
                     // lost update problem where another transaction not in the acquiring
                     // transaction's read set has written to the same entity.  If so, abort the
                     // acquiring transaction.
-                    if (lock.getDtpQueue().gtCommitId > lock.getTxnId()) {
+                    long latestTxnId = lockQueues.get(lock.getEntityLocked()).gtCommitId;
+                    if (latestTxnId > lock.getTxnId()) {
                       LOG.info("Transaction " + lock.getTxnId() + " attempted to obtain lock for " +
-                          lock.getDtpQueue().key.toString() + " but that entity more recently " +
-                          "updated with transaction with commit id " + lock.getDtpQueue().gtCommitId
+                          lock.getEntityLocked().toString() + " but that entity more recently " +
+                          "updated with transaction with commit id " + latestTxnId
                           + " so later transaction will be aborted.");
                       writeConflicts.add(lock.getTxnId());
                     } else {

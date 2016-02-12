@@ -25,7 +25,7 @@ import java.util.Map;
 
 public class AbortedHiveTransaction extends HiveTransaction {
 
-  private Map<TransactionManager.DTPKey, HiveLock> compactableLocks;
+  private Map<TransactionManager.EntityKey, HiveLock> compactableLocks;
 
   /**
    * For use when creating a new aborted transaction.
@@ -36,7 +36,7 @@ public class AbortedHiveTransaction extends HiveTransaction {
     compactableLocks = new HashMap<>();
     for (HiveLock lock : openTxn.getHiveLocks()) {
       if (lock.getType() == HbaseMetastoreProto.LockType.SHARED_WRITE) {
-        compactableLocks.put(lock.getDtpQueue().key, lock);
+        compactableLocks.put(lock.getEntityLocked(), lock);
       }
     }
   }
@@ -53,7 +53,7 @@ public class AbortedHiveTransaction extends HiveTransaction {
     compactableLocks = new HashMap<>();
     for (HbaseMetastoreProto.Transaction.Lock hbaseLock : hbaseTxn.getLocksList()) {
       HiveLock hiveLock = new HiveLock(id, hbaseLock, txnMgr);
-      compactableLocks.put(hiveLock.getDtpQueue().key, hiveLock);
+      compactableLocks.put(hiveLock.getEntityLocked(), hiveLock);
     }
   }
 
@@ -66,7 +66,7 @@ public class AbortedHiveTransaction extends HiveTransaction {
    * Note that a dtp a lock is associated with has been compacted, so we can forget about the lock
    * @param key dtp lock is associated with
    */
-  HiveLock compactLock(TransactionManager.DTPKey key) {
+  HiveLock compactLock(TransactionManager.EntityKey key) {
     return compactableLocks.remove(key);
   }
 

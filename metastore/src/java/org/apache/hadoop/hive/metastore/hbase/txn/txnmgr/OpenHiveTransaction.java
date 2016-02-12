@@ -53,11 +53,12 @@ class OpenHiveTransaction extends HiveTransaction {
     hiveLocks = new HiveLock[hbaseLocks.size()];
     for (int i = 0; i < hbaseLocks.size(); i++) {
       hiveLocks[i] = new HiveLock(id, hbaseLocks.get(i), txnMgr);
-      // They might be listed as RELEASED if they were added later as DYNAMIC partition
-      // locks, so don't add them in that case.
+      // Insert the locks into the lockQueues.  Since lockQueues is sorted they'll come out in
+      // the right order.
       if (hiveLocks[i].getState() == HbaseMetastoreProto.LockState.WAITING ||
           hiveLocks[i].getState() == HbaseMetastoreProto.LockState.ACQUIRED) {
-        hiveLocks[i].getDtpQueue().queue.put(hiveLocks[i].getId(), hiveLocks[i]);
+        txnMgr.findOrCreateLockQueue(hbaseLocks.get(i)).getSecond().queue.put(hiveLocks[i].getId(),
+            hiveLocks[i]);
       }
     }
   }

@@ -28,7 +28,7 @@ class HiveLock {
   // db/table/part
   private final long txnId;
   // Lock list this lock is part of
-  private final TransactionManager.DTPQueue dtpQueue;
+  private final TransactionManager.EntityKey entityLocked;
   private final HbaseMetastoreProto.LockType type;
   private HbaseMetastoreProto.LockState state;
 
@@ -37,14 +37,14 @@ class HiveLock {
    * @param id id for this lock
    * @param txnId txn id this lock is part of
    * @param type lock type
-   * @param dtpQueue DTP list this will go in.
+   * @param entityLocked DTP list this will go in.
    */
   HiveLock(long id, long txnId, HbaseMetastoreProto.LockType type,
-           TransactionManager.DTPQueue dtpQueue) {
+           TransactionManager.EntityKey entityLocked) {
     this.id = id;
     this.txnId = txnId;
     this.type = type;
-    this.dtpQueue = dtpQueue;
+    this.entityLocked = entityLocked;
     state = HbaseMetastoreProto.LockState.WAITING;
   }
 
@@ -59,8 +59,7 @@ class HiveLock {
       throws IOException {
     id = hbaseLock.getId();
     this.txnId = txnId;
-    dtpQueue =
-        txnMgr.findDTPQueue(hbaseLock.getDb(), hbaseLock.getTable(), hbaseLock.getPartition());
+    entityLocked = txnMgr.findOrCreateLockQueue(hbaseLock).getFirst();
     type = hbaseLock.getType();
     state = hbaseLock.getState();
   }
@@ -85,8 +84,8 @@ class HiveLock {
     this.state = state;
   }
 
-  public TransactionManager.DTPQueue getDtpQueue() {
-    return dtpQueue;
+  public TransactionManager.EntityKey getEntityLocked() {
+    return entityLocked;
   }
 
   @Override
