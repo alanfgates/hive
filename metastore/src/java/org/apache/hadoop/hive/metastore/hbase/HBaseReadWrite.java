@@ -2500,7 +2500,7 @@ public class HBaseReadWrite implements MetadataStore {
    * @param txnIds txns to delete
    * @throws IOException
    */
-  public void deleteTransactions(List<Long> txnIds) throws IOException {
+  public void deleteTransactions(Collection<Long> txnIds) throws IOException {
     List<Delete> deletes = new ArrayList<>(txnIds.size());
     for (Long txnId : txnIds) {
       deletes.add(new Delete(HBaseUtils.buildKey(Long.toString(txnId))));

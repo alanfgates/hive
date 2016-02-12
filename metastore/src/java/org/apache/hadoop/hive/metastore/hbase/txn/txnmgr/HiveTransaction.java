@@ -32,4 +32,16 @@ abstract class HiveTransaction {
 
   abstract HbaseMetastoreProto.TxnState getState();
 
+  @Override
+  public boolean equals(Object o) {
+    if (o == null || !(o instanceof HiveTransaction)) return false;
+    HiveTransaction other = (HiveTransaction)o;
+    return id == other.id;
+  }
+
+  @Override
+  public int hashCode() {
+    return (int)id;
+  }
+
 }

@@ -20,13 +20,13 @@ package org.apache.hadoop.hive.metastore.hbase.txn.txnmgr;
 import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 public class CommittedHiveTransaction extends HiveTransaction {
 
   private final long commitId;
-  private Map<TransactionManager.DTPKey, HiveLock> locks;
+  private HiveLock[] locks;
 
   /**
    * For use when creating a new transaction.  This creates the transaction in an open state.
@@ -36,13 +36,15 @@ public class CommittedHiveTransaction extends HiveTransaction {
   CommittedHiveTransaction(OpenHiveTransaction openTxn, long commitId) {
     super(openTxn.getId());
     this.commitId = commitId;
-    locks = new HashMap<>();
+
+    List<HiveLock> lockList = new ArrayList<>();
 
     for (HiveLock lock : openTxn.getHiveLocks()) {
       if (lock.getType() == HbaseMetastoreProto.LockType.SHARED_WRITE) {
-        locks.put(lock.getDtpQueue().key, lock);
+        lockList.add(lock);
       }
     }
+    locks = lockList.toArray(new HiveLock[lockList.size()]);
   }
 
   /**
@@ -55,11 +57,10 @@ public class CommittedHiveTransaction extends HiveTransaction {
       throws IOException {
     super(hbaseTxn.getId());
     this.commitId = hbaseTxn.getCommitId();
-    locks = new HashMap<>();
+    locks = new HiveLock[hbaseTxn.getLocksCount()];
+    int i = 0;
     for (HbaseMetastoreProto.Transaction.Lock hbaseLock : hbaseTxn.getLocksList()) {
-      HiveLock lock = new HiveLock(id, hbaseLock, txnMgr);
-      locks.put(lock.getDtpQueue().key, lock);
-
+      locks[i++] = new HiveLock(id, hbaseLock, txnMgr);
     }
   }
 
@@ -69,5 +70,9 @@ public class CommittedHiveTransaction extends HiveTransaction {
 
   long getCommitId() {
     return commitId;
+  }
+
+  HiveLock[] getLocks() {
+    return locks;
   }
 }
