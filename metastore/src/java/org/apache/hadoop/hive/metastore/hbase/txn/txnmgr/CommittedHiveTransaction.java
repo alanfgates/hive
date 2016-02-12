@@ -20,48 +20,30 @@ package org.apache.hadoop.hive.metastore.hbase.txn.txnmgr;
 import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 public class CommittedHiveTransaction extends HiveTransaction {
 
   private final long commitId;
-  private HiveLock[] locks;
 
   /**
-   * For use when creating a new transaction.  This creates the transaction in an open state.
+   * For use when creating a newly committed transaction.
    * @param openTxn open transaction that is moving to a committed state.
    * @param commitId id assigned at commit time.
    */
   CommittedHiveTransaction(OpenHiveTransaction openTxn, long commitId) {
     super(openTxn.getId());
     this.commitId = commitId;
-
-    List<HiveLock> lockList = new ArrayList<>();
-
-    for (HiveLock lock : openTxn.getHiveLocks()) {
-      if (lock.getType() == HbaseMetastoreProto.LockType.SHARED_WRITE) {
-        lockList.add(lock);
-      }
-    }
-    locks = lockList.toArray(new HiveLock[lockList.size()]);
   }
 
   /**
    * For use when recovering transactions from HBase.
    * @param hbaseTxn transaction record from HBase.
-   * @param txnMgr transaction manager.
    * @throws IOException
    */
-  CommittedHiveTransaction(HbaseMetastoreProto.Transaction hbaseTxn, TransactionManager txnMgr)
+  CommittedHiveTransaction(HbaseMetastoreProto.Transaction hbaseTxn)
       throws IOException {
     super(hbaseTxn.getId());
     this.commitId = hbaseTxn.getCommitId();
-    locks = new HiveLock[hbaseTxn.getLocksCount()];
-    int i = 0;
-    for (HbaseMetastoreProto.Transaction.Lock hbaseLock : hbaseTxn.getLocksList()) {
-      locks[i++] = new HiveLock(id, hbaseLock, txnMgr);
-    }
   }
 
   HbaseMetastoreProto.TxnState getState() {
@@ -70,9 +52,5 @@ public class CommittedHiveTransaction extends HiveTransaction {
 
   long getCommitId() {
     return commitId;
-  }
-
-  HiveLock[] getLocks() {
-    return locks;
   }
 }

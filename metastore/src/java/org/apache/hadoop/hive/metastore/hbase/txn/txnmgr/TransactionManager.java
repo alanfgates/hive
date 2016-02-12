@@ -71,9 +71,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Coprocessor,
                                                                               CoprocessorService {
 
-  // TODO solve lost update problem
   // TODO switch HiveLock to keep pointer to key instead of queue so we can get rid of back pointer
-  // TODO get rid of remembering locks in committed txns
   // TODO handle refusing new transactions once we reach a certain size.
   // TODO add logging
   // TODO add new object types in HBaseSchemaTool
@@ -364,7 +362,14 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
       if (txn.hasWriteLocks()) {
         // There's no need to move the transaction counter ahead
         CommittedHiveTransaction committedTxn = new CommittedHiveTransaction(txn, nextTxnId);
-        addToCommittedTxns(committedTxn);
+
+        committedTxns.add(committedTxn);
+        // Record all of the commit ids in the dtps so other transactions can quickly look it up
+        // when getting locks.
+        for (HiveLock lock : txn.getHiveLocks()) {
+          lock.getDtpQueue().gtCommitId =
+              Math.max(lock.getDtpQueue().gtCommitId, committedTxn.getCommitId());
+        }
         List<HBaseReadWrite.PotentialCompactionEntity> pces = new ArrayList<>();
 
         HbaseMetastoreProto.Transaction hbaseTxn = getHBase().getTransaction(committedTxn.getId());
@@ -808,14 +813,6 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
     return minOpenTxn;
   }
 
-  // This function assumes you hold the write lock.
-  private void addToCommittedTxns(CommittedHiveTransaction committedTxn) {
-    for (HiveLock lock : committedTxn.getLocks()) {
-      lock.getDtpQueue().gtCommitId =
-          Math.max(lock.getDtpQueue().gtCommitId, committedTxn.getCommitId());
-    }
-  }
-
   private void suicide(String logMsg) {
     throw new RuntimeException("Killing self due to " + logMsg);
     // TODO - figure out how to kill this instance of the co-processor without taking down the
@@ -843,7 +840,12 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
             break;
 
           case COMMITTED:
-            addToCommittedTxns(new CommittedHiveTransaction(hbaseTxn, this));
+            for (HbaseMetastoreProto.Transaction.Lock hbaseLock : hbaseTxn.getLocksList()) {
+              DTPQueue queue = findDTPQueue(hbaseLock.getDb(), hbaseLock.getTable(),
+                  hbaseLock.hasPartition() ? hbaseLock.getPartition() : null);
+              queue.gtCommitId = Math.max(queue.gtCommitId, hbaseTxn.getCommitId());
+            }
+            committedTxns.add(new CommittedHiveTransaction(hbaseTxn));
             break;
           }
         }
