@@ -34,17 +34,17 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -73,7 +73,6 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
                                                                               CoprocessorService {
 
   // TODO handle refusing new transactions once we reach a certain size.
-  // TODO add logging
   // TODO add new object types in HBaseSchemaTool
   // TODO Write some tests so you have some clue if this works
 
@@ -115,7 +114,7 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
   private HBaseReadWrite hbase;
 
   // A queue used to signal to the lockChecker which dtp queues it should look in.
-  private BlockingQueue<EntityKey> lockQueuesToCheck;
+  private Queue<EntityKey> lockQueuesToCheck;
 
   // Keep track of all our service threads so we can stop them when we shut down.
   private List<Thread> serviceThreads;
@@ -123,21 +122,26 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
   // Flag to tell threads to keep going
   private boolean go;
 
+  // Configuration values cached to avoid re-reading config all the time.
+  private long lockPollTimeout;
+
   public TransactionManager() {
 
   }
 
   @Override
   public void start(CoprocessorEnvironment coprocessorEnvironment) throws IOException {
+    LOG.info("Starting transaction manager co-processor service");
     masterLock = new ReentrantReadWriteLock();
     // Don't set the values here, as for efficiency in iteration we want the size to match as
     // closely as possible to the actual number of entries.
     openTxns = new HashMap<>();
     abortedTxns = new HashMap<>();
     committedTxns = new HashSet<>();
-    lockQueues = new HashMap<>(10000);
-    lockQueuesToCheck = new LinkedBlockingDeque<>();
+    lockQueues = new HashMap<>();
+    lockQueuesToCheck = new ArrayDeque<>();
     conf = coprocessorEnvironment.getConfiguration();
+    lockPollTimeout = HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_LOCK_POLL_TIMEOUT);
     try {
       recover();
     } catch (IOException e) {
@@ -146,25 +150,30 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
 
     go = true;
     serviceThreads = new ArrayList<>(services.length);
-    for (Runnable service : services) {
+    for (NamedRunnable service : services) {
       Thread t = new Thread(service);
+      LOG.info("Starting background thread " + t.getName() + " to run service " + service.getName());
       t.setDaemon(true);
       t.start();
       serviceThreads.add(t);
     }
+    LOG.info("Finished startup");
   }
 
   @Override
   public void stop(CoprocessorEnvironment coprocessorEnvironment) throws IOException {
     go = false;
+    LOG.info("Shutting down transaction manager co-processor service");
     for (Thread t : serviceThreads) {
+      LOG.info("Waiting for thread " + t.getName() + " to stop");
       t.interrupt();
       try {
         t.wait(1000);
       } catch (InterruptedException e) {
-        // TODO should probably log
+        LOG.warn("Interrupted while waiting for thread " + t.getName());
       }
     }
+    LOG.info("Finished shut down of transaction manager co-processor service");
   }
 
   @Override
@@ -175,6 +184,7 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
   @Override
   public void openTxns(RpcController controller, HbaseMetastoreProto.OpenTxnsRequest request,
                        RpcCallback<HbaseMetastoreProto.OpenTxnsResponse> done) {
+    if (LOG.isDebugEnabled()) LOG.debug("Opening " + request.getNumTxns() + " transactions");
     HbaseMetastoreProto.OpenTxnsResponse response = null;
     boolean shouldCommit = false;
     getHBase().begin();
@@ -215,6 +225,7 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
   @Override
   public void getOpenTxns(RpcController controller, HbaseMetastoreProto.Void request,
                           RpcCallback<HbaseMetastoreProto.GetOpenTxnsResponse> done) {
+    LOG.debug("Getting open transactions");
     HbaseMetastoreProto.GetOpenTxnsResponse response = null;
     try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
       response = HbaseMetastoreProto.GetOpenTxnsResponse.newBuilder()
@@ -231,10 +242,14 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
   @Override
   public void abortTxn(RpcController controller, HbaseMetastoreProto.TransactionId request,
                        RpcCallback<HbaseMetastoreProto.TransactionResult> done) {
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Aborting txn " + request.getId());
+    }
     HbaseMetastoreProto.TransactionResult response = null;
     try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
       OpenHiveTransaction txn = openTxns.get(request.getId());
       if (txn == null) {
+        LOG.warn("Unable to find transaction to abort " + request.getId());
         response = HbaseMetastoreProto.TransactionResult.newBuilder()
             .setState(HbaseMetastoreProto.TxnStateChangeResult.NO_SUCH_TXN)
             .build();
@@ -254,8 +269,6 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
     done.run(response);
   }
 
-  // You must own the master write lock before entering this method.
-
   /**
    * Abort a transaction.  You must own the master write lock before entering this method.  You
    * must NOT be in an HBase transaction.
@@ -265,7 +278,6 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
   private void abortTxn(OpenHiveTransaction txn)
       throws IOException {
     HiveLock[] locks = txn.getHiveLocks();
-    List<EntityKey> queuesToCheck = new ArrayList<>();
     if (locks != null) {
       for (HiveLock lock : locks) {
         lock.setState(HbaseMetastoreProto.LockState.TXN_ABORTED);
@@ -273,17 +285,20 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
         // It's ok to put these in the queue now even though we're still removing things because
         // we hold the master write lock.  The lockChecker won't be able to run until we've
         // released that lock anyway.
-        try {
-          lockQueuesToCheck.put(lock.getEntityLocked());
-        } catch (InterruptedException e) {
-          throw new IOException(e);
-        }
+        lockQueuesToCheck.add(lock.getEntityLocked());
       }
+      // Signal on the lockQueuesToCheck so that the lockChecker knows to go see what can be
+      // acquired now.
+      LOG.debug("Signally on lockQueuesToCheck");
+      lockQueuesToCheck.notify();
     }
 
     // Move the entry to the aborted txns list
     openTxns.remove(txn.getId());
     if (txn.hasWriteLocks()) {
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Transaction " + txn.getId() + " has write locks, creating aborted txn");
+      }
       AbortedHiveTransaction abortedTxn =  new AbortedHiveTransaction(txn);
       abortedTxns.put(txn.getId(), abortedTxn);
 
@@ -302,8 +317,13 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
         // aren't a part of compaction.
         if (hbaseLock.getType() == HbaseMetastoreProto.LockType.SHARED_WRITE) {
           txnBuilder.addLocks(hbaseLock);
-          pces.add(new HBaseReadWrite.PotentialCompactionEntity(hbaseLock.getDb(), hbaseLock
-              .getTable(), hbaseLock.getPartition()));
+          if (LOG.isDebugEnabled()) {
+            LOG.debug("Found potential compaction for " + hbaseLock.getDb() + "." +
+                hbaseLock.getTable() +
+                (hbaseLock.hasPartition() ? "." + hbaseLock.getPartition() : ""));
+          }
+          pces.add(new HBaseReadWrite.PotentialCompactionEntity(hbaseLock.getDb(),
+              hbaseLock.getTable(), hbaseLock.hasPartition() ? hbaseLock.getPartition() : null));
         }
       }
       boolean shouldCommit = false;
@@ -318,6 +338,9 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
       }
     } else {
       // There's no reason to remember this txn anymore, it either had no locks or was read only.
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Forgetting aborted txn " + txn.getId() + " as it has no write locks");
+      }
       getHBase().deleteTransaction(txn.getId());
     }
   }
@@ -325,16 +348,21 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
   @Override
   public void commitTxn(RpcController controller, HbaseMetastoreProto.TransactionId request,
                         RpcCallback<HbaseMetastoreProto.TransactionResult> done) {
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Committing txn " + request.getId());
+    }
     HbaseMetastoreProto.TransactionResult response = null;
     boolean shouldCommit = false;
     getHBase().begin();
     try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
       OpenHiveTransaction txn = openTxns.get(request.getId());
       if (txn == null) {
-        // TODO Log
+        LOG.info("Unable to find txn to commit " + request.getId());
         response = HbaseMetastoreProto.TransactionResult.newBuilder()
             .setState(HbaseMetastoreProto.TxnStateChangeResult.NO_SUCH_TXN)
             .build();
+        done.run(response);
+        return;
       } else {
         if (txn.getState() == HbaseMetastoreProto.TxnState.COMMITTED ||
             txn.getState() == HbaseMetastoreProto.TxnState.ABORTED) {
@@ -346,15 +374,12 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
         for (HiveLock lock : locks) {
           lock.setState(HbaseMetastoreProto.LockState.RELEASED);
           lockQueues.get(lock.getEntityLocked()).queue.remove(lock.getId());
-          // It's ok to put these in the queue now even though we're still removing things because
-          // we hold the master write lock.  The lockChecker won't be able to run until we've
-          // released that lock anyway.
-          try {
-            lockQueuesToCheck.put(lock.getEntityLocked());
-          } catch (InterruptedException e) {
-            throw new IOException(e);
-          }
+          lockQueuesToCheck.add(lock.getEntityLocked());
         }
+        // Signal on the lockQueuesToCheck so that the lockChecker knows to go see what can be
+        // acquired now.
+        LOG.debug("Signaling on lockQueuesToCheck");
+        lockQueuesToCheck.notify();
       }
 
       openTxns.remove(txn.getId());
@@ -364,12 +389,25 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
         // There's no need to move the transaction counter ahead
         CommittedHiveTransaction committedTxn = new CommittedHiveTransaction(txn, nextTxnId);
 
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("Created new committed transaction with txn id " + committedTxn.getId() +
+              " and commit id " + committedTxn.getCommitId());
+        }
+
         committedTxns.add(committedTxn);
-        // Record all of the commit ids in the dtps so other transactions can quickly look it up
-        // when getting locks.
+        // Record all of the commit ids in the lockQueues so other transactions can quickly look
+        // it up when getting locks.
         for (HiveLock lock : txn.getHiveLocks()) {
           LockQueue queue = lockQueues.get(lock.getEntityLocked());
-          queue.gtCommitId = Math.max(queue.gtCommitId, committedTxn.getCommitId());
+          if (LOG.isDebugEnabled()) {
+            LOG.debug(lock.getEntityLocked().toString() + " has max commit id of " +
+                queue.maxCommitId);
+          }
+          queue.maxCommitId = Math.max(queue.maxCommitId, committedTxn.getCommitId());
+          if (LOG.isDebugEnabled()) {
+            LOG.debug("Set " + lock.getEntityLocked().toString() + " max commit id to " +
+                queue.maxCommitId);
+          }
         }
         List<HBaseReadWrite.PotentialCompactionEntity> pces = new ArrayList<>();
 
@@ -387,6 +425,11 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
             HbaseMetastoreProto.Transaction.Lock.Builder lockBuilder =
                 HbaseMetastoreProto.Transaction.Lock.newBuilder(hbaseLock);
             txnBuilder.addLocks(lockBuilder);
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("Adding new entry to the potential compactions " + hbaseLock.getDb() +
+                  "." + hbaseLock.getTable() +
+                  (hbaseLock.hasPartition() ? "." + hbaseLock.getPartition() : ""));
+            }
             pces.add(new HBaseReadWrite.PotentialCompactionEntity(hbaseLock.getDb(), hbaseLock
                 .getTable(), hbaseLock.getPartition()));
           }
@@ -394,6 +437,10 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
         getHBase().putTransaction(txnBuilder.build());
         getHBase().putPotentialCompactions(committedTxn.getId(), pces);
       } else {
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("Forgetting transaction " + txn.getId() + " as it is committed and held no " +
+              "write locks");
+        }
         getHBase().deleteTransaction(txn.getId());
       }
       shouldCommit = true;
@@ -417,6 +464,11 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
     HbaseMetastoreProto.HeartbeatTxnRangeResponse.Builder builder =
         HbaseMetastoreProto.HeartbeatTxnRangeResponse.newBuilder();
 
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Heartbeating transactions from " + request.getMinTxn() + " to " +
+          request.getMaxTxn());
+    }
+
     try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
       for (long txnId = request.getMinTxn(); txnId <= request.getMaxTxn(); txnId++) {
         OpenHiveTransaction txn = openTxns.get(txnId);
@@ -438,6 +490,14 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
   @Override
   public void lock(RpcController controller, HbaseMetastoreProto.LockRequest request,
                    RpcCallback<HbaseMetastoreProto.LockResponse> done) {
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Requesting locks for transaction " + request.getTxnId());
+      for (HbaseMetastoreProto.LockComponent component : request.getComponentsList()) {
+        LOG.debug("entity: " + component.getDb() +
+            (component.hasTable() ? component.getTable() : "") +
+            (component.hasPartition() ? component.getPartition() : ""));
+      }
+    }
     HbaseMetastoreProto.LockResponse response = null;
     List<HbaseMetastoreProto.LockComponent> components = request.getComponentsList();
     HiveLock[] hiveLocks = new HiveLock[components.size()];
@@ -446,13 +506,14 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
       try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
         txn = openTxns.get(request.getTxnId());
         if (txn == null) {
+          LOG.info("Asked to get locks for non-open transaction " + request.getTxnId());
           done.run(HbaseMetastoreProto.LockResponse.newBuilder()
                  .setState(HbaseMetastoreProto.LockState.TXN_ABORTED)
                  .build());
           return;
         }
         if (txn.getState() != HbaseMetastoreProto.TxnState.OPEN) {
-          suicide("Way bad, non-open txn in open list");
+          suicide("Non-open txn in open list");
         }
 
         List<HbaseMetastoreProto.Transaction.Lock> lockBuilders = new ArrayList<>();
@@ -476,12 +537,9 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
 
           // Add to the appropriate DTP queue
           lockQueues.get(hiveLocks[i].getEntityLocked()).queue.put(hiveLocks[i].getId(), hiveLocks[i]);
-          try {
-            lockQueuesToCheck.put(hiveLocks[i].getEntityLocked());
-          } catch (InterruptedException e) {
-            throw new IOException(e);
-          }
+          lockQueuesToCheck.add(hiveLocks[i].getEntityLocked());
         }
+        lockQueuesToCheck.notify();
         txn.addLocks(hiveLocks);
 
         // Record changes in HBase
@@ -518,14 +576,17 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
   @Override
   public void checkLocks(RpcController controller, HbaseMetastoreProto.TransactionId request,
                          RpcCallback<HbaseMetastoreProto.LockResponse> done) {
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Checking locks for transaction " + request.getId());
+    }
     HbaseMetastoreProto.LockResponse response = null;
     try {
-      OpenHiveTransaction txn = null;
+      OpenHiveTransaction txn;
       try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
         txn = openTxns.get(request.getId());
       }
       if (txn == null) {
-        // TODO LOG
+        LOG.info("Attempt to check locks for non-open transaction " + request.getId());
         response = HbaseMetastoreProto.LockResponse.newBuilder()
             .setState(HbaseMetastoreProto.LockState.TXN_ABORTED)
             .build();
@@ -540,7 +601,8 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
 
   private HbaseMetastoreProto.LockResponse pollForLocks(HiveLock[] hiveLocks)
       throws IOException {
-    long waitUntil = System.currentTimeMillis() + 5000;
+    LOG.debug("Polling for locks");
+    long waitUntil = System.currentTimeMillis() + lockPollTimeout;
     try {
       long now = System.currentTimeMillis();
       while (now < waitUntil) {
@@ -557,15 +619,21 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
           }
         }
         if (!sawWaiting) {
+          LOG.debug("All locks acquired, returning ACQUIRED");
           return HbaseMetastoreProto.LockResponse.newBuilder()
               .setState(HbaseMetastoreProto.LockState.ACQUIRED)
               .build();
         }
         now = System.currentTimeMillis();
-        if (now < waitUntil) lockChecker.wait(waitUntil - now);
+        // Don't wait long.  This way if we missed a previous notify from the lock checker we'll
+        // still check occasionally to see if our locks are ready.
+        LOG.debug("Waiting on the lockChecker");
+        if (now < waitUntil) lockChecker.wait(lockPollTimeout / 10);
+        LOG.debug("Done waiting on the lockChecker");
       }
 
       // If we got here it means we waited too long.
+      LOG.debug("Lost patience, returning WAITING");
       return HbaseMetastoreProto.LockResponse.newBuilder()
           .setState(HbaseMetastoreProto.LockState.WAITING)
           .build();
@@ -602,6 +670,13 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
   public void addDynamicPartitions(RpcController controller,
                                    HbaseMetastoreProto.AddDynamicPartitionsRequest request,
                                    RpcCallback<HbaseMetastoreProto.TransactionResult> done) {
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Adding dynamic partitions for transaction " + request.getTxnId() + " table " +
+          request.getDb() + "." + request.getTable());
+      for (String part : request.getPartitionsList()) {
+        LOG.debug("Partition: " + part);
+      }
+    }
     HbaseMetastoreProto.TransactionResult response = null;
     boolean shouldCommit = false;
     getHBase().begin();
@@ -613,7 +688,7 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
       // because we're actually covered by the table lock.  Do increment the counters in the dtps.
       OpenHiveTransaction txn = openTxns.get(request.getTxnId());
       if (txn == null) {
-        // TODO LOG
+        LOG.info("Attempt to add dynamic partitions to non-open transaction " + request.getTxnId());
         response = HbaseMetastoreProto.TransactionResult.newBuilder()
             .setState(HbaseMetastoreProto.TxnStateChangeResult.NO_SUCH_TXN)
             .build();
@@ -645,6 +720,10 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
             .setDb(request.getDb())
             .setTable(request.getTable())
             .setPartition(partitionNames.get(i)));
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("Adding potential compaction " + request.getDb() + "." + request.getTable() +
+              "." + partitionNames.get(i));
+        }
         pces.add(new HBaseReadWrite.PotentialCompactionEntity(request.getDb(), request.getTable(),
             partitionNames.get(i)));
       }
@@ -670,6 +749,12 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
   public void cleanupAfterCompaction(RpcController controller,
                                      HbaseMetastoreProto.Compaction request,
                                      RpcCallback<HbaseMetastoreProto.Void> done) {
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Cleaning up after compaction of " + request.getDb() + "." + request.getTable() +
+          (request.hasPartition() ? "." + request.getPartition() : ""));
+    }
+    boolean shouldCommit = false;
+    getHBase().begin();
     try {
       // First, go find the potential compaction that matches this compaction.  That has the map
       // to which transactions we now need to modify or forget.
@@ -679,6 +764,7 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
       // It is possible for the potential to be null, as the user could have requested a compaction
       // when there was nothing really to do.
       if (potential != null) {
+        LOG.debug("Found appropriate potential compaction");
         List<Long> compactedTxns = new ArrayList<>(); // All txns that were compacted
         // Txns in the potential that weren't compacted as part of this compaction.  We need to
         // track this so we can properly write the potential back.
@@ -687,8 +773,14 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
           // We only need to worry about this transaction if it's writes were compacted (that
           // is, it's <= the highestTxnId)
           if (txnId <= request.getHighestTxnId()) {
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("Adding " + txnId + " to list of transactions that have been compacted");
+            }
             compactedTxns.add(txnId);
           } else {
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("Adding " + txnId + " to list of transactions there were not compacted");
+            }
             uncompactedTxns.add(txnId);
           }
         }
@@ -698,32 +790,48 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
           // Transactions that have had locks marked as compacted but are not themselves fully
           // compacted yet.
           Map<Long, HiveLock> modifiedTxns = new HashMap<>();
-          // We need the write lock because we might remove entries from abortedTxns and
-          // delete from Transactions and rewrite or remove PotentialCompactions
+          // We need the write lock because we might remove entries from abortedTxns
           try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
             for (long txnId : compactedTxns) {
-              AbortedHiveTransaction txn = abortedTxns.remove(txnId);
+              AbortedHiveTransaction txn = abortedTxns.get(txnId);
               // The transaction could be null if this was a completed transaction and not an
               // aborted one.
               if (txn != null) {
                 // Mark the lock on that partition in this aborted txn as compacted.
                 HiveLock compactedLock = txn.compactLock(new EntityKey(request.getDb(),
                     request.getTable(), request.hasPartition() ? request.getPartition() : null));
+                if (LOG.isDebugEnabled()) {
+                  LOG.debug("Found aborted txn " + txn.getId() + " that was in the compacted list"
+                          + " removing lock for " + compactedLock.getEntityLocked().toString());
+                }
                 if (txn.fullyCompacted()) {
+                  LOG.debug("Transaction is now fully compacted");
                   fullyCompacted.add(txnId);
                 } else {
+                  LOG.debug("Transaction has remaining uncompacted locks");
                   modifiedTxns.put(txnId, compactedLock);
                 }
               }
             }
 
-            if (fullyCompacted.size() > 0) getHBase().deleteTransactions(fullyCompacted);
+            if (fullyCompacted.size() > 0) {
+              for (long txnId : fullyCompacted) {
+                if (LOG.isDebugEnabled()) {
+                  LOG.debug("Forgeting fully compacted aborted transaction " + txnId);
+                }
+                abortedTxns.remove(txnId);
+              }
+              getHBase().deleteTransactions(fullyCompacted);
+            }
             if (modifiedTxns.size() > 0) {
               List<HbaseMetastoreProto.Transaction> toModify =
                   getHBase().getTransactions(modifiedTxns.keySet());
               // New transaction objects we're writing back to HBase
               List<HbaseMetastoreProto.Transaction> toWrite = new ArrayList<>(modifiedTxns.size());
               for (HbaseMetastoreProto.Transaction hbaseTxn : toModify) {
+                if (LOG.isDebugEnabled()) {
+                  LOG.debug("Writing back modified aborted transaction " + hbaseTxn.getId());
+                }
                 HiveLock compactedLock =  modifiedTxns.get(hbaseTxn.getId());
                 HbaseMetastoreProto.Transaction.Builder txnBldr =
                     HbaseMetastoreProto.Transaction.newBuilder(hbaseTxn);
@@ -739,31 +847,32 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
               getHBase().putTransactions(toWrite);
             }
             // rewrite potential compaction
-            boolean shouldCommit = false;
-            getHBase().begin();
-            try {
-              if (uncompactedTxns.size() > 0) {
-                // Rewrite the potential compaction to remove txns that have been compacted out
-                HbaseMetastoreProto.PotentialCompaction.Builder potentialBldr =
-                    HbaseMetastoreProto.PotentialCompaction.newBuilder(potential);
-                potentialBldr.clearTxnIds();
-                potentialBldr.addAllTxnIds(uncompactedTxns);
-                getHBase().putPotentialCompaction(potentialBldr.build());
-              } else {
-                // This was the last transaction in this potential compaction, so remove it
-                getHBase().deletePotentialCompaction(potential.getDb(), potential.getTable(),
-                    potential.hasPartition() ? potential.getPartition() : null);
-              }
-              shouldCommit = true;
-            } finally {
-              if (shouldCommit) getHBase().commit();
-              else getHBase().rollback();
+            if (uncompactedTxns.size() > 0) {
+              LOG.debug("Rewriting potential compaction minus compacted transactions");
+              // Rewrite the potential compaction to remove txns that have been compacted out
+              HbaseMetastoreProto.PotentialCompaction.Builder potentialBldr =
+                  HbaseMetastoreProto.PotentialCompaction.newBuilder(potential);
+              potentialBldr.clearTxnIds();
+              potentialBldr.addAllTxnIds(uncompactedTxns);
+              getHBase().putPotentialCompaction(potentialBldr.build());
+            } else {
+              LOG.debug("Forgetting potential compaction as all transactions compacted");
+              // This was the last transaction in this potential compaction, so remove it
+              getHBase().deletePotentialCompaction(potential.getDb(), potential.getTable(),
+                  potential.hasPartition() ? potential.getPartition() : null);
             }
+            shouldCommit = true;
           }
         }
+      } else {
+        LOG.info("Unable to find requested potential compaction " + request.getDb() + "." +
+            request.getTable() + (request.hasPartition() ? request.getPartition() : ""));
       }
     } catch (IOException e) {
       ResponseConverter.setControllerException(controller, e);
+    } finally {
+      if (shouldCommit) getHBase().commit();
+      else getHBase().rollback();
     }
     done.run(HbaseMetastoreProto.Void.getDefaultInstance());
   }
@@ -778,6 +887,14 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
     // returns only ones that have highestCompactionId > min(openTxns).  Any for which this is not
     // true, there may still be open transactions referencing the files that were compacted, thus
     // they should not yet be cleaned.
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Received list of compactions cleans to be verified");
+      for (HbaseMetastoreProto.Compaction compaction : request.getCompactionsList()) {
+        LOG.debug("Compaction id " + compaction.getId() + " for " + compaction.getDb() + "." +
+            compaction.getTable() + (compaction.hasPartition() ? "." + compaction.getPartition()
+            : ""));
+      }
+    }
     long minOpenTxn;
     HbaseMetastoreProto.CompactionList.Builder builder =
         HbaseMetastoreProto.CompactionList.newBuilder();
@@ -792,6 +909,11 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
 
     for (HbaseMetastoreProto.Compaction compaction : request.getCompactionsList()) {
       if (compaction.getHighestTxnId() < minOpenTxn) {
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("Approving cleaning id " + compaction.getId() + " " + compaction.getDb() + "." +
+              compaction.getTable() + (compaction.hasPartition() ? "." + compaction.getPartition()
+              : ""));
+        }
         builder.addCompactions(compaction);
       }
     }
@@ -830,6 +952,9 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
     EntityKey key = new EntityKey(db, table, part);
     LockQueue queue = lockQueues.get(key);
     if (queue == null) {
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Creating new LockQueue for " + key.toString());
+      }
       queue = new LockQueue();
       lockQueues.put(key, queue);
     }
@@ -842,10 +967,14 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
     for (Long txnId : openTxns.keySet()) {
       minOpenTxn = Math.min(txnId, minOpenTxn);
     }
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Found minimum open transaction of " + minOpenTxn);
+    }
     return minOpenTxn;
   }
 
   private void suicide(String logMsg) {
+    LOG.error("Received suicide request: " + logMsg);
     throw new RuntimeException("Killing self due to " + logMsg);
     // TODO - figure out how to kill this instance of the co-processor without taking down the
     // region server so we force a recovery
@@ -855,26 +984,36 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
     // No locking is required here because we're still in the constructor and we're guaranteed no
     // one else is muddying the waters.
     // Get existing transactions from HBase
+    LOG.info("Beginning recovery");
     try {
       List<HbaseMetastoreProto.Transaction> hbaseTxns = getHBase().scanTransactions();
       if (hbaseTxns != null) {
         for (HbaseMetastoreProto.Transaction hbaseTxn : hbaseTxns) {
           switch (hbaseTxn.getTxnState()) {
           case ABORTED:
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("Found aborted transaction " + hbaseTxn.getId());
+            }
             AbortedHiveTransaction abortedTxn = new AbortedHiveTransaction(hbaseTxn, this);
             abortedTxns.put(abortedTxn.getId(), abortedTxn);
             break;
 
           case OPEN:
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("Found open transaction " + hbaseTxn.getId());
+            }
             OpenHiveTransaction openTxn = new OpenHiveTransaction(hbaseTxn, this);
             openTxns.put(openTxn.getId(), openTxn);
             break;
 
           case COMMITTED:
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("Found committed transaction " + hbaseTxn.getId());
+            }
             for (HbaseMetastoreProto.Transaction.Lock hbaseLock : hbaseTxn.getLocksList()) {
               LockQueue queue = findOrCreateLockQueue(hbaseLock.getDb(), hbaseLock.getTable(),
                   hbaseLock.hasPartition() ? hbaseLock.getPartition() : null).getSecond();
-              queue.gtCommitId = Math.max(queue.gtCommitId, hbaseTxn.getCommitId());
+              queue.maxCommitId = Math.max(queue.maxCommitId, hbaseTxn.getCommitId());
             }
             committedTxns.add(new CommittedHiveTransaction(hbaseTxn));
             break;
@@ -883,10 +1022,14 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
       }
       nextTxnId = getHBase().readCurrentSequence(HBaseReadWrite.TXN_SEQUENCE);
       nextLockId = getHBase().readCurrentSequence(HBaseReadWrite.LOCK_SEQUENCE);
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Set nextTxnId to " + nextTxnId + " and nextLockId to " + nextLockId);
+      }
     } finally {
       // It's a read only operation, so always commit
       getHBase().commit();
     }
+    LOG.info("Completed recovery");
   }
 
   private HBaseReadWrite getHBase() {
@@ -902,11 +1045,21 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
 
     public LockKeeper(Lock lock) {
       this.lock = lock;
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Waiting for Java lock " + lock.getClass().getName());
+      }
+      this.lock.lock();
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Acquired Java lock " + lock.getClass().getName());
+      }
     }
 
     @Override
     public void close() throws IOException {
       lock.unlock();
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Released Java lock " + lock.getClass().getName());
+      }
     }
   }
 
@@ -965,20 +1118,33 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
 
   static class LockQueue {
     final SortedMap<Long, HiveLock> queue;
-    long gtCommitId; // commit id of highest transaction that wrote to this DTP
+    long maxCommitId; // commit id of highest transaction that wrote to this DTP
 
     private LockQueue() {
       queue = new TreeMap<>();
-      gtCommitId = 0;
+      maxCommitId = 0;
     }
   }
 
-  private Runnable timedOutCleaner = new Runnable() {
+  interface NamedRunnable extends Runnable {
+    String getName();
+  }
+
+  private NamedRunnable timedOutCleaner = new NamedRunnable() {
+    @Override
+    public String getName() {
+      return "Timeout Cleaner";
+    }
+
     @Override
     public void run() {
+      LOG.info("Beginning timeout cleaner");
       // Set initial sleep time long so we have time after recovery for things to heartbeat.
-      int sleepTime = 60000;
+      int sleepTime =
+          HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_TIMEOUT_CLEANER_INITIAL_WAIT);
       long timeout = HiveConf.getIntVar(conf, HiveConf.ConfVars.HIVE_TXN_TIMEOUT);
+      int sleepInterval =
+          HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_TIMEOUT_CLEANER_FREQUENCY);
       while (go) {
         // Sleep first, so we don't kill things right after recovery, give them a chance to
         // heartbeat if we've been out of it for a few seconds.
@@ -988,18 +1154,23 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
           // Go back through the while loop, as this might mean it's time to quit
           continue;
         }
-        sleepTime = 5000;
+        LOG.debug("Looking for timed out transactions");
+        sleepTime = sleepInterval;
         // First get the read lock and find all of the potential timeouts.
         List<OpenHiveTransaction> potentials = new ArrayList<>();
         long now = System.currentTimeMillis();
         try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
           for (OpenHiveTransaction txn : openTxns.values()) {
             if (txn.getLastHeartbeat() + timeout < now) {
+              if (LOG.isDebugEnabled()) {
+                LOG.debug("Adding " + txn.getId() + " to list of potential timeouts");
+              }
               potentials.add(txn);
             }
           }
         } catch (IOException e) {
-          // TODO log it
+          LOG.warn("Caught exception in timeOutCleaner, most likely during locking, not much we " +
+              "can do about it", e);
         }
 
         // Now go back through the potentials list, holding the write lock, and remove any that
@@ -1007,24 +1178,34 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
         try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
           for (OpenHiveTransaction txn : potentials) {
             if (txn.getLastHeartbeat() + timeout < now) {
+              LOG.info("Aborting transaction " + txn.getId() + " due to heartbeat timeout");
               abortTxn(txn);
             }
           }
         } catch (IOException e) {
-          // TODO probably want to log this and ignore
+          LOG.warn("Caught exception aborting transaction", e);
         }
       }
+      LOG.info("Received stop signal, timeout cleaner finishing");
     }
   };
 
-  private Runnable deadlockDetector = new Runnable() {
+  private NamedRunnable deadlockDetector = new NamedRunnable() {
+    @Override
+    public String getName() {
+      return "Deadlock detector";
+    }
+
     // Rather than follow the general pattern of go through all the entries and find potentials
     // and then remove all potentials this thread kills a deadlock as soon as it sees it and then
     // starts looking all over again.  Otherwise we'd likely be too aggressive and kill all
     // participants in the deadlock.
     @Override
     public void run() {
-      int sleepTime = 2000;
+      LOG.info("Beginning deadlock detector");
+      int sleepInterval =
+          HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_DEADLOCK_DETECTOR_FREQUENCY);
+      int sleepTime = sleepInterval;
       while (go) {
         try {
           Thread.sleep(sleepTime);
@@ -1032,7 +1213,8 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
           // Go back through the while loop, as this might mean it's time to quit
           continue;
         }
-        sleepTime = 2000;
+        sleepTime = sleepInterval;
+        LOG.debug("Looking for deadlocks");
         try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
           // We're looking only for transactions that have 1+ acquired locks and 1+ waiting locks
           for (OpenHiveTransaction txn : openTxns.values()) {
@@ -1048,11 +1230,13 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
             // a cycle without that, but it won't be key to the cycle without it.
             if (sawAcquired && sawWaiting) {
               if (lookForDeadlock(txn.getId(), txn, true)) {
+                LOG.warn("Detected deadlock, aborting transaction " + txn.getId() +
+                    " to resolve it");
                 // It's easiest to always kill this one rather than try to figure out where in
                 // the graph we can remove something and break the cycle.  Given that which txn
                 // we examine first is mostly random this should be ok (I hope).
+                // Must unlock the read lock before acquiring the write lock
                 masterLock.readLock().unlock();
-                // TODO LOG this as an ERROR
                 try (LockKeeper lk1 = new LockKeeper(masterLock.writeLock())) {
                   abortTxn(openTxns.get(txn.getId()));
                 }
@@ -1065,71 +1249,106 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
             }
           }
         } catch (IOException e) {
-          // TODO probably want to log this and ignore
+          LOG.warn("Received exception in deadlock detector", e);
         }
       }
+      LOG.info("deadlock detector finishing");
     }
 
-    private boolean lookForDeadlock(long firstHalf, OpenHiveTransaction txn, boolean initial) {
-      if (!initial && firstHalf == txn.getId()) return true;
-      for (HiveLock lock : txn.getHiveLocks()) {
-        if (lock.getState() == HbaseMetastoreProto.LockState.WAITING) {
-          // TODO deal with missing txn
-          return lookForDeadlock(firstHalf, openTxns.get(lock.getTxnId()), false);
+    /**
+     * This looks for cycles in the lock graph.  It remembers the first transaction we started
+     * looking at, and if it gets back that transaction then it returns true.
+     * @param initialTxnId Starting transaction in the graph traversal.
+     * @param currentTxn Current transaction in the graph traversal.
+     * @param initial Whether this call is the first time this is called, so initialTxn should
+     *                equals currentTxn
+     * @return true if a cycle is detected.
+     */
+    private boolean lookForDeadlock(long initialTxnId, OpenHiveTransaction currentTxn,
+                                    boolean initial) {
+      if (!initial && initialTxnId == currentTxn.getId()) return true;
+      for (HiveLock lock : currentTxn.getHiveLocks()) {
+        if (lock.getState() == HbaseMetastoreProto.LockState.WAITING &&
+            lookForDeadlock(initialTxnId, openTxns.get(lock.getTxnId()), false)) {
+          return true;
         }
       }
       return false;
     }
   };
 
-  private Runnable dtpsShrinker = new Runnable() {
+  private NamedRunnable lockQueueShrinker = new NamedRunnable() {
+    @Override
+    public String getName() {
+      return "Lock Queue Shrinker";
+    }
+
     @Override
     public void run() {
+      LOG.info("Beginning lock queue shrinker");
+      int sleepTime =
+          HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_LOCK_QUEUE_SHRINKER_FREQUENCY);
       while (go) {
         try {
-          Thread.sleep(60000);
+          Thread.sleep(sleepTime);
         } catch (InterruptedException e) {
           // Go back through the while loop, as this might mean it's time to quit
           continue;
         }
+        LOG.debug("Seeing if we can shrink the lock queue");
         List<EntityKey> empties = new ArrayList<>();
         // First get the read lock and find all currently empty keys.  Then release the read
         // lock, get the write lock and remove all those keys, checking again that they are
         // truly empty.
         try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
           for (Map.Entry<EntityKey, LockQueue> entry : lockQueues.entrySet()) {
-            if (entry.getValue().queue.size() == 0 && entry.getValue().gtCommitId == 0) {
+            if (entry.getValue().queue.size() == 0 && entry.getValue().maxCommitId == 0) {
               empties.add(entry.getKey());
             }
           }
         } catch (IOException e) {
-          // TODO probably want to log this and ignore
+          LOG.warn("Caught exception while examining lock queues", e);
         }
 
         if (empties.size() > 0) {
           try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
             for (EntityKey key : empties) {
               LockQueue queue = lockQueues.get(key);
-              if (queue.queue.size() == 0 && queue.gtCommitId == 0) {
+              if (queue.queue.size() == 0 && queue.maxCommitId == 0) {
+                if (LOG.isDebugEnabled()) {
+                  LOG.debug("Removing lockQueue " + key.toString());
+                }
                 lockQueues.remove(key);
               }
             }
           } catch (IOException e) {
-            // TODO probably want to log this and ignore
+            LOG.warn("Caught exception while removing empty lock queue", e);
           }
+        } else {
+          LOG.debug("No lock queues found to remove");
         }
       }
+      LOG.info("lock queue shrinker finishing");
     }
   };
 
-  private Runnable committedTxnCleaner = new Runnable() {
+  private NamedRunnable committedTxnCleaner = new NamedRunnable() {
+    @Override
+    public String getName() {
+      return "Committed Transaction Cleaner";
+    }
+
     // This looks through the list of committed transactions and figures out what can be
     // forgotten.
     @Override
     public void run() {
       while (go) {
+        int sleepTime =
+            HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_COMMITTED_TXN_CLEANER_FREQUENCY);
+        LOG.info("Beginning committed transaction cleaner");
         try {
-          Thread.sleep(2000);
+          Thread.sleep(sleepTime);
+          LOG.debug("Cleaning committed transactions");
           Set<Long> forgetableIds = new HashSet<>();
           Set<Long> forgetableCommitIds = new HashSet<>();
           List<CommittedHiveTransaction> forgetableTxns = new ArrayList<>();
@@ -1140,54 +1359,77 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
             for (CommittedHiveTransaction txn : committedTxns) {
               // Look to see if all open transactions have a txnId greater than this txn's commitId
               if (txn.getCommitId() < minOpenTxn) {
+                if (LOG.isDebugEnabled()) {
+                  LOG.debug("Adding " + txn.getId() + " to list of forgetable transactions");
+                }
                 forgetableIds.add(txn.getId());
                 forgetableTxns.add(txn);
                 forgetableCommitIds.add(txn.getCommitId());
               }
             }
-            // For any of these found transactions, see if we can remove them from the dtps.
-            // This is important because it enables us eventually to shrink the dtps
-            for (LockQueue queue : lockQueues.values()) {
-              if (forgetableCommitIds.contains(queue.gtCommitId)) {
-                forgetableDtps.put(queue, queue.gtCommitId);
+            // For any of these found transactions, see if we can remove them from the lock queues.
+            // This is important because it enables us eventually to shrink the lock queues
+            for (Map.Entry<EntityKey, LockQueue> entry : lockQueues.entrySet()) {
+              LockQueue queue = entry.getValue();
+              if (forgetableCommitIds.contains(queue.maxCommitId)) {
+                forgetableDtps.put(queue, queue.maxCommitId);
+                if (LOG.isDebugEnabled()) {
+                  LOG.debug("Adding lock queue " + entry.getKey().toString() +
+                      " to forgetable list");
+                }
               }
             }
-          }
-          try (LockKeeper lk1 = new LockKeeper(masterLock.writeLock())) {
-            committedTxns.removeAll(forgetableTxns);
-            boolean shouldCommit = false;
-            getHBase().begin();
-            try {
-              getHBase().deleteTransactions(forgetableIds);
-              shouldCommit = true;
-            } finally {
-              if (shouldCommit) getHBase().commit();
-              else getHBase().rollback();
-            }
-            for (Map.Entry<LockQueue, Long> entry : forgetableDtps.entrySet()) {
-              // Make sure no one else has changed the value in the meantime
-              if (entry.getKey().gtCommitId == entry.getValue()) {
-                entry.getKey().gtCommitId = 0;
+          } // exiting read lock
+          if (forgetableIds.size() > 0) {
+            try (LockKeeper lk1 = new LockKeeper(masterLock.writeLock())) {
+              committedTxns.removeAll(forgetableTxns);
+              boolean shouldCommit = false;
+              getHBase().begin();
+              try {
+                getHBase().deleteTransactions(forgetableIds);
+                shouldCommit = true;
+              } finally {
+                if (shouldCommit) getHBase().commit();
+                else getHBase().rollback();
+              }
+              for (Map.Entry<LockQueue, Long> entry : forgetableDtps.entrySet()) {
+                // Make sure no one else has changed the value in the meantime
+                if (entry.getKey().maxCommitId == entry.getValue()) {
+                  entry.getKey().maxCommitId = 0;
+                }
               }
             }
+          } else {
+            LOG.debug("No forgettable committed transactions found");
           }
         } catch (InterruptedException e) {
           // Go back through the while loop, as this might mean it's time to quit
           continue;
         } catch (IOException e) {
-          // TODO Log and continue
+          LOG.warn("Caught exception cleaning committed transactions", e);
         }
       }
+      LOG.info("committed transaction cleaner finishing");
     }
   };
 
-  private Runnable lockChecker = new Runnable() {
+  private NamedRunnable lockChecker = new NamedRunnable() {
+    @Override
+    public String getName() {
+      return "Lock Checker";
+    }
+
     @Override
     public void run() {
+      LOG.info("Beginning lock checker");
+      int sleepTime =
+          HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_LOCK_CHECKER_MAX_WAIT);
       while (go) {
         try {
+          lockQueuesToCheck.wait(sleepTime);
+          if (lockQueuesToCheck.peek() == null) continue;
+          LOG.debug("Checking locks");
           List<EntityKey> keys = new ArrayList<>();
-          keys.add(lockQueuesToCheck.take());
           Map<Long, HiveLock> toAcquire = new HashMap<>();
           Set<OpenHiveTransaction> acquiringTxns = new HashSet<>();
           Set<Long> writeConflicts = new HashSet<>();
@@ -1208,21 +1450,23 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
                     // Before deciding we can acquire it we have to assure that we don't have a
                     // lost update problem where another transaction not in the acquiring
                     // transaction's read set has written to the same entity.  If so, abort the
-                    // acquiring transaction.
-                    long latestTxnId = lockQueues.get(lock.getEntityLocked()).gtCommitId;
-                    if (latestTxnId > lock.getTxnId()) {
-                      LOG.info("Transaction " + lock.getTxnId() + " attempted to obtain lock for " +
+                    // acquiring transaction.  Only do this if this is also a write lock.  It's
+                    // ok if we're reading old information, as this isn't serializable.
+                    if (lock.getType() == HbaseMetastoreProto.LockType.SHARED_WRITE &&
+                        lockQueues.get(lock.getEntityLocked()).maxCommitId > lock.getTxnId()) {
+                      LOG.warn("Transaction " + lock.getTxnId() +
+                          " attempted to obtain shared write lock for " +
                           lock.getEntityLocked().toString() + " but that entity more recently " +
-                          "updated with transaction with commit id " + latestTxnId
+                          "updated with transaction with commit id " +
+                          lockQueues.get(lock.getEntityLocked()).maxCommitId
                           + " so later transaction will be aborted.");
                       writeConflicts.add(lock.getTxnId());
                     } else {
-                      OpenHiveTransaction txn = openTxns.get(lock.getTxnId());
-                      if (txn == null || txn.getState() != HbaseMetastoreProto.TxnState.OPEN) {
-                        // TODO LOG this, don't throw
-                      } else {
-                        acquiringTxns.add(openTxns.get(lock.getTxnId()));
-                        toAcquire.put(lock.getId(), lock);
+                      acquiringTxns.add(openTxns.get(lock.getTxnId()));
+                      toAcquire.put(lock.getId(), lock);
+                      if (LOG.isDebugEnabled()) {
+                        LOG.debug("Adding lock " + lock.getTxnId() + "." + lock.getId() +
+                            " to list of locks to acquire");
                       }
                     }
                   } else {
@@ -1237,7 +1481,8 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
             }
           } // Now outside read lock
           try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
-            // Abort the transactions that ran into write conflicts
+            // Abort the transactions that ran into write conflicts.  We logged this above, so no
+            // need to log it here.
             for (long txnId : writeConflicts) abortTxn(openTxns.get(txnId));
 
             for (HiveLock lock : toAcquire.values()) {
@@ -1275,6 +1520,7 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
             }
           } // out of the write lock
           // Notify all waiters so they know to see if they've acquired their locks.
+          LOG.debug("Notifying lock waiters");
           this.notifyAll();
 
         } catch (InterruptedException ie) {
@@ -1282,13 +1528,14 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
           continue;
 
         } catch (Exception ie) {
-          // TODO probably want to log this and ignore
+          LOG.warn("Received exception while checking for locks", ie);
         }
       }
+      LOG.info("lock checker finishing");
     }
   };
 
-  private Runnable[] services = {timedOutCleaner, deadlockDetector, dtpsShrinker,
-                                 committedTxnCleaner, lockChecker};
+  private NamedRunnable[] services = {timedOutCleaner, deadlockDetector, lockQueueShrinker,
+                                      committedTxnCleaner, lockChecker};
 
 }
