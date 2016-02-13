@@ -45,6 +45,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -72,7 +73,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Coprocessor,
                                                                               CoprocessorService {
 
-  // TODO handle refusing new transactions once we reach a certain size.
   // TODO add new object types in HBaseSchemaTool
   // TODO Write some tests so you have some clue if this works
 
@@ -124,6 +124,11 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
 
   // Configuration values cached to avoid re-reading config all the time.
   private long lockPollTimeout;
+  private int maxObjects;
+
+  // If true, then we've filled the capacity of this thing and we don't want to accept any new
+  // open transactions until some have bled off.
+  private boolean full;
 
   public TransactionManager() {
 
@@ -141,7 +146,9 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
     lockQueues = new HashMap<>();
     lockQueuesToCheck = new ArrayDeque<>();
     conf = coprocessorEnvironment.getConfiguration();
-    lockPollTimeout = HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_LOCK_POLL_TIMEOUT);
+    lockPollTimeout = HiveConf.getTimeVar(conf, HiveConf.ConfVars.METASTORE_HBASE_LOCK_POLL_TIMEOUT,
+        TimeUnit.MILLISECONDS);
+    maxObjects = HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_TXN_MANAGER_MAX_OBJECTS);
     try {
       recover();
     } catch (IOException e) {
@@ -184,8 +191,17 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
   @Override
   public void openTxns(RpcController controller, HbaseMetastoreProto.OpenTxnsRequest request,
                        RpcCallback<HbaseMetastoreProto.OpenTxnsResponse> done) {
-    if (LOG.isDebugEnabled()) LOG.debug("Opening " + request.getNumTxns() + " transactions");
     HbaseMetastoreProto.OpenTxnsResponse response = null;
+    if (full) {
+      LOG.error("Request for new transaction rejected because the transaction manager has used " +
+          "available memory and cannot accept new transactions until some existing ones are " +
+          "closed out.");
+      ResponseConverter.setControllerException(controller,
+          new IOException("Transaction manager full"));
+      done.run(response);
+    }
+
+    if (LOG.isDebugEnabled()) LOG.debug("Opening " + request.getNumTxns() + " transactions");
     boolean shouldCommit = false;
     getHBase().begin();
     try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
@@ -980,6 +996,86 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
     // region server so we force a recovery
   }
 
+  private void checkFull() throws IOException {
+    // Check to see if the transaction manager is full.  If it isn't currently set as full but
+    // has too many objects this will switch the full flag on.  If the full flag is on and we've
+    // fallen below 90% this will turn it off.
+    int objectCnt = countObjects();
+    if (full) {
+      if (objectCnt < maxObjects * 0.9) {
+        LOG.info("Transaction manager has drained, switching off full flag");
+        full = false;
+      } else {
+        LOG.debug("Still full...");
+      }
+    } else {
+      if (objectCnt > maxObjects) {
+        // Try to shrink the lock queues and then check again
+        tryToShrinkLockQueues();
+        if (countObjects() > maxObjects) {
+          LOG.error("Transation manager object count exceeds configured max object count " +
+              maxObjects + ", marking full and no longer accepting new transactions some current " +
+              "objects have drained off");
+          full = true;
+        }
+      } else {
+        LOG.debug("Still not full...");
+      }
+    }
+  }
+
+  private int countObjects() throws IOException {
+
+    try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
+      // First count all the transactions, this is relatively easy.
+      int objectCnt = committedTxns.size() + abortedTxns.size() + openTxns.size() +
+          lockQueues.keySet().size();
+      // Early out if this alone fills us up, as the next part gets harder.
+      if (objectCnt > maxObjects) return objectCnt;
+
+      for (LockQueue queue : lockQueues.values()) {
+        objectCnt += queue.queue.size();
+        if (objectCnt > maxObjects) return objectCnt;
+      }
+      return objectCnt;
+    }
+  }
+
+  private void tryToShrinkLockQueues() {
+    LOG.debug("Seeing if we can shrink the lock queue");
+    List<EntityKey> empties = new ArrayList<>();
+    // First get the read lock and find all currently empty keys.  Then release the read
+    // lock, get the write lock and remove all those keys, checking again that they are
+    // truly empty.
+    try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
+      for (Map.Entry<EntityKey, LockQueue> entry : lockQueues.entrySet()) {
+        if (entry.getValue().queue.size() == 0 && entry.getValue().maxCommitId == 0) {
+          empties.add(entry.getKey());
+        }
+      }
+    } catch (IOException e) {
+      LOG.warn("Caught exception while examining lock queues", e);
+    }
+
+    if (empties.size() > 0) {
+      try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
+        for (EntityKey key : empties) {
+          LockQueue queue = lockQueues.get(key);
+          if (queue.queue.size() == 0 && queue.maxCommitId == 0) {
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("Removing lockQueue " + key.toString());
+            }
+            lockQueues.remove(key);
+          }
+        }
+      } catch (IOException e) {
+        LOG.warn("Caught exception while removing empty lock queue", e);
+      }
+    } else {
+      LOG.debug("No lock queues found to remove");
+    }
+  }
+
   private void recover() throws IOException {
     // No locking is required here because we're still in the constructor and we're guaranteed no
     // one else is muddying the waters.
@@ -1025,6 +1121,7 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
       if (LOG.isDebugEnabled()) {
         LOG.debug("Set nextTxnId to " + nextTxnId + " and nextLockId to " + nextLockId);
       }
+      checkFull();
     } finally {
       // It's a read only operation, so always commit
       getHBase().commit();
@@ -1140,11 +1237,12 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
     public void run() {
       LOG.info("Beginning timeout cleaner");
       // Set initial sleep time long so we have time after recovery for things to heartbeat.
-      int sleepTime =
-          HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_TIMEOUT_CLEANER_INITIAL_WAIT);
-      long timeout = HiveConf.getIntVar(conf, HiveConf.ConfVars.HIVE_TXN_TIMEOUT);
-      int sleepInterval =
-          HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_TIMEOUT_CLEANER_FREQUENCY);
+      long sleepTime = HiveConf.getTimeVar(conf,
+          HiveConf.ConfVars.METASTORE_HBASE_TIMEOUT_CLEANER_INITIAL_WAIT, TimeUnit.MILLISECONDS);
+      long timeout =
+          HiveConf.getTimeVar(conf, HiveConf.ConfVars.HIVE_TXN_TIMEOUT, TimeUnit.MILLISECONDS);
+      long sleepInterval = HiveConf.getTimeVar(conf,
+          HiveConf.ConfVars.METASTORE_HBASE_TIMEOUT_CLEANER_FREQUENCY, TimeUnit.MILLISECONDS);
       while (go) {
         // Sleep first, so we don't kill things right after recovery, give them a chance to
         // heartbeat if we've been out of it for a few seconds.
@@ -1203,9 +1301,9 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
     @Override
     public void run() {
       LOG.info("Beginning deadlock detector");
-      int sleepInterval =
-          HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_DEADLOCK_DETECTOR_FREQUENCY);
-      int sleepTime = sleepInterval;
+      long sleepInterval = HiveConf.getTimeVar(conf,
+          HiveConf.ConfVars.METASTORE_HBASE_DEADLOCK_DETECTOR_FREQUENCY, TimeUnit.MILLISECONDS);
+      long sleepTime = sleepInterval;
       while (go) {
         try {
           Thread.sleep(sleepTime);
@@ -1286,8 +1384,8 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
     @Override
     public void run() {
       LOG.info("Beginning lock queue shrinker");
-      int sleepTime =
-          HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_LOCK_QUEUE_SHRINKER_FREQUENCY);
+      long sleepTime = HiveConf.getTimeVar(conf,
+          HiveConf.ConfVars.METASTORE_HBASE_LOCK_QUEUE_SHRINKER_FREQUENCY, TimeUnit.MILLISECONDS);
       while (go) {
         try {
           Thread.sleep(sleepTime);
@@ -1295,40 +1393,36 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
           // Go back through the while loop, as this might mean it's time to quit
           continue;
         }
-        LOG.debug("Seeing if we can shrink the lock queue");
-        List<EntityKey> empties = new ArrayList<>();
-        // First get the read lock and find all currently empty keys.  Then release the read
-        // lock, get the write lock and remove all those keys, checking again that they are
-        // truly empty.
-        try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
-          for (Map.Entry<EntityKey, LockQueue> entry : lockQueues.entrySet()) {
-            if (entry.getValue().queue.size() == 0 && entry.getValue().maxCommitId == 0) {
-              empties.add(entry.getKey());
-            }
-          }
-        } catch (IOException e) {
-          LOG.warn("Caught exception while examining lock queues", e);
-        }
-
-        if (empties.size() > 0) {
-          try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
-            for (EntityKey key : empties) {
-              LockQueue queue = lockQueues.get(key);
-              if (queue.queue.size() == 0 && queue.maxCommitId == 0) {
-                if (LOG.isDebugEnabled()) {
-                  LOG.debug("Removing lockQueue " + key.toString());
-                }
-                lockQueues.remove(key);
-              }
-            }
-          } catch (IOException e) {
-            LOG.warn("Caught exception while removing empty lock queue", e);
-          }
-        } else {
-          LOG.debug("No lock queues found to remove");
-        }
+        tryToShrinkLockQueues();
       }
       LOG.info("lock queue shrinker finishing");
+    }
+  };
+
+  private NamedRunnable fullChecker = new NamedRunnable() {
+    @Override
+    public String getName() {
+      return "Full Checker";
+    }
+
+    @Override
+    public void run() {
+      LOG.info("Beginning full checker");
+      long sleepTime = HiveConf.getTimeVar(conf,
+          HiveConf.ConfVars.METASTORE_HBASE_FULL_CHECKER_FREQUENCY, TimeUnit.MILLISECONDS);
+      while (go) {
+        try {
+          // Sleep less if we're full, as we want to see if we can open up again as soon as possible
+          Thread.sleep(full ? 100 : sleepTime);
+          checkFull();
+        } catch (InterruptedException e) {
+          // Go back through the while loop, as this might mean it's time to quit
+          continue;
+        } catch (IOException e) {
+          LOG.warn("Caught exception while checking to see if transaction manager is full");
+        }
+      }
+      LOG.info("full checker finishing");
     }
   };
 
@@ -1343,8 +1437,8 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
     @Override
     public void run() {
       while (go) {
-        int sleepTime =
-            HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_COMMITTED_TXN_CLEANER_FREQUENCY);
+        long sleepTime = HiveConf.getTimeVar(conf,
+            HiveConf.ConfVars.METASTORE_HBASE_COMMITTED_TXN_CLEANER_FREQUENCY, TimeUnit.MILLISECONDS);
         LOG.info("Beginning committed transaction cleaner");
         try {
           Thread.sleep(sleepTime);
@@ -1422,8 +1516,8 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
     @Override
     public void run() {
       LOG.info("Beginning lock checker");
-      int sleepTime =
-          HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_LOCK_CHECKER_MAX_WAIT);
+      long sleepTime = HiveConf.getTimeVar(conf,
+          HiveConf.ConfVars.METASTORE_HBASE_LOCK_CHECKER_MAX_WAIT, TimeUnit.MILLISECONDS);
       while (go) {
         try {
           lockQueuesToCheck.wait(sleepTime);
@@ -1536,6 +1630,6 @@ public class TransactionManager extends HbaseMetastoreProto.TxnMgr implements Co
   };
 
   private NamedRunnable[] services = {timedOutCleaner, deadlockDetector, lockQueueShrinker,
-                                      committedTxnCleaner, lockChecker};
+                                      fullChecker, committedTxnCleaner, lockChecker};
 
 }

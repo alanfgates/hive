@@ -560,7 +560,7 @@ public class HiveConf extends Configuration {
         "5000ms", new TimeValidator(TimeUnit.MILLISECONDS),
         "How often to run the timeout cleaner thread"),
     METASTORE_HBASE_TIMEOUT_CLEANER_INITIAL_WAIT("hive.metastore.hbase.timeout.cleaner.initial.wait",
-        "60000ms", new TimeValidator(TimeUnit.MILLISECONDS),
+        "60s", new TimeValidator(TimeUnit.SECONDS),
         "How long to wait after recovery before running the timeout cleaner for the first time"),
     METASTORE_HBASE_DEADLOCK_DETECTOR_FREQUENCY("hive.metastore.hbase.deadlock.detector.frequency",
         "2000ms", new TimeValidator(TimeUnit.MILLISECONDS),
@@ -568,6 +568,9 @@ public class HiveConf extends Configuration {
     METASTORE_HBASE_LOCK_QUEUE_SHRINKER_FREQUENCY("hive.metastore.hbase.lock.queue.shrinker.frequency",
         "60000ms", new TimeValidator(TimeUnit.MILLISECONDS),
         "How often to run the lock queue shrinker thread"),
+    METASTORE_HBASE_FULL_CHECKER_FREQUENCY("hive.metastore.hbase.full.checker.frequency",
+        "2000ms", new TimeValidator(TimeUnit.MILLISECONDS),
+        "How often to run the full checker thread"),
     METASTORE_HBASE_COMMITTED_TXN_CLEANER_FREQUENCY("hive.metastore.hbase.committed.txn.cleaner.frequency",
         "2000ms", new TimeValidator(TimeUnit.MILLISECONDS),
         "How often to run the committed transaction thread"),
@@ -576,6 +579,10 @@ public class HiveConf extends Configuration {
         "Maximum amount of time the lock checker will wait before rechecking for lock queues to " +
             "check.  It will run more often when locks are being released, this is just a " +
             "backstop to assure it checks at least occasionally."),
+    METASTORE_HBASE_TXN_MANAGER_MAX_OBJECTS("hive.metastore.hbase.txn.manager.max.objects",
+        1000000, "Maximum number of locks + transactions that can be active in memory at one time" +
+        ".  Once this is exceeded the transaction manager will reject any new transactions until " +
+        "the count falls below 90% of this number."),
 
     METASTORETHRIFTCONNECTIONRETRIES("hive.metastore.connect.retries", 3,
         "Number of retries while opening a connection to metastore"),
