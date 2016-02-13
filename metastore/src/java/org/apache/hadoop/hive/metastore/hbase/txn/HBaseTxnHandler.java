@@ -49,7 +49,7 @@ import org.apache.hadoop.hive.metastore.api.UnlockRequest;
 import org.apache.hadoop.hive.metastore.hbase.HBaseReadWrite;
 import org.apache.hadoop.hive.metastore.hbase.HBaseUtils;
 import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
-import org.apache.hadoop.hive.metastore.hbase.txn.txnmgr.TransactionManager;
+import org.apache.hadoop.hive.metastore.hbase.txn.txnmgr.TransactionCoprocessor;
 import org.apache.hadoop.hive.metastore.txn.CompactionInfo;
 import org.apache.hadoop.hive.metastore.txn.TxnStore;
 import org.apache.hadoop.hive.metastore.txn.TxnUtils;
@@ -99,10 +99,10 @@ public class HBaseTxnHandler implements TxnStore {
   @Override
   public GetOpenTxnsResponse getOpenTxns() throws MetaException {
     // No HBase txn as we're relying on the co-processor here
-    Batch.Call<TransactionManager, HbaseMetastoreProto.GetOpenTxnsResponse> call =
-        new Batch.Call<TransactionManager, HbaseMetastoreProto.GetOpenTxnsResponse>() {
+    Batch.Call<TransactionCoprocessor, HbaseMetastoreProto.GetOpenTxnsResponse> call =
+        new Batch.Call<TransactionCoprocessor, HbaseMetastoreProto.GetOpenTxnsResponse>() {
           @Override
-          public HbaseMetastoreProto.GetOpenTxnsResponse call(TransactionManager txnMgr) throws IOException {
+          public HbaseMetastoreProto.GetOpenTxnsResponse call(TransactionCoprocessor txnMgr) throws IOException {
             BlockingRpcCallback<HbaseMetastoreProto.GetOpenTxnsResponse> rpcCallback =
                 new BlockingRpcCallback<>();
             txnMgr.getOpenTxns(null, HbaseMetastoreProto.Void.getDefaultInstance(), rpcCallback);
@@ -121,10 +121,10 @@ public class HBaseTxnHandler implements TxnStore {
   public OpenTxnsResponse openTxns(OpenTxnRequest rqst) throws MetaException {
     // No HBase txn as we're relying on the co-processor here
     final HbaseMetastoreProto.OpenTxnsRequest pbRqst = HBaseUtils.thriftToPb(rqst);
-    Batch.Call<TransactionManager, HbaseMetastoreProto.OpenTxnsResponse> call =
-        new Batch.Call<TransactionManager, HbaseMetastoreProto.OpenTxnsResponse>() {
+    Batch.Call<TransactionCoprocessor, HbaseMetastoreProto.OpenTxnsResponse> call =
+        new Batch.Call<TransactionCoprocessor, HbaseMetastoreProto.OpenTxnsResponse>() {
           @Override
-          public HbaseMetastoreProto.OpenTxnsResponse call(TransactionManager txnMgr) throws
+          public HbaseMetastoreProto.OpenTxnsResponse call(TransactionCoprocessor txnMgr) throws
               IOException {
             BlockingRpcCallback<HbaseMetastoreProto.OpenTxnsResponse> rpcCallback =
                 new BlockingRpcCallback<>();
@@ -144,10 +144,10 @@ public class HBaseTxnHandler implements TxnStore {
   public void abortTxn(AbortTxnRequest rqst) throws NoSuchTxnException, MetaException {
     // No HBase txn as we're relying on the co-processor here
     final HbaseMetastoreProto.TransactionId pbRqst = HBaseUtils.thriftToPb(rqst);
-    Batch.Call<TransactionManager, HbaseMetastoreProto.TransactionResult> call =
-        new Batch.Call<TransactionManager, HbaseMetastoreProto.TransactionResult>() {
+    Batch.Call<TransactionCoprocessor, HbaseMetastoreProto.TransactionResult> call =
+        new Batch.Call<TransactionCoprocessor, HbaseMetastoreProto.TransactionResult>() {
           @Override
-          public HbaseMetastoreProto.TransactionResult call(TransactionManager txnMgr) throws
+          public HbaseMetastoreProto.TransactionResult call(TransactionCoprocessor txnMgr) throws
               IOException {
             BlockingRpcCallback<HbaseMetastoreProto.TransactionResult> rpcCallback =
                 new BlockingRpcCallback<>();
@@ -169,10 +169,10 @@ public class HBaseTxnHandler implements TxnStore {
       MetaException {
     // No HBase txn as we're relying on the co-processor here
     final HbaseMetastoreProto.TransactionId pbRqst = HBaseUtils.thriftToPb(rqst);
-    Batch.Call<TransactionManager, HbaseMetastoreProto.TransactionResult> call =
-        new Batch.Call<TransactionManager, HbaseMetastoreProto.TransactionResult>() {
+    Batch.Call<TransactionCoprocessor, HbaseMetastoreProto.TransactionResult> call =
+        new Batch.Call<TransactionCoprocessor, HbaseMetastoreProto.TransactionResult>() {
           @Override
-          public HbaseMetastoreProto.TransactionResult call(TransactionManager txnMgr) throws
+          public HbaseMetastoreProto.TransactionResult call(TransactionCoprocessor txnMgr) throws
               IOException {
             BlockingRpcCallback<HbaseMetastoreProto.TransactionResult> rpcCallback =
                 new BlockingRpcCallback<>();
@@ -198,10 +198,10 @@ public class HBaseTxnHandler implements TxnStore {
     }
 
     final HbaseMetastoreProto.LockRequest pbRqst = HBaseUtils.thriftToPb(rqst);
-    Batch.Call<TransactionManager, HbaseMetastoreProto.LockResponse> call =
-        new Batch.Call<TransactionManager, HbaseMetastoreProto.LockResponse>() {
+    Batch.Call<TransactionCoprocessor, HbaseMetastoreProto.LockResponse> call =
+        new Batch.Call<TransactionCoprocessor, HbaseMetastoreProto.LockResponse>() {
           @Override
-          public HbaseMetastoreProto.LockResponse call(TransactionManager txnMgr) throws
+          public HbaseMetastoreProto.LockResponse call(TransactionCoprocessor txnMgr) throws
               IOException {
             BlockingRpcCallback<HbaseMetastoreProto.LockResponse> rpcCallback =
                 new BlockingRpcCallback<>();
@@ -225,10 +225,10 @@ public class HBaseTxnHandler implements TxnStore {
       throw new MetaException("You must now set a transaction id when requesting locks");
     }
     final HbaseMetastoreProto.TransactionId pbRqst = HBaseUtils.thriftToPb(rqst);
-    Batch.Call<TransactionManager, HbaseMetastoreProto.LockResponse> call =
-        new Batch.Call<TransactionManager, HbaseMetastoreProto.LockResponse>() {
+    Batch.Call<TransactionCoprocessor, HbaseMetastoreProto.LockResponse> call =
+        new Batch.Call<TransactionCoprocessor, HbaseMetastoreProto.LockResponse>() {
           @Override
-          public HbaseMetastoreProto.LockResponse call(TransactionManager txnMgr) throws
+          public HbaseMetastoreProto.LockResponse call(TransactionCoprocessor txnMgr) throws
               IOException {
             BlockingRpcCallback<HbaseMetastoreProto.LockResponse> rpcCallback =
                 new BlockingRpcCallback<>();
@@ -272,10 +272,10 @@ public class HBaseTxnHandler implements TxnStore {
       MetaException {
     // No HBase txn as we're relying on the co-processor here
     final HbaseMetastoreProto.HeartbeatTxnRangeRequest pbRqst = HBaseUtils.thriftToPb(rqst);
-    Batch.Call<TransactionManager, HbaseMetastoreProto.HeartbeatTxnRangeResponse> call =
-        new Batch.Call<TransactionManager, HbaseMetastoreProto.HeartbeatTxnRangeResponse>() {
+    Batch.Call<TransactionCoprocessor, HbaseMetastoreProto.HeartbeatTxnRangeResponse> call =
+        new Batch.Call<TransactionCoprocessor, HbaseMetastoreProto.HeartbeatTxnRangeResponse>() {
           @Override
-          public HbaseMetastoreProto.HeartbeatTxnRangeResponse call(TransactionManager txnMgr) throws
+          public HbaseMetastoreProto.HeartbeatTxnRangeResponse call(TransactionCoprocessor txnMgr) throws
               IOException {
             BlockingRpcCallback<HbaseMetastoreProto.HeartbeatTxnRangeResponse> rpcCallback =
                 new BlockingRpcCallback<>();
@@ -340,10 +340,10 @@ public class HBaseTxnHandler implements TxnStore {
       TxnAbortedException, MetaException {
     // No HBase txn as we're relying on the co-processor here
     final HbaseMetastoreProto.AddDynamicPartitionsRequest pbRqst = HBaseUtils.thriftToPb(rqst);
-    Batch.Call<TransactionManager, HbaseMetastoreProto.TransactionResult> call =
-        new Batch.Call<TransactionManager, HbaseMetastoreProto.TransactionResult>() {
+    Batch.Call<TransactionCoprocessor, HbaseMetastoreProto.TransactionResult> call =
+        new Batch.Call<TransactionCoprocessor, HbaseMetastoreProto.TransactionResult>() {
           @Override
-          public HbaseMetastoreProto.TransactionResult call(TransactionManager txnMgr) throws
+          public HbaseMetastoreProto.TransactionResult call(TransactionCoprocessor txnMgr) throws
               IOException {
             BlockingRpcCallback<HbaseMetastoreProto.TransactionResult> rpcCallback =
                 new BlockingRpcCallback<>();
@@ -443,10 +443,10 @@ public class HBaseTxnHandler implements TxnStore {
       if (pbRqst == null) {
         throw new MetaException("No such compaction " + info.id);
       }
-      Batch.Call<TransactionManager, HbaseMetastoreProto.Void> call =
-        new Batch.Call<TransactionManager, HbaseMetastoreProto.Void>() {
+      Batch.Call<TransactionCoprocessor, HbaseMetastoreProto.Void> call =
+        new Batch.Call<TransactionCoprocessor, HbaseMetastoreProto.Void>() {
           @Override
-          public HbaseMetastoreProto.Void call(TransactionManager txnMgr) throws IOException {
+          public HbaseMetastoreProto.Void call(TransactionCoprocessor txnMgr) throws IOException {
             BlockingRpcCallback<HbaseMetastoreProto.Void> rpcCallback = new BlockingRpcCallback<>();
             txnMgr.cleanupAfterCompaction(null, pbRqst, rpcCallback);
             return rpcCallback.get();
@@ -485,10 +485,10 @@ public class HBaseTxnHandler implements TxnStore {
           .newBuilder()
           .addAllCompactions(compacted)
           .build();
-      Batch.Call<TransactionManager, HbaseMetastoreProto.CompactionList> call =
-          new Batch.Call<TransactionManager, HbaseMetastoreProto.CompactionList>() {
+      Batch.Call<TransactionCoprocessor, HbaseMetastoreProto.CompactionList> call =
+          new Batch.Call<TransactionCoprocessor, HbaseMetastoreProto.CompactionList>() {
             @Override
-            public HbaseMetastoreProto.CompactionList call(TransactionManager txnMgr) throws IOException {
+            public HbaseMetastoreProto.CompactionList call(TransactionCoprocessor txnMgr) throws IOException {
               BlockingRpcCallback<HbaseMetastoreProto.CompactionList> rpcCallback = new BlockingRpcCallback<>();
               txnMgr.verifyCompactionCanBeCleaned(null, pbRqst, rpcCallback);
               return rpcCallback.get();

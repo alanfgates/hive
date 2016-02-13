@@ -19,8 +19,6 @@
 package org.apache.hadoop.hive.metastore.hbase;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Get;
@@ -42,7 +40,6 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -87,7 +84,7 @@ public class MockUtils {
     }
   }
 
-  static HBaseStore init(Configuration conf, HTableInterface htable,
+  public static HBaseStore init(Configuration conf, HTableInterface htable,
                          final SortedMap<String, Cell> rows) throws IOException {
     ((HiveConf)conf).setVar(ConfVars.METASTORE_EXPRESSION_PROXY_CLASS, NOOPProxy.class.getName());
     Mockito.when(htable.get(Mockito.any(Get.class))).thenAnswer(new Answer<Result>() {

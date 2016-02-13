@@ -58,7 +58,7 @@ import org.apache.hadoop.hive.metastore.api.Role;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.hbase.PartitionKeyComparator.Operator;
-import org.apache.hadoop.hive.metastore.hbase.txn.txnmgr.TransactionManager;
+import org.apache.hadoop.hive.metastore.hbase.txn.txnmgr.TransactionCoprocessor;
 import org.apache.hive.common.util.BloomFilter;
 import org.apache.thrift.TBase;
 import org.apache.thrift.TException;
@@ -2978,10 +2978,10 @@ public class HBaseReadWrite implements MetadataStore {
   // TODO I don't know if this will work with Omid or Tephra.  See what they do with table
   // .coprocessorServer()
 
-  public <R extends Message> R callTransactionManager(Batch.Call<TransactionManager, R> call )
+  public <R extends Message> R callTransactionManager(Batch.Call<TransactionCoprocessor, R> call )
       throws Throwable {
     HTableInterface htab = conn.getHBaseTable(TXN_TABLE);
-    Map<byte[], R> result = htab.coprocessorService(TransactionManager.class, null, null, call);
+    Map<byte[], R> result = htab.coprocessorService(TransactionCoprocessor.class, null, null, call);
     if (result.size() > 1) {
       throw new RuntimeException("Logic error! Got result from more than one co-processor");
     }
