@@ -198,6 +198,7 @@ class TransactionManager {
         rspBuilder.addTxnIds(txn.getId());
       }
       long newTxnVal = getHBase().addToSequence(HBaseReadWrite.TXN_SEQUENCE, request.getNumTxns());
+      LOG.debug("newTxnVal from HBase " + newTxnVal + " what we think it ought to be " + nextTxnId);
       assert newTxnVal == nextTxnId;
       getHBase().putTransactions(hbaseTxns);
       shouldCommit = true;
@@ -552,7 +553,7 @@ class TransactionManager {
   }
 
   private HbaseMetastoreProto.LockResponse pollForLocks(HiveLock[] hiveLocks)
-      throws IOException {
+      throws IOException, SeverusPleaseException {
     LOG.debug("Polling for locks");
     long waitUntil = System.currentTimeMillis() + lockPollTimeout;
     try {
@@ -566,7 +567,7 @@ class TransactionManager {
               break;
             }
             if (lock.getState() != HbaseMetastoreProto.LockState.ACQUIRED) {
-              suicide("Lock not in waiting or acquired state, not sure what to do");
+              throw new SeverusPleaseException("Lock not in waiting or acquired state, not sure what to do");
             }
           }
         }
@@ -643,7 +644,7 @@ class TransactionManager {
             .build();
       }
       if (txn.getState() != HbaseMetastoreProto.TxnState.OPEN) {
-        suicide("Attempt to add dynamic partitions to aborted or committed txn");
+        throw new SeverusPleaseException("Attempt to add dynamic partitions to aborted or committed txn");
       }
 
       HbaseMetastoreProto.Transaction hbaseTxn = getHBase().getTransaction(request.getTxnId());
@@ -905,13 +906,6 @@ class TransactionManager {
       LOG.debug("Found minimum open transaction of " + minOpenTxn);
     }
     return minOpenTxn;
-  }
-
-  private void suicide(String logMsg) {
-    LOG.error("Received suicide request: " + logMsg);
-    throw new RuntimeException("Killing self due to " + logMsg);
-    // TODO - figure out how to kill this instance of the co-processor without taking down the
-    // region server so we force a recovery
   }
 
   private void checkFull() throws IOException {

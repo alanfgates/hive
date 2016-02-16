@@ -21,7 +21,9 @@ import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.client.HTableInterface;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.hbase.HBaseStore;
+import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
 import org.apache.hadoop.hive.metastore.hbase.MockUtils;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
@@ -37,18 +39,26 @@ public class TestTransactionManager {
   HTableInterface htable;
   SortedMap<String, Cell> rows = new TreeMap<>();
   HBaseStore store;
+  TransactionManager txnMgr;
 
   @Before
   public void init() throws IOException {
     MockitoAnnotations.initMocks(this);
     HiveConf conf = new HiveConf();
     store = MockUtils.init(conf, htable, rows);
+    txnMgr = new TransactionManager(conf);
   }
 
   @Test
-  public void openTxns() {
-
-
+  public void openTxns() throws Exception {
+    HbaseMetastoreProto.OpenTxnsRequest rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
+        .setNumTxns(1)
+        .setUser("me")
+        .setHostname("localhost")
+        .build();
+    HbaseMetastoreProto.OpenTxnsResponse rsp = txnMgr.openTxns(rqst);
+    Assert.assertEquals(1, rsp.getTxnIdsCount());
+    Assert.assertEquals(0, rsp.getTxnIds(0));
   }
 
 }
