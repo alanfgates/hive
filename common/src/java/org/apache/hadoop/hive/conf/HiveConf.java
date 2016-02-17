@@ -574,11 +574,6 @@ public class HiveConf extends Configuration {
     METASTORE_HBASE_COMMITTED_TXN_CLEANER_FREQUENCY("hive.metastore.hbase.committed.txn.cleaner.frequency",
         "2000ms", new TimeValidator(TimeUnit.MILLISECONDS),
         "How often to run the committed transaction thread"),
-    METASTORE_HBASE_LOCK_CHECKER_MAX_WAIT("hive.metastore.hbase.lock.checker.max.wait",
-        "1000ms", new TimeValidator(TimeUnit.MILLISECONDS),
-        "Maximum amount of time the lock checker will wait before rechecking for lock queues to " +
-            "check.  It will run more often when locks are being released, this is just a " +
-            "backstop to assure it checks at least occasionally."),
     METASTORE_HBASE_TXN_MANAGER_MAX_OBJECTS("hive.metastore.hbase.txn.manager.max.objects",
         1000000, "Maximum number of locks + transactions that can be active in memory at one time" +
         ".  Once this is exceeded the transaction manager will reject any new transactions until " +
