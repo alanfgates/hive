@@ -2918,7 +2918,7 @@ public class HBaseReadWrite implements MetadataStore {
    * Sequence methods
    *********************************************************************************************/
 
-  long peekAtSequence(byte[] sequence) throws IOException {
+  public long peekAtSequence(byte[] sequence) throws IOException {
     byte[] serialized = read(SEQUENCES_TABLE, sequence, CATALOG_CF, CATALOG_COL);
     return serialized == null ? 0 : Long.valueOf(new String(serialized, HBaseUtils.ENCODING));
   }
@@ -2958,7 +2958,6 @@ public class HBaseReadWrite implements MetadataStore {
    * @throws IOException
    */
   List<String> printSequences() throws IOException {
-    HTableInterface htab = conn.getHBaseTable(SEQUENCES_TABLE);
     Iterator<Result> iter =
         scan(SEQUENCES_TABLE, CATALOG_CF, CATALOG_COL, null);
     List<String> sequences = new ArrayList<>();

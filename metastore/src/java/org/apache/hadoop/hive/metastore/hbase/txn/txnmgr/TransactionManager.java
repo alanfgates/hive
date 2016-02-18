@@ -1080,8 +1080,8 @@ class TransactionManager {
           }
         }
       }
-      nextTxnId = getHBase().readCurrentSequence(HBaseReadWrite.TXN_SEQUENCE);
-      nextLockId = getHBase().readCurrentSequence(HBaseReadWrite.LOCK_SEQUENCE);
+      nextTxnId = getHBase().peekAtSequence(HBaseReadWrite.TXN_SEQUENCE);
+      nextLockId = getHBase().peekAtSequence(HBaseReadWrite.LOCK_SEQUENCE);
       if (LOG.isDebugEnabled()) {
         LOG.debug("Set nextTxnId to " + nextTxnId + " and nextLockId to " + nextLockId);
       }
@@ -1382,7 +1382,7 @@ class TransactionManager {
     }
   };
 
-  private Runnable lockChecker = new Runnable() {
+  private final Runnable lockChecker = new Runnable() {
     // Unlike the preceding list of runnables, this code is only run when scheduled by a commit,
     // abort, or lock operation that has changed the lock queues.  When it is done it signals on
     // itself to notify anyone in waitForLocks to go look at their locks.  When locking on this

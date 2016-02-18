@@ -83,7 +83,7 @@ public class HBaseTxnHandler implements TxnStore {
     try {
       getHBase().begin();
       List<HbaseMetastoreProto.Transaction> txns = getHBase().scanTransactions();
-      long hwm = getHBase().readCurrentSequence(HBaseReadWrite.TXN_SEQUENCE);
+      long hwm = getHBase().peekAtSequence(HBaseReadWrite.TXN_SEQUENCE);
       List<TxnInfo> openTxns = new ArrayList<>(txns.size());
       for (HbaseMetastoreProto.Transaction txn : txns) openTxns.add(HBaseUtils.pbToThrift(txn));
       return new GetOpenTxnsInfoResponse(hwm, openTxns);

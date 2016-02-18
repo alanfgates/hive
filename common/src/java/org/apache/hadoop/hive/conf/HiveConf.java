@@ -554,7 +554,9 @@ public class HiveConf extends Configuration {
     METASTORE_HBASE_FILE_METADATA_THREADS("hive.metastore.hbase.file.metadata.threads", 1,
         "Number of threads to use to read file metadata in background to cache it."),
     METASTORE_HBASE_LOCK_POLL_TIMEOUT("hive.metastore.hbase.lock.poll.timeout", "5000ms",
-        new TimeValidator(TimeUnit.MILLISECONDS)),
+        new TimeValidator(TimeUnit.MILLISECONDS),
+        "Time to wait for locks when polling.  Once this is up the client will be returned a " +
+            "waiting status."),
     METASTORE_HBASE_TXN_MGR_LOCK_POLL_TIMEOUT("hive.metastore.hbase.txn.mgr.lock.poll.timeout",
         "5000ms", new TimeValidator(TimeUnit.MILLISECONDS),
         "Time to wait for a set of Hive Locks to acquire before returning waiting status to caller"),
