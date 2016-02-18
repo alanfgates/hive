@@ -65,7 +65,6 @@ public class TestTransactionManager {
     Assert.assertEquals(0L, rsp.getTxnIds(0));
 
     assertInternalState(1L, 0L, 1L, "{0=0,[]}", "{}", "[]");
-    Assert.assertNotNull(store.backdoor().getTransaction(0));
 
     // Open many transactions
     rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
@@ -95,14 +94,36 @@ public class TestTransactionManager {
     txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
         .setTxnId(1)
         .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
-            .setDb("db")
-            .setTable("table")
-            .setPartition("part")
+            .setDb("d")
+            .setTable("t")
+            .setPartition("p")
             .setType(HbaseMetastoreProto.LockType.SHARED_READ)
             .build())
         .build());
-    assertInternalState(4L, 0L, 2L, "{1=1,[1:0,db.table.part,SHARED_READ,ACQUIRED], 3=3,[]}", "{}",
+    assertInternalState(4L, 0L, 2L, "{1=1,[1:0,d.t.p,SHARED_READ,ACQUIRED,], 3=3,[]}", "{}",
         "[]");
+    Assert.assertEquals("{d.t.p={0=1:0,d.t.p,SHARED_READ,ACQUIRED},0}", txnMgr.stringifyLockQueues());
+
+    // Abort a transaction with a read lock
+    txnMgr.abortTxn(HbaseMetastoreProto.TransactionId.newBuilder().setId(1).build());
+    assertInternalState(4L, 0L, 1L, "{3=3,[]}", "{}", "[]");
+    Assert.assertEquals("{d.t.p={},0}", txnMgr.stringifyLockQueues());
+
+    // Commit a transaction with a read lock
+    txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+        .setTxnId(3)
+        .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+            .setDb("d")
+            .setTable("t")
+            .setPartition("p")
+            .setType(HbaseMetastoreProto.LockType.SHARED_READ)
+            .build())
+        .build());
+    assertInternalState(4L, 0L, 1L, "{3=3,[3:1,d.t.p,SHARED_READ,ACQUIRED,]}", "{}", "[]");
+    Assert.assertEquals("{d.t.p={1=3:1,d.t.p,SHARED_READ,ACQUIRED},0}", txnMgr.stringifyLockQueues());
+    txnMgr.commitTxn(HbaseMetastoreProto.TransactionId.newBuilder().setId(3).build());
+    assertInternalState(4L, 0L, 0L, "{}", "{}", "[]");
+    Assert.assertEquals("{d.t.p={},0}", txnMgr.stringifyLockQueues());
   }
 
   private void assertInternalState(long expectedHighWaterMark, long expectedAbortCnt,

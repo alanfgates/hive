@@ -167,6 +167,17 @@ public class MockUtils {
       }
     }).when(htable).put(Mockito.any(Put.class));
 
+    Mockito.doAnswer(new Answer<Void>() {
+      @Override
+      public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
+        List<Put> puts = (List<Put>)invocationOnMock.getArguments()[0];
+        for (Put put : puts) {
+          rows.put(new String(put.getRow()), put.getFamilyCellMap().firstEntry().getValue().get(0));
+        }
+        return null;
+      }
+    }).when(htable).put(Mockito.anyListOf(Put.class));
+
     Mockito.when(htable.checkAndPut(Mockito.any(byte[].class), Mockito.any(byte[].class),
         Mockito.any(byte[].class), Mockito.any(byte[].class), Mockito.any(Put.class))).thenAnswer(
         new Answer<Boolean>() {

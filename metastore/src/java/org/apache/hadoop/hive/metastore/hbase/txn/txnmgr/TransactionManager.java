@@ -1185,6 +1185,14 @@ class TransactionManager {
       queue = new TreeMap<>();
       maxCommitId = 0;
     }
+
+    @Override
+    public String toString() {
+      return new StringBuilder(queue.toString())
+          .append(',')
+          .append(maxCommitId)
+          .toString();
+    }
   }
 
   private Runnable timedOutCleaner = new Runnable() {
@@ -1539,6 +1547,11 @@ class TransactionManager {
   @VisibleForTesting
   String stringifyCommittedTxns() {
     return committedTxns.toString();
+  }
+
+  @VisibleForTesting
+  String stringifyLockQueues() {
+    return lockQueues.toString();
   }
 
 }
