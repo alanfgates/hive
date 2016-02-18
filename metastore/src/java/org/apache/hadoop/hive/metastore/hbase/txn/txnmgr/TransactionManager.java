@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hive.metastore.hbase.txn.txnmgr;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.ObjectPair;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -53,7 +54,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * Locks are a part of a transaction, so each txn has a list of locks.  All transaction oriented
  * operations are done via txnId.
  *
- * Locks are also kept in 'dtp queues' which are sorted trees keyed by db, table, partition that
+ * Locks are also kept in queues which are sorted trees keyed by db, table, partition that
  * the lock is on.  This allows the system to quickly evaluate which locks should be granted next.
  *
  * All write operations are written through to HBase.  When the class first starts it recovers
@@ -134,42 +135,43 @@ class TransactionManager {
     lockQueues = new HashMap<>();
     lockQueuesToCheck = new ArrayList<>();
     this.conf = conf;
-    lockPollTimeout = HiveConf.getTimeVar(conf, HiveConf.ConfVars.METASTORE_HBASE_LOCK_POLL_TIMEOUT,
+    lockPollTimeout = HiveConf.getTimeVar(conf, HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_LOCK_POLL_TIMEOUT,
         TimeUnit.MILLISECONDS);
     txnTimeout = HiveConf.getTimeVar(conf, HiveConf.ConfVars.HIVE_TXN_TIMEOUT, TimeUnit.MILLISECONDS);
-    maxObjects = HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_TXN_MANAGER_MAX_OBJECTS);
+    maxObjects = HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_MAX_OBJECTS);
     recover();
 
-    threadPool = new ScheduledThreadPoolExecutor(3);
-    threadPool.setMaximumPoolSize(10);
+    threadPool = new ScheduledThreadPoolExecutor(HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_THREAD_POOL_BASE_SIZE));
+    threadPool.setMaximumPoolSize(HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_THREAD_POOL_MAX_SIZE));
 
     // Schedule the lock queue shrinker
     long period = HiveConf.getTimeVar(conf,
-        HiveConf.ConfVars.METASTORE_HBASE_LOCK_QUEUE_SHRINKER_FREQUENCY, TimeUnit.MILLISECONDS);
-    threadPool.scheduleAtFixedRate(lockQueueShrinker, 0, period, TimeUnit.MILLISECONDS);
+        HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_LOCK_QUEUE_SHRINKER_FREQ, TimeUnit.MILLISECONDS);
+    threadPool.scheduleAtFixedRate(lockQueueShrinker, 10, period, TimeUnit.MILLISECONDS);
 
     // Schedule full checker
     period = HiveConf.getTimeVar(conf,
-        HiveConf.ConfVars.METASTORE_HBASE_FULL_CHECKER_FREQUENCY, TimeUnit.MILLISECONDS);
-    threadPool.scheduleAtFixedRate(fullChecker, 0, period, TimeUnit.MILLISECONDS);
+        HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_FULL_CHECKER_FREQ, TimeUnit.MILLISECONDS);
+    threadPool.scheduleAtFixedRate(fullChecker, 20, period, TimeUnit.MILLISECONDS);
 
     // Schedule the committed transaction cleaner
     period = HiveConf.getTimeVar(conf,
-        HiveConf.ConfVars.METASTORE_HBASE_COMMITTED_TXN_CLEANER_FREQUENCY, TimeUnit.MILLISECONDS);
-    threadPool.scheduleAtFixedRate(committedTxnCleaner, 0, period, TimeUnit.MILLISECONDS);
+        HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_COMMITTED_TXN_CLEANER_FREQ, TimeUnit.MILLISECONDS);
+    threadPool.scheduleAtFixedRate(committedTxnCleaner, 30, period, TimeUnit.MILLISECONDS);
 
     // schedule the timeoutCleaner.  This one has an initial delay to give any running clients a
     // chance to heartbeat after recovery.
     long intialDelay = HiveConf.getTimeVar(conf,
-        HiveConf.ConfVars.METASTORE_HBASE_TIMEOUT_CLEANER_INITIAL_WAIT, TimeUnit.MILLISECONDS);
+        HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_TIMEOUT_CLEANER_INITIAL_WAIT, TimeUnit
+            .MILLISECONDS);
     period = HiveConf.getTimeVar(conf,
-        HiveConf.ConfVars.METASTORE_HBASE_TIMEOUT_CLEANER_FREQUENCY, TimeUnit.MILLISECONDS);
+        HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_TIMEOUT_CLEANER_FREQ, TimeUnit.MILLISECONDS);
     threadPool.scheduleAtFixedRate(timedOutCleaner, intialDelay, period, TimeUnit.MILLISECONDS);
 
     // Schedule the deadlock detector
     period = HiveConf.getTimeVar(conf,
-        HiveConf.ConfVars.METASTORE_HBASE_DEADLOCK_DETECTOR_FREQUENCY, TimeUnit.MILLISECONDS);
-    threadPool.scheduleAtFixedRate(deadlockDetector, 0, period, TimeUnit.MILLISECONDS);
+        HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_DEADLOCK_DETECTOR_FREQ, TimeUnit.MILLISECONDS);
+    threadPool.scheduleAtFixedRate(deadlockDetector, 40, period, TimeUnit.MILLISECONDS);
 
   }
 
@@ -212,7 +214,10 @@ class TransactionManager {
         rspBuilder.addTxnIds(txn.getId());
       }
       long newTxnVal = getHBase().addToSequence(HBaseReadWrite.TXN_SEQUENCE, request.getNumTxns());
-      assert newTxnVal == nextTxnId - 1;
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("nextTxnId is " + nextTxnId + ", newTxnVal is " + newTxnVal);
+        assert newTxnVal == nextTxnId;
+      }
       getHBase().putTransactions(hbaseTxns);
       shouldCommit = true;
       return rspBuilder.build();
@@ -262,12 +267,12 @@ class TransactionManager {
   }
 
   /**
-   * Abort a transaction.  You must own the master write lock before entering this method.  You
-   * must NOT be in an HBase transaction.
+   * Abort a transaction.  You MUST own the master write lock before entering this method.  You
+   * MUST NOT be in an HBase transaction.
    * @param txn transaction to abort
    * @throws IOException
    */
-  private void abortTxn(OpenHiveTransaction txn)
+  private void abortTxn(final OpenHiveTransaction txn)
       throws IOException {
     HiveLock[] locks = txn.getHiveLocks();
     if (locks != null) {
@@ -290,14 +295,12 @@ class TransactionManager {
       if (LOG.isDebugEnabled()) {
         LOG.debug("Transaction " + txn.getId() + " has write locks, creating aborted txn");
       }
-      AbortedHiveTransaction abortedTxn =  new AbortedHiveTransaction(txn);
-      abortedTxns.put(txn.getId(), abortedTxn);
 
       List<HBaseReadWrite.PotentialCompactionEntity> pces = new ArrayList<>();
 
       // This is where protocol buffers suck.  Since they're read only we have to make a whole
       // new copy
-      HbaseMetastoreProto.Transaction hbaseTxn = getHBase().getTransaction(abortedTxn.getId());
+      HbaseMetastoreProto.Transaction hbaseTxn = getHBase().getTransaction(txn.getId());
       HbaseMetastoreProto.Transaction.Builder txnBuilder =
           HbaseMetastoreProto.Transaction.newBuilder(hbaseTxn);
       txnBuilder.clearLocks();
@@ -321,12 +324,15 @@ class TransactionManager {
       getHBase().begin();
       try {
         getHBase().putTransaction(txnBuilder.build());
-        getHBase().putPotentialCompactions(abortedTxn.getId(), pces);
+        getHBase().putPotentialCompactions(txn.getId(), pces);
         shouldCommit = true;
       } finally {
         if (shouldCommit) getHBase().commit();
         else getHBase().rollback();
       }
+
+      AbortedHiveTransaction abortedTxn =  new AbortedHiveTransaction(txn);
+      abortedTxns.put(txn.getId(), abortedTxn);
     } else {
       // There's no reason to remember this txn anymore, it either had no locks or was read only.
       if (LOG.isDebugEnabled()) {
@@ -384,6 +390,7 @@ class TransactionManager {
         // Record all of the commit ids in the lockQueues so other transactions can quickly look
         // it up when getting locks.
         for (HiveLock lock : txn.getHiveLocks()) {
+          if (lock.getType() != HbaseMetastoreProto.LockType.SHARED_WRITE) continue;
           LockQueue queue = lockQueues.get(lock.getEntityLocked());
           if (LOG.isDebugEnabled()) {
             LOG.debug(lock.getEntityLocked().toString() + " has max commit id of " +
@@ -538,14 +545,33 @@ class TransactionManager {
         else getHBase().rollback();
       }
     }
-    // Poll on the state of all the locks, return once they've all gone acquired.  But don't wait
-    // more than a few seconds, as this is tying down a thread in HBase.  After that they can call
-    // check locks to determine if their locks have acquired.
-    return waitForLocks(hiveLocks, lockCheckerRun);
+
+    // First, see if our locks acquired immediately using the return from our submission to the
+    // thread queue.
+    try {
+      lockCheckerRun.get(lockPollTimeout, TimeUnit.MILLISECONDS);
+      if (checkMyLocks(hiveLocks) == HbaseMetastoreProto.LockState.ACQUIRED) {
+        return HbaseMetastoreProto.LockResponse.newBuilder()
+            .setState(HbaseMetastoreProto.LockState.ACQUIRED)
+            .build();
+      }
+    } catch (ExecutionException e) {
+      throw new IOException(e);
+    } catch (InterruptedException | TimeoutException e) {
+      LOG.debug("Lost patience waiting for locks, returning WAITING");
+      return HbaseMetastoreProto.LockResponse.newBuilder()
+          .setState(HbaseMetastoreProto.LockState.WAITING)
+          .build();
+    }
+
+    // We didn't acquire right away, so long poll.  We won't wait forever, but we can wait a few
+    // seconds to avoid the clients banging away every few hundred milliseconds to see if their
+    // locks have acquired.
+    return waitForLocks(hiveLocks);
   }
 
-  // This checks that all locks in the transaction are acquired.  This just looks at the current
-  // state and returns, it does not long poll.
+  // This checks that all locks in the transaction are acquired.  This will look immediately at
+  // the set of locks.  If they have not yet acquired it will long poll.
   HbaseMetastoreProto.LockResponse checkLocks(HbaseMetastoreProto.TransactionId request)
         throws IOException, SeverusPleaseException {
     if (LOG.isDebugEnabled()) {
@@ -554,60 +580,70 @@ class TransactionManager {
     OpenHiveTransaction txn;
     try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
       txn = openTxns.get(request.getId());
+      if (txn == null) {
+        LOG.info("Attempt to check locks for non-open transaction " + request.getId());
+        return HbaseMetastoreProto.LockResponse.newBuilder()
+            .setState(HbaseMetastoreProto.LockState.TXN_ABORTED)
+            .build();
+      } else {
+        // Check to see if the locks have acquired yet
+        if (checkMyLocks(txn.getHiveLocks()) == HbaseMetastoreProto.LockState.ACQUIRED) {
+          return HbaseMetastoreProto.LockResponse.newBuilder()
+              .setState(HbaseMetastoreProto.LockState.ACQUIRED)
+              .build();
+        }
+      }
     }
-    if (txn == null) {
-      LOG.info("Attempt to check locks for non-open transaction " + request.getId());
-      return HbaseMetastoreProto.LockResponse.newBuilder()
-          .setState(HbaseMetastoreProto.LockState.TXN_ABORTED)
-          .build();
-    } else {
-      return waitForLocks(txn.getHiveLocks(), null);
-    }
+
+    // Nope, not yet, but let's wait a bit and see if they acquire before we return
+    return waitForLocks(txn.getHiveLocks());
   }
 
   /**
-   * See if the desired locks have acquired.
+   * Wait for a bit to see if a set of locks acquire.  This will wait on the lockChecker object
+   * to signal that the queues should be checked.  It will only wait for up to lockPollTimeout
+   * milliseconds.
    * @param hiveLocks locks to wait for.
-   * @param lockCheckerRun Future event to wait for before checking.  This can be null, in which
-   *                       case there will be no waiting.
    * @return The state of the locks, could be WAITING, ACQUIRED, or TXN_ABORTED
    * @throws IOException
    * @throws SeverusPleaseException
    */
-  private HbaseMetastoreProto.LockResponse waitForLocks(HiveLock[] hiveLocks,
-                                                        Future<?> lockCheckerRun)
+  private HbaseMetastoreProto.LockResponse waitForLocks(HiveLock[] hiveLocks)
       throws IOException, SeverusPleaseException {
     LOG.debug("Waiting for locks");
-    // If we were given a future event to wait for, then wait for it.  Otherwise, run now.
-    if (lockCheckerRun != null) {
+    synchronized (lockChecker) {
       try {
-        lockCheckerRun.get(lockPollTimeout, TimeUnit.MILLISECONDS);
-      } catch (ExecutionException e) {
-        throw new IOException(e);
-      } catch (InterruptedException | TimeoutException e) {
-        LOG.debug("Lost patience waiting for locks, returning WAITING");
-        return HbaseMetastoreProto.LockResponse.newBuilder()
-            .setState(HbaseMetastoreProto.LockState.WAITING)
-            .build();
+        lockChecker.wait(lockPollTimeout);
+      } catch (InterruptedException e) {
+        LOG.warn("Interupted while waiting for locks", e);
+        // Still go ahead and check our status and return it.
       }
     }
     try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
-      for (HiveLock lock : hiveLocks) {
-        if (lock.getState() == HbaseMetastoreProto.LockState.WAITING) {
-          LOG.debug("Some of our locks still in waiting state");
-          return HbaseMetastoreProto.LockResponse.newBuilder()
-              .setState(HbaseMetastoreProto.LockState.WAITING)
-              .build();
-        }
-        if (lock.getState() != HbaseMetastoreProto.LockState.ACQUIRED) {
-          throw new SeverusPleaseException("Lock not in waiting or acquired state, not sure what to do");
-        }
+      return HbaseMetastoreProto.LockResponse.newBuilder()
+          .setState(checkMyLocks(hiveLocks))
+          .build();
+    }
+  }
+
+  /**
+   * See if a set of locks have acquired.  You MUST hold the read lock before entering this method.
+   * @param hiveLocks set of locks to check
+   * @return state of checked locks
+   */
+  private HbaseMetastoreProto.LockState checkMyLocks(HiveLock[] hiveLocks)
+      throws SeverusPleaseException {
+    for (HiveLock lock : hiveLocks) {
+      if (lock.getState() == HbaseMetastoreProto.LockState.WAITING) {
+        LOG.debug("Some of our locks still in waiting state");
+        return HbaseMetastoreProto.LockState.WAITING;
+      }
+      if (lock.getState() != HbaseMetastoreProto.LockState.ACQUIRED) {
+        throw new SeverusPleaseException("Lock not in waiting or acquired state, not sure what to do");
       }
     }
-    LOG.debug("All locks acquired, returning ACQUIRED");
-    return HbaseMetastoreProto.LockResponse.newBuilder()
-        .setState(HbaseMetastoreProto.LockState.ACQUIRED)
-        .build();
+    LOG.debug("All requested locks acquired");
+    return HbaseMetastoreProto.LockState.ACQUIRED;
   }
 
   private boolean twoLocksCompatible(HbaseMetastoreProto.LockType holder,
@@ -940,8 +976,8 @@ class TransactionManager {
         tryToShrinkLockQueues();
         if (countObjects() > maxObjects) {
           LOG.error("Transation manager object count exceeds configured max object count " +
-              maxObjects + ", marking full and no longer accepting new transactions some current " +
-              "objects have drained off");
+              maxObjects + ", marking full and no longer accepting new transactions until some " +
+              "current objects have drained off");
           full = true;
         }
       } else {
@@ -1267,11 +1303,12 @@ class TransactionManager {
     public void run() {
       try {
         LOG.debug("Running full checker");
-        while (checkFull()) {
-          // If we're full keep checking regularly if we've drained and can re-open for business.
-          Thread.sleep(100);
+        if (checkFull()) {
+          // Schedule another instance of ourself very soon because we want to run frequently
+          // while we're full
+          threadPool.schedule(this, 100, TimeUnit.MILLISECONDS);
         }
-      } catch (IOException | InterruptedException e) {
+      } catch (IOException e) {
         // Go back through the while loop, as this might mean it's time to quit
         LOG.warn("Caught exception while checking to see if transaction manager is full", e);
       }
@@ -1345,6 +1382,11 @@ class TransactionManager {
   };
 
   private Runnable lockChecker = new Runnable() {
+    // Unlike the preceding list of runnables, this code is only run when scheduled by a commit,
+    // abort, or lock operation that has changed the lock queues.  When it is done it signals on
+    // itself to notify anyone in waitForLocks to go look at their locks.  When locking on this
+    // object to wait you MUST NOT hold the read lock or write lock, as there's nasty potential
+    // for deadlock.
     @Override
     public void run() {
       try {
@@ -1364,7 +1406,7 @@ class TransactionManager {
 
         Map<Long, HiveLock> toAcquire = new HashMap<>();
         Set<OpenHiveTransaction> acquiringTxns = new HashSet<>();
-        Set<Long> writeConflicts = new HashSet<>();
+        final Set<Long> writeConflicts = new HashSet<>();
         try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
           // Many keys may have been added to the queue, grab them all so we can do this just
           // once.
@@ -1410,8 +1452,26 @@ class TransactionManager {
         } // Now outside read lock
         try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
           // Abort the transactions that ran into write conflicts.  We logged this above, so no
-          // need to log it here.
-          for (long txnId : writeConflicts) abortTxn(openTxns.get(txnId));
+          // need to log it here.  Do it in a separate thread as this could take a bit and we
+          // have other things to do.
+          Future<?> abortingWriteConflicts = null;
+          if (writeConflicts.size() > 0) {
+            final List<IOException> exceptions = new ArrayList<>(1);
+            Runnable conflictAborter = new Runnable() {
+              @Override
+              public void run() {
+                for (long txnId : writeConflicts) {
+                  try {
+                    abortTxn(openTxns.get(txnId));
+                  } catch (IOException e) {
+                    exceptions.add(e);
+                    return;
+                  }
+                }
+              }
+            };
+            abortingWriteConflicts = threadPool.submit(conflictAborter);
+          }
 
           for (HiveLock lock : toAcquire.values()) {
             lock.setState(HbaseMetastoreProto.LockState.ACQUIRED);
@@ -1446,11 +1506,38 @@ class TransactionManager {
             if (shouldCommit) getHBase().commit();
             else getHBase().rollback();
           }
+          if (abortingWriteConflicts != null) abortingWriteConflicts.get();
         } // out of the write lock
+
+        // Notify any waiters to go look for their locks
+        synchronized (this) {
+          this.notifyAll();
+        }
 
       } catch (Exception ie) {
         LOG.warn("Received exception while checking for locks", ie);
       }
     }
   };
+
+  // I REALLY don't want to open up the member variables in this class for test classes to look
+  // at since usage of them is so dependent on holding the right locks, matching the state in
+  // HBase, etc.  It is dangerous to let those out.  But in order for unit tests to be effective I need a
+  // way to see the internal state of the object.  So I've created the following stringify methods
+  // for the major members of the class.
+  @VisibleForTesting
+  String stringifyOpenTxns() {
+    return openTxns.toString();
+  }
+
+  @VisibleForTesting
+  String stringifyAbortedTxns() {
+    return abortedTxns.toString();
+  }
+
+  @VisibleForTesting
+  String stringifyCommittedTxns() {
+    return committedTxns.toString();
+  }
+
 }

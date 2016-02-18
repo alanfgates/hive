@@ -94,4 +94,19 @@ class HiveLock {
     HiveLock other = (HiveLock)o;
     return txnId == other.txnId && id == other.id;
   }
+
+  @Override
+  public String toString() {
+    return new StringBuilder()
+        .append(txnId)
+        .append(':')
+        .append(id)
+        .append(',')
+        .append(entityLocked.toString())
+        .append(',')
+        .append(type)
+        .append(',')
+        .append(state)
+        .toString();
+  }
 }

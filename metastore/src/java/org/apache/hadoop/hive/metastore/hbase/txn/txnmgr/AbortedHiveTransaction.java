@@ -34,9 +34,11 @@ public class AbortedHiveTransaction extends HiveTransaction {
   AbortedHiveTransaction(OpenHiveTransaction openTxn) {
     super(openTxn.getId());
     compactableLocks = new HashMap<>();
-    for (HiveLock lock : openTxn.getHiveLocks()) {
-      if (lock.getType() == HbaseMetastoreProto.LockType.SHARED_WRITE) {
-        compactableLocks.put(lock.getEntityLocked(), lock);
+    if (openTxn.getHiveLocks() != null) {
+      for (HiveLock lock : openTxn.getHiveLocks()) {
+        if (lock.getType() == HbaseMetastoreProto.LockType.SHARED_WRITE) {
+          compactableLocks.put(lock.getEntityLocked(), lock);
+        }
       }
     }
   }
@@ -78,6 +80,15 @@ public class AbortedHiveTransaction extends HiveTransaction {
     return compactableLocks.size() == 0;
   }
 
+  @Override
+  public String toString() {
+    return new StringBuilder()
+        .append(getId())
+        .append(",[")
+        .append(compactableLocks.toString())
+        .append(']')
+        .toString();
+  }
 
 
 }

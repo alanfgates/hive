@@ -96,12 +96,30 @@ class OpenHiveTransaction extends HiveTransaction {
   }
 
   boolean hasWriteLocks() {
-    for (HiveLock hiveLock : hiveLocks) {
-      if (hiveLock.getType() == HbaseMetastoreProto.LockType.SHARED_WRITE) {
-        return true;
+    if (hiveLocks != null) {
+      for (HiveLock hiveLock : hiveLocks) {
+        if (hiveLock.getType() == HbaseMetastoreProto.LockType.SHARED_WRITE) {
+          return true;
+        }
       }
     }
     return false;
+  }
+
+  @Override
+  public String toString() {
+    StringBuilder bldr = new StringBuilder()
+        .append(getId())
+        // Skip lastHeartbeat, because that will make a mess of comparing these strings
+        .append(",[");
+
+    if (hiveLocks != null) {
+      for (HiveLock lock : hiveLocks) {
+        bldr.append(lock.toString())
+            .append(',');
+      }
+    }
+    return bldr.append(']').toString();
   }
 
 }

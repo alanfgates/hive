@@ -53,4 +53,13 @@ public class CommittedHiveTransaction extends HiveTransaction {
   long getCommitId() {
     return commitId;
   }
+
+  @Override
+  public String toString() {
+    return new StringBuilder()
+        .append(getId())
+        .append(',')
+        .append(commitId)
+        .toString();
+  }
 }

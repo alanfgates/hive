@@ -2946,7 +2946,8 @@ public class HBaseReadWrite implements MetadataStore {
     if (serialized != null) {
       val = Long.valueOf(new String(serialized, HBaseUtils.ENCODING));
     }
-    byte[] incrSerialized = Long.toString(val + toAdd).getBytes(HBaseUtils.ENCODING);
+    val += toAdd;
+    byte[] incrSerialized = Long.toString(val).getBytes(HBaseUtils.ENCODING);
     store(SEQUENCES_TABLE, sequence, CATALOG_CF, CATALOG_COL, incrSerialized);
     return val;
   }
