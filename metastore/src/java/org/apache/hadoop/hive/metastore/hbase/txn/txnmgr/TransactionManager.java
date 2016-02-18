@@ -532,6 +532,7 @@ class TransactionManager {
       assert lockVal == nextLockId;
 
       HbaseMetastoreProto.Transaction hbaseTxn = getHBase().getTransaction(request.getTxnId());
+      assert hbaseTxn != null;
       HbaseMetastoreProto.Transaction.Builder txnBuilder =
           HbaseMetastoreProto.Transaction.newBuilder(hbaseTxn);
       txnBuilder.addAllLocks(lockBuilders);

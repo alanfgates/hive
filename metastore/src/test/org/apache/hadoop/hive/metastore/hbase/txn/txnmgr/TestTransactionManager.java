@@ -65,6 +65,7 @@ public class TestTransactionManager {
     Assert.assertEquals(0L, rsp.getTxnIds(0));
 
     assertInternalState(1L, 0L, 1L, "{0=0,[]}", "{}", "[]");
+    Assert.assertNotNull(store.backdoor().getTransaction(0));
 
     // Open many transactions
     rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()

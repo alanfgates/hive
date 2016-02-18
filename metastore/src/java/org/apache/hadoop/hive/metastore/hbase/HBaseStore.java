@@ -2512,7 +2512,7 @@ public class HBaseStore implements RawStore {
     }
   }
 
-  @VisibleForTesting HBaseReadWrite backdoor() {
+  @VisibleForTesting public HBaseReadWrite backdoor() {
     return getHBase();
   }
 

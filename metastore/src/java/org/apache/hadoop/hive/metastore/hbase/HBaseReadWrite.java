@@ -2525,7 +2525,7 @@ public class HBaseReadWrite implements MetadataStore {
    * @return list of transactions
    * @throws IOException
    */
-  List<String> printTransactions() throws IOException {
+  public List<String> printTransactions() throws IOException {
     List<String> lines = new ArrayList<>();
     for (HbaseMetastoreProto.Transaction txn : scanTransactions()) {
       lines.add(printTransaction(txn));
