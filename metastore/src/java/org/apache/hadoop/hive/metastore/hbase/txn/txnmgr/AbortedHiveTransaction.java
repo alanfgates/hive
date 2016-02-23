@@ -80,15 +80,4 @@ public class AbortedHiveTransaction extends HiveTransaction {
     return compactableLocks.size() == 0;
   }
 
-  @Override
-  public String toString() {
-    return new StringBuilder()
-        .append(getId())
-        .append(",[")
-        .append(compactableLocks.toString())
-        .append(']')
-        .toString();
-  }
-
-
 }

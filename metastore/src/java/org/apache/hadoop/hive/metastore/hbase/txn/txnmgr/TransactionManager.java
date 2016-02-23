@@ -23,11 +23,16 @@ import org.apache.hadoop.hive.common.ObjectPair;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.hbase.HBaseReadWrite;
 import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
+import org.codehaus.jackson.JsonFactory;
+import org.codehaus.jackson.JsonGenerator;
+import org.codehaus.jackson.map.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -1163,17 +1168,20 @@ class TransactionManager {
 
     @Override
     public String toString() {
-      StringBuilder bldr = new StringBuilder(db);
+      return db + (table == null ? "" : ("." + table + (part == null ? "" : "." + part)));
+    }
 
-      if (table != null) {
-        bldr.append('.')
-            .append(table);
-        if (part != null) {
-          bldr.append('.')
-              .append(part);
-        }
-      }
-      return bldr.toString();
+    // These are just here so the JSON object mapper can read them.
+    public String getDb() {
+      return db;
+    }
+
+    public String getTable() {
+      return table;
+    }
+
+    public String getPart() {
+      return part;
     }
   }
 
@@ -1186,12 +1194,13 @@ class TransactionManager {
       maxCommitId = 0;
     }
 
-    @Override
-    public String toString() {
-      return new StringBuilder(queue.toString())
-          .append(',')
-          .append(maxCommitId)
-          .toString();
+    // Here for the JSON object mapper
+    public SortedMap<Long, HiveLock> getQueue() {
+      return queue;
+    }
+
+    public long getMaxCommitId() {
+      return maxCommitId;
     }
   }
 
@@ -1535,23 +1544,32 @@ class TransactionManager {
   // way to see the internal state of the object.  So I've created the following stringify methods
   // for the major members of the class.
   @VisibleForTesting
-  String stringifyOpenTxns() {
-    return openTxns.toString();
+  String stringifyOpenTxns() throws IOException {
+    return stringifyInternalStructure(openTxns);
   }
 
   @VisibleForTesting
-  String stringifyAbortedTxns() {
-    return abortedTxns.toString();
+  String stringifyAbortedTxns() throws IOException {
+    return stringifyInternalStructure(abortedTxns);
   }
 
   @VisibleForTesting
-  String stringifyCommittedTxns() {
-    return committedTxns.toString();
+  String stringifyCommittedTxns() throws IOException {
+    return stringifyInternalStructure(committedTxns);
   }
 
   @VisibleForTesting
-  String stringifyLockQueues() {
-    return lockQueues.toString();
+  String stringifyLockQueues() throws IOException {
+    return stringifyInternalStructure(lockQueues);
+  }
+
+  private String stringifyInternalStructure(Object internal) throws IOException {
+    OutputStream out = new ByteArrayOutputStream();
+    ObjectMapper mapper = new ObjectMapper();
+    JsonFactory factory = new JsonFactory();
+    JsonGenerator generator = factory.createJsonGenerator(out);
+    mapper.writeValue(generator, internal);
+    return out.toString();
   }
 
 }

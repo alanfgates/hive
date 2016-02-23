@@ -64,19 +64,19 @@ class HiveLock {
     state = hbaseLock.getState();
   }
 
-  long getId() {
+  public long getId() {
     return id;
   }
 
-  long getTxnId() {
+  public long getTxnId() {
     return txnId;
   }
 
-  HbaseMetastoreProto.LockType getType() {
+  public HbaseMetastoreProto.LockType getType() {
     return type;
   }
 
-  HbaseMetastoreProto.LockState getState() {
+  public HbaseMetastoreProto.LockState getState() {
     return state;
   }
 
@@ -93,20 +93,5 @@ class HiveLock {
     if (!(o instanceof HiveLock)) return false;
     HiveLock other = (HiveLock)o;
     return txnId == other.txnId && id == other.id;
-  }
-
-  @Override
-  public String toString() {
-    return new StringBuilder()
-        .append(txnId)
-        .append(':')
-        .append(id)
-        .append(',')
-        .append(entityLocked.toString())
-        .append(',')
-        .append(type)
-        .append(',')
-        .append(state)
-        .toString();
   }
 }

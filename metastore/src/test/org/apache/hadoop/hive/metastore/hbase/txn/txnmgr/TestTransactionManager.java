@@ -64,7 +64,8 @@ public class TestTransactionManager {
     Assert.assertEquals(1, rsp.getTxnIdsCount());
     Assert.assertEquals(0L, rsp.getTxnIds(0));
 
-    assertInternalState(1L, 0L, 1L, "{0=0,[]}", "{}", "[]");
+    assertInternalState(1L, 0L, 1L, "\\{\"0\":\\{\"lastHeartbeat\":[0-9]+," +
+            "\"hiveLocks\":null\\}\\}", "\\{\\}", "\\[\\]");
 
     // Open many transactions
     rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
@@ -77,18 +78,23 @@ public class TestTransactionManager {
     Assert.assertEquals(1L, rsp.getTxnIds(0));
     Assert.assertEquals(3L, rsp.getTxnIds(2));
 
-    assertInternalState(4L, 0L, 4L, "{0=0,[], 1=1,[], 2=2,[], 3=3,[]}", "{}", "[]");
+    assertInternalState(4L, 0L, 4L, "\\{\"0\":\\{\"lastHeartbeat\":[0-9]+,\"hiveLocks\":null\\}," +
+        "\"1\":\\{\"lastHeartbeat\":[0-9]+,\"hiveLocks\":null\\},\"2\":\\{\"lastHeartbeat\":[0-9]+," +
+        "\"hiveLocks\":null\\},\"3\":\\{\"lastHeartbeat\":[0-9]+,\"hiveLocks\":null\\}\\}", "\\{\\}", "\\[\\]");
 
     // Abort a transaction
     txnMgr.abortTxn(HbaseMetastoreProto.TransactionId.newBuilder().setId(0).build());
     // This one will immediately be forgotten since it had no write locks, so abort count goes to
     // 0 not 1.
-    assertInternalState(4L, 0L, 3L, "{1=1,[], 2=2,[], 3=3,[]}", "{}", "[]");
+    assertInternalState(4L, 0L, 3L, "\\{\"1\":\\{\"lastHeartbeat\":[0-9]+,\"hiveLocks\":null\\}," +
+        "\"2\":\\{\"lastHeartbeat\":[0-9]+,\"hiveLocks\":null\\},\"3\":\\{\"lastHeartbeat\":[0-9]+," +
+        "\"hiveLocks\":null\\}\\}", "\\{\\}", "\\[\\]");
 
     // Commit a transaction
     txnMgr.commitTxn(HbaseMetastoreProto.TransactionId.newBuilder().setId(2).build());
     // No write locks, so it should be immediately forgotten
-    assertInternalState(4L, 0L, 2L, "{1=1,[], 3=3,[]}", "{}", "[]");
+    assertInternalState(4L, 0L, 2L, "\\{\"1\":\\{\"lastHeartbeat\":[0-9]+,\"hiveLocks\":null\\}," +
+        "\"3\":\\{\"lastHeartbeat\":[0-9]+,\"hiveLocks\":null\\}\\}", "\\{\\}", "\\[\\]");
 
     // Open read locks on a transaction
     txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
@@ -100,14 +106,22 @@ public class TestTransactionManager {
             .setType(HbaseMetastoreProto.LockType.SHARED_READ)
             .build())
         .build());
-    assertInternalState(4L, 0L, 2L, "{1=1,[1:0,d.t.p,SHARED_READ,ACQUIRED,], 3=3,[]}", "{}",
-        "[]");
-    Assert.assertEquals("{d.t.p={0=1:0,d.t.p,SHARED_READ,ACQUIRED},0}", txnMgr.stringifyLockQueues());
+    assertInternalState(4L, 0L, 2L, "\\{\"1\":\\{\"lastHeartbeat\":[0-9]+," +
+        "\"hiveLocks\":\\[\\{\"id\":0," +
+        "\"txnId\":1,\"entityLocked\":\\{\"db\":\"d\",\"table\":\"t\",\"part\":\"p\"\\}," +
+        "\"type\":\"SHARED_READ\",\"state\":\"ACQUIRED\"\\}\\]\\}," +
+        "\"3\":\\{\"lastHeartbeat\":[0-9]+," +
+        "\"hiveLocks\":null\\}\\}", "\\{\\}", "\\[\\]");
+    Assert.assertEquals("{\"d.t.p\":{\"queue\":{\"0\":{\"id\":0,\"txnId\":1," +
+        "\"entityLocked\":{\"db\":\"d\",\"table\":\"t\",\"part\":\"p\"},\"type\":\"SHARED_READ\"," +
+        "\"state\":\"ACQUIRED\"}},\"maxCommitId\":0}}", txnMgr.stringifyLockQueues());
 
     // Abort a transaction with a read lock
     txnMgr.abortTxn(HbaseMetastoreProto.TransactionId.newBuilder().setId(1).build());
-    assertInternalState(4L, 0L, 1L, "{3=3,[]}", "{}", "[]");
-    Assert.assertEquals("{d.t.p={},0}", txnMgr.stringifyLockQueues());
+    assertInternalState(4L, 0L, 1L, "\\{\"3\":\\{\"lastHeartbeat\":[0-9]+," +
+        "\"hiveLocks\":null\\}\\}", "\\{\\}", "\\[\\]");
+    Assert.assertEquals("{\"d.t.p\":{\"queue\":{},\"maxCommitId\":0}}",
+        txnMgr.stringifyLockQueues());
 
     // Commit a transaction with a read lock
     txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
@@ -119,24 +133,33 @@ public class TestTransactionManager {
             .setType(HbaseMetastoreProto.LockType.SHARED_READ)
             .build())
         .build());
-    assertInternalState(4L, 0L, 1L, "{3=3,[3:1,d.t.p,SHARED_READ,ACQUIRED,]}", "{}", "[]");
-    Assert.assertEquals("{d.t.p={1=3:1,d.t.p,SHARED_READ,ACQUIRED},0}", txnMgr.stringifyLockQueues());
+    assertInternalState(4L, 0L, 1L, "\\{\"3\":\\{\"lastHeartbeat\":[0-9]+," +
+            "\"hiveLocks\":\\[\\{\"id\":1,\"txnId\":3,\"entityLocked\":\\{\"db\":\"d\"," +
+            "\"table\":\"t\",\"part\":\"p\"},\"type\":\"SHARED_READ\"," +
+            "\"state\":\"ACQUIRED\"\\}\\]\\}\\}", "\\{\\}", "\\[\\]");
+    Assert.assertEquals("{\"d.t.p\":{\"queue\":{\"1\":{\"id\":1,\"txnId\":3," +
+        "\"entityLocked\":{\"db\":\"d\",\"table\":\"t\",\"part\":\"p\"},\"type\":\"SHARED_READ\"," +
+        "\"state\":\"ACQUIRED\"}},\"maxCommitId\":0}}", txnMgr.stringifyLockQueues());
     txnMgr.commitTxn(HbaseMetastoreProto.TransactionId.newBuilder().setId(3).build());
-    assertInternalState(4L, 0L, 0L, "{}", "{}", "[]");
-    Assert.assertEquals("{d.t.p={},0}", txnMgr.stringifyLockQueues());
+    assertInternalState(4L, 0L, 0L, "\\{\\}", "\\{\\}", "\\[\\]");
+    Assert.assertEquals("{\"d.t.p\":{\"queue\":{},\"maxCommitId\":0}}", txnMgr.stringifyLockQueues());
   }
 
   private void assertInternalState(long expectedHighWaterMark, long expectedAbortCnt,
-                                   long expectedOpenCnt, String openTxnString,
-                                   String abortTxnString, String commitTxnString) throws Exception {
+                                   long expectedOpenCnt, String openTxnRegex,
+                                   String abortTxnRegex, String commitTxnRegex) throws Exception {
     HbaseMetastoreProto.GetOpenTxnsResponse txns =
         txnMgr.getOpenTxns(HbaseMetastoreProto.Void.getDefaultInstance());
     Assert.assertEquals(expectedHighWaterMark, txns.getHighWaterMark());
     Assert.assertEquals(expectedAbortCnt, txns.getAbortedTransactionsCount());
     Assert.assertEquals(expectedOpenCnt, txns.getOpenTransactionsCount());
-    Assert.assertEquals(openTxnString, txnMgr.stringifyOpenTxns());
-    Assert.assertEquals(abortTxnString, txnMgr.stringifyAbortedTxns());
-    Assert.assertEquals(commitTxnString, txnMgr.stringifyCommittedTxns());
+    Assert.assertTrue("Expected <" + openTxnRegex + "> got <" + txnMgr.stringifyOpenTxns() + ">",
+        txnMgr.stringifyOpenTxns().matches(openTxnRegex));
+    Assert.assertTrue("Expected <" + abortTxnRegex + "> got <" + txnMgr.stringifyAbortedTxns() +">",
+        txnMgr.stringifyAbortedTxns().matches(abortTxnRegex));
+    Assert.assertTrue(
+        "Expected <" + commitTxnRegex + "> got <" + txnMgr.stringifyCommittedTxns() + ">",
+        txnMgr.stringifyCommittedTxns().matches(commitTxnRegex));
   }
 
 }

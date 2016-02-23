@@ -37,6 +37,7 @@ class OpenHiveTransaction extends HiveTransaction {
    */
   OpenHiveTransaction(long id) {
     super(id);
+    lastHeartbeat = System.currentTimeMillis();
   }
 
   /**
@@ -67,7 +68,7 @@ class OpenHiveTransaction extends HiveTransaction {
     return HbaseMetastoreProto.TxnState.OPEN;
   }
 
-  long getLastHeartbeat() {
+  public long getLastHeartbeat() {
     return lastHeartbeat;
   }
 
@@ -75,7 +76,7 @@ class OpenHiveTransaction extends HiveTransaction {
     this.lastHeartbeat = lastHeartbeat;
   }
 
-  HiveLock[] getHiveLocks() {
+  public HiveLock[] getHiveLocks() {
     return hiveLocks;
   }
 
@@ -105,21 +106,4 @@ class OpenHiveTransaction extends HiveTransaction {
     }
     return false;
   }
-
-  @Override
-  public String toString() {
-    StringBuilder bldr = new StringBuilder()
-        .append(getId())
-        // Skip lastHeartbeat, because that will make a mess of comparing these strings
-        .append(",[");
-
-    if (hiveLocks != null) {
-      for (HiveLock lock : hiveLocks) {
-        bldr.append(lock.toString())
-            .append(',');
-      }
-    }
-    return bldr.append(']').toString();
-  }
-
 }
