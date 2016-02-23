@@ -50,7 +50,7 @@ public class CommittedHiveTransaction extends HiveTransaction {
     return HbaseMetastoreProto.TxnState.COMMITTED;
   }
 
-  long getCommitId() {
+  public long getCommitId() {
     return commitId;
   }
 

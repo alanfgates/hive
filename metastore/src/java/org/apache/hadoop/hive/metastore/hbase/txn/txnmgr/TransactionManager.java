@@ -80,6 +80,8 @@ class TransactionManager {
 
   static final private Logger LOG = LoggerFactory.getLogger(TransactionManager.class.getName());
 
+  static final String CONF_INITIAL_DELAY = "txn.mgr.initial.delay.base";
+
   // Track what locks types are compatible.  First array is holder, second is requester
   private static boolean[][] lockCompatibilityTable;
 
@@ -149,20 +151,28 @@ class TransactionManager {
     threadPool = new ScheduledThreadPoolExecutor(HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_THREAD_POOL_BASE_SIZE));
     threadPool.setMaximumPoolSize(HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_THREAD_POOL_MAX_SIZE));
 
+    // For some testing we don't want the background threads running, so this allows the tester
+    // to set the initial delay high.
+    String initialDelayConf = conf.get(CONF_INITIAL_DELAY);
+    long initialDelayBase = initialDelayConf == null ? 0 : Long.parseLong(initialDelayConf);
+
     // Schedule the lock queue shrinker
     long period = HiveConf.getTimeVar(conf,
         HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_LOCK_QUEUE_SHRINKER_FREQ, TimeUnit.MILLISECONDS);
-    threadPool.scheduleAtFixedRate(lockQueueShrinker, 10, period, TimeUnit.MILLISECONDS);
+    threadPool.scheduleAtFixedRate(lockQueueShrinker, initialDelayBase + 10, period,
+        TimeUnit.MILLISECONDS);
 
     // Schedule full checker
     period = HiveConf.getTimeVar(conf,
         HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_FULL_CHECKER_FREQ, TimeUnit.MILLISECONDS);
-    threadPool.scheduleAtFixedRate(fullChecker, 20, period, TimeUnit.MILLISECONDS);
+    threadPool.scheduleAtFixedRate(fullChecker, initialDelayBase + 20, period,
+        TimeUnit.MILLISECONDS);
 
     // Schedule the committed transaction cleaner
     period = HiveConf.getTimeVar(conf,
         HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_COMMITTED_TXN_CLEANER_FREQ, TimeUnit.MILLISECONDS);
-    threadPool.scheduleAtFixedRate(committedTxnCleaner, 30, period, TimeUnit.MILLISECONDS);
+    threadPool.scheduleAtFixedRate(committedTxnCleaner, initialDelayBase + 30, period,
+        TimeUnit.MILLISECONDS);
 
     // schedule the timeoutCleaner.  This one has an initial delay to give any running clients a
     // chance to heartbeat after recovery.
@@ -171,12 +181,14 @@ class TransactionManager {
             .MILLISECONDS);
     period = HiveConf.getTimeVar(conf,
         HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_TIMEOUT_CLEANER_FREQ, TimeUnit.MILLISECONDS);
-    threadPool.scheduleAtFixedRate(timedOutCleaner, intialDelay, period, TimeUnit.MILLISECONDS);
+    threadPool.scheduleAtFixedRate(timedOutCleaner, initialDelayBase + intialDelay, period,
+        TimeUnit.MILLISECONDS);
 
     // Schedule the deadlock detector
     period = HiveConf.getTimeVar(conf,
         HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_DEADLOCK_DETECTOR_FREQ, TimeUnit.MILLISECONDS);
-    threadPool.scheduleAtFixedRate(deadlockDetector, 40, period, TimeUnit.MILLISECONDS);
+    threadPool.scheduleAtFixedRate(deadlockDetector, initialDelayBase + 40, period,
+        TimeUnit.MILLISECONDS);
 
   }
 
@@ -509,8 +521,7 @@ class TransactionManager {
         HbaseMetastoreProto.LockComponent component = components.get(i);
         long lockId = nextLockId++;
         hiveLocks[i] = new HiveLock(lockId, request.getTxnId(), component.getType(),
-            findOrCreateLockQueue(component.getDb(), component.getTable(),
-                component.getPartition()).getFirst());
+            getLockQueue(component).getFirst());
         // Build the hbase lock so we have it later when we need to record the locks in HBase
         HbaseMetastoreProto.Transaction.Lock.Builder builder =
             HbaseMetastoreProto.Transaction.Lock
@@ -713,7 +724,8 @@ class TransactionManager {
       for (int i = 0; i < partitionNames.size(); i++) {
         partitionsWrittenTo[i] = new HiveLock(-1, request.getTxnId(),
             HbaseMetastoreProto.LockType.SHARED_WRITE,
-            findOrCreateLockQueue(request.getDb(), request.getTable(), partitionNames.get(i)).getFirst());
+            // None of these should be null, so no need to check
+            getLockQueue(request.getDb(), request.getTable(), partitionNames.get(i)).getFirst());
         // Set the lock in released state so it doesn't get put in the DTP queue on recovery
         partitionsWrittenTo[i].setState(HbaseMetastoreProto.LockState.RELEASED);
 
@@ -913,18 +925,34 @@ class TransactionManager {
 
   /**
    * Find the appropriate lock queue given entity information.  If an appropriate entry is not in
-   * the lockQueues it will be added.  This method does not acquire any locks, but you should *
-   * assure that you are inside the write lock before calling it, or you're in recover and thus *
+   * the lockQueues it will be added.  This method does not acquire any locks, but you should
+   * assure that you are inside the write lock before calling it, or you're in recover and thus
    * don't need any locks.
    * @param hbaseLock hbase lock
    * @return object pair, first element is EntityKey, second is LockQueue.
    * @throws IOException
    */
-  ObjectPair<EntityKey, LockQueue> findOrCreateLockQueue(HbaseMetastoreProto.Transaction.Lock hbaseLock)
+  ObjectPair<EntityKey, LockQueue> getLockQueue(HbaseMetastoreProto.Transaction.Lock hbaseLock)
       throws IOException {
-    return findOrCreateLockQueue(hbaseLock.getDb(),
+    return getLockQueue(hbaseLock.getDb(),
         hbaseLock.hasTable() ? hbaseLock.getTable() : null,
         hbaseLock.hasPartition() ? hbaseLock.getPartition() : null);
+  }
+
+  /**
+   * Find the appropriate lock queue given entity information.  If an appropriate entry is not in
+   * the lockQueues it will be added.  This method does not acquire any locks, but you should
+   * assure that you are inside the write lock before calling it, or you're in recover and thus
+   * don't need any locks.
+   * @param component lock component to get queue from
+   * @return object pair, first element is EntityKey, second is LockQueue.
+   * @throws IOException
+   */
+  private ObjectPair<EntityKey, LockQueue> getLockQueue(HbaseMetastoreProto.LockComponent component)
+      throws IOException {
+    return getLockQueue(component.getDb(),
+        component.hasTable() ? component.getTable() : null,
+        component.hasPartition() ? component.getPartition() : null);
   }
 
   /**
@@ -938,7 +966,7 @@ class TransactionManager {
    * @return object pair, first element is EntityKey, second is LockQueue.
    * @throws IOException
    */
-  ObjectPair<EntityKey, LockQueue> findOrCreateLockQueue(String db, String table, String part)
+  private ObjectPair<EntityKey, LockQueue> getLockQueue(String db, String table, String part)
       throws IOException {
     EntityKey key = new EntityKey(db, table, part);
     LockQueue queue = lockQueues.get(key);
@@ -1076,8 +1104,7 @@ class TransactionManager {
               LOG.debug("Found committed transaction " + hbaseTxn.getId());
             }
             for (HbaseMetastoreProto.Transaction.Lock hbaseLock : hbaseTxn.getLocksList()) {
-              LockQueue queue = findOrCreateLockQueue(hbaseLock.getDb(), hbaseLock.getTable(),
-                  hbaseLock.hasPartition() ? hbaseLock.getPartition() : null).getSecond();
+              LockQueue queue = getLockQueue(hbaseLock).getSecond();
               queue.maxCommitId = Math.max(queue.maxCommitId, hbaseTxn.getCommitId());
             }
             committedTxns.add(new CommittedHiveTransaction(hbaseTxn));

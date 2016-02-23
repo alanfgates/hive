@@ -2824,15 +2824,19 @@ public class HBaseReadWrite implements MetadataStore {
       throws IOException {
     List<HbaseMetastoreProto.PotentialCompaction> hbasePcs = new ArrayList<>();
     for (PotentialCompactionEntity pc : pces) {
+      // There may already be an entry for this compaction.  If so, just add our transaction id
+      // to it.  Otherwise build a new one.
       HbaseMetastoreProto.PotentialCompaction hbasePc =
           getPotentialCompaction(pc.db, pc.table, pc.partition);
       if (hbasePc == null) {
-        hbasePcs.add(HbaseMetastoreProto.PotentialCompaction.newBuilder()
+        HbaseMetastoreProto.PotentialCompaction.Builder bldr =
+            HbaseMetastoreProto.PotentialCompaction.newBuilder()
             .setDb(pc.db)
             .setTable(pc.table)
-            .setPartition(pc.partition)
-            .addTxnIds(txnid)
-            .build());
+            .addTxnIds(txnid);
+
+        if (pc.partition != null) bldr.setPartition(pc.partition);
+        hbasePcs.add(bldr.build());
       } else {
         hbasePcs.add(HbaseMetastoreProto.PotentialCompaction.newBuilder(hbasePc)
             .addTxnIds(txnid)

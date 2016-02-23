@@ -59,7 +59,7 @@ class HiveLock {
       throws IOException {
     id = hbaseLock.getId();
     this.txnId = txnId;
-    entityLocked = txnMgr.findOrCreateLockQueue(hbaseLock).getFirst();
+    entityLocked = txnMgr.getLockQueue(hbaseLock).getFirst();
     type = hbaseLock.getType();
     state = hbaseLock.getState();
   }
