@@ -55,7 +55,7 @@ public class TestTransactionManagerLocks {
 
     // Set this super low so the test doesn't take forever
     HiveConf.setTimeVar(conf, HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_LOCK_POLL_TIMEOUT,
-        1, TimeUnit.MILLISECONDS);
+        100, TimeUnit.MILLISECONDS);
 
     store = MockUtils.init(conf, htable, rows);
     txnMgr = new TransactionManager(conf);

@@ -616,6 +616,7 @@ class TransactionManager {
     try {
       lockCheckerRun.get(lockPollTimeout, TimeUnit.MILLISECONDS);
       if (checkMyLocks(hiveLocks) == HbaseMetastoreProto.LockState.ACQUIRED) {
+        LOG.debug("Locks acquired immediately, returning");
         return HbaseMetastoreProto.LockResponse.newBuilder()
             .setState(HbaseMetastoreProto.LockState.ACQUIRED)
             .build();
@@ -632,6 +633,7 @@ class TransactionManager {
     // We didn't acquire right away, so long poll.  We won't wait forever, but we can wait a few
     // seconds to avoid the clients banging away every few hundred milliseconds to see if their
     // locks have acquired.
+    LOG.debug("Locks did not acquire immediately, waiting...");
     return waitForLocks(hiveLocks);
   }
 
@@ -715,7 +717,8 @@ class TransactionManager {
                                      HbaseMetastoreProto.LockType requester) {
     if (lockCompatibilityTable == null) {
       // TODO not at all sure I have intention locks correct in this table
-      lockCompatibilityTable = new boolean[HbaseMetastoreProto.LockType.values().length][HbaseMetastoreProto.LockType.values().length];
+      // The values of the enums are 1 based rather than 0 based.
+      lockCompatibilityTable = new boolean[HbaseMetastoreProto.LockType.values().length + 1][HbaseMetastoreProto.LockType.values().length + 1];
       Arrays.fill(lockCompatibilityTable[HbaseMetastoreProto.LockType.EXCLUSIVE_VALUE], false);
       lockCompatibilityTable[HbaseMetastoreProto.LockType.SHARED_WRITE_VALUE][HbaseMetastoreProto.LockType.EXCLUSIVE_VALUE] = false;
       lockCompatibilityTable[HbaseMetastoreProto.LockType.SHARED_WRITE_VALUE][HbaseMetastoreProto.LockType.SHARED_WRITE_VALUE] = false;
@@ -1533,6 +1536,12 @@ class TransactionManager {
                     }
                   }
                 } else {
+                  if (LOG.isDebugEnabled()) {
+                    LOG.debug("Not acquiring lock " + lock.getTxnId() + "." + lock.getId() +
+                        " of type " + lock.getType().toString() + " as lock " + lastLock.getTxnId()
+                        + "." + lastLock.getId() + " of type " + lastLock.getType() + " is ahead of" +
+                        " it in state " + lastLock.getState().toString());
+                  }
                   // If we can't acquire then nothing behind us can either
                   // TODO prove to yourself this is true
                   break;
