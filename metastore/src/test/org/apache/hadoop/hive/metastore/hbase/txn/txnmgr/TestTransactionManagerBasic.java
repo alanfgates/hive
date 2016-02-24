@@ -96,7 +96,11 @@ public class TestTransactionManagerBasic {
         "{}", "[]");
 
     // Abort a transaction
-    txnMgr.abortTxn(HbaseMetastoreProto.TransactionId.newBuilder().setId(0).build());
+    HbaseMetastoreProto.TransactionResult result =
+        txnMgr.abortTxn(HbaseMetastoreProto.TransactionId.newBuilder().setId(0).build());
+    Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS, result.getState());
+
+
     // This one will immediately be forgotten since it had no write locks, so abort count goes to
     // 0 not 1.
     assertInternalState(4L, "\\{\"1\":\\{\"lastHeartbeat\":[0-9]+,\"hiveLocks\":null\\}," +
@@ -104,7 +108,8 @@ public class TestTransactionManagerBasic {
         "\"hiveLocks\":null\\}\\}", "{}", "[]");
 
     // Commit a transaction
-    txnMgr.commitTxn(HbaseMetastoreProto.TransactionId.newBuilder().setId(2).build());
+    result = txnMgr.commitTxn(HbaseMetastoreProto.TransactionId.newBuilder().setId(2).build());
+    Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS, result.getState());
     // No write locks, so it should be immediately forgotten
     assertInternalState(4L, "\\{\"1\":\\{\"lastHeartbeat\":[0-9]+,\"hiveLocks\":null\\}," +
         "\"3\":\\{\"lastHeartbeat\":[0-9]+,\"hiveLocks\":null\\}\\}", "{}", "[]");

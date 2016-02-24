@@ -198,6 +198,13 @@ class TransactionManager {
     LOG.info("Finished shut down of transaction manager co-processor service");
   }
 
+  /**
+   * Open a group of transactions
+   * @param request number of transactions, plus where they're from
+   * @return transaction ids of new transactions
+   * @throws IOException
+   * @throws SeverusPleaseException
+   */
   HbaseMetastoreProto.OpenTxnsResponse openTxns(HbaseMetastoreProto.OpenTxnsRequest request)
       throws IOException, SeverusPleaseException {
     if (full) {
@@ -244,6 +251,13 @@ class TransactionManager {
     }
   }
 
+  /**
+   * Get list of open transactions.
+   * @param request a void, just here because there's no option for it not to be
+   * @return high water mark plus list of open and aborted transactions
+   * @throws IOException
+   * @throws SeverusPleaseException
+   */
   HbaseMetastoreProto.GetOpenTxnsResponse getOpenTxns(HbaseMetastoreProto.Void request)
       throws IOException, SeverusPleaseException {
     LOG.debug("Getting open transactions");
@@ -256,6 +270,13 @@ class TransactionManager {
     }
   }
 
+  /**
+   * Abort a transaction.
+   * @param request transaction to abort.
+   * @return result with status information.
+   * @throws IOException
+   * @throws SeverusPleaseException
+   */
   HbaseMetastoreProto.TransactionResult abortTxn(HbaseMetastoreProto.TransactionId request)
       throws IOException, SeverusPleaseException {
     if (LOG.isDebugEnabled()) {
@@ -359,6 +380,13 @@ class TransactionManager {
     }
   }
 
+  /**
+   * Commit a transaction.
+   * @param request id of transaction to request
+   * @return status of commit
+   * @throws IOException
+   * @throws SeverusPleaseException
+   */
   HbaseMetastoreProto.TransactionResult commitTxn(HbaseMetastoreProto.TransactionId request)
       throws IOException, SeverusPleaseException {
     if (LOG.isDebugEnabled()) {
@@ -463,6 +491,16 @@ class TransactionManager {
     }
   }
 
+  /**
+   * Send a heartbeat for a range of transactions.  Transaction heartbeats are not kept in HBase,
+   * it's just too expensive to rewrite an entire transaction on every heartbeat.
+   * @param request transaction range to heartbeat, max is inclusive
+   * @return list of transactions in the range that were aborted or could not be found.  Note
+   * that since we don't record aborted txns with no write locks in the memory those will be
+   * reported as no such rather than aborted.
+   * @throws IOException
+   * @throws SeverusPleaseException
+   */
   HbaseMetastoreProto.HeartbeatTxnRangeResponse heartbeat(HbaseMetastoreProto.HeartbeatTxnRangeRequest request)
       throws IOException, SeverusPleaseException {
     long now = System.currentTimeMillis();
@@ -490,6 +528,16 @@ class TransactionManager {
     return builder.build();
   }
 
+  /**
+   * Request a set of locks.
+   * @param request entities to lock
+   * @return status, could be txn_aborted (which really means we couldn't find the txn in memory,
+   * this doesn't go to HBase to understand if the transaction is committed, aborted, or never
+   * existed), acquired (meaning all of the locks are held), or waiting (meaning all the locks
+   * are in waiting state).
+   * @throws IOException
+   * @throws SeverusPleaseException
+   */
   HbaseMetastoreProto.LockResponse lock(HbaseMetastoreProto.LockRequest request)
       throws IOException, SeverusPleaseException {
     if (LOG.isDebugEnabled()) {
@@ -1591,12 +1639,24 @@ class TransactionManager {
   }
 
   private String stringifyInternalStructure(Object internal) throws IOException {
-    OutputStream out = new ByteArrayOutputStream();
-    ObjectMapper mapper = new ObjectMapper();
-    JsonFactory factory = new JsonFactory();
-    JsonGenerator generator = factory.createJsonGenerator(out);
-    mapper.writeValue(generator, internal);
-    return out.toString();
+    try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
+      OutputStream out = new ByteArrayOutputStream();
+      ObjectMapper mapper = new ObjectMapper();
+      JsonFactory factory = new JsonFactory();
+      JsonGenerator generator = factory.createJsonGenerator(out);
+      mapper.writeValue(generator, internal);
+      return out.toString();
+    }
+  }
+
+  // The following functions force running the various background threads.  These should only be
+  // used for testing.  When writing tests that are going to call these you should set the
+  // initial delay to MAX_LONG on the background threads so none of them are running unexpectedly
+  // on you.
+  @VisibleForTesting
+  void forceFullChecker() throws ExecutionException, InterruptedException {
+    Future<?> fullCheckerRun = threadPool.submit(fullChecker);
+    fullCheckerRun.get();
   }
 
 }
