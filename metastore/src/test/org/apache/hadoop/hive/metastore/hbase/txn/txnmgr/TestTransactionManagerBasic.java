@@ -317,6 +317,13 @@ public class TestTransactionManagerBasic {
         "\"maxCommitId\":0},\"x.y.p2\":{\"queue\":{},\"maxCommitId\":0},\"x.y.p1\":{\"queue\":{}," +
         "\"maxCommitId\":0}}", txnMgr.stringifyLockQueues());
 
+    txnMgr.commitTxn(HbaseMetastoreProto.TransactionId.newBuilder()
+        .setId(6)
+        .build());
+    Assert.assertEquals("{\"d.t3.p\":{\"queue\":{},\"maxCommitId\":0},\"d.t2\":{\"queue\":{}," +
+        "\"maxCommitId\":0},\"d.t4\":{\"queue\":{},\"maxCommitId\":6},\"d.t.p\":{\"queue\":{}," +
+        "\"maxCommitId\":0},\"x.y.p2\":{\"queue\":{},\"maxCommitId\":7},\"x.y.p1\":{\"queue\":{}," +
+        "\"maxCommitId\":7}}", txnMgr.stringifyLockQueues());
   }
 
   private void assertInternalState(long expectedHighWaterMark, String openTxnRegex,

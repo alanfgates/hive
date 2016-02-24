@@ -242,7 +242,7 @@ public class TestTransactionManagerLocks {
         .build();
     HbaseMetastoreProto.OpenTxnsResponse rsp = txnMgr.openTxns(rqst);
     long firstTxn = rsp.getTxnIds(0);
-    long secondTxn = rsp.getTxnIds(0);
+    long secondTxn = rsp.getTxnIds(1);
     try {
 
       HbaseMetastoreProto.LockResponse lock =
@@ -273,7 +273,369 @@ public class TestTransactionManagerLocks {
     }
   }
 
+  @Test
+  public void acquireAfterAbort()  throws Exception {
+    HbaseMetastoreProto.OpenTxnsRequest rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
+        .setNumTxns(2)
+        .setUser("me")
+        .setHostname("localhost")
+        .build();
+    HbaseMetastoreProto.OpenTxnsResponse rsp = txnMgr.openTxns(rqst);
+    long firstTxn = rsp.getTxnIds(0);
+    long secondTxn = rsp.getTxnIds(1);
+    try {
 
-  // TODO test waiting, that it acquires after abort/commit
-  // TODO test all or none acquisition
+      HbaseMetastoreProto.LockResponse lock =
+          txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+              .setTxnId(firstTxn)
+              .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+                  .setDb("d")
+                  .setTable("t")
+                  .setType(HbaseMetastoreProto.LockType.SHARED_WRITE)
+                  .build())
+              .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+                  .setDb("d")
+                  .setType(HbaseMetastoreProto.LockType.INTENTION)
+                  .build())
+              .build());
+      Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, lock.getState());
+
+      lock = txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+          .setTxnId(secondTxn)
+          .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+              .setDb("d")
+              .setTable("t")
+              .setType(HbaseMetastoreProto.LockType.SHARED_WRITE)
+              .build())
+          .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+              .setDb("d")
+              .setType(HbaseMetastoreProto.LockType.INTENTION)
+              .build())
+          .build());
+      Assert.assertEquals(HbaseMetastoreProto.LockState.WAITING, lock.getState());
+
+      HbaseMetastoreProto.TransactionResult abort =
+          txnMgr.abortTxn(HbaseMetastoreProto.TransactionId.newBuilder()
+              .setId(firstTxn)
+              .build());
+      Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS, abort.getState());
+
+      // Give it a bit to run and check the locks
+      Thread.sleep(100);
+
+      lock = txnMgr.checkLocks(HbaseMetastoreProto.TransactionId.newBuilder()
+              .setId(secondTxn)
+              .build());
+      Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, lock.getState());
+    } finally {
+      for (long i = firstTxn; i <= secondTxn; i++) {
+        txnMgr.commitTxn(HbaseMetastoreProto.TransactionId
+            .newBuilder()
+            .setId(i)
+            .build());
+      }
+    }
+  }
+
+  @Test
+  public void lostUpdateDetection()  throws Exception {
+    // Detect that if a partition has potentially changed underneath a writer their transaction
+    // is aborted.
+    HbaseMetastoreProto.OpenTxnsRequest rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
+        .setNumTxns(2)
+        .setUser("me")
+        .setHostname("localhost")
+        .build();
+    HbaseMetastoreProto.OpenTxnsResponse rsp = txnMgr.openTxns(rqst);
+    long firstTxn = rsp.getTxnIds(0);
+    long secondTxn = rsp.getTxnIds(1);
+    try {
+
+      HbaseMetastoreProto.LockResponse lock =
+          txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+              .setTxnId(firstTxn)
+              .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+                  .setDb("d")
+                  .setTable("t")
+                  .setType(HbaseMetastoreProto.LockType.SHARED_WRITE)
+                  .build())
+              .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+                  .setDb("d")
+                  .setType(HbaseMetastoreProto.LockType.INTENTION)
+                  .build())
+              .build());
+      Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, lock.getState());
+
+      lock = txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+          .setTxnId(secondTxn)
+          .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+              .setDb("d")
+              .setTable("t")
+              .setType(HbaseMetastoreProto.LockType.SHARED_WRITE)
+              .build())
+          .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+              .setDb("d")
+              .setType(HbaseMetastoreProto.LockType.INTENTION)
+              .build())
+          .build());
+      Assert.assertEquals(HbaseMetastoreProto.LockState.WAITING, lock.getState());
+
+      HbaseMetastoreProto.TransactionResult commit =
+          txnMgr.commitTxn(HbaseMetastoreProto.TransactionId.newBuilder()
+              .setId(firstTxn)
+              .build());
+      Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS, commit.getState());
+
+      // Give it a bit to run and check the locks
+      Thread.sleep(100);
+
+      lock = txnMgr.checkLocks(HbaseMetastoreProto.TransactionId.newBuilder()
+          .setId(secondTxn)
+          .build());
+      Assert.assertEquals(HbaseMetastoreProto.LockState.TXN_ABORTED, lock.getState());
+    } finally {
+      for (long i = firstTxn; i <= secondTxn; i++) {
+        txnMgr.commitTxn(HbaseMetastoreProto.TransactionId
+            .newBuilder()
+            .setId(i)
+            .build());
+      }
+    }
+  }
+
+  @Test
+  public void acquireAfterCommit()  throws Exception {
+    // Detect that if a partition has potentially changed underneath a writer their transaction
+    // is aborted.
+    HbaseMetastoreProto.OpenTxnsRequest rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
+        .setNumTxns(2)
+        .setUser("me")
+        .setHostname("localhost")
+        .build();
+    HbaseMetastoreProto.OpenTxnsResponse rsp = txnMgr.openTxns(rqst);
+    long firstTxn = rsp.getTxnIds(0);
+    long secondTxn = rsp.getTxnIds(1);
+    try {
+
+      HbaseMetastoreProto.LockResponse lock =
+          txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+              .setTxnId(firstTxn)
+              .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+                  .setDb("d")
+                  .setTable("t")
+                  .setType(HbaseMetastoreProto.LockType.EXCLUSIVE)
+                  .build())
+              .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+                  .setDb("d")
+                  .setType(HbaseMetastoreProto.LockType.INTENTION)
+                  .build())
+              .build());
+      Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, lock.getState());
+
+      lock = txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+          .setTxnId(secondTxn)
+          .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+              .setDb("d")
+              .setTable("t")
+              .setType(HbaseMetastoreProto.LockType.SHARED_WRITE)
+              .build())
+          .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+              .setDb("d")
+              .setType(HbaseMetastoreProto.LockType.INTENTION)
+              .build())
+          .build());
+      Assert.assertEquals(HbaseMetastoreProto.LockState.WAITING, lock.getState());
+
+      HbaseMetastoreProto.TransactionResult commit =
+          txnMgr.commitTxn(HbaseMetastoreProto.TransactionId.newBuilder()
+              .setId(firstTxn)
+              .build());
+      Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS, commit.getState());
+
+      // Give it a bit to run and check the locks
+      Thread.sleep(100);
+
+      lock = txnMgr.checkLocks(HbaseMetastoreProto.TransactionId.newBuilder()
+          .setId(secondTxn)
+          .build());
+      Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, lock.getState());
+    } finally {
+      for (long i = firstTxn; i <= secondTxn; i++) {
+        txnMgr.commitTxn(HbaseMetastoreProto.TransactionId
+            .newBuilder()
+            .setId(i)
+            .build());
+      }
+    }
+  }
+
+  @Test
+  public void acquireSharedAfterAbort()  throws Exception {
+    // Detect that if a partition has potentially changed underneath a writer their transaction
+    // is aborted.
+    HbaseMetastoreProto.OpenTxnsRequest rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
+        .setNumTxns(3)
+        .setUser("me")
+        .setHostname("localhost")
+        .build();
+    HbaseMetastoreProto.OpenTxnsResponse rsp = txnMgr.openTxns(rqst);
+    long firstTxn = rsp.getTxnIds(0);
+    long secondTxn = rsp.getTxnIds(1);
+    long thirdTxn = rsp.getTxnIds(2);
+    try {
+
+      HbaseMetastoreProto.LockResponse lock =
+          txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+              .setTxnId(firstTxn)
+              .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+                  .setDb("d")
+                  .setTable("t")
+                  .setType(HbaseMetastoreProto.LockType.EXCLUSIVE)
+                  .build())
+              .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+                  .setDb("d")
+                  .setType(HbaseMetastoreProto.LockType.INTENTION)
+                  .build())
+              .build());
+      Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, lock.getState());
+
+      lock = txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+          .setTxnId(secondTxn)
+          .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+              .setDb("d")
+              .setTable("t")
+              .setType(HbaseMetastoreProto.LockType.SHARED_READ)
+              .build())
+          .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+              .setDb("d")
+              .setType(HbaseMetastoreProto.LockType.INTENTION)
+              .build())
+          .build());
+      Assert.assertEquals(HbaseMetastoreProto.LockState.WAITING, lock.getState());
+
+      lock = txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+          .setTxnId(thirdTxn)
+          .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+              .setDb("d")
+              .setTable("t")
+              .setType(HbaseMetastoreProto.LockType.SHARED_READ)
+              .build())
+          .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+              .setDb("d")
+              .setType(HbaseMetastoreProto.LockType.INTENTION)
+              .build())
+          .build());
+      Assert.assertEquals(HbaseMetastoreProto.LockState.WAITING, lock.getState());
+
+      HbaseMetastoreProto.TransactionResult abort =
+          txnMgr.abortTxn(HbaseMetastoreProto.TransactionId.newBuilder()
+              .setId(firstTxn)
+              .build());
+      Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS, abort.getState());
+
+      // Give it a bit to run and check the locks
+      Thread.sleep(100);
+
+      lock = txnMgr.checkLocks(HbaseMetastoreProto.TransactionId.newBuilder()
+          .setId(secondTxn)
+          .build());
+      Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, lock.getState());
+      lock = txnMgr.checkLocks(HbaseMetastoreProto.TransactionId.newBuilder()
+          .setId(thirdTxn)
+          .build());
+      Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, lock.getState());
+    } finally {
+      for (long i = firstTxn; i <= thirdTxn; i++) {
+        txnMgr.commitTxn(HbaseMetastoreProto.TransactionId
+            .newBuilder()
+            .setId(i)
+            .build());
+      }
+    }
+  }
+
+  @Test
+  public void acquireSharedAfterCommit()  throws Exception {
+    // Detect that if a partition has potentially changed underneath a writer their transaction
+    // is aborted.
+    HbaseMetastoreProto.OpenTxnsRequest rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
+        .setNumTxns(3)
+        .setUser("me")
+        .setHostname("localhost")
+        .build();
+    HbaseMetastoreProto.OpenTxnsResponse rsp = txnMgr.openTxns(rqst);
+    long firstTxn = rsp.getTxnIds(0);
+    long secondTxn = rsp.getTxnIds(1);
+    long thirdTxn = rsp.getTxnIds(2);
+    try {
+
+      HbaseMetastoreProto.LockResponse lock =
+          txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+              .setTxnId(firstTxn)
+              .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+                  .setDb("d")
+                  .setTable("t")
+                  .setType(HbaseMetastoreProto.LockType.EXCLUSIVE)
+                  .build())
+              .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+                  .setDb("d")
+                  .setType(HbaseMetastoreProto.LockType.INTENTION)
+                  .build())
+              .build());
+      Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, lock.getState());
+
+      lock = txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+          .setTxnId(secondTxn)
+          .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+              .setDb("d")
+              .setTable("t")
+              .setType(HbaseMetastoreProto.LockType.SHARED_READ)
+              .build())
+          .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+              .setDb("d")
+              .setType(HbaseMetastoreProto.LockType.INTENTION)
+              .build())
+          .build());
+      Assert.assertEquals(HbaseMetastoreProto.LockState.WAITING, lock.getState());
+
+      lock = txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+          .setTxnId(thirdTxn)
+          .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+              .setDb("d")
+              .setTable("t")
+              .setType(HbaseMetastoreProto.LockType.SHARED_READ)
+              .build())
+          .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+              .setDb("d")
+              .setType(HbaseMetastoreProto.LockType.INTENTION)
+              .build())
+          .build());
+      Assert.assertEquals(HbaseMetastoreProto.LockState.WAITING, lock.getState());
+
+      HbaseMetastoreProto.TransactionResult commit =
+          txnMgr.commitTxn(HbaseMetastoreProto.TransactionId.newBuilder()
+              .setId(firstTxn)
+              .build());
+      Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS, commit.getState());
+
+      // Give it a bit to run and check the locks
+      Thread.sleep(100);
+
+      lock = txnMgr.checkLocks(HbaseMetastoreProto.TransactionId.newBuilder()
+          .setId(secondTxn)
+          .build());
+      Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, lock.getState());
+      lock = txnMgr.checkLocks(HbaseMetastoreProto.TransactionId.newBuilder()
+          .setId(thirdTxn)
+          .build());
+      Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, lock.getState());
+    } finally {
+      for (long i = firstTxn; i <= thirdTxn; i++) {
+        txnMgr.commitTxn(HbaseMetastoreProto.TransactionId
+            .newBuilder()
+            .setId(i)
+            .build());
+      }
+    }
+  }
 }

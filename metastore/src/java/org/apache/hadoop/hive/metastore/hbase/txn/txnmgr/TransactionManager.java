@@ -637,8 +637,18 @@ class TransactionManager {
     return waitForLocks(hiveLocks);
   }
 
-  // This checks that all locks in the transaction are acquired.  This will look immediately at
-  // the set of locks.  If they have not yet acquired it will long poll.
+
+  /**
+   * This checks that all locks in the transaction are acquired.  This will look immediately at
+   * the set of locks.  If they have not yet acquired it will long poll.
+   * @param request transaction id to check for
+   * @return status, could be txn_aborted (which really means we couldn't find the txn in memory,
+   * this doesn't go to HBase to understand if the transaction is committed, aborted, or never
+   * existed), acquired (meaning all of the locks are held), or waiting (meaning all the locks
+   * are in waiting state).
+   * @throws IOException
+   * @throws SeverusPleaseException
+   */
   HbaseMetastoreProto.LockResponse checkLocks(HbaseMetastoreProto.TransactionId request)
         throws IOException, SeverusPleaseException {
     if (LOG.isDebugEnabled()) {
@@ -736,7 +746,16 @@ class TransactionManager {
     return lockCompatibilityTable[holder.getNumber()][requester.getNumber()];
   }
 
-  // add dynamic partitions
+  /**
+   * Add list of partitions that were part of a dynamic partitions insert.  These are needed so
+   * we know where to look for compactions.  We do this by adding after the fact locks.  This
+   * will also help us find any write/write conflicts.
+   * @param request Dynamic partitions to add.
+   * @return transaction result, can be success or no such transaction (which just means the
+   * transaction isn't open).
+   * @throws IOException
+   * @throws SeverusPleaseException
+   */
   HbaseMetastoreProto.TransactionResult addDynamicPartitions(HbaseMetastoreProto.AddDynamicPartitionsRequest request)
       throws IOException, SeverusPleaseException {
     if (LOG.isDebugEnabled()) {
@@ -762,7 +781,7 @@ class TransactionManager {
             .build();
       }
       if (txn.getState() != HbaseMetastoreProto.TxnState.OPEN) {
-        throw new SeverusPleaseException("Attempt to add dynamic partitions to aborted or committed txn");
+        throw new SeverusPleaseException("Found non-open transaction in open transaction list");
       }
 
       HbaseMetastoreProto.Transaction hbaseTxn = getHBase().getTransaction(request.getTxnId());

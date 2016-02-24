@@ -33,6 +33,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -322,6 +323,136 @@ public class TestTransactionManagerErrors {
             .setType(HbaseMetastoreProto.LockType.EXCLUSIVE))
         .build());
     Assert.assertEquals(HbaseMetastoreProto.LockState.TXN_ABORTED, lock.getState());
+  }
+
+  @Test
+  public void checkLocksNoSuchTxn() throws Exception {
+    HbaseMetastoreProto.LockResponse result = txnMgr.checkLocks(HbaseMetastoreProto.TransactionId
+        .newBuilder()
+        .setId(10000)
+        .build());
+    Assert.assertEquals(HbaseMetastoreProto.LockState.TXN_ABORTED, result.getState());
+  }
+
+  @Test
+  public void checkLocksAbortedTxn() throws Exception {
+    HbaseMetastoreProto.OpenTxnsRequest rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
+        .setNumTxns(1)
+        .setUser("me")
+        .setHostname("localhost")
+        .build();
+    HbaseMetastoreProto.OpenTxnsResponse rsp = txnMgr.openTxns(rqst);
+    long txnId = rsp.getTxnIds(0);
+
+    // Abort it, this should work
+    HbaseMetastoreProto.TransactionResult result = txnMgr.abortTxn(HbaseMetastoreProto.TransactionId
+        .newBuilder()
+        .setId(txnId)
+        .build());
+    Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS, result.getState());
+
+    // checkLocks it, this should bork
+    HbaseMetastoreProto.LockResponse lock = txnMgr.checkLocks(HbaseMetastoreProto.TransactionId
+        .newBuilder()
+        .setId(txnId)
+        .build());
+    Assert.assertEquals(HbaseMetastoreProto.LockState.TXN_ABORTED, lock.getState());
+  }
+
+  @Test
+  public void checkLocksCommittedTxn() throws Exception {
+    HbaseMetastoreProto.OpenTxnsRequest rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
+        .setNumTxns(1)
+        .setUser("me")
+        .setHostname("localhost")
+        .build();
+    HbaseMetastoreProto.OpenTxnsResponse rsp = txnMgr.openTxns(rqst);
+    long txnId = rsp.getTxnIds(0);
+
+    // Commit it, this should work
+    HbaseMetastoreProto.TransactionResult result = txnMgr.commitTxn(
+        HbaseMetastoreProto.TransactionId
+            .newBuilder()
+            .setId(txnId)
+            .build());
+    Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS, result.getState());
+
+    // lock it, this should bork
+    HbaseMetastoreProto.LockResponse lock = txnMgr.checkLocks(HbaseMetastoreProto.TransactionId
+        .newBuilder()
+        .setId(txnId)
+        .build());
+    Assert.assertEquals(HbaseMetastoreProto.LockState.TXN_ABORTED, lock.getState());
+  }
+
+  @Test
+  public void dynamicPartitionsNoSuchTxn() throws Exception {
+    HbaseMetastoreProto.TransactionResult result =
+        txnMgr.addDynamicPartitions(HbaseMetastoreProto.AddDynamicPartitionsRequest
+            .newBuilder()
+            .setTxnId(10000)
+            .setDb("a")
+            .setTable("b")
+            .addAllPartitions(Arrays.asList("p1", "p2"))
+            .build());
+    Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.NO_SUCH_TXN, result.getState());
+  }
+
+  @Test
+  public void dynamicPartitionsAbortedTxn() throws Exception {
+    HbaseMetastoreProto.OpenTxnsRequest rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
+        .setNumTxns(1)
+        .setUser("me")
+        .setHostname("localhost")
+        .build();
+    HbaseMetastoreProto.OpenTxnsResponse rsp = txnMgr.openTxns(rqst);
+    long txnId = rsp.getTxnIds(0);
+
+    // Abort it, this should work
+    HbaseMetastoreProto.TransactionResult result = txnMgr.abortTxn(HbaseMetastoreProto.TransactionId
+        .newBuilder()
+        .setId(txnId)
+        .build());
+    Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS, result.getState());
+
+    // add dynamic partitions, this should bork
+    result = txnMgr.addDynamicPartitions(HbaseMetastoreProto.AddDynamicPartitionsRequest
+            .newBuilder()
+            .setTxnId(txnId)
+            .setDb("a")
+            .setTable("b")
+            .addAllPartitions(Arrays.asList("p1", "p2"))
+            .build());
+    Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.NO_SUCH_TXN, result.getState());
+  }
+
+  @Test
+  public void addDynamicPartitionsCommittedTxn() throws Exception {
+    HbaseMetastoreProto.OpenTxnsRequest rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
+        .setNumTxns(1)
+        .setUser("me")
+        .setHostname("localhost")
+        .build();
+    HbaseMetastoreProto.OpenTxnsResponse rsp = txnMgr.openTxns(rqst);
+    long txnId = rsp.getTxnIds(0);
+
+    // Commit it, this should work
+    HbaseMetastoreProto.TransactionResult result = txnMgr.commitTxn(
+        HbaseMetastoreProto.TransactionId
+            .newBuilder()
+            .setId(txnId)
+            .build());
+    Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS, result.getState());
+
+    // add dynamic partitions, this should bork
+    result = txnMgr.addDynamicPartitions(HbaseMetastoreProto.AddDynamicPartitionsRequest
+        .newBuilder()
+        .setTxnId(txnId)
+        .setDb("a")
+        .setTable("b")
+        .addAllPartitions(Arrays.asList("p1", "p2"))
+        .build());
+    Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.NO_SUCH_TXN, result.getState());
   }
 
   // TODO test all conditions that can lead to fullness
