@@ -21,7 +21,7 @@ import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
 
 import java.io.IOException;
 
-public class CommittedHiveTransaction extends HiveTransaction {
+class CommittedHiveTransaction extends HiveTransaction {
 
   private final long commitId;
 
@@ -50,7 +50,7 @@ public class CommittedHiveTransaction extends HiveTransaction {
     return HbaseMetastoreProto.TxnState.COMMITTED;
   }
 
-  public long getCommitId() {
+  long getCommitId() {
     return commitId;
   }
 

@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class AbortedHiveTransaction extends HiveTransaction {
+class AbortedHiveTransaction extends HiveTransaction {
 
   private Map<TransactionManager.EntityKey, HiveLock> compactableLocks;
 
@@ -81,7 +81,7 @@ public class AbortedHiveTransaction extends HiveTransaction {
   }
 
   // Just for JSON so that we can look at the state of this object
-  public Map<TransactionManager.EntityKey, HiveLock> getCompactableLocks() {
+  Map<TransactionManager.EntityKey, HiveLock> getCompactableLocks() {
     return compactableLocks;
   }
 }

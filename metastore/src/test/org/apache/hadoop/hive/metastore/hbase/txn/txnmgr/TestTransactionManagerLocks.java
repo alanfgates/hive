@@ -34,9 +34,11 @@ import java.io.IOException;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
+/**
+ * Many of these tests involve timing, so they're kept in a separate test class so they can be
+ * excluded from the Jenkins runs.
+ */
 public class TestTransactionManagerLocks {
   @Mock
   HTableInterface htable;
@@ -64,77 +66,6 @@ public class TestTransactionManagerLocks {
   @After
   public void cleanup() throws IOException {
     txnMgr.shutdown();
-  }
-
-  // This isn't a lock test but we can't put it in basic so this looks good.
-  @Test
-  public void heartbeat() throws Exception {
-    HbaseMetastoreProto.OpenTxnsRequest rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
-        .setNumTxns(1)
-        .setUser("me")
-        .setHostname("localhost")
-        .build();
-    HbaseMetastoreProto.OpenTxnsResponse rsp = txnMgr.openTxns(rqst);
-    long txnId = rsp.getTxnIds(0);
-
-    // Figure out what the last heartbeat was
-    Pattern p = Pattern.compile("lastHeartbeat\":([0-9]+)");
-    Matcher m = p.matcher(txnMgr.stringifyOpenTxns());
-    Assert.assertTrue(m.find());
-    String lastHeartbeatString = m.group(1);
-    Assert.assertNotNull(lastHeartbeatString);
-    long lastHeartbeat = Long.valueOf(lastHeartbeatString);
-    long now = System.currentTimeMillis();
-    Assert.assertTrue(now >= lastHeartbeat);
-
-    Thread.sleep(10);
-
-    HbaseMetastoreProto.HeartbeatTxnRangeResponse heartbeats =
-        txnMgr.heartbeat(HbaseMetastoreProto.HeartbeatTxnRangeRequest.newBuilder()
-        .setMinTxn(txnId)
-        .setMaxTxn(txnId)
-        .build());
-    Assert.assertEquals(0, heartbeats.getAbortedCount());
-    Assert.assertEquals(0, heartbeats.getNoSuchCount());
-
-    m = p.matcher(txnMgr.stringifyOpenTxns());
-    Assert.assertTrue(m.find());
-    lastHeartbeatString = m.group(1);
-    Assert.assertNotNull(lastHeartbeatString);
-    long latestHeartbeat = Long.valueOf(lastHeartbeatString);
-    Assert.assertTrue(latestHeartbeat > lastHeartbeat);
-  }
-
-  @Test
-  public void heartbeatAbortedAndNoSuch() throws Exception {
-    HbaseMetastoreProto.OpenTxnsRequest rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
-        .setNumTxns(1)
-        .setUser("me")
-        .setHostname("localhost")
-        .build();
-    HbaseMetastoreProto.OpenTxnsResponse rsp = txnMgr.openTxns(rqst);
-    long txnId = rsp.getTxnIds(0);
-
-    // Have to get a read lock so that the aborted transaction is remembered
-    txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
-        .setTxnId(txnId)
-        .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
-            .setDb("d")
-            .setTable("t4")
-            .setType(HbaseMetastoreProto.LockType.SHARED_WRITE)
-            .build())
-        .build());
-    txnMgr.abortTxn(HbaseMetastoreProto.TransactionId.newBuilder().setId(txnId).build());
-
-    HbaseMetastoreProto.HeartbeatTxnRangeResponse heartbeats =
-        txnMgr.heartbeat(HbaseMetastoreProto.HeartbeatTxnRangeRequest.newBuilder()
-            .setMinTxn(txnId)
-            .setMaxTxn(txnId + 1)
-            .build());
-    Assert.assertEquals(1, heartbeats.getAbortedCount());
-    Assert.assertEquals(1, heartbeats.getNoSuchCount());
-    Assert.assertEquals(txnId, heartbeats.getAborted(0));
-    Assert.assertEquals(txnId + 1, heartbeats.getNoSuch(0));
   }
 
   @Test

@@ -64,19 +64,19 @@ class HiveLock {
     state = hbaseLock.getState();
   }
 
-  public long getId() {
+  long getId() {
     return id;
   }
 
-  public long getTxnId() {
+  long getTxnId() {
     return txnId;
   }
 
-  public HbaseMetastoreProto.LockType getType() {
+  HbaseMetastoreProto.LockType getType() {
     return type;
   }
 
-  public HbaseMetastoreProto.LockState getState() {
+  HbaseMetastoreProto.LockState getState() {
     return state;
   }
 
@@ -84,7 +84,7 @@ class HiveLock {
     this.state = state;
   }
 
-  public TransactionManager.EntityKey getEntityLocked() {
+  TransactionManager.EntityKey getEntityLocked() {
     return entityLocked;
   }
 

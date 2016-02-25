@@ -23,16 +23,11 @@ import org.apache.hadoop.hive.common.ObjectPair;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.hbase.HBaseReadWrite;
 import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
-import org.codehaus.jackson.JsonFactory;
-import org.codehaus.jackson.JsonGenerator;
-import org.codehaus.jackson.map.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -348,7 +343,8 @@ class TransactionManager {
         // We only need to remember the shared_write locks, all the rest can be ignored as they
         // aren't a part of compaction.
         if (hbaseLock.getType() == HbaseMetastoreProto.LockType.SHARED_WRITE) {
-          txnBuilder.addLocks(hbaseLock);
+          txnBuilder.addLocks(HbaseMetastoreProto.Transaction.Lock.newBuilder(hbaseLock)
+              .setState(HbaseMetastoreProto.LockState.TXN_ABORTED));
           if (LOG.isDebugEnabled()) {
             LOG.debug("Found potential compaction for " + hbaseLock.getDb() + "." +
                 hbaseLock.getTable() +
@@ -461,15 +457,16 @@ class TransactionManager {
           // aren't of interest for building write sets
           if (hbaseLock.getType() == HbaseMetastoreProto.LockType.SHARED_WRITE) {
             HbaseMetastoreProto.Transaction.Lock.Builder lockBuilder =
-                HbaseMetastoreProto.Transaction.Lock.newBuilder(hbaseLock);
+                HbaseMetastoreProto.Transaction.Lock.newBuilder(hbaseLock)
+                    .setState(HbaseMetastoreProto.LockState.RELEASED);
             txnBuilder.addLocks(lockBuilder);
             if (LOG.isDebugEnabled()) {
               LOG.debug("Adding new entry to the potential compactions " + hbaseLock.getDb() +
                   "." + hbaseLock.getTable() +
                   (hbaseLock.hasPartition() ? "." + hbaseLock.getPartition() : ""));
             }
-            pces.add(new HBaseReadWrite.PotentialCompactionEntity(hbaseLock.getDb(), hbaseLock
-                .getTable(), hbaseLock.getPartition()));
+            pces.add(new HBaseReadWrite.PotentialCompactionEntity(hbaseLock.getDb(),
+                hbaseLock.getTable(), hbaseLock.hasPartition() ? hbaseLock.getPartition() : null));
           }
         }
         getHBase().putTransaction(txnBuilder.build());
@@ -828,6 +825,15 @@ class TransactionManager {
     }
   }
 
+  /**
+   * Cleanup our structures after compaciton.  This includes potentially removing or altering
+   * records in the PotentialCompactions table as well as determining when to forget aborted
+   * records. Called after a worker is done compacting a partition or table.
+   * @param request compaction information.
+   * @return nothing, only here because protocol buffer service requires it
+   * @throws IOException
+   * @throws SeverusPleaseException
+   */
   HbaseMetastoreProto.Void cleanupAfterCompaction(HbaseMetastoreProto.Compaction request)
         throws IOException, SeverusPleaseException {
     if (LOG.isDebugEnabled()) {
@@ -1231,7 +1237,7 @@ class TransactionManager {
     final String table;
     final String part;
 
-    private EntityKey(String db, String table, String part) {
+    EntityKey(String db, String table, String part) {
       this.db = db;
       this.table = table;
       this.part = part;
@@ -1262,24 +1268,6 @@ class TransactionManager {
       }
       return false;
     }
-
-    @Override
-    public String toString() {
-      return db + (table == null ? "" : ("." + table + (part == null ? "" : "." + part)));
-    }
-
-    // These are just here so the JSON object mapper can read them.
-    public String getDb() {
-      return db;
-    }
-
-    public String getTable() {
-      return table;
-    }
-
-    public String getPart() {
-      return part;
-    }
   }
 
   static class LockQueue {
@@ -1289,15 +1277,6 @@ class TransactionManager {
     private LockQueue() {
       queue = new TreeMap<>();
       maxCommitId = 0;
-    }
-
-    // Here for the JSON object mapper
-    public SortedMap<Long, HiveLock> getQueue() {
-      return queue;
-    }
-
-    public long getMaxCommitId() {
-      return maxCommitId;
     }
   }
 
@@ -1644,37 +1623,26 @@ class TransactionManager {
   // I REALLY don't want to open up the member variables in this class for test classes to look
   // at since usage of them is so dependent on holding the right locks, matching the state in
   // HBase, etc.  It is dangerous to let those out.  But in order for unit tests to be effective I need a
-  // way to see the internal state of the object.  So I've created the following stringify methods
-  // for the major members of the class.
+  // way to see the internal state of the object.  So we'll make copies of them so the tests can
+  // see them.
   @VisibleForTesting
-  String stringifyOpenTxns() throws IOException {
-    return stringifyInternalStructure(openTxns);
+  Map<Long, OpenHiveTransaction> copyOpenTransactions() {
+    return new HashMap<>(openTxns);
   }
 
   @VisibleForTesting
-  String stringifyAbortedTxns() throws IOException {
-    return stringifyInternalStructure(abortedTxns);
+  Map<Long, AbortedHiveTransaction> copyAbortedTransactions() {
+    return new HashMap<>(abortedTxns);
   }
 
   @VisibleForTesting
-  String stringifyCommittedTxns() throws IOException {
-    return stringifyInternalStructure(committedTxns);
+  Set<CommittedHiveTransaction> copyCommittedTransactions() {
+    return new HashSet<>(committedTxns);
   }
 
   @VisibleForTesting
-  String stringifyLockQueues() throws IOException {
-    return stringifyInternalStructure(lockQueues);
-  }
-
-  private String stringifyInternalStructure(Object internal) throws IOException {
-    try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
-      OutputStream out = new ByteArrayOutputStream();
-      ObjectMapper mapper = new ObjectMapper();
-      JsonFactory factory = new JsonFactory();
-      JsonGenerator generator = factory.createJsonGenerator(out);
-      mapper.writeValue(generator, internal);
-      return out.toString();
-    }
+  Map<EntityKey, LockQueue> copyLockQueues() {
+    return new HashMap<>(lockQueues);
   }
 
   // The following functions force running the various background threads.  These should only be

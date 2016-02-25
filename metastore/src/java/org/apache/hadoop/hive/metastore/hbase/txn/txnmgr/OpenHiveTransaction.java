@@ -68,7 +68,7 @@ class OpenHiveTransaction extends HiveTransaction {
     return HbaseMetastoreProto.TxnState.OPEN;
   }
 
-  public long getLastHeartbeat() {
+  long getLastHeartbeat() {
     return lastHeartbeat;
   }
 
@@ -76,7 +76,7 @@ class OpenHiveTransaction extends HiveTransaction {
     this.lastHeartbeat = lastHeartbeat;
   }
 
-  public HiveLock[] getHiveLocks() {
+  HiveLock[] getHiveLocks() {
     return hiveLocks;
   }
 
