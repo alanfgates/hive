@@ -185,7 +185,7 @@ public class MockUtils {
           @Override
           public Boolean answer(InvocationOnMock invocation) throws Throwable {
             // Always say it succeeded and overwrite
-            Put put = (Put)invocation.getArguments()[4];
+            Put put = (Put) invocation.getArguments()[4];
             rows.put(new String(put.getRow()),
                 put.getFamilyCellMap().firstEntry().getValue().get(0));
             return true;
@@ -201,6 +201,17 @@ public class MockUtils {
       }
     }).when(htable).delete(Mockito.any(Delete.class));
 
+    Mockito.doAnswer(new Answer<Void>() {
+      @Override
+      public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
+        List<Delete> deletes = (List<Delete>)invocationOnMock.getArguments()[0];
+        for (Delete delete: deletes) {
+          rows.remove(new String(delete.getRow()));
+        }
+        return null;
+      }
+    }).when(htable).delete(Mockito.anyListOf(Delete.class));
+
     Mockito.when(htable.checkAndDelete(Mockito.any(byte[].class), Mockito.any(byte[].class),
         Mockito.any(byte[].class), Mockito.any(byte[].class), Mockito.any(Delete.class))).thenAnswer(
         new Answer<Boolean>() {
@@ -208,7 +219,7 @@ public class MockUtils {
           @Override
           public Boolean answer(InvocationOnMock invocation) throws Throwable {
             // Always say it succeeded
-            Delete del = (Delete)invocation.getArguments()[4];
+            Delete del = (Delete) invocation.getArguments()[4];
             rows.remove(new String(del.getRow()));
             return true;
           }

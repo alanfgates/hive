@@ -68,6 +68,10 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  */
 class TransactionManager {
 
+  // TODO error in addDynamicPartitions, need to make sure we don't have a write-write conflict
+  // like we do in lock acquisition.
+  // TODO in commit and abort, don't copy over shared write locks if they are only wating not
+  // acquired
   // TODO add new object types in HBaseSchemaTool
   // TODO Write some tests so you have some clue if this works
 
@@ -793,13 +797,12 @@ class TransactionManager {
             HbaseMetastoreProto.LockType.SHARED_WRITE,
             // None of these should be null, so no need to check
             getLockQueue(request.getDb(), request.getTable(), partitionNames.get(i)).getFirst());
-        // Set the lock in released state so it doesn't get put in the DTP queue on recovery
-        partitionsWrittenTo[i].setState(HbaseMetastoreProto.LockState.RELEASED);
+        partitionsWrittenTo[i].setState(HbaseMetastoreProto.LockState.ACQUIRED);
 
         txnBuilder.addLocks(HbaseMetastoreProto.Transaction.Lock.newBuilder()
             .setId(-1)
             .setType(HbaseMetastoreProto.LockType.SHARED_WRITE)
-            .setState(HbaseMetastoreProto.LockState.RELEASED)
+            .setState(HbaseMetastoreProto.LockState.ACQUIRED)
             .setDb(request.getDb())
             .setTable(request.getTable())
             .setPartition(partitionNames.get(i)));
@@ -962,6 +965,14 @@ class TransactionManager {
     return HbaseMetastoreProto.Void.getDefaultInstance();
   }
 
+  /**
+   * Verify whether a set of partitions and/or tables can be cleaned after compactions have been
+   * done.
+   * @param request list of partitions/tables that have been compacted
+   * @return list of partitions/tables that can be cleaned.
+   * @throws IOException
+   * @throws SeverusPleaseException
+   */
   HbaseMetastoreProto.CompactionList verifyCompactionCanBeCleaned(HbaseMetastoreProto.CompactionList request)
       throws IOException, SeverusPleaseException {
     // TODO - I may be double doing this.  Can I ever have a highestCompactionId higher than any
@@ -1272,11 +1283,15 @@ class TransactionManager {
 
   static class LockQueue {
     final SortedMap<Long, HiveLock> queue;
-    long maxCommitId; // commit id of highest transaction that wrote to this DTP
+    private long maxCommitId; // commit id of highest transaction that wrote to this DTP
 
     private LockQueue() {
       queue = new TreeMap<>();
       maxCommitId = 0;
+    }
+
+    long getMaxCommitId() {
+      return maxCommitId;
     }
   }
 

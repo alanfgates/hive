@@ -27,12 +27,12 @@ import org.apache.hadoop.hive.metastore.hbase.MockUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
@@ -310,7 +310,7 @@ public class TestTransactionManager {
     TransactionManager.LockQueue queue = locksAfter.get(key);
     Assert.assertNotNull(queue);
     Assert.assertEquals(1, queue.queue.size());
-    Assert.assertEquals(0L, queue.maxCommitId);
+    Assert.assertEquals(0L, queue.getMaxCommitId());
     HiveLock lock = queue.queue.values().iterator().next();
     Assert.assertEquals(firstTxnId, lock.getTxnId());
     Assert.assertEquals(HbaseMetastoreProto.LockType.EXCLUSIVE, lock.getType());
@@ -321,7 +321,7 @@ public class TestTransactionManager {
     queue = locksAfter.get(key);
     Assert.assertNotNull(queue);
     Assert.assertEquals(1, queue.queue.size());
-    Assert.assertEquals(0L, queue.maxCommitId);
+    Assert.assertEquals(0L, queue.getMaxCommitId());
     lock = queue.queue.values().iterator().next();
     Assert.assertEquals(firstTxnId, lock.getTxnId());
     Assert.assertEquals(HbaseMetastoreProto.LockType.INTENTION, lock.getType());
@@ -332,7 +332,7 @@ public class TestTransactionManager {
     queue = locksAfter.get(key);
     Assert.assertNotNull(queue);
     Assert.assertEquals(1, queue.queue.size());
-    Assert.assertEquals(0L, queue.maxCommitId);
+    Assert.assertEquals(0L, queue.getMaxCommitId());
     lock = queue.queue.values().iterator().next();
     Assert.assertEquals(firstTxnId, lock.getTxnId());
     Assert.assertEquals(HbaseMetastoreProto.LockType.SHARED_WRITE, lock.getType());
@@ -343,7 +343,7 @@ public class TestTransactionManager {
     queue = locksAfter.get(key);
     Assert.assertNotNull(queue);
     Assert.assertEquals(1, queue.queue.size());
-    Assert.assertEquals(0L, queue.maxCommitId);
+    Assert.assertEquals(0L, queue.getMaxCommitId());
     lock = queue.queue.values().iterator().next();
     Assert.assertEquals(secondsTxnId, lock.getTxnId());
     Assert.assertEquals(HbaseMetastoreProto.LockType.INTENTION, lock.getType());
@@ -354,7 +354,7 @@ public class TestTransactionManager {
     queue = locksAfter.get(key);
     Assert.assertNotNull(queue);
     Assert.assertEquals(1, queue.queue.size());
-    Assert.assertEquals(0L, queue.maxCommitId);
+    Assert.assertEquals(0L, queue.getMaxCommitId());
     lock = queue.queue.values().iterator().next();
     Assert.assertEquals(secondsTxnId, lock.getTxnId());
     Assert.assertEquals(HbaseMetastoreProto.LockType.INTENTION, lock.getType());
@@ -365,7 +365,7 @@ public class TestTransactionManager {
     queue = locksAfter.get(key);
     Assert.assertNotNull(queue);
     Assert.assertEquals(1, queue.queue.size());
-    Assert.assertEquals(0L, queue.maxCommitId);
+    Assert.assertEquals(0L, queue.getMaxCommitId());
     lock = queue.queue.values().iterator().next();
     Assert.assertEquals(secondsTxnId, lock.getTxnId());
     Assert.assertEquals(HbaseMetastoreProto.LockType.SHARED_READ, lock.getType());
@@ -624,7 +624,7 @@ public class TestTransactionManager {
     TransactionManager.EntityKey key = new TransactionManager.EntityKey(db2, t2, null);
     TransactionManager.LockQueue queue = locksAfterCommit.get(key);
     Assert.assertEquals(0, queue.queue.size());
-    Assert.assertEquals(firstCommittedTxn.getCommitId(), queue.maxCommitId);
+    Assert.assertEquals(firstCommittedTxn.getCommitId(), queue.getMaxCommitId());
 
     // The second transaction should have been forgotten altogether
     HbaseMetastoreProto.Transaction hbaseTxn = hrw.getTransaction(secondsTxnId);
@@ -723,28 +723,40 @@ public class TestTransactionManager {
     Assert.assertEquals(txnId + 1, heartbeats.getNoSuch(0));
   }
 
-  @Ignore
+  @Test
   public void cleanupNoPotential() throws Exception {
     // Test that everything's ok when we call cleanupAfterCompaction when there was no
     // PotentialCompaction
+    String db = "cnp_db";
+    String t = "cnp_t";
+    String p = "cnp_p";
+
+    HbaseMetastoreProto.PotentialCompaction pc = hrw.getPotentialCompaction(db, t, p);
+    Assert.assertNull(pc);
 
     txnMgr.cleanupAfterCompaction(HbaseMetastoreProto.Compaction.newBuilder()
         .setId(1)
-        .setDb("a")
-        .setTable("b")
+        .setDb(db)
+        .setTable(t)
+        .setPartition(p)
         .setHighestTxnId(17)
         .setState(HbaseMetastoreProto.CompactionState.READY_FOR_CLEANING)
         .setType(HbaseMetastoreProto.CompactionType.MINOR)
         .build());
 
-    // TODO add check for no record in potential compactions
+    pc = hrw.getPotentialCompaction(db, t, p);
+    Assert.assertNull(pc);
   }
 
-  @Ignore
-  public void partialCleanup() throws Exception {
+  @Test
+  public void cleanupCommit() throws Exception {
     // Test that when the highestTxnId is lower than some of the transactions in the potential
     // the potential is kept but earlier txn ids are trimmed out.
     // Have to open and commit the transactions serially to avoid write/write conflict
+    String db = "cc_db";
+    String t = "cc_t";
+    String p = "cc_p";
+
     HbaseMetastoreProto.OpenTxnsRequest rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
         .setNumTxns(1)
         .setUser("me")
@@ -757,100 +769,499 @@ public class TestTransactionManager {
         txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
             .setTxnId(firstTxn)
             .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
-                .setDb("c")
-                .setTable("d")
-                .setPartition("e")
+                .setDb(db)
+                .setTable(t)
+                .setPartition(p)
                 .setType(HbaseMetastoreProto.LockType.SHARED_WRITE))
             .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
-                .setDb("c")
+                .setDb(db)
                 .setType(HbaseMetastoreProto.LockType.INTENTION))
             .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
-                .setDb("c")
-                .setTable("b")
+                .setDb(db)
+                .setTable(t)
                 .setType(HbaseMetastoreProto.LockType.INTENTION))
             .build());
     Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, lock.getState());
 
-
-
-
-  }
-
-  // TODO full cleanup
-  // TODO make sure we are cleaning up aborted txns, including ones with multiple locks
-  // TODO make sure we don't clean up aborted txns that still have uncompacted locks
-  /*
-    // Side test, see if we properly decide when transactions can and can't be cleaned.
-    HbaseMetastoreProto.CompactionList cleanable = txnMgr.verifyCompactionCanBeCleaned(
-        HbaseMetastoreProto.CompactionList.newBuilder()
-            .addCompactions(
-                HbaseMetastoreProto.Compaction.newBuilder()
-                    .setDb("x")
-                    .setTable("y")
-                    .setPartition("z")
-                    .setHighestTxnId(2)
-                    .setId(1)
-                    .setType(HbaseMetastoreProto.CompactionType.MAJOR)
-                    .setState(HbaseMetastoreProto.CompactionState.READY_FOR_CLEANING))
-            .addCompactions(
-                HbaseMetastoreProto.Compaction.newBuilder()
-                    .setDb("a")
-                    .setTable("b")
-                    .setHighestTxnId(7)
-                    .setId(2)
-                    .setType(HbaseMetastoreProto.CompactionType.MAJOR)
-                    .setState(HbaseMetastoreProto.CompactionState.READY_FOR_CLEANING))
+    HbaseMetastoreProto.TransactionResult result =
+        txnMgr.commitTxn(HbaseMetastoreProto.TransactionId.newBuilder()
+            .setId(firstTxn)
             .build());
-    Assert.assertEquals(cleanable.getCompactionsCount(), 1);
-    Assert.assertEquals(cleanable.getCompactions(0).getDb(), "x");
+    Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS, result.getState());
 
-    // Declare that we've compacted the aborted transaction.  This should cause us to clean up
-    // the aborted txn.
-    txnMgr.cleanupAfterCompaction(HbaseMetastoreProto.Compaction.newBuilder()
-        .setDb("d")
-        .setTable("t2")
-        .setId(10)
-        .setHighestTxnId(4)
-        .setType(HbaseMetastoreProto.CompactionType.MINOR)
-        .setState(HbaseMetastoreProto.CompactionState.READY_FOR_CLEANING)
-        .build());
-    assertInternalState(6L, "\\{\\}", "{}", "[{\"commitId\":6}]");
+    HbaseMetastoreProto.PotentialCompaction pc = hrw.getPotentialCompaction(db, t, p);
+    Assert.assertNotNull(pc);
+    Assert.assertEquals(db, pc.getDb());
+    Assert.assertEquals(t, pc.getTable());
+    Assert.assertEquals(p, pc.getPartition());
+    Assert.assertEquals(1, pc.getTxnIdsCount());
+    Assert.assertEquals(firstTxn, pc.getTxnIds(0));
 
-    // add dynamic partitions
     rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
         .setNumTxns(1)
         .setUser("me")
         .setHostname("localhost")
         .build();
     rsp = txnMgr.openTxns(rqst);
+    long secondTxn = rsp.getTxnIds(0);
 
-    txnMgr.addDynamicPartitions(HbaseMetastoreProto.AddDynamicPartitionsRequest.newBuilder()
-        .setTxnId(6)
-        .setDb("x")
-        .setTable("y")
-        .addAllPartitions(Arrays.asList("p1", "p2"))
+    lock = txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+            .setTxnId(secondTxn)
+            .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+                .setDb(db)
+                .setTable(t)
+                .setPartition(p)
+                .setType(HbaseMetastoreProto.LockType.SHARED_WRITE))
+            .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+                .setDb(db)
+                .setType(HbaseMetastoreProto.LockType.INTENTION))
+            .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+                .setDb(db)
+                .setTable(t)
+                .setType(HbaseMetastoreProto.LockType.INTENTION))
+            .build());
+    Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, lock.getState());
+
+    result = txnMgr.commitTxn(HbaseMetastoreProto.TransactionId.newBuilder()
+            .setId(secondTxn)
+            .build());
+    Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS, result.getState());
+
+    pc = hrw.getPotentialCompaction(db, t, p);
+    Assert.assertNotNull(pc);
+    Assert.assertEquals(db, pc.getDb());
+    Assert.assertEquals(t, pc.getTable());
+    Assert.assertEquals(p, pc.getPartition());
+    Assert.assertEquals(2, pc.getTxnIdsCount());
+    Assert.assertEquals(firstTxn, pc.getTxnIds(0));
+    Assert.assertEquals(secondTxn, pc.getTxnIds(1));
+
+    txnMgr.cleanupAfterCompaction(HbaseMetastoreProto.Compaction.newBuilder()
+        .setId(100)
+        .setDb(db)
+        .setTable(t)
+        .setPartition(p)
+        .setHighestTxnId(firstTxn)
+        .setState(HbaseMetastoreProto.CompactionState.READY_FOR_CLEANING)
+        .setType(HbaseMetastoreProto.CompactionType.MINOR)
         .build());
 
-    assertInternalState(7L, "\\{\"6\":\\{\"lastHeartbeat\":[0-9]+," +
-        "\"hiveLocks\":\\[\\{\"id\":-1,\"txnId\":6,\"entityLocked\":\\{\"db\":\"x\"," +
-        "\"table\":\"y\",\"part\":\"p1\"\\},\"type\":\"SHARED_WRITE\",\"state\":\"RELEASED\"\\}," +
-        "\\{\"id\":-1,\"txnId\":6,\"entityLocked\":\\{\"db\":\"x\",\"table\":\"y\"," +
-        "\"part\":\"p2\"\\},\"type\":\"SHARED_WRITE\",\"state\":\"RELEASED\"\\}\\]\\}\\}", "{}",
-        "[{\"commitId\":6}]");
-    Assert.assertEquals("{\"d.t3.p\":{\"queue\":{},\"maxCommitId\":0},\"d.t2\":{\"queue\":{}," +
-        "\"maxCommitId\":0},\"d.t4\":{\"queue\":{},\"maxCommitId\":6},\"d.t.p\":{\"queue\":{}," +
-        "\"maxCommitId\":0},\"x.y.p2\":{\"queue\":{},\"maxCommitId\":0},\"x.y.p1\":{\"queue\":{}," +
-        "\"maxCommitId\":0}}", txnMgr.stringifyLockQueues());
+    pc = hrw.getPotentialCompaction(db, t, p);
+    Assert.assertNotNull(pc);
+    Assert.assertEquals(db, pc.getDb());
+    Assert.assertEquals(t, pc.getTable());
+    Assert.assertEquals(p, pc.getPartition());
+    Assert.assertEquals(1, pc.getTxnIdsCount());
+    Assert.assertEquals(secondTxn, pc.getTxnIds(0));
 
-    txnMgr.commitTxn(HbaseMetastoreProto.TransactionId.newBuilder()
-        .setId(6)
+    txnMgr.cleanupAfterCompaction(HbaseMetastoreProto.Compaction.newBuilder()
+        .setId(101)
+        .setDb(db)
+        .setTable(t)
+        .setPartition(p)
+        .setHighestTxnId(secondTxn)
+        .setState(HbaseMetastoreProto.CompactionState.READY_FOR_CLEANING)
+        .setType(HbaseMetastoreProto.CompactionType.MINOR)
         .build());
-    Assert.assertEquals("{\"d.t3.p\":{\"queue\":{},\"maxCommitId\":0},\"d.t2\":{\"queue\":{}," +
-        "\"maxCommitId\":0},\"d.t4\":{\"queue\":{},\"maxCommitId\":6},\"d.t.p\":{\"queue\":{}," +
-        "\"maxCommitId\":0},\"x.y.p2\":{\"queue\":{},\"maxCommitId\":7},\"x.y.p1\":{\"queue\":{}," +
-        "\"maxCommitId\":7}}", txnMgr.stringifyLockQueues());
+
+    pc = hrw.getPotentialCompaction(db, t, p);
+    Assert.assertNull(pc);
   }
 
-  */
+  @Test
+  public void cleanupAbort() throws Exception {
+    // Test that when the highestTxnId is lower than some of the transactions in the potential
+    // the potential is kept but earlier txn ids are trimmed out.
+    // Have to open and commit the transactions serially to avoid write/write conflict
+    String db = "ca_db";
+    String t = "ca_t";
+    String p = "ca_p";
+
+    String db2 = "ca_db2";
+    String t2 = "ca_t2";
+
+    HbaseMetastoreProto.OpenTxnsRequest rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
+        .setNumTxns(1)
+        .setUser("me")
+        .setHostname("localhost")
+        .build();
+    HbaseMetastoreProto.OpenTxnsResponse rsp = txnMgr.openTxns(rqst);
+    long firstTxn = rsp.getTxnIds(0);
+
+    HbaseMetastoreProto.LockResponse lock =
+        txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+            .setTxnId(firstTxn)
+            .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+                .setDb(db)
+                .setTable(t)
+                .setPartition(p)
+                .setType(HbaseMetastoreProto.LockType.SHARED_WRITE))
+            .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+                .setDb(db)
+                .setType(HbaseMetastoreProto.LockType.INTENTION))
+            .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+                .setDb(db)
+                .setTable(t)
+                .setType(HbaseMetastoreProto.LockType.INTENTION))
+            .build());
+    Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, lock.getState());
+
+    HbaseMetastoreProto.TransactionResult result =
+        txnMgr.abortTxn(HbaseMetastoreProto.TransactionId.newBuilder()
+            .setId(firstTxn)
+            .build());
+    Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS, result.getState());
+
+    HbaseMetastoreProto.PotentialCompaction pc = hrw.getPotentialCompaction(db, t, p);
+    Assert.assertNotNull(pc);
+    Assert.assertEquals(db, pc.getDb());
+    Assert.assertEquals(t, pc.getTable());
+    Assert.assertEquals(p, pc.getPartition());
+    Assert.assertEquals(1, pc.getTxnIdsCount());
+    Assert.assertEquals(firstTxn, pc.getTxnIds(0));
+
+    rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
+        .setNumTxns(1)
+        .setUser("me")
+        .setHostname("localhost")
+        .build();
+    rsp = txnMgr.openTxns(rqst);
+    long secondTxn = rsp.getTxnIds(0);
+
+    lock = txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+        .setTxnId(secondTxn)
+        .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+            .setDb(db)
+            .setTable(t)
+            .setPartition(p)
+            .setType(HbaseMetastoreProto.LockType.SHARED_WRITE))
+        .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+            .setDb(db)
+            .setType(HbaseMetastoreProto.LockType.INTENTION))
+        .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+            .setDb(db)
+            .setTable(t)
+            .setType(HbaseMetastoreProto.LockType.INTENTION))
+        .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+            .setDb(db2)
+            .setType(HbaseMetastoreProto.LockType.INTENTION))
+        .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+            .setDb(db2)
+            .setTable(t2)
+            .setType(HbaseMetastoreProto.LockType.SHARED_WRITE))
+        .build());
+    Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, lock.getState());
+
+    result = txnMgr.abortTxn(HbaseMetastoreProto.TransactionId.newBuilder()
+        .setId(secondTxn)
+        .build());
+    Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS, result.getState());
+
+    pc = hrw.getPotentialCompaction(db, t, p);
+    Assert.assertNotNull(pc);
+    Assert.assertEquals(db, pc.getDb());
+    Assert.assertEquals(t, pc.getTable());
+    Assert.assertEquals(p, pc.getPartition());
+    Assert.assertEquals(2, pc.getTxnIdsCount());
+    Assert.assertEquals(firstTxn, pc.getTxnIds(0));
+    Assert.assertEquals(secondTxn, pc.getTxnIds(1));
+
+    // Check that our aborted txns have the locks properly listed
+    Map<Long, AbortedHiveTransaction> abortedTxns = txnMgr.copyAbortedTransactions();
+    AbortedHiveTransaction firstAbortedTxn = abortedTxns.get(firstTxn);
+    Assert.assertFalse(firstAbortedTxn.fullyCompacted());
+    Assert.assertEquals(1, firstAbortedTxn.getCompactableLocks().size());
+    AbortedHiveTransaction secondAbortedTxn = abortedTxns.get(secondTxn);
+    Assert.assertFalse(secondAbortedTxn.fullyCompacted());
+    Assert.assertEquals(2, secondAbortedTxn.getCompactableLocks().size());
+
+    HbaseMetastoreProto.Transaction hbaseTxn = hrw.getTransaction(firstTxn);
+    Assert.assertEquals(1, hbaseTxn.getLocksCount());
+    hbaseTxn = hrw.getTransaction(secondTxn);
+    Assert.assertEquals(2, hbaseTxn.getLocksCount());
+
+    txnMgr.cleanupAfterCompaction(HbaseMetastoreProto.Compaction.newBuilder()
+        .setId(100)
+        .setDb(db)
+        .setTable(t)
+        .setPartition(p)
+        .setHighestTxnId(firstTxn)
+        .setState(HbaseMetastoreProto.CompactionState.READY_FOR_CLEANING)
+        .setType(HbaseMetastoreProto.CompactionType.MINOR)
+        .build());
+
+    pc = hrw.getPotentialCompaction(db, t, p);
+    Assert.assertNotNull(pc);
+    Assert.assertEquals(db, pc.getDb());
+    Assert.assertEquals(t, pc.getTable());
+    Assert.assertEquals(p, pc.getPartition());
+    Assert.assertEquals(1, pc.getTxnIdsCount());
+    Assert.assertEquals(secondTxn, pc.getTxnIds(0));
+
+    Assert.assertTrue(firstAbortedTxn.fullyCompacted());
+    Assert.assertFalse(secondAbortedTxn.fullyCompacted());
+    Assert.assertEquals(2, secondAbortedTxn.getCompactableLocks().size());
+
+    hbaseTxn = hrw.getTransaction(firstTxn);
+    Assert.assertNull(hbaseTxn);
+    hbaseTxn = hrw.getTransaction(secondTxn);
+    Assert.assertEquals(2, hbaseTxn.getLocksCount());
+
+    txnMgr.cleanupAfterCompaction(HbaseMetastoreProto.Compaction.newBuilder()
+        .setId(110)
+        .setDb(db)
+        .setTable(t)
+        .setPartition(p)
+        .setHighestTxnId(secondTxn)
+        .setState(HbaseMetastoreProto.CompactionState.READY_FOR_CLEANING)
+        .setType(HbaseMetastoreProto.CompactionType.MINOR)
+        .build());
+
+    pc = hrw.getPotentialCompaction(db, t, p);
+    Assert.assertNull(pc);
+
+    Assert.assertFalse(secondAbortedTxn.fullyCompacted());
+    Assert.assertEquals(1, secondAbortedTxn.getCompactableLocks().size());
+
+    abortedTxns = txnMgr.copyAbortedTransactions();
+    Assert.assertNull(abortedTxns.get(firstTxn));
+    Assert.assertNotNull(abortedTxns.get(secondTxn));
+
+    hbaseTxn = hrw.getTransaction(secondTxn);
+    Assert.assertEquals(1, hbaseTxn.getLocksCount());
+
+    txnMgr.cleanupAfterCompaction(HbaseMetastoreProto.Compaction.newBuilder()
+        .setId(120)
+        .setDb(db2)
+        .setTable(t2)
+        .setHighestTxnId(secondTxn)
+        .setState(HbaseMetastoreProto.CompactionState.READY_FOR_CLEANING)
+        .setType(HbaseMetastoreProto.CompactionType.MINOR)
+        .build());
+
+    pc = hrw.getPotentialCompaction(db2, t2, null);
+    Assert.assertNull(pc);
+    Assert.assertTrue(secondAbortedTxn.fullyCompacted());
+
+    abortedTxns = txnMgr.copyAbortedTransactions();
+    Assert.assertNull(abortedTxns.get(secondTxn));
+
+    hbaseTxn = hrw.getTransaction(secondTxn);
+    Assert.assertNull(hbaseTxn);
+  }
+
+  @Test
+  public void addDynamicPartitionsAbort() throws Exception {
+    String db = "adpa_db";
+    String t = "adpa_t";
+    String pbase = "adpa_p";
+
+    HbaseMetastoreProto.OpenTxnsRequest rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
+        .setNumTxns(1)
+        .setUser("me")
+        .setHostname("localhost")
+        .build();
+    HbaseMetastoreProto.OpenTxnsResponse rsp = txnMgr.openTxns(rqst);
+    Assert.assertEquals(1, rsp.getTxnIdsCount());
+    long txnId = rsp.getTxnIds(0);
+
+    txnMgr.addDynamicPartitions(HbaseMetastoreProto.AddDynamicPartitionsRequest.newBuilder()
+        .setTxnId(txnId)
+        .setDb(db)
+        .setTable(t)
+        .addAllPartitions(Arrays.asList(pbase + "1", pbase + "2"))
+        .build());
+
+    Map<Long, OpenHiveTransaction> memoryBefore = txnMgr.copyOpenTransactions();
+    OpenHiveTransaction openTxn = memoryBefore.get(txnId);
+    Assert.assertEquals(2, openTxn.getHiveLocks().length);
+    for (HiveLock lock : openTxn.getHiveLocks()) {
+      Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, lock.getState());
+    }
+
+    HbaseMetastoreProto.Transaction hbaseTxn = hrw.getTransaction(txnId);
+    Assert.assertEquals(HbaseMetastoreProto.TxnState.OPEN, hbaseTxn.getTxnState());
+    Assert.assertEquals(2, hbaseTxn.getLocksCount());
+    for (HbaseMetastoreProto.Transaction.Lock hbaseLock : hbaseTxn.getLocksList()) {
+      Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, hbaseLock.getState());
+    }
+
+    HbaseMetastoreProto.TransactionResult abort =
+        txnMgr.abortTxn(HbaseMetastoreProto.TransactionId.newBuilder()
+            .setId(txnId)
+            .build());
+    Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS, abort.getState());
+
+    Map<Long, AbortedHiveTransaction> memoryAfter = txnMgr.copyAbortedTransactions();
+    AbortedHiveTransaction abortedTxn = memoryAfter.get(txnId);
+    Assert.assertEquals(2, abortedTxn.getCompactableLocks().size());
+    for (HiveLock lock : abortedTxn.getCompactableLocks().values()) {
+      Assert.assertEquals(HbaseMetastoreProto.LockState.TXN_ABORTED, lock.getState());
+    }
+
+    for (int i = 1; i <= 2; i++) {
+      HbaseMetastoreProto.PotentialCompaction pc = hrw.getPotentialCompaction(db, t, pbase + i);
+      Assert.assertNotNull(pc);
+    }
+  }
+
+  @Test
+  public void addDynamicPartitionsCommit() throws Exception {
+    String db = "adpc_db";
+    String t = "adpc_t";
+    String pbase = "adpc_p";
+
+    HbaseMetastoreProto.OpenTxnsRequest rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
+        .setNumTxns(1)
+        .setUser("me")
+        .setHostname("localhost")
+        .build();
+    HbaseMetastoreProto.OpenTxnsResponse rsp = txnMgr.openTxns(rqst);
+    Assert.assertEquals(1, rsp.getTxnIdsCount());
+    long txnId = rsp.getTxnIds(0);
+
+    txnMgr.addDynamicPartitions(HbaseMetastoreProto.AddDynamicPartitionsRequest.newBuilder()
+        .setTxnId(txnId)
+        .setDb(db)
+        .setTable(t)
+        .addAllPartitions(Arrays.asList(pbase + "1", pbase + "2"))
+        .build());
+
+    Map<Long, OpenHiveTransaction> memoryBefore = txnMgr.copyOpenTransactions();
+    OpenHiveTransaction openTxn = memoryBefore.get(txnId);
+    Assert.assertEquals(2, openTxn.getHiveLocks().length);
+    for (HiveLock lock : openTxn.getHiveLocks()) {
+      Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, lock.getState());
+    }
+
+    HbaseMetastoreProto.Transaction hbaseTxn = hrw.getTransaction(txnId);
+    Assert.assertEquals(HbaseMetastoreProto.TxnState.OPEN, hbaseTxn.getTxnState());
+    Assert.assertEquals(2, hbaseTxn.getLocksCount());
+    for (HbaseMetastoreProto.Transaction.Lock hbaseLock : hbaseTxn.getLocksList()) {
+      Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, hbaseLock.getState());
+    }
+
+    HbaseMetastoreProto.TransactionResult commit =
+        txnMgr.commitTxn(HbaseMetastoreProto.TransactionId.newBuilder()
+            .setId(txnId)
+            .build());
+    Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS, commit.getState());
+
+    Set<CommittedHiveTransaction> memoryAfter = txnMgr.copyCommittedTransactions();
+    CommittedHiveTransaction committedTxn = null;
+    for (CommittedHiveTransaction c : memoryAfter) {
+      if (c.getId() == txnId) {
+        committedTxn = c;
+        break;
+      }
+    }
+    Assert.assertNotNull(committedTxn);
+    Map<TransactionManager.EntityKey, TransactionManager.LockQueue> queues = txnMgr.copyLockQueues();
+    Assert.assertEquals(committedTxn.getCommitId(),
+        queues.get(new TransactionManager.EntityKey(db, t, pbase + "1")).getMaxCommitId());
+    Assert.assertEquals(committedTxn.getCommitId(),
+        queues.get(new TransactionManager.EntityKey(db, t, pbase + "2")).getMaxCommitId());
+
+    for (int i = 1; i <= 2; i++) {
+      HbaseMetastoreProto.PotentialCompaction pc = hrw.getPotentialCompaction(db, t, pbase + i);
+      Assert.assertNotNull(pc);
+    }
+  }
+
+  @Test
+  public void txnsCanBeCleaned() throws Exception {
+    // Open 3 transactions, commit the first, then the third and mark both as compacted.  We
+    // should be told the first can be cleaned but not the second.
+    String db[] = {"tcbc_db1", "tcbc_db2", "tcbc_db3"};
+    String t[] = {"tcbc_t1", "tcbc_t2", "tcbc_t3"};
+    String p[] = {"tcbc_p1", "tcbc_p2", "tcbc_p3"};
+
+    HbaseMetastoreProto.OpenTxnsRequest rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
+        .setNumTxns(3)
+        .setUser("me")
+        .setHostname("localhost")
+        .build();
+    HbaseMetastoreProto.OpenTxnsResponse rsp = txnMgr.openTxns(rqst);
+    Assert.assertEquals(3, rsp.getTxnIdsCount());
+    long firstTxn = rsp.getTxnIds(0);
+    long secondTxn = rsp.getTxnIds(1);
+    long thirdTxn = rsp.getTxnIds(2);
+
+    for (int i = 0; i < 3; i++) {
+      HbaseMetastoreProto.LockResponse lock = txnMgr.lock(HbaseMetastoreProto.LockRequest
+          .newBuilder()
+          .setTxnId(i + firstTxn)
+          .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+              .setDb(db[i])
+              .setTable(t[i])
+              .setPartition(p[i])
+              .setType(HbaseMetastoreProto.LockType.SHARED_WRITE))
+          .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+              .setDb(db[i])
+              .setType(HbaseMetastoreProto.LockType.INTENTION))
+          .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+              .setDb(db[i])
+              .setTable(t[i])
+              .setType(HbaseMetastoreProto.LockType.INTENTION))
+          .build());
+      Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, lock.getState());
+    }
+
+    HbaseMetastoreProto.TransactionResult commit =
+        txnMgr.commitTxn(HbaseMetastoreProto.TransactionId.newBuilder()
+            .setId(firstTxn)
+            .build());
+    Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS, commit.getState());
+
+    commit = txnMgr.commitTxn(HbaseMetastoreProto.TransactionId.newBuilder()
+            .setId(thirdTxn)
+            .build());
+    Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS, commit.getState());
+
+    txnMgr.cleanupAfterCompaction(HbaseMetastoreProto.Compaction.newBuilder()
+        .setId(220)
+        .setDb(db[0])
+        .setTable(t[0])
+        .setPartition(p[0])
+        .setHighestTxnId(firstTxn)
+        .setState(HbaseMetastoreProto.CompactionState.READY_FOR_CLEANING)
+        .setType(HbaseMetastoreProto.CompactionType.MINOR)
+        .build());
+
+    txnMgr.cleanupAfterCompaction(HbaseMetastoreProto.Compaction.newBuilder()
+        .setId(221)
+        .setDb(db[2])
+        .setTable(t[2])
+        .setPartition(p[2])
+        .setHighestTxnId(thirdTxn)
+        .setState(HbaseMetastoreProto.CompactionState.READY_FOR_CLEANING)
+        .setType(HbaseMetastoreProto.CompactionType.MINOR)
+        .build());
+
+    HbaseMetastoreProto.CompactionList cleanable = txnMgr.verifyCompactionCanBeCleaned(
+        HbaseMetastoreProto.CompactionList.newBuilder()
+            .addCompactions(
+                HbaseMetastoreProto.Compaction.newBuilder()
+                    .setDb(db[0])
+                    .setTable(t[0])
+                    .setPartition(p[0])
+                    .setHighestTxnId(firstTxn)
+                    .setId(220)
+                    .setType(HbaseMetastoreProto.CompactionType.MINOR)
+                    .setState(HbaseMetastoreProto.CompactionState.READY_FOR_CLEANING))
+            .addCompactions(
+                HbaseMetastoreProto.Compaction.newBuilder()
+                    .setDb(db[2])
+                    .setTable(t[2])
+                    .setPartition(p[2])
+                    .setHighestTxnId(thirdTxn)
+                    .setId(221)
+                    .setType(HbaseMetastoreProto.CompactionType.MINOR)
+                    .setState(HbaseMetastoreProto.CompactionState.READY_FOR_CLEANING))
+            .build());
+    Assert.assertEquals(1, cleanable.getCompactionsCount());
+    Assert.assertEquals(db[0], cleanable.getCompactions(0).getDb());
+
+  }
 
 }

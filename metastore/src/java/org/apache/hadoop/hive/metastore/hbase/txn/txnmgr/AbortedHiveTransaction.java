@@ -80,7 +80,6 @@ class AbortedHiveTransaction extends HiveTransaction {
     return compactableLocks.size() == 0;
   }
 
-  // Just for JSON so that we can look at the state of this object
   Map<TransactionManager.EntityKey, HiveLock> getCompactableLocks() {
     return compactableLocks;
   }
