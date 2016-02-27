@@ -53,7 +53,7 @@ public class TestTransactionManagerLocks {
 
     // Set the wait on the background threads to max long so that they don't run and clean things
     // up on us, since we're trying to check state.
-    conf.set(TransactionManager.CONF_INITIAL_DELAY, Long.toString(Long.MAX_VALUE));
+    conf.set(TransactionManager.CONF_NO_AUTO_BACKGROUND_THREADS, Boolean.toString(Boolean.TRUE));
 
     // Set this super low so the test doesn't take forever
     HiveConf.setTimeVar(conf, HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_LOCK_POLL_TIMEOUT,

@@ -54,7 +54,7 @@ public class TestTransactionManager {
 
     // Set the wait on the background threads to max long so that they don't run and clean things
     // up on us, since we're trying to check state.
-    conf.set(TransactionManager.CONF_INITIAL_DELAY, Long.toString(Long.MAX_VALUE));
+    conf.set(TransactionManager.CONF_NO_AUTO_BACKGROUND_THREADS, Boolean.toString(Boolean.TRUE));
 
     store = MockUtils.init(conf, htable, rows);
     txnMgr = new TransactionManager(conf);
@@ -657,6 +657,59 @@ public class TestTransactionManager {
 
     pc = hrw.getPotentialCompaction(db3, t3, p3);
     Assert.assertNull(pc);
+  }
+
+  @Test
+  public void addLocks() throws Exception {
+
+    String db1 = "al_db1";
+    String db2 = "al_db2";
+
+    HbaseMetastoreProto.OpenTxnsRequest rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
+        .setNumTxns(1)
+        .setUser("me")
+        .setHostname("localhost")
+        .build();
+    HbaseMetastoreProto.OpenTxnsResponse rsp = txnMgr.openTxns(rqst);
+    Assert.assertEquals(1, rsp.getTxnIdsCount());
+    long txnId = rsp.getTxnIds(0);
+
+    HbaseMetastoreProto.LockResponse lock = txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+        .setTxnId(txnId)
+        .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+            .setDb(db1)
+            .setType(HbaseMetastoreProto.LockType.EXCLUSIVE))
+        .build());
+    Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, lock.getState());
+
+    lock = txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+        .setTxnId(txnId)
+        .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+            .setDb(db2)
+            .setType(HbaseMetastoreProto.LockType.EXCLUSIVE))
+        .build());
+    Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, lock.getState());
+
+    Map<Long, OpenHiveTransaction> memoryAfterLocks = txnMgr.copyOpenTransactions();
+    OpenHiveTransaction openTxn = memoryAfterLocks.get(txnId);
+    HiveLock[] locks = openTxn.getHiveLocks();
+    Assert.assertEquals(2, locks.length);
+    Assert.assertEquals(txnId, locks[0].getTxnId());
+    Assert.assertEquals(db1, locks[0].getEntityLocked().db);
+    Assert.assertEquals(txnId, locks[1].getTxnId());
+    Assert.assertEquals(db2, locks[1].getEntityLocked().db);
+
+    HbaseMetastoreProto.Transaction hbaseTxn = hrw.getTransaction(txnId);
+    Assert.assertEquals(2, hbaseTxn.getLocksCount());
+    Assert.assertEquals(db1, hbaseTxn.getLocks(0).getDb());
+    Assert.assertEquals(db2, hbaseTxn.getLocks(1).getDb());
+
+    // commit the transactions
+    HbaseMetastoreProto.TransactionResult commit =
+        txnMgr.commitTxn(HbaseMetastoreProto.TransactionId.newBuilder()
+            .setId(txnId)
+            .build());
+    Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS, commit.getState());
   }
 
   @Test
@@ -1263,5 +1316,10 @@ public class TestTransactionManager {
     Assert.assertEquals(db[0], cleanable.getCompactions(0).getDb());
 
   }
+
+  // TODO test recovery
+  // TODO test timeouts
+  // TODO test lockQueue shrinkage
+  // TODO test committed txn cleaner
 
 }

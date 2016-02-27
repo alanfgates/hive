@@ -53,7 +53,7 @@ public class TestTransactionManagerErrors {
 
     // Set the wait on the background threads to max long so that they don't run and clean things
     // up on us, since we're trying to check state.
-    conf.set(TransactionManager.CONF_INITIAL_DELAY, Long.toString(Long.MAX_VALUE));
+    conf.set(TransactionManager.CONF_NO_AUTO_BACKGROUND_THREADS, Boolean.toString(Boolean.TRUE));
     // Set this value lower so we can fill up the txn mgr without creating an insane number of
     // objects.
     HiveConf.setIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_MAX_OBJECTS, 100);
@@ -454,6 +454,125 @@ public class TestTransactionManagerErrors {
         .build());
     Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.NO_SUCH_TXN, result.getState());
   }
+
+  @Test
+  public void runDeadlockDetectorNoDeadlocks() throws Exception {
+    String db = "rddnd_db";
+
+    HbaseMetastoreProto.OpenTxnsRequest rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
+        .setNumTxns(2)
+        .setUser("me")
+        .setHostname("localhost")
+        .build();
+    HbaseMetastoreProto.OpenTxnsResponse rsp = txnMgr.openTxns(rqst);
+    long firstTxn = rsp.getTxnIds(0);
+    long secondTxn = rsp.getTxnIds(1);
+
+    HbaseMetastoreProto.LockResponse lock = txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+        .setTxnId(firstTxn)
+        .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+            .setDb(db)
+            .setType(HbaseMetastoreProto.LockType.EXCLUSIVE))
+        .build());
+    Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, lock.getState());
+
+    lock = txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+        .setTxnId(secondTxn)
+        .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+            .setDb(db)
+            .setType(HbaseMetastoreProto.LockType.EXCLUSIVE))
+        .build());
+    Assert.assertEquals(HbaseMetastoreProto.LockState.WAITING, lock.getState());
+
+    // This should not change anything.
+    txnMgr.forceDeadlockDetection();
+
+    HbaseMetastoreProto.LockResponse firstLock =
+        txnMgr.checkLocks(HbaseMetastoreProto.TransactionId.newBuilder()
+            .setId(firstTxn)
+            .build());
+    HbaseMetastoreProto.LockResponse secondLock =
+        txnMgr.checkLocks(HbaseMetastoreProto.TransactionId.newBuilder()
+            .setId(secondTxn)
+            .build());
+
+    Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, firstLock.getState());
+    Assert.assertEquals(HbaseMetastoreProto.LockState.WAITING, secondLock.getState());
+  }
+
+  @Test
+  public void simpleDeadlock() throws Exception {
+    String db1 = "sdl_db1";
+    String db2 = "sdl_db2";
+
+    HbaseMetastoreProto.OpenTxnsRequest rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
+        .setNumTxns(2)
+        .setUser("me")
+        .setHostname("localhost")
+        .build();
+    HbaseMetastoreProto.OpenTxnsResponse rsp = txnMgr.openTxns(rqst);
+    long firstTxn = rsp.getTxnIds(0);
+    long secondTxn = rsp.getTxnIds(1);
+
+    HbaseMetastoreProto.LockResponse lock = txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+        .setTxnId(firstTxn)
+        .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+            .setDb(db1)
+            .setType(HbaseMetastoreProto.LockType.EXCLUSIVE))
+        .build());
+    Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, lock.getState());
+
+    lock = txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+        .setTxnId(secondTxn)
+        .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+            .setDb(db1)
+            .setType(HbaseMetastoreProto.LockType.EXCLUSIVE))
+        .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+            .setDb(db2)
+            .setType(HbaseMetastoreProto.LockType.EXCLUSIVE))
+        .build());
+    Assert.assertEquals(HbaseMetastoreProto.LockState.WAITING, lock.getState());
+
+    lock = txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+        .setTxnId(firstTxn)
+        .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+            .setDb(db2)
+            .setType(HbaseMetastoreProto.LockType.EXCLUSIVE))
+        .build());
+    Assert.assertEquals(HbaseMetastoreProto.LockState.WAITING, lock.getState());
+
+    lock = txnMgr.checkLocks(HbaseMetastoreProto.TransactionId.newBuilder()
+        .setId(firstTxn)
+        .build());
+    Assert.assertEquals(HbaseMetastoreProto.LockState.WAITING, lock.getState());
+
+    lock = txnMgr.checkLocks(HbaseMetastoreProto.TransactionId.newBuilder()
+        .setId(secondTxn)
+        .build());
+    Assert.assertEquals(HbaseMetastoreProto.LockState.WAITING, lock.getState());
+
+    txnMgr.forceDeadlockDetection();
+
+    HbaseMetastoreProto.LockResponse firstLock =
+        txnMgr.checkLocks(HbaseMetastoreProto.TransactionId.newBuilder()
+        .setId(firstTxn)
+        .build());
+    HbaseMetastoreProto.LockResponse secondLock =
+        txnMgr.checkLocks(HbaseMetastoreProto.TransactionId.newBuilder()
+        .setId(secondTxn)
+        .build());
+    if (firstLock.getState() == HbaseMetastoreProto.LockState.ACQUIRED) {
+      Assert.assertEquals(HbaseMetastoreProto.LockState.TXN_ABORTED, secondLock.getState());
+    } else if (firstLock.getState() == HbaseMetastoreProto.LockState.TXN_ABORTED) {
+      Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, secondLock.getState());
+    } else {
+      Assert.fail("Completely unexpected state " + firstLock.getState());
+    }
+
+    // One of them should be dead, and the other acquired, but which is which doesn't matter.
+  }
+
+  // TODO test deadlock with another txn in the middle
 
   // TODO test all conditions that can lead to fullness
 }

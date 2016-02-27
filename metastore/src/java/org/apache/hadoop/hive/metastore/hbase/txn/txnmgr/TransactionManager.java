@@ -79,7 +79,8 @@ class TransactionManager {
 
   static final private Logger LOG = LoggerFactory.getLogger(TransactionManager.class.getName());
 
-  static final String CONF_INITIAL_DELAY = "txn.mgr.initial.delay.base";
+  // This is for testing purposes so that we don't automatically start the background threads.
+  static final String CONF_NO_AUTO_BACKGROUND_THREADS = "txn.mgr.auto.background.threads";
 
   // Track what locks types are compatible.  First array is holder, second is requester
   private static boolean[][] lockCompatibilityTable;
@@ -150,44 +151,42 @@ class TransactionManager {
     threadPool = new ScheduledThreadPoolExecutor(HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_THREAD_POOL_BASE_SIZE));
     threadPool.setMaximumPoolSize(HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_THREAD_POOL_MAX_SIZE));
 
-    // For some testing we don't want the background threads running, so this allows the tester
-    // to set the initial delay high.
-    String initialDelayConf = conf.get(CONF_INITIAL_DELAY);
-    long initialDelayBase = initialDelayConf == null ? 0 : Long.parseLong(initialDelayConf);
+    String noAutoBackgroundString = conf.get(CONF_NO_AUTO_BACKGROUND_THREADS);
 
-    // Schedule the lock queue shrinker
-    long period = HiveConf.getTimeVar(conf,
-        HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_LOCK_QUEUE_SHRINKER_FREQ, TimeUnit.MILLISECONDS);
-    threadPool.scheduleAtFixedRate(lockQueueShrinker, initialDelayBase + 10, period,
-        TimeUnit.MILLISECONDS);
+    // This gives us a way to turn off the background threads when running unit tests so they
+    // don't run around at random intervals messing up the tests.
+    if (noAutoBackgroundString == null || !Boolean.parseBoolean(noAutoBackgroundString)) {
+      // Schedule the lock queue shrinker
+      long period = HiveConf.getTimeVar(conf,
+          HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_LOCK_QUEUE_SHRINKER_FREQ,
+          TimeUnit.MILLISECONDS);
+      threadPool.scheduleAtFixedRate(lockQueueShrinker, 10, period, TimeUnit.MILLISECONDS);
 
-    // Schedule full checker
-    period = HiveConf.getTimeVar(conf,
-        HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_FULL_CHECKER_FREQ, TimeUnit.MILLISECONDS);
-    threadPool.scheduleAtFixedRate(fullChecker, initialDelayBase + 20, period,
-        TimeUnit.MILLISECONDS);
+      // Schedule full checker
+      period = HiveConf.getTimeVar(conf,
+          HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_FULL_CHECKER_FREQ, TimeUnit.MILLISECONDS);
+      threadPool.scheduleAtFixedRate(fullChecker, 20, period, TimeUnit.MILLISECONDS);
 
-    // Schedule the committed transaction cleaner
-    period = HiveConf.getTimeVar(conf,
-        HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_COMMITTED_TXN_CLEANER_FREQ, TimeUnit.MILLISECONDS);
-    threadPool.scheduleAtFixedRate(committedTxnCleaner, initialDelayBase + 30, period,
-        TimeUnit.MILLISECONDS);
+      // Schedule the committed transaction cleaner
+      period = HiveConf.getTimeVar(conf,
+          HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_COMMITTED_TXN_CLEANER_FREQ,
+          TimeUnit.MILLISECONDS);
+      threadPool.scheduleAtFixedRate(committedTxnCleaner, 30, period, TimeUnit.MILLISECONDS);
 
-    // schedule the timeoutCleaner.  This one has an initial delay to give any running clients a
-    // chance to heartbeat after recovery.
-    long intialDelay = HiveConf.getTimeVar(conf,
-        HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_TIMEOUT_CLEANER_INITIAL_WAIT, TimeUnit
-            .MILLISECONDS);
-    period = HiveConf.getTimeVar(conf,
-        HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_TIMEOUT_CLEANER_FREQ, TimeUnit.MILLISECONDS);
-    threadPool.scheduleAtFixedRate(timedOutCleaner, initialDelayBase + intialDelay, period,
-        TimeUnit.MILLISECONDS);
+      // schedule the timeoutCleaner.  This one has an initial delay to give any running clients a
+      // chance to heartbeat after recovery.
+      long intialDelay = HiveConf.getTimeVar(conf,
+          HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_TIMEOUT_CLEANER_INITIAL_WAIT, TimeUnit
+              .MILLISECONDS);
+      period = HiveConf.getTimeVar(conf,
+          HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_TIMEOUT_CLEANER_FREQ, TimeUnit.MILLISECONDS);
+      threadPool.scheduleAtFixedRate(timedOutCleaner, intialDelay, period, TimeUnit.MILLISECONDS);
 
-    // Schedule the deadlock detector
-    period = HiveConf.getTimeVar(conf,
-        HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_DEADLOCK_DETECTOR_FREQ, TimeUnit.MILLISECONDS);
-    threadPool.scheduleAtFixedRate(deadlockDetector, initialDelayBase + 40, period,
-        TimeUnit.MILLISECONDS);
+      // Schedule the deadlock detector
+      period = HiveConf.getTimeVar(conf,
+          HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_DEADLOCK_DETECTOR_FREQ, TimeUnit.MILLISECONDS);
+      threadPool.scheduleAtFixedRate(deadlockDetector, 40, period, TimeUnit.MILLISECONDS);
+    }
 
   }
 
@@ -584,6 +583,7 @@ class TransactionManager {
         lockBuilders.add(builder.build());
 
         // Add to the appropriate DTP queue
+        LOG.debug("XXX Adding lock to queue " + hiveLocks[i].getEntityLocked());
         lockQueues.get(hiveLocks[i].getEntityLocked()).queue.put(hiveLocks[i].getId(), hiveLocks[i]);
         lockQueuesToCheck.add(hiveLocks[i].getEntityLocked());
       }
@@ -717,6 +717,7 @@ class TransactionManager {
         return HbaseMetastoreProto.LockState.WAITING;
       }
       if (lock.getState() != HbaseMetastoreProto.LockState.ACQUIRED) {
+        LOG.error("Found a lock in an unexpected state " + lock.getState());
         throw new SeverusPleaseException("Lock not in waiting or acquired state, not sure what to do");
       }
     }
@@ -1279,6 +1280,20 @@ class TransactionManager {
       }
       return false;
     }
+
+    @Override
+    public String toString() {
+      StringBuilder bldr = new StringBuilder(db);
+      if (table != null) {
+        bldr.append('.')
+            .append(table);
+        if (part != null) {
+          bldr.append('.')
+              .append(part);
+        }
+      }
+      return bldr.toString();
+    }
   }
 
   static class LockQueue {
@@ -1340,6 +1355,21 @@ class TransactionManager {
     @Override
     public void run() {
       LOG.debug("Looking for deadlocks");
+
+      try {
+        OpenHiveTransaction deadlocked = lookForCycles();
+        if (deadlocked != null) {
+          try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
+            abortTxn(openTxns.get(deadlocked.getId()));
+          }
+          threadPool.submit(this);
+        }
+      } catch (IOException e) {
+        LOG.warn("Received exception in deadlock detector", e);
+      }
+    }
+
+    private OpenHiveTransaction lookForCycles() throws IOException {
       try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
         // We're looking only for transactions that have 1+ acquired locks and 1+ waiting locks
         for (OpenHiveTransaction txn : openTxns.values()) {
@@ -1360,21 +1390,12 @@ class TransactionManager {
               // It's easiest to always kill this one rather than try to figure out where in
               // the graph we can remove something and break the cycle.  Given that which txn
               // we examine first is mostly random this should be ok (I hope).
-              // Must unlock the read lock before acquiring the write lock
-              masterLock.readLock().unlock();
-              try (LockKeeper lk1 = new LockKeeper(masterLock.writeLock())) {
-                abortTxn(openTxns.get(txn.getId()));
-              }
-              // We've released the readlock and messed with the data structures we're
-              // traversing, so don't keep going.  Just schedule another run of ourself.
-              threadPool.execute(this);
-              return;
+              return txn;
             }
           }
         }
-      } catch (IOException e) {
-        LOG.warn("Received exception in deadlock detector", e);
       }
+      return null;
     }
 
     /**
@@ -1390,9 +1411,14 @@ class TransactionManager {
                                     boolean initial) {
       if (!initial && initialTxnId == currentTxn.getId()) return true;
       for (HiveLock lock : currentTxn.getHiveLocks()) {
-        if (lock.getState() == HbaseMetastoreProto.LockState.WAITING &&
-            lookForDeadlock(initialTxnId, openTxns.get(lock.getTxnId()), false)) {
-          return true;
+        if (lock.getState() == HbaseMetastoreProto.LockState.WAITING) {
+          // We need to look at all of the locks ahead of this lock in it's queue
+          for (HiveLock predecessor :
+              lockQueues.get(lock.getEntityLocked()).queue.headMap(lock.getId()).values()) {
+            if (lookForDeadlock(initialTxnId, openTxns.get(predecessor.getTxnId()), false)) {
+              return true;
+            }
+          }
         }
       }
       return false;
@@ -1521,6 +1547,7 @@ class TransactionManager {
           // once.
           for (EntityKey key : keys) {
             LockQueue queue = lockQueues.get(key);
+            LOG.debug("XXX queue " + key + " has " + queue.queue.size() + " entries");
             HiveLock lastLock = null;
             for (HiveLock lock : queue.queue.values()) {
               if (lock.getState() == HbaseMetastoreProto.LockState.WAITING) {
@@ -1668,6 +1695,12 @@ class TransactionManager {
   void forceFullChecker() throws ExecutionException, InterruptedException {
     Future<?> fullCheckerRun = threadPool.submit(fullChecker);
     fullCheckerRun.get();
+  }
+
+  @VisibleForTesting
+  void forceDeadlockDetection() throws ExecutionException, InterruptedException {
+    Future<?> run = threadPool.submit(deadlockDetector);
+    run.get();
   }
 
 }
