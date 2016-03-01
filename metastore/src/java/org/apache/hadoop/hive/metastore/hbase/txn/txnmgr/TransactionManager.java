@@ -583,7 +583,6 @@ class TransactionManager {
         lockBuilders.add(builder.build());
 
         // Add to the appropriate DTP queue
-        LOG.debug("XXX Adding lock to queue " + hiveLocks[i].getEntityLocked());
         lockQueues.get(hiveLocks[i].getEntityLocked()).queue.put(hiveLocks[i].getId(), hiveLocks[i]);
         lockQueuesToCheck.add(hiveLocks[i].getEntityLocked());
       }
@@ -1466,7 +1465,7 @@ class TransactionManager {
           minOpenTxn = findMinOpenTxn();
           for (CommittedHiveTransaction txn : committedTxns) {
             // Look to see if all open transactions have a txnId greater than this txn's commitId
-            if (txn.getCommitId() < minOpenTxn) {
+            if (txn.getCommitId() <= minOpenTxn) {
               if (LOG.isDebugEnabled()) {
                 LOG.debug("Adding " + txn.getId() + " to list of forgetable transactions");
               }
@@ -1547,7 +1546,6 @@ class TransactionManager {
           // once.
           for (EntityKey key : keys) {
             LockQueue queue = lockQueues.get(key);
-            LOG.debug("XXX queue " + key + " has " + queue.queue.size() + " entries");
             HiveLock lastLock = null;
             for (HiveLock lock : queue.queue.values()) {
               if (lock.getState() == HbaseMetastoreProto.LockState.WAITING) {
@@ -1700,6 +1698,24 @@ class TransactionManager {
   @VisibleForTesting
   void forceDeadlockDetection() throws ExecutionException, InterruptedException {
     Future<?> run = threadPool.submit(deadlockDetector);
+    run.get();
+  }
+
+  @VisibleForTesting
+  void forceLockQueueShrinker() throws ExecutionException, InterruptedException {
+    Future<?> run = threadPool.submit(lockQueueShrinker);
+    run.get();
+  }
+
+  @VisibleForTesting
+  void forceCommittedTxnCleaner() throws ExecutionException, InterruptedException {
+    Future<?> run = threadPool.submit(committedTxnCleaner);
+    run.get();
+  }
+
+  @VisibleForTesting
+  void forceTimedOutCleaner() throws ExecutionException, InterruptedException {
+    Future<?> run = threadPool.submit(timedOutCleaner);
     run.get();
   }
 

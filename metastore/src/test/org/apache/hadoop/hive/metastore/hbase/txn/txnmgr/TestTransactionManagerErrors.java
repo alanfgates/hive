@@ -34,8 +34,10 @@ import org.mockito.MockitoAnnotations;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 
 public class TestTransactionManagerErrors {
   @Mock
@@ -57,7 +59,12 @@ public class TestTransactionManagerErrors {
     // Set this value lower so we can fill up the txn mgr without creating an insane number of
     // objects.
     HiveConf.setIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_MAX_OBJECTS, 100);
-
+    // Set poll timeout low so we don't wait forever for our locks to come back and tell us to wait.
+    HiveConf.setTimeVar(conf, HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_LOCK_POLL_TIMEOUT, 500,
+        TimeUnit.MILLISECONDS);
+    // Set timeout low for timeout testing.  This should not affect other tests because in
+    // general the background threads aren't running.
+    HiveConf.setTimeVar(conf, HiveConf.ConfVars.HIVE_TXN_TIMEOUT, 100, TimeUnit.MILLISECONDS);
     store = MockUtils.init(conf, htable, rows);
     txnMgr = new TransactionManager(conf);
   }
@@ -570,6 +577,46 @@ public class TestTransactionManagerErrors {
     }
 
     // One of them should be dead, and the other acquired, but which is which doesn't matter.
+  }
+
+  @Test
+  public void timeout() throws Exception {
+    HbaseMetastoreProto.OpenTxnsRequest rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
+        .setNumTxns(2)
+        .setUser("me")
+        .setHostname("localhost")
+        .build();
+    HbaseMetastoreProto.OpenTxnsResponse rsp = txnMgr.openTxns(rqst);
+    long firstTxn = rsp.getTxnIds(0);
+    long secondTxn = rsp.getTxnIds(1);
+
+    Thread.sleep(100);
+    HbaseMetastoreProto.HeartbeatTxnRangeResponse heartbeats =
+        txnMgr.heartbeat(HbaseMetastoreProto.HeartbeatTxnRangeRequest.newBuilder()
+            .setMinTxn(firstTxn)
+            .setMaxTxn(secondTxn)
+            .build());
+    txnMgr.forceTimedOutCleaner();
+
+    Map<Long, OpenHiveTransaction> openTxns = txnMgr.copyOpenTransactions();
+    Assert.assertNotNull(openTxns.get(firstTxn));
+    Assert.assertNotNull(openTxns.get(secondTxn));
+
+    Thread.sleep(100);
+    heartbeats = txnMgr.heartbeat(HbaseMetastoreProto.HeartbeatTxnRangeRequest.newBuilder()
+            .setMinTxn(secondTxn)
+            .setMaxTxn(secondTxn)
+            .build());
+    txnMgr.forceTimedOutCleaner();
+
+    openTxns = txnMgr.copyOpenTransactions();
+    Assert.assertNull(openTxns.get(firstTxn));
+    Assert.assertNotNull(openTxns.get(secondTxn));
+
+    Thread.sleep(100);
+    txnMgr.forceTimedOutCleaner();
+    openTxns = txnMgr.copyOpenTransactions();
+    Assert.assertNull(openTxns.get(secondTxn));
   }
 
   // TODO test deadlock with another txn in the middle

@@ -26,6 +26,7 @@ import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
 import org.apache.hadoop.hive.metastore.hbase.MockUtils;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
@@ -1317,9 +1318,152 @@ public class TestTransactionManager {
 
   }
 
+  @Test
+  public void lockQueueShrinkerAndCommittedTxnCleaner() throws Exception {
+    // We test these two threads together because we have to clean the committed txns in order
+    // for the lockQueueShrinker to shrink the lock queues.
+    // First shrink the lock queues so we start from a (hopefully) clean state
+    txnMgr.forceCommittedTxnCleaner();
+    txnMgr.forceLockQueueShrinker();
+
+    Map<TransactionManager.EntityKey, TransactionManager.LockQueue> lockQueues =
+        txnMgr.copyLockQueues();
+    Set<CommittedHiveTransaction> committedTxns = txnMgr.copyCommittedTransactions();
+    Assume.assumeTrue("Expected to find no lock queue entries, other tests should clean up after " +
+        "themselves", lockQueues.size() == 0);
+    Assume.assumeTrue("Expected to find no committed transactions, other tests should clean up " +
+        "after themselves", committedTxns.size() == 0);
+
+
+    // Open three transactions, acquire read locks with the first two and write locks with the
+    // third.  Then commit the first and the third.  Then clean committed txns and shrink the
+    // lock queues.  We should still have a record of the committed write (because a previous
+    // transaction is still open) and lock queues entries from 2 (because it's open) and 3
+    // (because we can't forget the committed txn yet).  Then commit the second transaction and
+    // clean committed and shrink lock queues again.  At that point we should have forgotten
+    // everything.
+    String db[] = {"lqsactc_db1", "lqsactc_db2", "lqsactc_db3"};
+    String t[] = {"lqsactc_t1", "lqsactc_t2", "lqsactc_t3"};
+    String p[] = {"lqsactc_p1", "lqsactc_p2", "lqsactc_p3"};
+
+    HbaseMetastoreProto.OpenTxnsRequest rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
+        .setNumTxns(3)
+        .setUser("me")
+        .setHostname("localhost")
+        .build();
+    HbaseMetastoreProto.OpenTxnsResponse rsp = txnMgr.openTxns(rqst);
+    Assert.assertEquals(3, rsp.getTxnIdsCount());
+    long firstTxn = rsp.getTxnIds(0);
+    long secondTxn = rsp.getTxnIds(1);
+    long thirdTxn = rsp.getTxnIds(2);
+
+    HbaseMetastoreProto.LockResponse lock = txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+            .setTxnId(firstTxn)
+            .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+                .setDb(db[0])
+                .setTable(t[0])
+                .setPartition(p[0])
+                .setType(HbaseMetastoreProto.LockType.SHARED_READ))
+            .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+                .setDb(db[0])
+                .setType(HbaseMetastoreProto.LockType.INTENTION))
+            .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+                .setDb(db[0])
+                .setTable(t[0])
+                .setType(HbaseMetastoreProto.LockType.INTENTION))
+            .build());
+    Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, lock.getState());
+
+    HbaseMetastoreProto.TransactionResult commit =
+        txnMgr.commitTxn(HbaseMetastoreProto.TransactionId.newBuilder()
+            .setId(firstTxn)
+            .build());
+    Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS, commit.getState());
+
+    lock = txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+        .setTxnId(secondTxn)
+        .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+            .setDb(db[1])
+            .setTable(t[1])
+            .setPartition(p[1])
+            .setType(HbaseMetastoreProto.LockType.SHARED_READ))
+        .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+            .setDb(db[1])
+            .setType(HbaseMetastoreProto.LockType.INTENTION))
+        .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+            .setDb(db[1])
+            .setTable(t[1])
+            .setType(HbaseMetastoreProto.LockType.INTENTION))
+        .build());
+    Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, lock.getState());
+
+    lock = txnMgr.lock(HbaseMetastoreProto.LockRequest.newBuilder()
+        .setTxnId(thirdTxn)
+        .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+            .setDb(db[2])
+            .setTable(t[2])
+            .setPartition(p[2])
+            .setType(HbaseMetastoreProto.LockType.SHARED_WRITE))
+        .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+            .setDb(db[2])
+            .setType(HbaseMetastoreProto.LockType.INTENTION))
+        .addComponents(HbaseMetastoreProto.LockComponent.newBuilder()
+            .setDb(db[2])
+            .setTable(t[2])
+            .setType(HbaseMetastoreProto.LockType.INTENTION))
+        .build());
+    Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, lock.getState());
+
+    commit = txnMgr.commitTxn(HbaseMetastoreProto.TransactionId.newBuilder()
+            .setId(thirdTxn)
+            .build());
+    Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS, commit.getState());
+
+    // Open one more transaction to force the counter forward
+    rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
+        .setNumTxns(1)
+        .setUser("me")
+        .setHostname("localhost")
+        .build();
+    rsp = txnMgr.openTxns(rqst);
+    long forthTxn = rsp.getTxnIds(0);
+    try {
+
+      lockQueues = txnMgr.copyLockQueues();
+      Assert.assertEquals(9, lockQueues.size());
+
+      txnMgr.forceCommittedTxnCleaner();
+      txnMgr.forceLockQueueShrinker();
+
+      lockQueues = txnMgr.copyLockQueues();
+      Assert.assertEquals(4, lockQueues.size());
+
+      Assert.assertNotNull(lockQueues.get(new TransactionManager.EntityKey(db[1], t[1], p[1])));
+      Assert.assertNotNull(lockQueues.get(new TransactionManager.EntityKey(db[2], t[2], p[2])));
+
+      committedTxns = txnMgr.copyCommittedTransactions();
+      Assert.assertEquals(1, committedTxns.size());
+      Assert.assertEquals(thirdTxn, committedTxns.iterator().next().getId());
+
+      commit = txnMgr.commitTxn(HbaseMetastoreProto.TransactionId.newBuilder()
+          .setId(secondTxn)
+          .build());
+      Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS, commit.getState());
+
+      txnMgr.forceCommittedTxnCleaner();
+      txnMgr.forceLockQueueShrinker();
+
+      committedTxns = txnMgr.copyCommittedTransactions();
+      Assert.assertEquals(0, committedTxns.size());
+      lockQueues = txnMgr.copyLockQueues();
+      Assert.assertEquals(0, lockQueues.size());
+    } finally {
+      commit = txnMgr.commitTxn(HbaseMetastoreProto.TransactionId.newBuilder()
+          .setId(forthTxn)
+          .build());
+    }
+  }
+
   // TODO test recovery
-  // TODO test timeouts
-  // TODO test lockQueue shrinkage
-  // TODO test committed txn cleaner
 
 }
