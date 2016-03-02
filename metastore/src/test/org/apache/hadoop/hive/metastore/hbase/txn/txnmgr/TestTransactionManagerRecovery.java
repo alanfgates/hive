@@ -224,7 +224,7 @@ public class TestTransactionManagerRecovery extends MockUtils {
     Assert.assertEquals(1, committedTxns.size());
     CommittedHiveTransaction committedTxn = committedTxns.iterator().next();
     Assert.assertEquals(thirdTxn, committedTxn.getId());
-    Assert.assertEquals(fifthTxn, committedTxn.getCommitId());
+    Assert.assertEquals(fifthTxn + 1, committedTxn.getCommitId());
 
     // We should have 5 lock queues (3 for the open txn locks, one for the committed txn lock,
     // and one for the aborted txn.
@@ -266,7 +266,7 @@ public class TestTransactionManagerRecovery extends MockUtils {
     // The queue will be empty for the committed one, but the commit id should be set.
     queue = lockQueues.get(new TransactionManager.EntityKey(db[2], t[2], p[2]));
     Assert.assertNotNull(queue);
-    Assert.assertEquals(fifthTxn, queue.getMaxCommitId());
+    Assert.assertEquals(fifthTxn + 1, queue.getMaxCommitId());
     Assert.assertEquals(0, queue.queue.size());
   }
 
