@@ -17,8 +17,6 @@
  */
 package org.apache.hadoop.hive.metastore.hbase.txn.txnmgr;
 
-import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.client.HTableInterface;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.hbase.HBaseStore;
 import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
@@ -29,20 +27,14 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
-import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
-public class TestTransactionManagerErrors {
-  @Mock
-  HTableInterface htable;
-  SortedMap<String, Cell> rows = new TreeMap<>();
+public class TestTransactionManagerErrors extends MockUtils {
   HBaseStore store;
   TransactionManager txnMgr;
   @Rule
@@ -65,7 +57,7 @@ public class TestTransactionManagerErrors {
     // Set timeout low for timeout testing.  This should not affect other tests because in
     // general the background threads aren't running.
     HiveConf.setTimeVar(conf, HiveConf.ConfVars.HIVE_TXN_TIMEOUT, 100, TimeUnit.MILLISECONDS);
-    store = MockUtils.init(conf, htable, rows);
+    store = mockInit(conf);
     txnMgr = new TransactionManager(conf);
   }
 

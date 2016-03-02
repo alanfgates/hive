@@ -17,8 +17,6 @@
  */
 package org.apache.hadoop.hive.metastore.hbase.txn.txnmgr;
 
-import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.client.HTableInterface;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.hbase.HBaseReadWrite;
 import org.apache.hadoop.hive.metastore.hbase.HBaseStore;
@@ -28,21 +26,15 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
-public class TestTransactionManagerRecovery {
-  @Mock
-  HTableInterface htable;
-  SortedMap<String, Cell> rows = new TreeMap<>();
+public class TestTransactionManagerRecovery extends MockUtils {
   HBaseStore store;
   TransactionManager txnMgr;
   HBaseReadWrite hrw;
@@ -60,7 +52,7 @@ public class TestTransactionManagerRecovery {
     HiveConf.setTimeVar(conf, HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_LOCK_POLL_TIMEOUT, 500,
         TimeUnit.MILLISECONDS);
 
-    store = MockUtils.init(conf, htable, rows);
+    store = mockInit(conf);
     txnMgr = new TransactionManager(conf);
     hrw = HBaseReadWrite.getInstance();
   }
@@ -192,14 +184,14 @@ public class TestTransactionManagerRecovery {
         if (openLock.getEntityLocked().table == null) {
           Assert.assertEquals(new TransactionManager.EntityKey(db[1], null, null),
               openLock.getEntityLocked());
-          Assert.assertEquals(firstTxn, openLock.getTxnId());
+          Assert.assertEquals(secondTxn, openLock.getTxnId());
           Assert.assertEquals(HbaseMetastoreProto.LockType.INTENTION, openLock.getType());
           Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, openLock.getState());
           sawDbLock = true;
         } else {
           Assert.assertEquals(new TransactionManager.EntityKey(db[1], t[1], null),
               openLock.getEntityLocked());
-          Assert.assertEquals(firstTxn, openLock.getTxnId());
+          Assert.assertEquals(secondTxn, openLock.getTxnId());
           Assert.assertEquals(HbaseMetastoreProto.LockType.INTENTION, openLock.getType());
           Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, openLock.getState());
           sawTableLock = true;
@@ -207,7 +199,7 @@ public class TestTransactionManagerRecovery {
       } else {
         Assert.assertEquals(new TransactionManager.EntityKey(db[1], t[1], p[1]),
             openLock.getEntityLocked());
-        Assert.assertEquals(firstTxn, openLock.getTxnId());
+        Assert.assertEquals(secondTxn, openLock.getTxnId());
         Assert.assertEquals(HbaseMetastoreProto.LockType.SHARED_READ, openLock.getType());
         Assert.assertEquals(HbaseMetastoreProto.LockState.ACQUIRED, openLock.getState());
         sawPartLock = true;
@@ -223,7 +215,7 @@ public class TestTransactionManagerRecovery {
     Assert.assertEquals(1, locks.length);
     Assert.assertEquals(new TransactionManager.EntityKey(db[1], null, null),
         locks[0].getEntityLocked());
-    Assert.assertEquals(firstTxn, locks[0].getTxnId());
+    Assert.assertEquals(fourthTxn, locks[0].getTxnId());
     Assert.assertEquals(HbaseMetastoreProto.LockType.EXCLUSIVE, locks[0].getType());
     Assert.assertEquals(HbaseMetastoreProto.LockState.WAITING, locks[0].getState());
 

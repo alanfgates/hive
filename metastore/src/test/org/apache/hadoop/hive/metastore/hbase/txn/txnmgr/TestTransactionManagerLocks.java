@@ -17,8 +17,6 @@
  */
 package org.apache.hadoop.hive.metastore.hbase.txn.txnmgr;
 
-import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.client.HTableInterface;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.hbase.HBaseStore;
 import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
@@ -27,22 +25,16 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.io.IOException;
-import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
 /**
  * Many of these tests involve timing, so they're kept in a separate test class so they can be
  * excluded from the Jenkins runs.
  */
-public class TestTransactionManagerLocks {
-  @Mock
-  HTableInterface htable;
-  SortedMap<String, Cell> rows = new TreeMap<>();
+public class TestTransactionManagerLocks extends MockUtils {
   HBaseStore store;
   TransactionManager txnMgr;
 
@@ -59,7 +51,7 @@ public class TestTransactionManagerLocks {
     HiveConf.setTimeVar(conf, HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_LOCK_POLL_TIMEOUT,
         100, TimeUnit.MILLISECONDS);
 
-    store = MockUtils.init(conf, htable, rows);
+    store = mockInit(conf);
     txnMgr = new TransactionManager(conf);
   }
 

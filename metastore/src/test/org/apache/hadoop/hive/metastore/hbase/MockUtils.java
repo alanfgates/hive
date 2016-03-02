@@ -38,18 +38,27 @@ import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
+import java.util.TreeMap;
 
 /**
- * Mock utilities for HBaseStore testing
+ * Mock utilities for HBaseStore testing.  Extend this class to use the mock utilities and call
+ * {@link #mockInit} once you have a config file.
  */
 public class MockUtils {
+
+  static final private Logger LOG = LoggerFactory.getLogger(MockUtils.class.getName());
+
+  private Map<String, HTableInterface> tables = new HashMap<>();
 
   /**
    * The default impl is in ql package and is not available in unit tests.
@@ -84,9 +93,8 @@ public class MockUtils {
     }
   }
 
-  public static HBaseStore init(Configuration conf, HTableInterface htable,
-                         final SortedMap<String, Cell> rows) throws IOException {
-    ((HiveConf)conf).setVar(ConfVars.METASTORE_EXPRESSION_PROXY_CLASS, NOOPProxy.class.getName());
+  private void initTable(HTableInterface htable) throws IOException {
+    final SortedMap<String, Cell> rows = new TreeMap<>();
     Mockito.when(htable.get(Mockito.any(Get.class))).thenAnswer(new Answer<Result>() {
       @Override
       public Result answer(InvocationOnMock invocation) throws Throwable {
@@ -120,48 +128,56 @@ public class MockUtils {
       }
     });
 
-    Mockito.when(htable.getScanner(Mockito.any(Scan.class))).thenAnswer(new Answer<ResultScanner>() {
-      @Override
-      public ResultScanner answer(InvocationOnMock invocation) throws Throwable {
-        Scan scan = (Scan)invocation.getArguments()[0];
-        List<Result> results = new ArrayList<Result>();
-        String start = new String(scan.getStartRow());
-        String stop = new String(scan.getStopRow());
-        SortedMap<String, Cell> sub = rows.subMap(start, stop);
-        for (Map.Entry<String, Cell> e : sub.entrySet()) {
-          results.add(Result.create(new Cell[]{e.getValue()}));
-        }
-
-        final Iterator<Result> iter = results.iterator();
-
-        return new ResultScanner() {
+    // Filters not currently supported in scan
+    Mockito.when(htable.getScanner(Mockito.any(Scan.class))).thenAnswer(
+        new Answer<ResultScanner>() {
           @Override
-          public Result next() throws IOException {
-            return null;
-          }
+          public ResultScanner answer(InvocationOnMock invocation) throws Throwable {
+            Scan scan = (Scan) invocation.getArguments()[0];
+            List<Result> results = new ArrayList<>();
+            String start = new String(scan.getStartRow());
+            String stop = new String(scan.getStopRow());
+            if (start.length() == 0) {
+              start = new String(new char[]{Character.MIN_VALUE});
+            }
+            if (stop.length() == 0) {
+              stop = new String(new char[]{Character.MAX_VALUE});
+            }
+            SortedMap<String, Cell> sub = rows.subMap(start, stop);
+            for (Map.Entry<String, Cell> e : sub.entrySet()) {
+              results.add(Result.create(new Cell[]{e.getValue()}));
+            }
 
-          @Override
-          public Result[] next(int nbRows) throws IOException {
-            return new Result[0];
-          }
+            final Iterator<Result> iter = results.iterator();
 
-          @Override
-          public void close() {
+            return new ResultScanner() {
+              @Override
+              public Result next() throws IOException {
+                return null;
+              }
 
-          }
+              @Override
+              public Result[] next(int nbRows) throws IOException {
+                return new Result[0];
+              }
 
-          @Override
-          public Iterator<Result> iterator() {
-            return iter;
+              @Override
+              public void close() {
+
+              }
+
+              @Override
+              public Iterator<Result> iterator() {
+                return iter;
+              }
+            };
           }
-        };
-      }
-    });
+        });
 
     Mockito.doAnswer(new Answer<Void>() {
       @Override
       public Void answer(InvocationOnMock invocation) throws Throwable {
-        Put put = (Put)invocation.getArguments()[0];
+        Put put = (Put) invocation.getArguments()[0];
         rows.put(new String(put.getRow()), put.getFamilyCellMap().firstEntry().getValue().get(0));
         return null;
       }
@@ -170,7 +186,7 @@ public class MockUtils {
     Mockito.doAnswer(new Answer<Void>() {
       @Override
       public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
-        List<Put> puts = (List<Put>)invocationOnMock.getArguments()[0];
+        List<Put> puts = (List<Put>) invocationOnMock.getArguments()[0];
         for (Put put : puts) {
           rows.put(new String(put.getRow()), put.getFamilyCellMap().firstEntry().getValue().get(0));
         }
@@ -195,7 +211,7 @@ public class MockUtils {
     Mockito.doAnswer(new Answer<Void>() {
       @Override
       public Void answer(InvocationOnMock invocation) throws Throwable {
-        Delete del = (Delete)invocation.getArguments()[0];
+        Delete del = (Delete) invocation.getArguments()[0];
         rows.remove(new String(del.getRow()));
         return null;
       }
@@ -204,8 +220,8 @@ public class MockUtils {
     Mockito.doAnswer(new Answer<Void>() {
       @Override
       public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
-        List<Delete> deletes = (List<Delete>)invocationOnMock.getArguments()[0];
-        for (Delete delete: deletes) {
+        List<Delete> deletes = (List<Delete>) invocationOnMock.getArguments()[0];
+        for (Delete delete : deletes) {
           rows.remove(new String(delete.getRow()));
         }
         return null;
@@ -213,7 +229,8 @@ public class MockUtils {
     }).when(htable).delete(Mockito.anyListOf(Delete.class));
 
     Mockito.when(htable.checkAndDelete(Mockito.any(byte[].class), Mockito.any(byte[].class),
-        Mockito.any(byte[].class), Mockito.any(byte[].class), Mockito.any(Delete.class))).thenAnswer(
+        Mockito.any(byte[].class), Mockito.any(byte[].class),
+        Mockito.any(Delete.class))).thenAnswer(
         new Answer<Boolean>() {
 
           @Override
@@ -224,11 +241,30 @@ public class MockUtils {
             return true;
           }
         });
+  }
 
+  protected HBaseStore mockInit(Configuration conf) throws IOException {
+    ((HiveConf) conf).setVar(ConfVars.METASTORE_EXPRESSION_PROXY_CLASS,
+        NOOPProxy.class.getName());
     // Mock connection
     HBaseConnection hconn = Mockito.mock(HBaseConnection.class);
-    Mockito.when(hconn.getHBaseTable(Mockito.anyString())).thenReturn(htable);
-    HiveConf.setVar(conf, HiveConf.ConfVars.METASTORE_HBASE_CONNECTION_CLASS, HBaseReadWrite.TEST_CONN);
+    Mockito.when(hconn.getHBaseTable(Mockito.anyString())).thenAnswer(
+        new Answer<HTableInterface>() {
+          @Override
+          public HTableInterface answer(InvocationOnMock invocationOnMock) throws Throwable {
+            String tableName = (String)invocationOnMock.getArguments()[0];
+            HTableInterface table = tables.get(tableName);
+            if (table == null) {
+              table = Mockito.mock(HTableInterface.class);
+              initTable(table);
+              tables.put(tableName, table);
+            }
+            return table;
+          }
+        }
+    );
+    HiveConf.setVar(conf, HiveConf.ConfVars.METASTORE_HBASE_CONNECTION_CLASS,
+        HBaseReadWrite.TEST_CONN);
     HBaseReadWrite.setTestConnection(hconn);
     HBaseReadWrite.setConf(conf);
     HBaseStore store = new HBaseStore();

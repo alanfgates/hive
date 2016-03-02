@@ -19,10 +19,6 @@
 package org.apache.hadoop.hive.metastore.hbase;
 
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.client.HTableInterface;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.AggrStats;
 import org.apache.hadoop.hive.metastore.api.BooleanColumnStatsData;
@@ -39,30 +35,27 @@ import org.apache.hadoop.hive.metastore.api.Table;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.SortedMap;
-import java.util.TreeMap;
 
-public class TestHBaseAggregateStatsCache {
+public class TestHBaseAggregateStatsCache extends MockUtils {
   private static final Logger LOG = LoggerFactory.getLogger(TestHBaseAggregateStatsCache.class.getName());
 
-  @Mock HTableInterface htable;
   private HBaseStore store;
-  SortedMap<String, Cell> rows = new TreeMap<>();
 
   @Before
   public void before() throws IOException {
     MockitoAnnotations.initMocks(this);
     HiveConf conf = new HiveConf();
     conf.setBoolean(HBaseReadWrite.NO_CACHE_CONF, true);
-    store = MockUtils.init(conf, htable, rows);
+    store = mockInit(conf);
     store.backdoor().getStatsCache().resetCounters();
   }
 

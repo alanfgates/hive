@@ -24,11 +24,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.SortedMap;
-import java.util.TreeMap;
 
-import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.client.HTableInterface;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.ColumnStatistics;
 import org.apache.hadoop.hive.metastore.api.ColumnStatisticsData;
@@ -52,7 +48,6 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,7 +55,7 @@ import org.slf4j.LoggerFactory;
 /**
  *
  */
-public class TestHBaseStoreBitVector {
+public class TestHBaseStoreBitVector extends MockUtils {
   private static final Logger LOG = LoggerFactory.getLogger(TestHBaseStoreBitVector.class.getName());
   static Map<String, String> emptyParameters = new HashMap<String, String>();
   // Table with NUM_PART_KEYS partitioning keys and NUM_PARTITIONS values per key
@@ -108,8 +103,6 @@ public class TestHBaseStoreBitVector {
       NUM_PARTITIONS);
 
   @Rule public ExpectedException thrown = ExpectedException.none();
-  @Mock HTableInterface htable;
-  SortedMap<String, Cell> rows = new TreeMap<>();
   HBaseStore store;
 
 
@@ -236,7 +229,7 @@ public class TestHBaseStoreBitVector {
     MockitoAnnotations.initMocks(this);
     HiveConf conf = new HiveConf();
     conf.setBoolean(HBaseReadWrite.NO_CACHE_CONF, true);
-    store = MockUtils.init(conf, htable, rows);
+    store = mockInit(conf);
   }
 
   @Test

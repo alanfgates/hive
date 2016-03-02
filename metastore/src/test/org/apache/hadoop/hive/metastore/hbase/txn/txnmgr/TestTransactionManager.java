@@ -17,8 +17,6 @@
  */
 package org.apache.hadoop.hive.metastore.hbase.txn.txnmgr;
 
-import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.client.HTableInterface;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.hbase.HBaseReadWrite;
 import org.apache.hadoop.hive.metastore.hbase.HBaseStore;
@@ -29,21 +27,15 @@ import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
 
-public class TestTransactionManager {
+public class TestTransactionManager extends MockUtils {
 
-  @Mock
-  HTableInterface htable;
-  SortedMap<String, Cell> rows = new TreeMap<>();
   HBaseStore store;
   TransactionManager txnMgr;
   HBaseReadWrite hrw;
@@ -57,7 +49,7 @@ public class TestTransactionManager {
     // up on us, since we're trying to check state.
     conf.set(TransactionManager.CONF_NO_AUTO_BACKGROUND_THREADS, Boolean.toString(Boolean.TRUE));
 
-    store = MockUtils.init(conf, htable, rows);
+    store = mockInit(conf);
     txnMgr = new TransactionManager(conf);
     hrw = HBaseReadWrite.getInstance();
   }
