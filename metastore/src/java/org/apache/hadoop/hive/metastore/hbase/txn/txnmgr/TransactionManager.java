@@ -68,6 +68,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  */
 class TransactionManager {
 
+  // TODO Convert Initiator et al to a thread pool so they don't accumulate memory over time.  Do
+  // in a separate JIRA.
   // TODO error in addDynamicPartitions, need to make sure we don't have a write-write conflict
   // like we do in lock acquisition.
   // TODO in commit and abort, don't copy over shared write locks if they are only wating not

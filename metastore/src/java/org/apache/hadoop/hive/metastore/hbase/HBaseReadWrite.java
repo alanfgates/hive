@@ -1996,11 +1996,11 @@ public class HBaseReadWrite implements MetadataStore {
       colNameBytes[i] = HBaseUtils.buildKey(colNames.get(i));
     }
 
+    List<String> partKeyTypes =
+        HBaseUtils.getPartitionKeyTypes(getTable(dbName, tblName).getPartitionKeys());
     for (int i = 0; i < partNames.size(); i++) {
       valToPartMap.put(partVals.get(i), partNames.get(i));
-      byte[] partKey = HBaseUtils.buildPartitionKey(dbName, tblName,
-          HBaseUtils.getPartitionKeyTypes(getTable(dbName, tblName).getPartitionKeys()),
-          partVals.get(i));
+      byte[] partKey = HBaseUtils.buildPartitionKey(dbName, tblName, partKeyTypes, partVals.get(i));
       Get get = new Get(partKey);
       for (byte[] colName : colNameBytes) {
         get.addColumn(STATS_CF, colName);
@@ -2030,6 +2030,39 @@ public class HBaseReadWrite implements MetadataStore {
     }
 
     return statsList;
+  }
+
+  /**
+   * Find out which columns have statistics.  This does not return the statistics, just
+   * information on which columns for this table or partition have them.
+   * @param dbName database the table is in
+   * @param tblName table to fetch column info for
+   * @param partVals partition values for one partition.  These can be null, in which case
+   *                 tblName will be assumed to be an unpartitioned table.
+   * @return list of columns for which stats are stored for this table or partition.
+   * @throws IOException
+   */
+  public List<String> getColumnsWithStatistics(String dbName, String tblName, List<String> partVals)
+      throws IOException {
+    HTableInterface htable;
+    byte[] key;
+    if (partVals == null) {
+      htable = conn.getHBaseTable(TABLE_TABLE);
+      key = HBaseUtils.buildKey(dbName, tblName);
+    } else {
+      htable = conn.getHBaseTable(PART_TABLE);
+      List<String> partKeyTypes =
+          HBaseUtils.getPartitionKeyTypes(getTable(dbName, tblName).getPartitionKeys());
+      key = HBaseUtils.buildPartitionKey(dbName, tblName, partKeyTypes, partVals);
+    }
+    Get get = new Get(key);
+    get.addFamily(STATS_CF);
+    Result result = htable.get(get);
+    List<String> cols = new ArrayList<>();
+    for (byte[] colname : result.getFamilyMap(STATS_CF).keySet()) {
+      cols.add(new String(colname, HBaseUtils.ENCODING));
+    }
+    return cols;
   }
 
   /**

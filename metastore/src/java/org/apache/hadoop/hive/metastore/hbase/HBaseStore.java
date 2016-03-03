@@ -2474,9 +2474,9 @@ public class HBaseStore implements RawStore {
     return FileUtils.makePartName(partCols, partVals);
   }
 
-  private static List<String> partNameToVals(String name) {
+  public static List<String> partNameToVals(String name) {
     if (name == null) return null;
-    List<String> vals = new ArrayList<String>();
+    List<String> vals = new ArrayList<>();
     String[] kvp = name.split("/");
     for (String kv : kvp) {
       vals.add(FileUtils.unescapePathName(kv.substring(kv.indexOf('=') + 1)));

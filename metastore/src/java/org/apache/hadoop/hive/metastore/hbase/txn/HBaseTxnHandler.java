@@ -47,6 +47,7 @@ import org.apache.hadoop.hive.metastore.api.TxnInfo;
 import org.apache.hadoop.hive.metastore.api.TxnOpenException;
 import org.apache.hadoop.hive.metastore.api.UnlockRequest;
 import org.apache.hadoop.hive.metastore.hbase.HBaseReadWrite;
+import org.apache.hadoop.hive.metastore.hbase.HBaseStore;
 import org.apache.hadoop.hive.metastore.hbase.HBaseUtils;
 import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
 import org.apache.hadoop.hive.metastore.hbase.txn.txnmgr.TransactionCoprocessor;
@@ -251,11 +252,120 @@ public class HBaseTxnHandler implements TxnStore {
 
   }
 
+  private interface LockFilter {
+    void filterLock(HbaseMetastoreProto.Transaction txn,
+                    HbaseMetastoreProto.Transaction.Lock lock);
+  }
+
+  private static class AllLockFilter implements LockFilter {
+    final ShowLocksResponse rsp;
+
+    public AllLockFilter(ShowLocksResponse rsp) {
+      this.rsp = rsp;
+    }
+
+    @Override
+    public void filterLock(HbaseMetastoreProto.Transaction txn,
+                           HbaseMetastoreProto.Transaction.Lock lock) {
+      rsp.addToLocks(HBaseUtils.pbLockToThriftShowLock(txn, lock));
+    }
+  }
+
+  private static class DbLockFilter implements LockFilter {
+    final ShowLocksResponse rsp;
+    final ShowLocksRequest rqst;
+
+    public DbLockFilter(ShowLocksResponse rsp,
+                        ShowLocksRequest rqst) {
+      this.rsp = rsp;
+      this.rqst = rqst;
+    }
+
+    @Override
+    public void filterLock(HbaseMetastoreProto.Transaction txn,
+                           HbaseMetastoreProto.Transaction.Lock lock) {
+      if (lock.getDb().equals(rqst.getDbname())) {
+        rsp.addToLocks(HBaseUtils.pbLockToThriftShowLock(txn, lock));
+      }
+    }
+  };
+
+  private static class TableLockFilter implements LockFilter {
+    final ShowLocksResponse rsp;
+    final ShowLocksRequest rqst;
+
+    public TableLockFilter(ShowLocksResponse rsp,
+                        ShowLocksRequest rqst) {
+      this.rsp = rsp;
+      this.rqst = rqst;
+    }
+
+    @Override
+    public void filterLock(HbaseMetastoreProto.Transaction txn,
+                           HbaseMetastoreProto.Transaction.Lock lock) {
+      if (lock.hasTable() && lock.getDb().equals(rqst.getDbname()) &&
+          lock.getTable().equals(rqst.getTablename())) {
+        rsp.addToLocks(HBaseUtils.pbLockToThriftShowLock(txn, lock));
+      }
+    }
+  };
+
+
+  private static class PartitionLockFilter implements LockFilter {
+    final ShowLocksResponse rsp;
+    final ShowLocksRequest rqst;
+
+    public PartitionLockFilter(ShowLocksResponse rsp,
+                           ShowLocksRequest rqst) {
+      this.rsp = rsp;
+      this.rqst = rqst;
+    }
+
+    @Override
+    public void filterLock(HbaseMetastoreProto.Transaction txn,
+                           HbaseMetastoreProto.Transaction.Lock lock) {
+      if (lock.hasTable() && lock.hasPartition() && lock.getDb().equals(rqst.getDbname()) &&
+          lock.getTable().equals(rqst.getTablename()) &&
+          lock.getPartition().equals(rqst.getPartname())) {
+        rsp.addToLocks(HBaseUtils.pbLockToThriftShowLock(txn, lock));
+      }
+    }
+  };
+
+
+
   @Override
   public ShowLocksResponse showLocks(ShowLocksRequest rqst) throws MetaException {
-    // TODO get lock info from HBase table.
-    // TODO implement a filter to look for dbname etc. info early
-    return null;
+    ShowLocksResponse rsp = new ShowLocksResponse();
+    LockFilter filter;
+    if (!rqst.isSetDbname()) {
+      filter = new AllLockFilter(rsp);
+    } else if (!rqst.isSetTablename()) {
+      filter = new DbLockFilter(rsp, rqst);
+    } else if (!rqst.isSetPartname()) {
+      filter = new TableLockFilter(rsp, rqst);
+    } else {
+      filter = new PartitionLockFilter(rsp, rqst);
+    }
+
+    getHBase().begin();
+    try {
+      List<HbaseMetastoreProto.Transaction> hbaseTxns = getHBase().scanTransactions();
+      for (HbaseMetastoreProto.Transaction hbaseTxn : hbaseTxns) {
+        if (hbaseTxn.getTxnState() == HbaseMetastoreProto.TxnState.OPEN &&
+            hbaseTxn.getLocksCount() > 0) {
+          for (HbaseMetastoreProto.Transaction.Lock hbaseLock : hbaseTxn.getLocksList()) {
+            filter.filterLock(hbaseTxn, hbaseLock);
+          }
+        }
+      }
+    } catch (IOException e) {
+      LOG.error("Failed to show locks", e);
+      throw new MetaException(e.getMessage());
+    } finally {
+      getHBase().commit();
+    }
+    return rsp;
   }
 
   @Override
@@ -361,14 +471,11 @@ public class HBaseTxnHandler implements TxnStore {
 
   @Override
   public void performTimeOuts() {
-    // TODO - Figure out how to shut off AcidHouseKeeperService when running the HBase metastore
     // NOP
   }
 
   @Override
   public Set<CompactionInfo> findPotentialCompactions(int maxAborted) throws MetaException {
-    // We ignore max aborted.
-    // TODO change initiator to compact based on number of txns instead of number of aborts
     try {
       getHBase().begin();
       Set<CompactionInfo> cis = new HashSet<>();
@@ -438,7 +545,7 @@ public class HBaseTxnHandler implements TxnStore {
   public void markCompacted(CompactionInfo info) throws MetaException {
     boolean shouldCommit = false;
     try {
-      getHBase().begin();  // TODO - not sure if it's ok to go into the co-processor with an open txn or not
+      getHBase().begin();
       final HbaseMetastoreProto.Compaction pbRqst = getHBase().getCompaction(info.id);
       if (pbRqst == null) {
         throw new MetaException("No such compaction " + info.id);
@@ -473,7 +580,7 @@ public class HBaseTxnHandler implements TxnStore {
   public List<CompactionInfo> findReadyToClean() throws MetaException {
     boolean shouldCommit = false;
     try {
-      getHBase().begin();  // TODO - not sure if it's ok to go into the co-processor with an open txn or not
+      getHBase().begin();
       List<HbaseMetastoreProto.Compaction> compacted =
           getHBase().scanCompactions(HbaseMetastoreProto.CompactionState.READY_FOR_CLEANING);
       if (compacted.size() == 0) return null;
@@ -641,8 +748,16 @@ public class HBaseTxnHandler implements TxnStore {
 
   @Override
   public List<String> findColumnsWithStats(CompactionInfo ci) throws MetaException {
-    // TODO - query partitions or table table in HBase to answer this
-    return null;
+    getHBase().begin();
+    try {
+      return getHBase().getColumnsWithStatistics(ci.dbname, ci.tableName,
+          HBaseStore.partNameToVals(ci.partName));
+    } catch (IOException e) {
+      LOG.error("Failed to find which columns had stats", e);
+      throw new MetaException(e.getMessage());
+    } finally {
+      getHBase().commit();
+    }
   }
 
   @Override

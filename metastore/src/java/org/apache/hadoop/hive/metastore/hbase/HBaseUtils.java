@@ -78,6 +78,7 @@ import org.apache.hadoop.hive.metastore.api.ResourceUri;
 import org.apache.hadoop.hive.metastore.api.Role;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.ShowCompactResponseElement;
+import org.apache.hadoop.hive.metastore.api.ShowLocksResponseElement;
 import org.apache.hadoop.hive.metastore.api.SkewedInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.StringColumnStatsData;
@@ -1557,6 +1558,16 @@ public class HBaseUtils {
     }
   }
 
+  private static LockType pbToThrift(HbaseMetastoreProto.LockType pb) {
+    switch (pb) {
+    case INTENTION: return LockType.INTENTION;
+    case SHARED_READ: return LockType.SHARED_READ;
+    case SHARED_WRITE: return LockType.SHARED_WRITE;
+    case EXCLUSIVE: return LockType.EXCLUSIVE;
+    default: throw new RuntimeException("Unknown lock type " + pb.toString());
+    }
+  }
+
   public static HbaseMetastoreProto.TransactionId thriftToPb(CheckLockRequest thrift) {
     return HbaseMetastoreProto.TransactionId.newBuilder()
         .setId(thrift.getTxnid())
@@ -1616,6 +1627,17 @@ public class HBaseUtils {
         .setTable(thrift.getTablename())
         .addAllPartitions(thrift.getPartitionnames())
         .build();
+  }
+
+  public static ShowLocksResponseElement pbLockToThriftShowLock(HbaseMetastoreProto.Transaction txn,
+                                                                HbaseMetastoreProto.Transaction.Lock lock) {
+    ShowLocksResponseElement thrift = new ShowLocksResponseElement(lock.getId(), lock.getDb(),
+        pbToThrift(lock.getState()), pbToThrift(lock.getType()), 0, txn.getUser(), txn.getHostname());
+    if (lock.hasTable()) thrift.setTablename(lock.getTable());
+    if (lock.hasPartition()) thrift.setPartname(lock.getPartition());
+    if (lock.hasAcquiredAt()) thrift.setAcquiredat(lock.getAcquiredAt());
+    if (txn.hasAgentInfo()) thrift.setAgentInfo(txn.getAgentInfo());
+    return thrift;
   }
 
   public static CompactionInfo pbToCompactor(HbaseMetastoreProto.PotentialCompaction pb) {
