@@ -18,8 +18,10 @@
  */
 package org.apache.hadoop.hive.metastore.hbase;
 
+import com.google.protobuf.Service;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.CoprocessorEnvironment;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.HTableInterface;
@@ -27,12 +29,14 @@ import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.client.coprocessor.Batch;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.hive.metastore.FileFormatProxy;
 import org.apache.hadoop.hive.metastore.PartitionExpressionProxy;
 import org.apache.hadoop.hive.metastore.api.FileMetadataExprType;
 import org.apache.hadoop.hive.metastore.api.MetaException;
+import org.apache.hadoop.hive.metastore.hbase.txn.txnmgr.TransactionCoprocessor;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
 import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
 import org.mockito.Mockito;
@@ -43,6 +47,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -59,6 +64,8 @@ public class MockUtils {
   static final private Logger LOG = LoggerFactory.getLogger(MockUtils.class.getName());
 
   private Map<String, HTableInterface> tables = new HashMap<>();
+
+  protected TransactionCoprocessor txnCoProc;
 
   /**
    * The default impl is in ql package and is not available in unit tests.
@@ -93,7 +100,7 @@ public class MockUtils {
     }
   }
 
-  private void initTable(HTableInterface htable) throws IOException {
+  private void initTable(HTableInterface htable) throws Throwable {
     final SortedMap<String, Cell> rows = new TreeMap<>();
     Mockito.when(htable.get(Mockito.any(Get.class))).thenAnswer(new Answer<Result>() {
       @Override
@@ -241,6 +248,24 @@ public class MockUtils {
             return true;
           }
         });
+
+    Mockito.when(htable.coprocessorService(Mockito.any(Class.class), Mockito.any(byte[].class),
+        Mockito.any(byte[].class), Mockito.any(Batch.Call.class)))
+        .thenAnswer(
+            new Answer<Map>() {
+              @Override
+              public Map answer(InvocationOnMock invocationOnMock) throws Throwable {
+                Class<? extends Service> clazz =
+                    (Class<? extends Service>)invocationOnMock.getArguments()[0];
+                if (!clazz.equals(TransactionCoprocessor.class)) {
+                  throw new RuntimeException("Only know how to do TransactionCoprocessor");
+                }
+                Batch.Call call = (Batch.Call)invocationOnMock.getArguments()[3];
+                Object o = call.call(txnCoProc);
+                return Collections.singletonMap((byte[])null, o);
+              }
+            }
+        );
   }
 
   protected HBaseStore mockInit(Configuration conf) throws IOException {
@@ -263,12 +288,19 @@ public class MockUtils {
           }
         }
     );
+    // Setup HBase Store
     HiveConf.setVar(conf, HiveConf.ConfVars.METASTORE_HBASE_CONNECTION_CLASS,
         HBaseReadWrite.TEST_CONN);
     HBaseReadWrite.setTestConnection(hconn);
     HBaseReadWrite.setConf(conf);
     HBaseStore store = new HBaseStore();
     store.setConf(conf);
+
+    // Setup the txn coprocessor
+    txnCoProc = new TransactionCoprocessor();
+    CoprocessorEnvironment env = Mockito.mock(CoprocessorEnvironment.class);
+    Mockito.when(env.getConfiguration()).thenReturn(conf);
+    txnCoProc.start(env);
     return store;
   }
 }

@@ -50,7 +50,7 @@ public class TestTransactionManager extends MockUtils {
     conf.set(TransactionManager.CONF_NO_AUTO_BACKGROUND_THREADS, Boolean.toString(Boolean.TRUE));
 
     store = mockInit(conf);
-    txnMgr = new TransactionManager(conf);
+    txnMgr = txnCoProc.backdoor();
     hrw = HBaseReadWrite.getInstance();
   }
 

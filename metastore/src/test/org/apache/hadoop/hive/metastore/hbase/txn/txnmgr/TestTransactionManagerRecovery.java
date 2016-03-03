@@ -53,7 +53,7 @@ public class TestTransactionManagerRecovery extends MockUtils {
         TimeUnit.MILLISECONDS);
 
     store = mockInit(conf);
-    txnMgr = new TransactionManager(conf);
+    txnMgr = txnCoProc.backdoor();
     hrw = HBaseReadWrite.getInstance();
   }
 

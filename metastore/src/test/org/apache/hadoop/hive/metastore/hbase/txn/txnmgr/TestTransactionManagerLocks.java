@@ -52,7 +52,7 @@ public class TestTransactionManagerLocks extends MockUtils {
         100, TimeUnit.MILLISECONDS);
 
     store = mockInit(conf);
-    txnMgr = new TransactionManager(conf);
+    txnMgr = txnCoProc.backdoor();
   }
 
   @After

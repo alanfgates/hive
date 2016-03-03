@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hive.metastore.hbase.txn.txnmgr;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.RpcCallback;
 import com.google.protobuf.RpcController;
 import com.google.protobuf.Service;
@@ -41,13 +42,11 @@ public class TransactionCoprocessor extends HbaseMetastoreProto.TxnMgr
 
   private Configuration conf;
 
-  private static TransactionManager getTxnMgr() throws IOException {
-    synchronized (TransactionCoprocessor.class) {
-      return txnMgr;
-    }
+  private TransactionManager getTxnMgr() throws IOException {
+    return txnMgr;
   }
 
-  private static void restart(Configuration conf) throws IOException {
+  private void restart(Configuration conf) throws IOException {
     synchronized (TransactionCoprocessor.class) {
       if (txnMgr != null) txnMgr.shutdown();
       txnMgr = new TransactionManager(conf);
@@ -241,6 +240,11 @@ public class TransactionCoprocessor extends HbaseMetastoreProto.TxnMgr
       ResponseConverter.setControllerException(controller, e);
     }
     done.run(response);
+  }
+
+  @VisibleForTesting
+  public TransactionManager backdoor() {
+    return txnMgr;
   }
 
 }

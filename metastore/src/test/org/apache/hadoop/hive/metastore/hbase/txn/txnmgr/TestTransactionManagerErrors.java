@@ -58,7 +58,7 @@ public class TestTransactionManagerErrors extends MockUtils {
     // general the background threads aren't running.
     HiveConf.setTimeVar(conf, HiveConf.ConfVars.HIVE_TXN_TIMEOUT, 100, TimeUnit.MILLISECONDS);
     store = mockInit(conf);
-    txnMgr = new TransactionManager(conf);
+    txnMgr = txnCoProc.backdoor();
   }
 
   @After
