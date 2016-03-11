@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hive.metastore.hbase.txn.txnmgr;
 
+import com.google.protobuf.RpcController;
 import org.apache.hadoop.hbase.ipc.BlockingRpcCallback;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.hbase.HBaseReadWrite;
@@ -53,6 +54,9 @@ public class TestTransactionCoprocessor extends MockUtils {
     // Set this super low so the test doesn't take forever
     HiveConf.setTimeVar(conf, HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_LOCK_POLL_TIMEOUT,
         100, TimeUnit.MILLISECONDS);
+    // Set this value lower so we can fill up the txn mgr without creating an insane number of
+    // objects.
+    HiveConf.setIntVar(conf, HiveConf.ConfVars.METASTORE_HBASE_TXN_MGR_MAX_OBJECTS, 100);
 
     store = mockInit(conf);
     hrw = HBaseReadWrite.getInstance();
@@ -283,7 +287,51 @@ public class TestTransactionCoprocessor extends MockUtils {
     Assert.assertEquals(1, clistRsp.getCompactionsCount());
 
   }
+
+  @Test
+  public void full() throws Exception {
+    // This tests what happens when the TransactionManager throws an exception back to the
+    // co-processor.  Currently that happens when the txnmgr is full and more txns are opened.
+    HbaseMetastoreProto.OpenTxnsRequest rqst = HbaseMetastoreProto.OpenTxnsRequest.newBuilder()
+        .setNumTxns(101)
+        .setUser("me")
+        .setHostname("localhost")
+        .build();
+
+    BlockingRpcCallback<HbaseMetastoreProto.OpenTxnsResponse> openRpcRsp =
+        new BlockingRpcCallback<>();
+    txnCoProc.openTxns(getController(), rqst, openRpcRsp);
+
+    HbaseMetastoreProto.OpenTxnsResponse openRsp = openRpcRsp.get();
+    Assert.assertEquals(101, openRsp.getTxnIdsCount());
+    long firstTxn = openRsp.getTxnIds(0);
+
+    txnCoProc.backdoor().forceFullChecker();
+
+    // Open another transaction, this should fail.
+    RpcController controller = getController();
+
+    openRpcRsp = new BlockingRpcCallback<>();
+    txnCoProc.openTxns(controller, rqst, openRpcRsp);
+    Assert.assertTrue(controller.failed());
+    Assert.assertTrue(controller.errorText().contains("Full, no new transactions being accepted"));
+
+    // Abort all the transactions so we don't leave it full
+    for (int i = 0; i < 101; i++) {
+      // Abort this transaction.  It should promptly be forgotten as it has no locks
+      HbaseMetastoreProto.TransactionId toAbort = HbaseMetastoreProto.TransactionId.newBuilder()
+          .setId(firstTxn + i)
+          .build();
+
+      BlockingRpcCallback<HbaseMetastoreProto.TransactionResult> abortRpcRsp =
+          new BlockingRpcCallback<>();
+
+      txnCoProc.abortTxn(getController(), toAbort, abortRpcRsp);
+      HbaseMetastoreProto.TransactionResult abortRsp = abortRpcRsp.get();
+      Assert.assertEquals(HbaseMetastoreProto.TxnStateChangeResult.SUCCESS, abortRsp.getState());
+    }
+    txnCoProc.backdoor().forceFullChecker();
+  }
   // TODO write wrapper around TestTxnHandler to re-route its calls to HBase metastore
-  // TODO test what happens when exception is thrown, currently only happens on full
 }
 

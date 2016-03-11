@@ -18,6 +18,7 @@
  */
 package org.apache.hadoop.hive.metastore.hbase;
 
+import com.google.protobuf.RpcCallback;
 import com.google.protobuf.RpcController;
 import com.google.protobuf.Service;
 import org.apache.hadoop.conf.Configuration;
@@ -311,8 +312,48 @@ public class MockUtils {
   }
 
   protected RpcController getController() {
+    /*
     RpcController controller = Mockito.mock(RpcController.class);
     // TODO Going to have to figure out what setControllerException calls and then mock that
     return controller;
+    */
+    return new RpcController() {
+      private String err = null;
+
+      @Override
+      public void reset() {
+        throw new UnsupportedOperationException();
+      }
+
+      @Override
+      public boolean failed() {
+        return err != null;
+      }
+
+      @Override
+      public String errorText() {
+        return err;
+      }
+
+      @Override
+      public void startCancel() {
+        throw new UnsupportedOperationException();
+      }
+
+      @Override
+      public void setFailed(String s) {
+        err = s;
+      }
+
+      @Override
+      public boolean isCanceled() {
+        return false;
+      }
+
+      @Override
+      public void notifyOnCancel(RpcCallback<Object> rpcCallback) {
+        throw new UnsupportedOperationException();
+      }
+    };
   }
 }
