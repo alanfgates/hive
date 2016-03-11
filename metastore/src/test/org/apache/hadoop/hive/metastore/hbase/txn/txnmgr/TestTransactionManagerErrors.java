@@ -34,6 +34,10 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Tests that test error conditions in the transaction manager.  The full tests and deadlock
+ * tests are in here too since those are sort of an error condition.
+ */
 public class TestTransactionManagerErrors extends MockUtils {
   HBaseStore store;
   TransactionManager txnMgr;

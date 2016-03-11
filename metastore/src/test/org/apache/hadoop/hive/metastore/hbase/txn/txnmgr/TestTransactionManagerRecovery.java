@@ -34,6 +34,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Test recovery of the TransactionManager from HBase.
+ */
 public class TestTransactionManagerRecovery extends MockUtils {
   HBaseStore store;
   TransactionManager txnMgr;

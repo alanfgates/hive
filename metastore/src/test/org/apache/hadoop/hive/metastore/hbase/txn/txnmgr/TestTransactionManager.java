@@ -34,6 +34,11 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * Most positive functionality for TestTransactionManager, including most of the background
+ * threads.  Try to keep timing related tests out of here as we will need to exclude those from
+ * Jenkins runs since they end up being flaky.
+ */
 public class TestTransactionManager extends MockUtils {
 
   HBaseStore store;

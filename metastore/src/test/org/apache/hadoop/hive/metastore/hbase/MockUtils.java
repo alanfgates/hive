@@ -18,6 +18,7 @@
  */
 package org.apache.hadoop.hive.metastore.hbase;
 
+import com.google.protobuf.RpcController;
 import com.google.protobuf.Service;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
@@ -302,5 +303,16 @@ public class MockUtils {
     Mockito.when(env.getConfiguration()).thenReturn(conf);
     txnCoProc.start(env);
     return store;
+  }
+
+  protected void mockShutdown() throws IOException {
+    CoprocessorEnvironment env = Mockito.mock(CoprocessorEnvironment.class);
+    txnCoProc.stop(env);
+  }
+
+  protected RpcController getController() {
+    RpcController controller = Mockito.mock(RpcController.class);
+    // TODO Going to have to figure out what setControllerException calls and then mock that
+    return controller;
   }
 }

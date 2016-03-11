@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Many of these tests involve timing, so they're kept in a separate test class so they can be
- * excluded from the Jenkins runs.
+ * excluded from the Jenkins runs.  These should test all of the lock combinations.
  */
 public class TestTransactionManagerLocks extends MockUtils {
   HBaseStore store;
