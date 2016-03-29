@@ -1168,7 +1168,7 @@ class TransactionManager {
     // Get existing transactions from HBase
     LOG.info("Beginning recovery");
     try {
-      List<HbaseMetastoreProto.Transaction> hbaseTxns = getHBase().scanTransactions();
+      List<HbaseMetastoreProto.Transaction> hbaseTxns = getHBase().scanTransactions(null);
       if (hbaseTxns != null) {
         for (HbaseMetastoreProto.Transaction hbaseTxn : hbaseTxns) {
           switch (hbaseTxn.getTxnState()) {

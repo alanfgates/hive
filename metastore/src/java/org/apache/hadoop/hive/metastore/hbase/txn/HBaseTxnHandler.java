@@ -17,7 +17,10 @@
  */
 package org.apache.hadoop.hive.metastore.hbase.txn;
 
+import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.client.coprocessor.Batch;
+import org.apache.hadoop.hbase.filter.Filter;
+import org.apache.hadoop.hbase.filter.FilterBase;
 import org.apache.hadoop.hbase.ipc.BlockingRpcCallback;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.AbortTxnRequest;
@@ -57,6 +60,7 @@ import org.apache.hadoop.hive.metastore.txn.TxnUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -83,7 +87,7 @@ public class HBaseTxnHandler implements TxnStore {
     // We have to go to the table to get this information because much of it isn't kept in memory.
     try {
       getHBase().begin();
-      List<HbaseMetastoreProto.Transaction> txns = getHBase().scanTransactions();
+      List<HbaseMetastoreProto.Transaction> txns = getHBase().scanTransactions(null);
       long hwm = getHBase().peekAtSequence(HBaseReadWrite.TXN_SEQUENCE);
       List<TxnInfo> openTxns = new ArrayList<>(txns.size());
       for (HbaseMetastoreProto.Transaction txn : txns) openTxns.add(HBaseUtils.pbToThrift(txn));
@@ -252,15 +256,113 @@ public class HBaseTxnHandler implements TxnStore {
 
   }
 
-  private interface LockFilter {
+  // HBase filters to only pick records with at least one matching lock
+  private abstract static class LockFilter extends FilterBase {
+    protected HbaseMetastoreProto.Transaction getTxn(Cell cell) throws IOException {
+      ByteArrayInputStream is = new ByteArrayInputStream(cell.getValueArray(), cell
+          .getValueOffset(), cell.getValueLength());
+      return HBaseUtils.deserializeTransaction(is);
+    }
+
+  }
+
+  // Return any transaction with a lock
+  private static class AnyLockFilter extends LockFilter {
+    @Override
+    public ReturnCode filterKeyValue(Cell cell) throws IOException {
+      HbaseMetastoreProto.Transaction txn = getTxn(cell);
+      if (txn.getLocksCount() > 0) return ReturnCode.INCLUDE;
+      else return ReturnCode.NEXT_ROW;
+    }
+  }
+
+  // Return only transactions with at least one lock with a matching database
+  private static class DbLockFilter extends LockFilter {
+    private final String db;
+
+    public DbLockFilter(String db) {
+      this.db = db;
+    }
+
+    @Override
+    public ReturnCode filterKeyValue(Cell cell) throws IOException {
+      // If we find any lock that matches return this transaction, then the lock selectors on the
+      // other end will filter out only the appropriate locks
+      HbaseMetastoreProto.Transaction txn = getTxn(cell);
+      if (txn.getLocksCount() > 0) {
+        for (HbaseMetastoreProto.Transaction.Lock lock : txn.getLocksList()) {
+          if (lock.getDb().equals(db)) return ReturnCode.INCLUDE;
+        }
+      }
+      return ReturnCode.NEXT_ROW;
+    }
+  }
+
+  // Return only transactions with at least one lock with a matching database and table
+  private static class TableLockFilter extends LockFilter {
+    private final String db;
+    private final String table;
+
+    public TableLockFilter(String db, String table) {
+      this.db = db;
+      this.table = table;
+    }
+
+    @Override
+    public ReturnCode filterKeyValue(Cell cell) throws IOException {
+      // If we find any lock that matches return this transaction, then the lock selectors on the
+      // other end will filter out only the appropriate locks
+      HbaseMetastoreProto.Transaction txn = getTxn(cell);
+      if (txn.getLocksCount() > 0) {
+        for (HbaseMetastoreProto.Transaction.Lock lock : txn.getLocksList()) {
+          if (lock.getDb().equals(db) && lock.hasTable() && lock.getTable().equals(table)) {
+            return ReturnCode.INCLUDE;
+          }
+        }
+      }
+      return ReturnCode.NEXT_ROW;
+    }
+  }
+
+  // Return only transactions with at least one lock with a matching database, table, and partition
+  private static class PartitionLockFilter extends LockFilter {
+    private final String db;
+    private final String table;
+    private final String partition;
+
+    public PartitionLockFilter(String db, String table, String partition) {
+      this.db = db;
+      this.table = table;
+      this.partition = partition;
+    }
+
+    @Override
+    public ReturnCode filterKeyValue(Cell cell) throws IOException {
+      // If we find any lock that matches return this transaction, then the lock selectors on the
+      // other end will filter out only the appropriate locks
+      HbaseMetastoreProto.Transaction txn = getTxn(cell);
+      if (txn.getLocksCount() > 0) {
+        for (HbaseMetastoreProto.Transaction.Lock lock : txn.getLocksList()) {
+          if (lock.getDb().equals(db) && lock.hasTable() && lock.getTable().equals(table) &&
+              lock.hasPartition() && lock.getPartition().equals(partition)) {
+            return ReturnCode.INCLUDE;
+          }
+        }
+      }
+      return ReturnCode.NEXT_ROW;
+    }
+  }
+
+  // This interface is used to work through locks once we're on the client side.
+  private interface LockSelector {
     void filterLock(HbaseMetastoreProto.Transaction txn,
                     HbaseMetastoreProto.Transaction.Lock lock);
   }
 
-  private static class AllLockFilter implements LockFilter {
+  private static class AllLockSelector implements LockSelector {
     final ShowLocksResponse rsp;
 
-    public AllLockFilter(ShowLocksResponse rsp) {
+    public AllLockSelector(ShowLocksResponse rsp) {
       this.rsp = rsp;
     }
 
@@ -271,12 +373,12 @@ public class HBaseTxnHandler implements TxnStore {
     }
   }
 
-  private static class DbLockFilter implements LockFilter {
+  private static class DbLockSelector implements LockSelector {
     final ShowLocksResponse rsp;
     final ShowLocksRequest rqst;
 
-    public DbLockFilter(ShowLocksResponse rsp,
-                        ShowLocksRequest rqst) {
+    public DbLockSelector(ShowLocksResponse rsp,
+                          ShowLocksRequest rqst) {
       this.rsp = rsp;
       this.rqst = rqst;
     }
@@ -290,12 +392,12 @@ public class HBaseTxnHandler implements TxnStore {
     }
   };
 
-  private static class TableLockFilter implements LockFilter {
+  private static class TableLockSelector implements LockSelector {
     final ShowLocksResponse rsp;
     final ShowLocksRequest rqst;
 
-    public TableLockFilter(ShowLocksResponse rsp,
-                        ShowLocksRequest rqst) {
+    public TableLockSelector(ShowLocksResponse rsp,
+                             ShowLocksRequest rqst) {
       this.rsp = rsp;
       this.rqst = rqst;
     }
@@ -311,12 +413,12 @@ public class HBaseTxnHandler implements TxnStore {
   };
 
 
-  private static class PartitionLockFilter implements LockFilter {
+  private static class PartitionLockSelector implements LockSelector {
     final ShowLocksResponse rsp;
     final ShowLocksRequest rqst;
 
-    public PartitionLockFilter(ShowLocksResponse rsp,
-                           ShowLocksRequest rqst) {
+    public PartitionLockSelector(ShowLocksResponse rsp,
+                                 ShowLocksRequest rqst) {
       this.rsp = rsp;
       this.rqst = rqst;
     }
@@ -332,30 +434,37 @@ public class HBaseTxnHandler implements TxnStore {
     }
   };
 
-
-
   @Override
   public ShowLocksResponse showLocks(ShowLocksRequest rqst) throws MetaException {
+    // Show locks filters at both the server side and the client side.  On the server side we
+    // pass a filter to only return transactions with at least one matching lock.  Then on the
+    // client side we pull out only the locks that match the criteria and send those in the
+    // response.
     ShowLocksResponse rsp = new ShowLocksResponse();
-    LockFilter filter;
+    LockSelector selector;
+    Filter filter;
     if (!rqst.isSetDbname()) {
-      filter = new AllLockFilter(rsp);
+      selector = new AllLockSelector(rsp);
+      filter = new AnyLockFilter();
     } else if (!rqst.isSetTablename()) {
-      filter = new DbLockFilter(rsp, rqst);
+      selector = new DbLockSelector(rsp, rqst);
+      filter = new DbLockFilter(rqst.getDbname());
     } else if (!rqst.isSetPartname()) {
-      filter = new TableLockFilter(rsp, rqst);
+      selector = new TableLockSelector(rsp, rqst);
+      filter = new TableLockFilter(rqst.getDbname(), rqst.getTablename());
     } else {
-      filter = new PartitionLockFilter(rsp, rqst);
+      selector = new PartitionLockSelector(rsp, rqst);
+      filter = new PartitionLockFilter(rqst.getDbname(), rqst.getTablename(), rqst.getPartname());
     }
 
     getHBase().begin();
     try {
-      List<HbaseMetastoreProto.Transaction> hbaseTxns = getHBase().scanTransactions();
+      List<HbaseMetastoreProto.Transaction> hbaseTxns = getHBase().scanTransactions(filter);
       for (HbaseMetastoreProto.Transaction hbaseTxn : hbaseTxns) {
         if (hbaseTxn.getTxnState() == HbaseMetastoreProto.TxnState.OPEN &&
             hbaseTxn.getLocksCount() > 0) {
           for (HbaseMetastoreProto.Transaction.Lock hbaseLock : hbaseTxn.getLocksList()) {
-            filter.filterLock(hbaseTxn, hbaseLock);
+            selector.filterLock(hbaseTxn, hbaseLock);
           }
         }
       }

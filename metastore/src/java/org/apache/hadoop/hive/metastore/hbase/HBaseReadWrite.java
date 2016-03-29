@@ -2479,9 +2479,10 @@ public class HBaseReadWrite implements MetadataStore {
    * Get an iterator to all of the transactions in the table.
    * @return iterator
    * @throws IOException
+   * @param filter
    */
-  public List<HbaseMetastoreProto.Transaction> scanTransactions() throws IOException {
-    Iterator<Result> iter = scan(TXN_TABLE, null, null, CATALOG_CF, CATALOG_COL, null);
+  public List<HbaseMetastoreProto.Transaction> scanTransactions(Filter filter) throws IOException {
+    Iterator<Result> iter = scan(TXN_TABLE, null, null, CATALOG_CF, CATALOG_COL, filter);
     List<HbaseMetastoreProto.Transaction> txns = new ArrayList<>();
     while (iter.hasNext()) {
       Result result = iter.next();
@@ -2560,7 +2561,7 @@ public class HBaseReadWrite implements MetadataStore {
    */
   public List<String> printTransactions() throws IOException {
     List<String> lines = new ArrayList<>();
-    for (HbaseMetastoreProto.Transaction txn : scanTransactions()) {
+    for (HbaseMetastoreProto.Transaction txn : scanTransactions(null)) {
       lines.add(printTransaction(txn));
     }
     return lines;

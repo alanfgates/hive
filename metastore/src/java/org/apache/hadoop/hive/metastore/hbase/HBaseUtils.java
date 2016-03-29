@@ -19,6 +19,7 @@
 package org.apache.hadoop.hive.metastore.hbase;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.Charset;
@@ -1440,6 +1441,18 @@ public class HBaseUtils {
     return HbaseMetastoreProto.Transaction.parseFrom(value);
   }
 
+  /**
+   * Deserialize a transaction.  This option is useful when you need to read it directly from the
+   * byte buffer without making a copy, as you can put a ByteArrayInputStream around the byte
+   * @param is value fetched from hbase as an input stream
+   * @return A transaction
+   * @throws InvalidProtocolBufferException
+   */
+  public static HbaseMetastoreProto.Transaction deserializeTransaction(InputStream is)
+      throws InvalidProtocolBufferException, IOException {
+    return HbaseMetastoreProto.Transaction.parseFrom(is);
+  }
+
   public static TxnInfo pbToThrift(HbaseMetastoreProto.Transaction pb) {
     // Use empty constructor because requireds aren't the same between the two, and we need to
     // fill in defaults for requireds in thrift that aren't in pb.
@@ -1539,7 +1552,7 @@ public class HBaseUtils {
     case SHARED_READ: return HbaseMetastoreProto.LockType.SHARED_READ;
     case SHARED_WRITE: return HbaseMetastoreProto.LockType.SHARED_WRITE;
     case EXCLUSIVE: return HbaseMetastoreProto.LockType.EXCLUSIVE;
-    // TODO handle intention
+    case INTENTION: return HbaseMetastoreProto.LockType.INTENTION;
     default: throw new RuntimeException("Unknown lock type " + thrift.toString());
     }
   }
