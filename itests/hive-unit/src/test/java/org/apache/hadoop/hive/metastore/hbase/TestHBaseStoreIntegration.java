@@ -1778,19 +1778,19 @@ public class TestHBaseStoreIntegration extends HBaseIntegrationTests {
 
   @Test
   public void masterKey() throws Exception {
-    Assert.assertEquals(0, store.addMasterKey("k1"));
-    Assert.assertEquals(1, store.addMasterKey("k2"));
+    Assert.assertEquals(1, store.addMasterKey("k1"));
+    Assert.assertEquals(2, store.addMasterKey("k2"));
 
     String[] keys = store.getMasterKeys();
     Arrays.sort(keys);
     Assert.assertArrayEquals(new String[]{"k1", "k2"}, keys);
 
-    store.updateMasterKey(0, "k3");
+    store.updateMasterKey(1, "k3");
     keys = store.getMasterKeys();
     Arrays.sort(keys);
     Assert.assertArrayEquals(new String[]{"k2", "k3"}, keys);
 
-    store.removeMasterKey(1);
+    store.removeMasterKey(2);
     keys = store.getMasterKeys();
     Assert.assertArrayEquals(new String[]{"k3"}, keys);
 

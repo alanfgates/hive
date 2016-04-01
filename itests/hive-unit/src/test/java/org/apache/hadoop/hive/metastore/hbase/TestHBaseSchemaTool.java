@@ -571,7 +571,7 @@ public class TestHBaseSchemaTool extends HBaseIntegrationTests {
     outStr = new ByteArrayOutputStream();
     out = new PrintStream(outStr);
     tool.go(false, HBaseReadWrite.SECURITY_TABLE, null, "whatever", conf, out, err);
-    Assert.assertEquals("Master key 0: this be a key" + lsep +
+    Assert.assertEquals("Master key 1: this be a key" + lsep +
         "Delegation token tokenid: delegation token" + lsep, outStr.toString());
 
     outStr = new ByteArrayOutputStream();

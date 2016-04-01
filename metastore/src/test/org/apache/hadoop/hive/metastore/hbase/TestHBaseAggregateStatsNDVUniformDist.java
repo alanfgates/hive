@@ -18,14 +18,9 @@
  */
 package org.apache.hadoop.hive.metastore.hbase;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.client.HTableInterface;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.StatObjectConverter;
 import org.apache.hadoop.hive.metastore.api.AggrStats;
-import org.apache.hadoop.hive.metastore.api.BooleanColumnStatsData;
 import org.apache.hadoop.hive.metastore.api.ColumnStatistics;
 import org.apache.hadoop.hive.metastore.api.ColumnStatisticsData;
 import org.apache.hadoop.hive.metastore.api.ColumnStatisticsDesc;
@@ -41,25 +36,21 @@ import org.apache.hadoop.hive.metastore.api.Table;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.SortedMap;
-import java.util.TreeMap;
 
-public class TestHBaseAggregateStatsNDVUniformDist {
+public class TestHBaseAggregateStatsNDVUniformDist extends MockUtils {
   private static final Logger LOG = LoggerFactory
       .getLogger(TestHBaseAggregateStatsNDVUniformDist.class.getName());
 
-  @Mock
-  HTableInterface htable;
   private HBaseStore store;
-  SortedMap<String, Cell> rows = new TreeMap<>();
 
   // NDV will be 3 for bitVectors[0] and 12 for bitVectors[1] 
   String bitVectors[] = {
@@ -72,7 +63,7 @@ public class TestHBaseAggregateStatsNDVUniformDist {
     HiveConf conf = new HiveConf();
     conf.setBoolean(HBaseReadWrite.NO_CACHE_CONF, true);
     conf.setBoolean(HiveConf.ConfVars.HIVE_METASTORE_STATS_NDV_DENSITY_FUNCTION.varname, true);
-    store = MockUtils.init(conf, htable, rows);
+    store = mockInit(conf);
     store.backdoor().getStatsCache().resetCounters();
   }
 

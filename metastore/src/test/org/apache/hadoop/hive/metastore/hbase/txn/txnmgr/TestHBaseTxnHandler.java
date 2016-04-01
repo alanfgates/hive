@@ -202,7 +202,7 @@ public class TestHBaseTxnHandler extends MockUtils {
     txnRequest.setAgentInfo("agent");
     OpenTxnsResponse txnsResponse = txnHandler.openTxns(txnRequest);
     List<Long> txnIds = txnsResponse.getTxn_ids();
-    Assert.assertEquals(1, txnIds.size());
+    Assert.assertEquals(2, txnIds.size());
     long firstTxn = txnIds.get(0);
     long secondTxn = txnIds.get(1);
 

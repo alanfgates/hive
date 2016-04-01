@@ -18,14 +18,9 @@
  */
 package org.apache.hadoop.hive.metastore.hbase;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.apache.hadoop.hbase.Cell;
-import org.apache.hadoop.hbase.client.HTableInterface;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.StatObjectConverter;
 import org.apache.hadoop.hive.metastore.api.AggrStats;
-import org.apache.hadoop.hive.metastore.api.BooleanColumnStatsData;
 import org.apache.hadoop.hive.metastore.api.ColumnStatistics;
 import org.apache.hadoop.hive.metastore.api.ColumnStatisticsData;
 import org.apache.hadoop.hive.metastore.api.ColumnStatisticsDesc;
@@ -42,25 +37,21 @@ import org.apache.hadoop.hive.metastore.api.Table;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.SortedMap;
-import java.util.TreeMap;
 
-public class TestHBaseAggregateStatsExtrapolation {
+public class TestHBaseAggregateStatsExtrapolation extends MockUtils {
   private static final Logger LOG = LoggerFactory
       .getLogger(TestHBaseAggregateStatsExtrapolation.class.getName());
 
-  @Mock
-  HTableInterface htable;
   private HBaseStore store;
-  SortedMap<String, Cell> rows = new TreeMap<>();
 
   // NDV will be 3 for the bitVectors
   String bitVectors = "{0, 4, 5, 7}{0, 1}{0, 1, 2}{0, 1, 4}{0}{0, 2}{0, 3}{0, 2, 3, 4}{0, 1, 4}{0, 1}{0}{0, 1, 3, 8}{0, 2}{0, 2}{0, 9}{0, 1, 4}";
@@ -70,7 +61,7 @@ public class TestHBaseAggregateStatsExtrapolation {
     MockitoAnnotations.initMocks(this);
     HiveConf conf = new HiveConf();
     conf.setBoolean(HBaseReadWrite.NO_CACHE_CONF, true);
-    store = MockUtils.init(conf, htable, rows);
+    store = mockInit(conf);
     store.backdoor().getStatsCache().resetCounters();
   }
 
