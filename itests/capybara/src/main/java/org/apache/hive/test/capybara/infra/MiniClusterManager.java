@@ -17,29 +17,27 @@
  */
 package org.apache.hive.test.capybara.infra;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.crypto.key.KeyProviderCryptoExtension;
 import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
-import org.apache.hadoop.hive.shims.Utils;
-
-import org.apache.hive.test.capybara.iface.ClusterManager;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.WindowsPathUtil;
+import org.apache.hadoop.hive.shims.Utils;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hive.jdbc.miniHS2.MiniHS2;
+import org.apache.hive.test.capybara.iface.ClusterManager;
 import org.apache.tez.test.MiniTezCluster;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -152,12 +150,14 @@ public class MiniClusterManager implements ClusterManager {
     }
 
     if (TestConf.access().equals(TestConf.ACCESS_JDBC)) {
+      /*
       try {
         hs2 = new MiniHS2((HiveConf)conf, dfs.getFileSystem());
         hs2.start(Collections.<String, String>emptyMap());
       } catch (Exception e) {
         throw new IOException(e);
       }
+      */
     }
 
     // TODO if this is running Hbase metastore, construct HBase mini-cluster
@@ -227,7 +227,7 @@ public class MiniClusterManager implements ClusterManager {
     if (hs2 == null) {
       throw new RuntimeException("No in JDBC mode!");
     }
-    return hs2.getJdbcURL();
+    return null; //hs2.getJdbcURL();
   }
 
   @Override

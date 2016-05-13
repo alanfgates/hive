@@ -21,12 +21,12 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.Table;
-import org.apache.hadoop.hive.ql.parse.SemanticAnalyzer;
+import org.apache.hadoop.hive.ql.io.AcidUtils;
 import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hive.test.capybara.data.DataSet;
+import org.apache.hive.test.capybara.data.FetchResult;
 import org.apache.hive.test.capybara.data.ResultCode;
 import org.apache.hive.test.capybara.data.Row;
-import org.apache.hive.test.capybara.data.FetchResult;
 import org.apache.hive.test.capybara.infra.HiveStore;
 import org.apache.hive.test.capybara.infra.TestConf;
 import org.apache.hive.test.capybara.infra.TestManager;
@@ -93,7 +93,7 @@ public class TestTable implements Serializable {
       TestTable testTable = new TestTable(dbName, tableName, msTable.getSd().getCols(),
           msTable.getPartitionKeysSize() > 0 ? msTable.getPartitionKeys() : null,
           null, null, null, 0,
-          SemanticAnalyzer.isAcidTable(new org.apache.hadoop.hive.ql.metadata.Table(msTable)),
+          AcidUtils.isTablePropertyTransactional(msTable.getParameters()),
           msTable.getSd().getBucketCols().toArray(new String[msTable.getSd().getBucketColsSize()]),
           msTable.getSd().getNumBuckets(), msTable.isTemporary());
       testTable.benchCreated = testTable.hiveCreated = true;

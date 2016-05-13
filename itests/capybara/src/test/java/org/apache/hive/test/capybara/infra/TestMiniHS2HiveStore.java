@@ -60,7 +60,7 @@ public class TestMiniHS2HiveStore {
   }
 
   @AfterClass
-  public static void tearDown() {
+  public static void tearDown() throws IOException {
     mgr.tearDown();
   }
 

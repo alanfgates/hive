@@ -62,7 +62,7 @@ public class TestHiveStore {
   }
 
   @AfterClass
-  public static void tearDown() {
+  public static void tearDown() throws IOException {
     mgr.tearDown();
   }
 
