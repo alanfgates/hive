@@ -227,7 +227,7 @@ abstract class DataStoreBase implements DataStore {
   }
 
   /**
-   * Do a fetch via JDBC.  This assumes that {@link #connect} has already been called.
+   * Do a fetch via JDBC.
    * @param sql SQL string to be executed.  If it is a select then executeQuery() will be called,
    *            otherwise execute().
    * @param limit Limit the number of rows returned.  This is for implementations like Derby that
@@ -264,6 +264,19 @@ abstract class DataStoreBase implements DataStore {
       if (stmt != null) stmt.close();
       conn.close();
     }
+  }
+
+  /**
+   * Do a fetch via JDBC with no limit where success is expected.  This is equivalent to calling
+   * {@link #jdbcFetch(String, long, boolean)} with jdbcFetch(sql, Long.MAX_VALUE, false).
+   * @param sql SQL string to be executed.
+   * @return A FetchResult, which contains information on the success or failure and the data (if
+   * this is a query).
+   * @throws SQLException
+   * @throws IOException
+   */
+  protected FetchResult jdbcFetch(String sql) throws SQLException, IOException {
+    return jdbcFetch(sql, Long.MAX_VALUE, false);
   }
 
   private FetchResult executeStatement(String sql, boolean failureOk) throws SQLException {

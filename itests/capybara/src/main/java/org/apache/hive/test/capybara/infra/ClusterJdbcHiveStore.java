@@ -17,36 +17,28 @@
  */
 package org.apache.hive.test.capybara.infra;
 
+import org.apache.hadoop.hive.ql.QueryPlan;
 import org.apache.hive.test.capybara.data.FetchResult;
 import org.apache.hive.test.capybara.iface.ClusterManager;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.sql.Driver;
+import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Properties;
 
-/**
- * A HiveStore for JDBC connections (via MiniHS2) on the local machine.
- */
-class MiniHS2HiveStore extends MiniHiveStoreBase {
-  private static final Logger LOG = LoggerFactory.getLogger(AnsiSqlStore.class.getName());
-
-  public MiniHS2HiveStore(ClusterManager clusterManager) {
+public class ClusterJdbcHiveStore extends HiveStore {
+  public ClusterJdbcHiveStore(ClusterManager clusterManager) {
     super(clusterManager);
-    try {
-      Class cls = Class.forName("org.apache.hive.jdbc.HiveDriver");
-      jdbcDriver = (Driver)cls.newInstance();
-    } catch (ClassNotFoundException|IllegalAccessException|InstantiationException e) {
-      throw new RuntimeException(e);
-    }
   }
 
   @Override
-  public FetchResult fetchData(String sql) throws SQLException, IOException {
-    LOG.debug("Going to run query <" + sql + "> against MiniHS2");
-    return jdbcFetch(sql, Long.MAX_VALUE, false);
+  public QueryPlan explain(String sql) {
+    return null;
+  }
+
+  @Override
+  public String getMetastoreUri() {
+    return null;
   }
 
   @Override
@@ -57,5 +49,16 @@ class MiniHS2HiveStore extends MiniHiveStoreBase {
   @Override
   protected Properties connectionProperties() {
     return clusterManager.getJdbcConnectionInfo().properties;
+  }
+
+  @Override
+  public FetchResult fetchData(String sql) throws SQLException, IOException {
+    if (jdbcDriver == null) {
+      jdbcDriver = DriverManager.getDriver(connectionURL());
+      if (jdbcDriver == null) {
+        throw new RuntimeException("Unable to locate JDBC driver for URL " + connectionURL());
+      }
+    }
+    return jdbcFetch(sql);
   }
 }

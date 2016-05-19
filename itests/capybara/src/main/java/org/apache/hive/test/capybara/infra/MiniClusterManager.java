@@ -41,6 +41,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 
 /**
  * Manager for mini-clusters
@@ -223,11 +224,16 @@ public class MiniClusterManager implements ClusterManager {
   }
 
   @Override
-  public String getJdbcURL() {
+  public JdbcInfo getJdbcConnectionInfo() {
     if (hs2 == null) {
       throw new RuntimeException("No in JDBC mode!");
     }
-    return null; //hs2.getJdbcURL();
+    try {
+      // TODO - this won't work because the miniserver isn't running against the same file system.
+      return new JdbcInfo(hs2.getJdbcURL(), new Properties());
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override

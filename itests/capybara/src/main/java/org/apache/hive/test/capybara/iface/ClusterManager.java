@@ -23,12 +23,23 @@ import org.apache.hive.test.capybara.infra.HiveStore;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Properties;
 
 /**
  * Manage a connection to a cluster.  This keeps track of all cluster oriented connections, such
  * as DFS, Hive, the URL for HS2, etc.
  */
 public interface ClusterManager extends Configurable {
+
+  public class JdbcInfo {
+    public final String connectionString;
+    public final Properties properties;
+
+    public JdbcInfo(String connectionString, Properties properties) {
+      this.connectionString = connectionString;
+      this.properties = properties;
+    }
+  }
 
   /**
    * Prepare the cluster for testing.  This will be called once at the beginning of a set of
@@ -76,12 +87,11 @@ public interface ClusterManager extends Configurable {
   HiveStore getHive();
 
   /**
-   * Get a JDBC URL to talk to Hive.  If the access method is not set to "jdbc" the result of
-   * calling this method is undefined (i.e., it's likely to go up in flames on you).
-   * @return URL that can be used to connect to Hive.  Note this is only the URL.  The values to
-   * set for properties can be obtained by calling {@link #getConfVars}.
+   * Get information on how to talk to Hive via JDBC.  If the access method is not set to "jdbc"
+   * the result of calling this method is undefined (i.e., it's likely to go up in flames on you).
+   * @return URL and properties that can be used to connect to Hive.
    */
-  String getJdbcURL();
+  JdbcInfo getJdbcConnectionInfo();
 
   /**
    * Register that a table was created in a cluster.  This is necessary because certain cluster

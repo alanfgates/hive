@@ -26,6 +26,7 @@ import org.apache.hadoop.fs.FileSystem;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 
 /**
  * Manage external clusters.
@@ -33,10 +34,15 @@ import java.util.Map;
 public class ExternalClusterManager implements ClusterManager {
   static final private Logger LOG = LoggerFactory.getLogger(ExternalClusterManager.class);
 
+  static final private String JDBC_URL = "HIVE_JDBC_URL";
+  static final private String JDBC_USER = "HIVE_JDBC_USER";
+  static final private String JDBC_PASSWD = "HIVE_JDBC_PASSWORD";
+
   private Configuration conf;
   private FileSystem fs;
   private HiveStore hive;
   private Map<String, String> confVars;
+  private JdbcInfo jdbcInfo;
 
   @Override
   public void setup() {
@@ -87,7 +93,9 @@ public class ExternalClusterManager implements ClusterManager {
   public HiveStore getHive() {
     assert conf != null;
     if (hive == null) {
-      hive = new ClusterCliHiveStore(this);
+      if (TestConf.access().equals(TestConf.ACCESS_CLI)) hive = new ClusterCliHiveStore(this);
+      else if (TestConf.access().equals(TestConf.ACCESS_JDBC)) hive = new ClusterJdbcHiveStore(this);
+      else throw new RuntimeException("Unknown access method " + TestConf.access());
     }
     // Reset the conf file each time, because it may have changed
     hive.setConf(conf);
@@ -95,9 +103,29 @@ public class ExternalClusterManager implements ClusterManager {
   }
 
   @Override
-  public String getJdbcURL() {
-    // TODO
-    return null;
+  public JdbcInfo getJdbcConnectionInfo() {
+    if (jdbcInfo == null) {
+      String jdbcUrl = System.getProperty(JDBC_URL);
+      if (jdbcUrl == null) {
+        throw new RuntimeException("You must set the property " + JDBC_URL +
+            " to the URL for HiverServer2 to test against a cluster using JDBC");
+      }
+      String user = System.getProperty(JDBC_USER);
+      if (user == null) {
+        throw new RuntimeException("You must set the property " + JDBC_USER +
+            " to the user to connect to HiverServer2 as");
+      }
+      String passwd = System.getProperty(JDBC_PASSWD);
+      if (passwd == null) {
+        throw new RuntimeException("You must set the property " + JDBC_PASSWD +
+            " to the password to connect to HiverServer2 with");
+      }
+      Properties properties = new Properties();
+      properties.put("user", user);
+      properties.put("password", passwd);
+      jdbcInfo = new JdbcInfo(jdbcUrl, properties);
+    }
+    return jdbcInfo;
   }
 
   @Override
