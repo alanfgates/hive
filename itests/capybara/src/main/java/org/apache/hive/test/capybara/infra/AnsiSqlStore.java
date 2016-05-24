@@ -18,10 +18,11 @@
 package org.apache.hive.test.capybara.infra;
 
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.hadoop.hive.ql.QueryPlan;
+import org.apache.hive.hcatalog.streaming.HiveEndPoint;
 import org.apache.hive.test.capybara.data.DataSet;
 import org.apache.hive.test.capybara.data.FetchResult;
 import org.apache.hive.test.capybara.data.ResultCode;
-import org.apache.hive.test.capybara.iface.BenchmarkDataStore;
 import org.apache.hive.test.capybara.iface.TestTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,7 +44,7 @@ import java.util.Map;
  * methods for converting Hive SQL into ANSI SQL.  It also contains implementations of common
  * methods that don't change between JDBC drivers.
  */
-abstract class AnsiSqlStore extends DataStoreBase implements BenchmarkDataStore {
+abstract class AnsiSqlStore extends DataStoreBase {
   private static final Logger LOG = LoggerFactory.getLogger(AnsiSqlStore.class.getName());
 
   /**
@@ -75,7 +76,7 @@ abstract class AnsiSqlStore extends DataStoreBase implements BenchmarkDataStore 
   }
 
   @Override
-  public FetchResult fetchData(String hiveSql) throws SQLException, IOException {
+  public FetchResult executeSql(String hiveSql) throws SQLException, IOException {
     String sql = hiveSqlToAnsiSql(hiveSql);
     if (sql.equals("")) {
       // This means this is a NOP for the benchmark
@@ -117,6 +118,16 @@ abstract class AnsiSqlStore extends DataStoreBase implements BenchmarkDataStore 
   @Override
   public Connection getJdbcConnection(boolean autoCommit) throws SQLException {
     return connect(autoCommit);
+  }
+
+  @Override
+  public HiveEndPoint getStreamingEndPoint(TestTable testTable, List<String> partVals) {
+    return new JdbcHiveEndPoint(this, testTable, clusterManager.getHiveConf(), partVals);
+  }
+
+  @Override
+  public QueryPlan explain(String sql) {
+    throw new UnsupportedOperationException("Explain only works on Hive silly");
   }
 
   /**
@@ -191,7 +202,7 @@ abstract class AnsiSqlStore extends DataStoreBase implements BenchmarkDataStore 
     try {
       // if exists isn't proper ANSI SQL, but it signals the system to allow failure here if the
       // table already exists.
-      fetchData("drop table if exists " + table.toString());
+      executeSql("drop table if exists " + table.toString());
     } catch (IOException e) {
       throw new RuntimeException(e);
     }

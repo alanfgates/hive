@@ -17,52 +17,22 @@
  */
 package org.apache.hive.test.capybara.infra;
 
-import org.apache.hive.test.capybara.iface.ClusterManager;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hive.test.capybara.iface.DataStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileSystem;
-
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Properties;
 
 /**
  * Manage external clusters.
  */
-public class ExternalClusterManager implements ClusterManager {
+public class ExternalClusterManager extends ClusterManagerBase {
   static final private Logger LOG = LoggerFactory.getLogger(ExternalClusterManager.class);
 
-  static final private String JDBC_URL = "HIVE_JDBC_URL";
-  static final private String JDBC_USER = "HIVE_JDBC_USER";
-  static final private String JDBC_PASSWD = "HIVE_JDBC_PASSWORD";
-
-  private Configuration conf;
-  private FileSystem fs;
-  private HiveStore hive;
-  private Map<String, String> confVars;
-  private JdbcInfo jdbcInfo;
-
-  @Override
-  public void setup() {
-    // NOP
-  }
-
-  @Override
-  public void tearDown() {
-    // NOP
-  }
-
-  @Override
-  public void beforeTest() throws IOException {
-
-  }
-
-  @Override
-  public void afterTest() throws IOException {
-
-  }
+  static final private String[] hadoopConfigFiles = {"core-site.xml", "hdfs-site.xml",
+                                                     "mapred-site.xml", "yarn-site.xml"};
+  static final private String hiveConfigFile = "hive-site.xml";
 
   @Override
   public boolean remote() {
@@ -70,77 +40,45 @@ public class ExternalClusterManager implements ClusterManager {
   }
 
   @Override
-  public FileSystem getFileSystem() throws IOException {
-    assert conf != null;
-    if (fs == null) {
-      fs = FileSystem.get(conf);
-      LOG.debug("Returning file system, fs.defaultFS is " + conf.get("fs.defaultFS"));
+  public DataStore getStore() {
+    if (store == null) {
+      String access = getClusterConf().getAccess();
+      if (access.equals(TestConf.ACCESS_CLI)) store = new ClusterCliHiveStore();
+      else if (access.equals(TestConf.ACCESS_JDBC)) store = new ClusterJdbcHiveStore();
+      else throw new RuntimeException("Unknown access method " + access);
     }
-    return fs;
+    return store;
   }
 
   @Override
-  public void setConf(Configuration conf) {
-    this.conf = conf;
-  }
+  public HiveConf getHiveConf() {
+    if (conf == null) {
+      ClusterConf cc = getClusterConf();
+      String hadoopHome = cc.getHadoopHome();
+      if (hadoopHome == null) {
+        throw new RuntimeException("You must define the property " + clusterType +
+            TestConf.CLUSTER_HADOOP_HOME + " to run on a cluster");
+      }
+      String hiveHome = cc.getHiveHome();
+      if (hiveHome == null) {
+        throw new RuntimeException("You must define the property " + clusterType +
+            TestConf.CLUSTER_HIVE_HOME + " to run on a cluster");
+      }
 
-  @Override
-  public Configuration getConf() {
+      String hadoopConf = hadoopHome + System.getProperty("file.separator") + "conf"
+          + System.getProperty("file.separator");
+      // Build a configuration that doesn't read the default resources.
+      Configuration base = new Configuration(false);
+      HiveConf conf = new HiveConf(base, HiveConf.class);
+      for (String hadoopConfigFile : hadoopConfigFiles) {
+        Path p = new Path(hadoopConf + hadoopConfigFile);
+        conf.addResource(p);
+      }
+
+      String hiveConf = hiveHome +  System.getProperty("file.separator") + "conf"
+          + System.getProperty("file.separator") + hiveConfigFile;
+      conf.addResource(new Path(hiveConf));
+    }
     return conf;
-  }
-
-  @Override
-  public HiveStore getHive() {
-    assert conf != null;
-    if (hive == null) {
-      if (TestConf.access().equals(TestConf.ACCESS_CLI)) hive = new ClusterCliHiveStore(this);
-      else if (TestConf.access().equals(TestConf.ACCESS_JDBC)) hive = new ClusterJdbcHiveStore(this);
-      else throw new RuntimeException("Unknown access method " + TestConf.access());
-    }
-    // Reset the conf file each time, because it may have changed
-    hive.setConf(conf);
-    return hive;
-  }
-
-  @Override
-  public JdbcInfo getJdbcConnectionInfo() {
-    if (jdbcInfo == null) {
-      String jdbcUrl = System.getProperty(JDBC_URL);
-      if (jdbcUrl == null) {
-        throw new RuntimeException("You must set the property " + JDBC_URL +
-            " to the URL for HiverServer2 to test against a cluster using JDBC");
-      }
-      String user = System.getProperty(JDBC_USER);
-      if (user == null) {
-        throw new RuntimeException("You must set the property " + JDBC_USER +
-            " to the user to connect to HiverServer2 as");
-      }
-      String passwd = System.getProperty(JDBC_PASSWD);
-      if (passwd == null) {
-        throw new RuntimeException("You must set the property " + JDBC_PASSWD +
-            " to the password to connect to HiverServer2 with");
-      }
-      Properties properties = new Properties();
-      properties.put("user", user);
-      properties.put("password", passwd);
-      jdbcInfo = new JdbcInfo(jdbcUrl, properties);
-    }
-    return jdbcInfo;
-  }
-
-  @Override
-  public void setConfVar(String var, String val) {
-    if (confVars == null) confVars = new HashMap<>();
-    confVars.put(var, val);
-  }
-
-  @Override
-  public Map<String, String> getConfVars() {
-    return confVars;
-  }
-
-  @Override
-  public void registerTable(String dbName, String tableName) {
-    // NOP, as we want tables to be long lived on external clusters.
   }
 }

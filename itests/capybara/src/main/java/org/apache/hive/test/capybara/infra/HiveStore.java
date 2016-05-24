@@ -17,31 +17,29 @@
  */
 package org.apache.hive.test.capybara.infra;
 
+import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.common.ObjectPair;
+import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
+import org.apache.hadoop.hive.metastore.IMetaStoreClient;
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.hadoop.hive.metastore.api.MetaException;
+import org.apache.hive.hcatalog.streaming.HiveEndPoint;
 import org.apache.hive.test.capybara.data.DataSet;
 import org.apache.hive.test.capybara.data.FetchResult;
 import org.apache.hive.test.capybara.data.ResultCode;
 import org.apache.hive.test.capybara.iface.ClusterManager;
 import org.apache.hive.test.capybara.iface.TestTable;
+import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.hadoop.conf.Configurable;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FSDataOutputStream;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hive.common.ObjectPair;
-import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
-import org.apache.hadoop.hive.metastore.IMetaStoreClient;
-import org.apache.hadoop.hive.metastore.api.FieldSchema;
-import org.apache.hadoop.hive.metastore.api.MetaException;
-import org.apache.hadoop.hive.ql.QueryPlan;
-import org.junit.Assert;
 
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -49,14 +47,13 @@ import java.util.UUID;
  * A class for a Hive store.  All implementations of this that will run on the cluster must have
  * a no-args constructor.
  */
-public abstract class HiveStore extends DataStoreBase implements Configurable {
+public abstract class HiveStore extends DataStoreBase {
   public static final char DELIMITER = '\u0001';
   public static final String DELIMITER_STR = new String(new char[]{DELIMITER});
   public static final String NULL_STR = "\u0005";
   public static final String QUOTES = "";
   private static final Logger LOG = LoggerFactory.getLogger(HiveStore.class.getName());
 
-  protected HiveConf conf;
   protected IMetaStoreClient msClient;
   /**
    * A map from DataSets to places they've been dumped.  The key is obtained by calling
@@ -69,18 +66,12 @@ public abstract class HiveStore extends DataStoreBase implements Configurable {
    * A constructor for use on the cluster when we need don't have a clusterManager.
    */
   HiveStore() {
-
-  }
-
-  protected HiveStore(ClusterManager clusterManager) {
-    super(clusterManager);
     dataSetDumps = new HashMap<>();
   }
 
   public IMetaStoreClient getMetastoreConnection() throws MetaException {
-    assert conf != null;
     if (msClient == null) {
-      msClient = new HiveMetaStoreClient(conf);
+      msClient = new HiveMetaStoreClient(clusterManager.getHiveConf());
     }
     return msClient;
   }
@@ -112,7 +103,7 @@ public abstract class HiveStore extends DataStoreBase implements Configurable {
 
 
     // Drop the temp table in case we've previously created it.  Ignore any errors.
-    fetchData("drop table " + tmpTableName);
+    executeSql("drop table " + tmpTableName);
 
     // Create a temp table with the file in the right location.
     StringBuilder sql = new StringBuilder("create table ").append(tmpTableName).append(" (");
@@ -136,7 +127,7 @@ public abstract class HiveStore extends DataStoreBase implements Configurable {
         .append("stored as textfile ")
         .append("location '").append(dir.toUri().toString()).append("'");
 
-    FetchResult res = fetchData(sql.toString());
+    FetchResult res = executeSql(sql.toString());
     Assert.assertEquals(ResultCode.SUCCESS, res.rc);
 
     // Now, insert from the temp table to the target table.
@@ -155,17 +146,23 @@ public abstract class HiveStore extends DataStoreBase implements Configurable {
     sql.append(" select * from ").append(tmpTableName);
 
     LOG.debug("Going to send to Hive: " + sql.toString());
-    res = fetchData(sql.toString());
+    res = executeSql(sql.toString());
     Assert.assertEquals(ResultCode.SUCCESS, res.rc);
   }
 
   @Override
+  public HiveEndPoint getStreamingEndPoint(TestTable testTable, List<String> partVals) {
+    return new HiveEndPoint(getMetastoreUri(), testTable.getDbName(), testTable.getTableName(),
+        partVals);
+  }
+
+  @Override
   public void dumpToFileForImport(DataSet rows) throws IOException {
-    ClusterManager clusterMgr = TestManager.getTestManager().getClusterManager();
+    ClusterManager clusterMgr = TestManager.getTestManager().getTestClusterManager();
     FileSystem fs = clusterMgr.getFileSystem();
     ObjectPair<Path, Path> pathPair = dataSetDumps.get(rows.uniqueId());
     if (pathPair == null) {
-      Path dir = new Path(getDirForDumpFile());
+      Path dir = new Path(clusterMgr.getDirForDumpFile());
       LOG.debug("Going to dump data for import to " + dir.toUri().toString());
       fs.mkdirs(dir);
       Path file = new Path(dir, "file");
@@ -180,52 +177,16 @@ public abstract class HiveStore extends DataStoreBase implements Configurable {
   }
 
   @Override
-  public void setConf(Configuration conf) {
-    this.conf = (HiveConf)conf;
-
-  }
-
-  @Override
-  public Configuration getConf() {
-    return conf;
-  }
-
-  public HiveConf getHiveConf() {
-    return conf;
-  }
-
-  @Override
   public String getTableName(TestTable table) {
     return table.toString();
   }
 
-  /**
-   * Explain a SQL query.  This should only be implemented by local implementations, not on the
-   * cluster when the test harness may not share the configuration with the cluster.
-   * @param sql SQL to explain
-   * @return plan for this SQL
-   */
-  public abstract QueryPlan explain(String sql);
 
   /**
    * Get a URI to connect to the metastore.  In the local case this should be null.
    * @return uri
    */
   public abstract String getMetastoreUri();
-
-  /**
-   * Generate a random directory to dump generated data in.
-   * @return directory name
-   */
-  public static String getDirForDumpFile() {
-    // Use '/' explicitly rather than file.separator property as HDFS always uses forward slash.
-    String filename = new StringBuilder(TestManager.getTestManager().getConf().get("hadoop.tmp.dir"))
-        .append('/')
-        .append("capybara_")
-        .append(UUID.randomUUID().toString())
-        .toString();
-    return filename;
-  }
 
   /**
    * Generate a random file name to dump generated data in.
@@ -263,7 +224,7 @@ public abstract class HiveStore extends DataStoreBase implements Configurable {
   private boolean createTableInternal(TestTable table, boolean force)
       throws SQLException, IOException {
     if (!force && tableExistsInCorrectState(table)) return false;
-    FetchResult rc = fetchData("drop table if exists " + table.toString());
+    FetchResult rc = executeSql("drop table if exists " + table.toString());
     Assert.assertEquals(ResultCode.SUCCESS, rc.rc);
 
     StringBuilder builder =  new StringBuilder();
@@ -308,13 +269,13 @@ public abstract class HiveStore extends DataStoreBase implements Configurable {
     }
 
     if (table.isAcid()) {
-      if (!TestConf.fileFormat().equals(TestConf.FILE_FORMAT_ORC)) {
+      if (!TestManager.getTestManager().getTestConf().getFileFormat().equalsIgnoreCase("orc")) {
         builder.append(" stored as orc ");
       }
       builder.append(" tblproperties ('transactional'='true')");
     }
 
-    rc = fetchData(builder.toString());
+    rc = executeSql(builder.toString());
     Assert.assertEquals(ResultCode.SUCCESS, rc.rc);
     if (!force) recordTableCreation(table);
     return true;

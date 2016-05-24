@@ -19,6 +19,7 @@ package org.apache.hive.test.capybara.infra;
 
 import org.apache.commons.codec.binary.Base64;
 import org.apache.hive.test.capybara.data.DataSet;
+import org.apache.hive.test.capybara.iface.ClusterManager;
 import org.apache.hive.test.capybara.iface.TestTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,16 +76,17 @@ public class ClusterDataGenerator extends DataGenerator {
       table.setPartVals(wrapped.determinePartVals(table, scale, pctNulls));
     }
 
+    ClusterManager clusterManager = TestManager.getTestManager().getTestClusterManager();
     try {
-      Configuration conf = TestManager.getTestManager().getConf();
-      FileSystem fs = TestManager.getTestManager().getClusterManager().getFileSystem();
+      Configuration conf = clusterManager.getHiveConf();
+      FileSystem fs = clusterManager.getFileSystem();
 
       // If the table has one or more foreign keys don't try to encode that information in each
       // row. Write each foreign key into a separate file and add the file to the distributed cache.
       if (table.getForeignKeys() != null) {
         for (int i = 0; i < table.getForeignKeys().size(); i++) {
           TestTable.ForeignKey fk = table.getForeignKeys().get(i);
-          Path fkPath = new Path(HiveStore.getDirForDumpFile());
+          Path fkPath = new Path(clusterManager.getDirForDumpFile());
           FSDataOutputStream out = fs.create(fkPath);
           // Write the index in the first line of the file.
           out.writeBytes(Integer.toString(i));
@@ -103,14 +105,14 @@ public class ClusterDataGenerator extends DataGenerator {
       }
 
       // Figure out how parallel to go.
-      int parallelism = 2 * scale * 1024 / TestConf.getClusterGenThreshold();
+      int parallelism = 2 * scale * 1024 / TestManager.getTestManager().getTestConf().getClusterGenThreshold();
 
     // The algorithm here is to write a line for each mapper we're going to start and then use
     // the NLineInputFormat to create one mapper per line.  This creates quite a lot of
     // duplication, but the entries are only a few K so it isn't that bad.  The exception is if
     // we have a foreign key it needs to be written into a side file and then put in the DC.
-      String hiveDumpDir = HiveStore.getDirForDumpFile();
-      Path inputFile = new Path(HiveStore.getDirForDumpFile());
+      String hiveDumpDir = clusterManager.getDirForDumpFile();
+      Path inputFile = new Path(clusterManager.getDirForDumpFile());
       FSDataOutputStream out = fs.create(inputFile);
       for (int i = 0; i < parallelism; i++) {
         GeneratorInfo gi =

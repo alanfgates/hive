@@ -92,12 +92,13 @@ class PostgresStore extends AnsiSqlStore {
   @Override
   protected String connectionURL() {
     if (connectionUrl == null) {
+      ClusterConf cc = clusterManager.getClusterConf();
       StringBuilder url = new StringBuilder("jdbc:postgresql:");
-      String host = System.getProperty("hive.test.capybara.postgres.host");
+      String host = cc.getJdbcHost();
       if (host != null) url.append("//").append(host);
-      String port = System.getProperty("hive.test.capybara.postgres.port");
-      if (port != null) url.append(":").append(port);
-      String db = System.getProperty("hive.test.capybara.postgres.database");
+      String port = cc.getJdbcPort();
+      if (port != null) url.append(port);
+      String db = cc.getJdbcDatabase();
       if (db != null) {
         if (host != null) url.append("/");
         url.append(db);
@@ -112,11 +113,10 @@ class PostgresStore extends AnsiSqlStore {
   @Override
   protected Properties connectionProperties() {
     if (connectionProperties == null) {
+      ClusterConf cc = clusterManager.getClusterConf();
       connectionProperties = new Properties();
-      connectionProperties.setProperty("user",
-          System.getProperty("hive.test.capybara.postgres.user", System.getProperty("user.name")));
-      connectionProperties.setProperty("password",
-          System.getProperty("hive.test.capybara.postgres.password", ""));
+      connectionProperties.setProperty("user", cc.getJdbcUser());
+      connectionProperties.setProperty("password", cc.getJdbcPasswd());
     }
     return connectionProperties;
   }
@@ -139,11 +139,6 @@ class PostgresStore extends AnsiSqlStore {
   @Override
   protected String getTempTableCreate(String tableName) {
     return "create temporary table ";
-  }
-
-  @Override
-  public void cleanupAfterTest() throws SQLException {
-    // NOP
   }
 
   private static SQLTranslator postgresTranslator = new SQLTranslator() {
@@ -261,7 +256,7 @@ class PostgresStore extends AnsiSqlStore {
     public void run() {
       try {
         Path dir = rows.getClusterLocation();
-        FileSystem fs = FileSystem.get(TestManager.getTestManager().getConf());
+        FileSystem fs = clusterManager.getFileSystem();
         FileStatus[] stats = fs.listStatus(dir);
         for (FileStatus stat : stats) {
           Path clusterFile = stat.getPath();
@@ -280,7 +275,7 @@ class PostgresStore extends AnsiSqlStore {
   }
 
   @Override
-  public Class getDriverClass() {
+  public Class getJdbcDriverClass() {
     return jdbcDriver.getClass();
   }
 }

@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p/>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p/>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,33 +17,33 @@
  */
 package org.apache.hive.test.capybara.infra;
 
-import org.apache.hive.test.capybara.iface.Benchmark;
-import org.apache.hive.test.capybara.iface.BenchmarkDataStore;
-import org.apache.hive.test.capybara.iface.ResultComparator;
-import org.apache.hive.test.capybara.iface.TableComparator;
+import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hive.test.capybara.iface.DataStore;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * A Benchmark that uses Derby to store the results and standard ResultComparators for comparison.
+ * A cluster manager for handling "clusters" that are really a database
  */
-public class DerbyBenchmark implements Benchmark {
-  BenchmarkDataStore store;
+public class DbClusterManager extends ClusterManagerBase {
+  static final private Logger LOG = LoggerFactory.getLogger(ExternalClusterManager.class);
+
+  private HiveConf conf;
 
   @Override
-  public BenchmarkDataStore getBenchDataStore() {
-    if (store == null) {
-      store = new DerbyStore();
-    }
+  public boolean remote() {
+    return false;
+  }
+
+  @Override
+  public DataStore getStore() {
+    if (store == null) store = getClusterConf().getDataStore();
     return store;
   }
 
   @Override
-  public ResultComparator getResultComparator(boolean sort) {
-    if (sort) return new SortingComparator();
-    else return new NonSortingComparator();
-  }
-
-  @Override
-  public TableComparator getTableComparator() {
-    return new TableComparator();
+  public HiveConf getHiveConf() {
+    if (conf == null) conf = new HiveConf();
+    return conf;
   }
 }

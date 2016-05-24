@@ -49,6 +49,9 @@ public class IntegrationRunner extends BlockJUnit4ClassRunner {
   protected List<FrameworkMethod> computeTestMethods() {
     if (testVisibleAnnotations == null) testVisibleAnnotations = new HashMap<>();
 
+    TestConf testConf = TestManager.getTestManager().getTestConf();
+    ClusterConf clusterConf = testConf.getTestClusterConf();
+
     // Get the list from our parent, then weed out any that don't match what we're currently
     // running.
     List<FrameworkMethod> toReturn = new ArrayList<>();
@@ -61,31 +64,31 @@ public class IntegrationRunner extends BlockJUnit4ClassRunner {
       for (Annotation annotation : annotations) {
         LOG.trace("Considering annotation " + annotation.annotationType().getSimpleName());
         if ("NoCli".equals(annotation.annotationType().getSimpleName()) &&
-                TestConf.access().equals("cli") ||
+                clusterConf.getAccess().equals(TestConf.ACCESS_CLI) ||
             "NoJdbc".equals(annotation.annotationType().getSimpleName()) &&
-                TestConf.access().equals("jdbc") ||
+                clusterConf.getAccess().equals(TestConf.ACCESS_JDBC) ||
             "NoNonSecure".equals(annotation.annotationType().getSimpleName()) &&
-                TestConf.security().equals("nonsecure") ||
+                !clusterConf.isSecure() ||
             "NoSecure".equals(annotation.annotationType().getSimpleName()) &&
-                TestConf.security().equals("secure") ||
+                clusterConf.isSecure() ||
             "NoOrc".equals(annotation.annotationType().getSimpleName()) &&
-                TestConf.fileFormat().equals("orc") ||
+                testConf.getFileFormat().equals(TestConf.FILE_FORMAT_ORC) ||
             "NoParquet".equals(annotation.annotationType().getSimpleName()) &&
-                TestConf.fileFormat().equals("parquet") ||
+                testConf.getFileFormat().equals(TestConf.FILE_FORMAT_PARQUET) ||
             "NoRcFile".equals(annotation.annotationType().getSimpleName()) &&
-                TestConf.fileFormat().equals("rc") ||
+                testConf.getFileFormat().equals(TestConf.FILE_FORMAT_RC) ||
             "NoTextFile".equals(annotation.annotationType().getSimpleName()) &&
-                TestConf.fileFormat().equals("text") ||
+                testConf.getFileFormat().equals(TestConf.FILE_FORMAT_TEXT) ||
             "NoSpark".equals(annotation.annotationType().getSimpleName()) &&
-                TestConf.engine().equals("spark") ||
+                clusterConf.getEngine().equals(TestConf.ENGINE_SPARK) ||
             "NoTez".equals(annotation.annotationType().getSimpleName()) &&
-                TestConf.engine().equals("tez") ||
+                clusterConf.getEngine().equals(TestConf.ENGINE_TEZ) ||
             "NoRdbmsMetastore".equals(annotation.annotationType().getSimpleName()) &&
-                TestConf.metastore().equals("metastore") ||
+                clusterConf.getMetastore().equals(TestConf.METASTORE_RDBMS) ||
             "NoHBaseMetastore".equals(annotation.annotationType().getSimpleName()) &&
-                TestConf.metastore().equals("hbase") ||
+                clusterConf.getMetastore().equals(TestConf.METASTORE_HBASE) ||
             "RequireCluster".equals(annotation.annotationType().getSimpleName()) &&
-                !TestConf.onCluster())  {
+                !TestManager.getTestManager().getTestClusterManager().remote())  {
           skipIt = true;
           LOG.debug("Skipping test " + method.getName() + " because it is annotated with " +
             annotation.annotationType().getSimpleName());

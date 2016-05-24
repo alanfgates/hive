@@ -20,26 +20,20 @@ package org.apache.hive.test.capybara.infra;
 import org.apache.hadoop.hive.ql.Driver;
 import org.apache.hadoop.hive.ql.QueryPlan;
 import org.apache.hadoop.hive.ql.session.SessionState;
-import org.apache.hive.test.capybara.iface.ClusterManager;
 import org.junit.Assert;
 
 abstract class MiniHiveStoreBase extends HiveStore {
   private ThreadLocal<Driver> driver;
-
-  public MiniHiveStoreBase(ClusterManager clusterManager) {
-    super(clusterManager);
-  }
 
   protected Driver getDriver() {
     if (driver == null) {
       driver = new ThreadLocal<Driver>() {
         @Override
         protected Driver initialValue() {
-          assert conf != null;
           // Make sure our conf file gets set
-          SessionState.start(conf);
+          SessionState.start(clusterManager.getHiveConf());
           assert SessionState.get() != null;
-          return new Driver(conf);
+          return new Driver(clusterManager.getHiveConf());
         }
       };
     }

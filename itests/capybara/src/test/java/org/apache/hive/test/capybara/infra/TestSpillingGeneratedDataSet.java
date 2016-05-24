@@ -27,7 +27,8 @@ public class TestSpillingGeneratedDataSet extends IntegrationTest {
   @Test
   public void spill() throws Exception {
 
-    System.setProperty(TestConf.SPILL_SIZE_PROPERTY, Integer.toString(1024 * 128));
+    TestManager.getTestManager().getTestConf().getProperties().setProperty(
+        TestConf.SPILL_SIZE,  Integer.toString(1024 * 128));
     TestTable table = TestTable.getBuilder("spill")
         .addCol("c1", "varchar(120)")
         .addCol("c2", "int")

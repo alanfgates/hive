@@ -24,6 +24,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.sql.Driver;
 import java.sql.SQLException;
 import java.util.Properties;
 
@@ -37,6 +38,11 @@ public class TestAnsiSqlStore {
 
     @Override
     public String getTableName(TestTable table) {
+      return null;
+    }
+
+    @Override
+    public Class<? extends Driver> getJdbcDriverClass() {
       return null;
     }
 
@@ -71,21 +77,12 @@ public class TestAnsiSqlStore {
     }
 
     @Override
-    public void cleanupAfterTest() throws SQLException, IOException {
-    }
-
-    @Override
     protected Properties connectionProperties() {
       return null;
     }
 
     @Override
     protected String connectionURL() {
-      return null;
-    }
-
-    @Override
-    public Class getDriverClass() {
       return null;
     }
 
@@ -145,6 +142,6 @@ public class TestAnsiSqlStore {
     // Make sure a Hive SQL statement like alter database which is a NOP for the benchmark succeeds
     String hiveSQL = "alter database fred set owner user user1";
     Assert.assertEquals("", store.hiveSqlToAnsiSql(hiveSQL));
-    Assert.assertEquals(ResultCode.SUCCESS, store.fetchData(hiveSQL).rc);
+    Assert.assertEquals(ResultCode.SUCCESS, store.executeSql(hiveSQL).rc);
   }
 }

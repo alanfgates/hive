@@ -17,11 +17,15 @@
  */
 package org.apache.hive.test.capybara.iface;
 
+import org.apache.hadoop.hive.ql.QueryPlan;
+import org.apache.hive.hcatalog.streaming.HiveEndPoint;
 import org.apache.hive.test.capybara.data.DataSet;
 import org.apache.hive.test.capybara.data.FetchResult;
 
 import java.io.IOException;
+import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.List;
 
 /**
  * Manage data stores for a test.  This is used to manage Hive and benchmark stores.  Classes that
@@ -33,12 +37,38 @@ import java.sql.SQLException;
  */
 public interface DataStore {
 
+  /**
+   * Prepare the cluster for testing.  This will be called once at the beginning of a set of
+   * tests (in an @BeforeClass method).
+   * @param clusterMgr Cluster manager controlling this DataStore.
+   * @throws IOException
+   */
+  void setup(ClusterManager clusterMgr) throws IOException;
+
+  /**
+   * Tear down the cluster after testing.  This will be called once at the end of a set of tests
+   * (in an @AfterClass method).
+   * @throws IOException
+   */
+  void tearDown() throws IOException;
+
+  /**
+   * Called before each test is run.
+   * @throws IOException
+   */
+  void beforeTest() throws IOException;
+
+  /**
+   * Called after each test is run.
+   * @throws IOException
+   */
+  void afterTest() throws IOException;
 
   /**
    * Create a table.  This is intended for use by common tables that will be used in many tests.
    * If you are creating a small table for your single test or you want a table with special
    * setting (like you want to control parameters or something) you should use
-   * {@link #fetchData} with a "create table" statement.
+   * {@link #executeSql} with a "create table" statement.
    * @param table definition of table to create
    * @return indicates whether the table was actually created, or if it already existed in the
    * desired format.  If true, the table was actually created.
@@ -59,14 +89,13 @@ public interface DataStore {
   void forceCreateTable(TestTable table) throws SQLException, IOException;
 
   /**
-   * Execute SQL against a the DataStore.  This can be used for queries (as the name suggests)
-   * and for statements (which the name does not suggest).
+   * Execute SQL against a the DataStore.  This can be used for queries and for statements.
    * @param sql SQL to execute
    * @return a FetchResult with a ResultCode and, if this was a query and it succeeded, a DataSet
    * @throws SQLException anything thrown by the underlying implementaiton.
    * @throws java.io.IOException
    */
-  FetchResult fetchData(String sql) throws SQLException, IOException;
+  FetchResult executeSql(String sql) throws SQLException, IOException;
 
   /**
    * Load data into a data store.  You should only call this if {@link #createTable} returned
@@ -93,4 +122,42 @@ public interface DataStore {
    * @return name of the table.
    */
   String getTableName(TestTable table);
+
+  /**
+   * Get information on how to talk to this DataStore via JDBC.  Non-JDBC compliant data stores
+   * (such as Hive when being tested in CLI mode) will return a null.
+   * @return URL and properties that can be used to connect to the DataStore, or null if JDBC is
+   * not an option.
+   */
+  //JdbcInfo getJdbcConnectionInfo();
+
+  /**
+   * Get a JDBC connection to this DataStore.  Non-JDBC data stores will return a null.
+   * @param autoCommit Whether to set autoCommit on this connection
+   * @return
+   * @throws java.sql.SQLException
+   */
+  Connection getJdbcConnection(boolean autoCommit) throws SQLException;
+
+  /**
+   * Get the class of the JDBC driver.  Non-JDBC data stores will return a null.
+   * @return Class of the JDBC driver.
+   */
+  Class<? extends java.sql.Driver> getJdbcDriverClass();
+
+  /**
+   * Get an endpoint where streaming records can be sent.
+   * @param testTable Table being tested
+   * @param partVals Partition values in this stream, can be null if the table is not partitioned.
+   * @return StreamingEndPoint
+   */
+  HiveEndPoint getStreamingEndPoint(TestTable testTable, List<String> partVals);
+
+  /**
+   * Explain a SQL query.  This should only be implemented by local implementations of Hive.
+   * Others should return a null.
+   * @param sql SQL to explain
+   * @return plan for this SQL
+   */
+  QueryPlan explain(String sql);
 }

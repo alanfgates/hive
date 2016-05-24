@@ -76,8 +76,6 @@ public class ExampleTest extends IntegrationTest {
   // * Add qfile translator.
   // * Add default scale (-1) to DataGenerator.generateData so people can set pctNull without
   // messing with the scale.
-  // * Rename DataStore.fetchData to something that reflects what it actually does (like
-  // executeStmt).  Rename FetchResult to StmtResult or something.
   // * Make is so the user can change the package for tests created by UserQueryGenerator
   // * Split up the infra package into interface and impl, it's getting too big and confusing.
   // Move DataGenerator from top to interface.

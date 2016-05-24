@@ -19,16 +19,17 @@ package org.apache.hive.test.capybara.infra;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.ql.QueryPlan;
 import org.apache.hive.test.capybara.data.FetchResult;
 import org.apache.hive.test.capybara.data.ResultCode;
-import org.apache.hive.test.capybara.iface.ClusterManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.hadoop.hive.ql.QueryPlan;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.sql.Connection;
+import java.sql.Driver;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -47,11 +48,6 @@ class ClusterCliHiveStore extends HiveStore {
    * No-args constructor for use on the cluster.
    */
   ClusterCliHiveStore() {
-
-  }
-
-  ClusterCliHiveStore(ClusterManager clusterManager) {
-    super(clusterManager);
     envMap = new HashMap<>();
     getEnv("HADOOP_HOME");
     getEnv("HIVE_HOME");
@@ -59,7 +55,7 @@ class ClusterCliHiveStore extends HiveStore {
   }
 
   @Override
-  public FetchResult fetchData(String sql) throws SQLException, IOException {
+  public FetchResult executeSql(String sql) throws SQLException, IOException {
     List<String> cmd = new ArrayList<>();
     cmd.add(new StringBuilder(envMap.get("HIVE_HOME"))
         .append(System.getProperty("file.separator"))
@@ -124,6 +120,16 @@ class ClusterCliHiveStore extends HiveStore {
   }
 
   @Override
+  public Connection getJdbcConnection(boolean autoCommit) throws SQLException {
+    return null;
+  }
+
+  @Override
+  public Class<? extends Driver> getJdbcDriverClass() {
+    return null;
+  }
+
+  @Override
   protected String connectionURL() {
     return null;
   }
@@ -135,7 +141,7 @@ class ClusterCliHiveStore extends HiveStore {
 
   @Override
   public String getMetastoreUri() {
-    return conf.getVar(HiveConf.ConfVars.METASTOREURIS);
+    return clusterManager.getHiveConf().getVar(HiveConf.ConfVars.METASTOREURIS);
   }
 
   private void getEnv(String var) {

@@ -17,15 +17,16 @@
  */
 package org.apache.hive.test.capybara.infra;
 
-import org.apache.hive.test.capybara.data.FetchResult;
-import org.apache.hive.test.capybara.data.ResultCode;
-import org.apache.hive.test.capybara.iface.ClusterManager;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.apache.hadoop.hive.ql.CommandNeedRetryException;
 import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse;
+import org.apache.hive.test.capybara.data.FetchResult;
+import org.apache.hive.test.capybara.data.ResultCode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.sql.Connection;
+import java.sql.Driver;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,12 +40,8 @@ class MiniCliHiveStore extends MiniHiveStoreBase {
   static final private Logger LOG = LoggerFactory.getLogger(MiniCliHiveStore.class.getName());
 
 
-  MiniCliHiveStore(ClusterManager clusterManager) {
-    super(clusterManager);
-  }
-
   @Override
-  public FetchResult fetchData(String sql) throws SQLException, IOException {
+  public FetchResult executeSql(String sql) throws SQLException, IOException {
     try {
       LOG.debug("Going to send to Hive: " + sql);
       CommandProcessorResponse rsp = getDriver().run(sql);
@@ -63,6 +60,16 @@ class MiniCliHiveStore extends MiniHiveStoreBase {
       LOG.info("Query <" + sql + "> failed with retriable error");
       return new FetchResult(ResultCode.RETRIABLE_FAILURE);
     }
+  }
+
+  @Override
+  public Connection getJdbcConnection(boolean autoCommit) throws SQLException {
+    return null;
+  }
+
+  @Override
+  public Class<? extends Driver> getJdbcDriverClass() {
+    return null;
   }
 
   @Override

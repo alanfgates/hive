@@ -19,11 +19,7 @@ package org.apache.hive.test.capybara.infra;
 
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.serde2.SerDeException;
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.StructField;
-import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hive.hcatalog.streaming.AbstractRecordWriter;
 import org.apache.hive.hcatalog.streaming.ConnectionError;
 import org.apache.hive.hcatalog.streaming.HiveEndPoint;
 import org.apache.hive.hcatalog.streaming.ImpersonationFailed;
@@ -35,17 +31,10 @@ import org.apache.hive.hcatalog.streaming.SerializationError;
 import org.apache.hive.hcatalog.streaming.StreamingConnection;
 import org.apache.hive.hcatalog.streaming.StreamingException;
 import org.apache.hive.hcatalog.streaming.TransactionBatch;
-import org.apache.hive.test.capybara.data.Column;
-import org.apache.hive.test.capybara.data.Row;
-import org.apache.hive.test.capybara.data.RowBuilder;
-import org.apache.hive.test.capybara.iface.BenchmarkDataStore;
 import org.apache.hive.test.capybara.iface.TestTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
 import java.util.Collection;
 import java.util.List;
 
@@ -53,23 +42,23 @@ public class CapyEndPoint extends HiveEndPoint {
   static final private Logger LOG = LoggerFactory.getLogger(CapyEndPoint.class.getName());
 
   // A copy of the conf from IntegrationTest, used when conf is null so we don't create a new one.
-  private final HiveConf testConf;
-  private final BenchmarkDataStore bench;
-  private final TestTable testTable;
+  private final HiveConf hiveConf;
+  private final HiveEndPoint testEndPoint, benchEndPoint;
 
-  public CapyEndPoint(BenchmarkDataStore bench, TestTable testTable, HiveConf testConf,
-                      String metaStoreUri, List<String> partitionVals) {
-    super(metaStoreUri, testTable.getDbName(), testTable.getTableName(), partitionVals);
-    this.bench = bench;
-    this.testTable = testTable;
-    this.testConf = testConf;
+  public CapyEndPoint(HiveEndPoint testEndPoint, HiveEndPoint benchEndPoint, TestTable testTable,
+                      HiveConf testConf, List<String> partitionVals) {
+    super(testConf.getVar(HiveConf.ConfVars.METASTOREURIS), testTable.getDbName(), testTable.getTableName(),
+        partitionVals);
+    this.testEndPoint = testEndPoint;
+    this.benchEndPoint = benchEndPoint;
+    this.hiveConf = testConf;
   }
 
   @Override
   public StreamingConnection newConnection(boolean createPartIfNotExists) throws
       ConnectionError, InvalidPartition, InvalidTable, PartitionCreationFailed, ImpersonationFailed,
       InterruptedException {
-    return this.newConnection(createPartIfNotExists, testConf, null);
+    return this.newConnection(createPartIfNotExists, hiveConf, null);
   }
 
   @Override
@@ -77,176 +66,111 @@ public class CapyEndPoint extends HiveEndPoint {
                                            UserGroupInformation authenticatedUser) throws
       ConnectionError, InvalidPartition, InvalidTable, PartitionCreationFailed, ImpersonationFailed,
       InterruptedException {
-    StreamingConnection hiveStream =
-        super.newConnection(createPartIfNotExists, conf, authenticatedUser);
-    return new CapyStreamingConnection(hiveStream);
+    return new CapyStreamingConnection(
+        testEndPoint.newConnection(createPartIfNotExists, conf, authenticatedUser),
+        benchEndPoint.newConnection(createPartIfNotExists, conf, authenticatedUser));
   }
 
   private class CapyStreamingConnection implements StreamingConnection {
-    private final StreamingConnection hiveStream;
-    private Connection conn;
 
-    public CapyStreamingConnection(StreamingConnection hiveStream) {
-      this.hiveStream = hiveStream;
+    private final StreamingConnection testStreamingConn, benchStreamingConn;
+
+    public CapyStreamingConnection(StreamingConnection testStreamingConn,
+                                   StreamingConnection benchStreamingConn) {
+      this.testStreamingConn = testStreamingConn;
+      this.benchStreamingConn = benchStreamingConn;
     }
 
     @Override
     public TransactionBatch fetchTransactionBatch(int numTransactionsHint, RecordWriter writer)
         throws ConnectionError, StreamingException, InterruptedException {
-      TransactionBatch hiveBatch = hiveStream.fetchTransactionBatch(numTransactionsHint, writer);
+      TransactionBatch testBatch = testStreamingConn.fetchTransactionBatch(numTransactionsHint, writer);
+      TransactionBatch benchBatch = benchStreamingConn.fetchTransactionBatch(numTransactionsHint, writer);
       try {
-        conn = bench.getJdbcConnection(false);
-        return new CapyTransactionBatch(hiveBatch, conn, writer);
-      } catch (Exception e) {
-        throw new ConnectionError("Unable to get connection to benchmark or instantiate object " +
-            "inspectors", e);
+        return new CapyTransactionBatch(testBatch, benchBatch);
+      } catch (SerDeException e) {
+        throw new StreamingException(e.getMessage(), e);
       }
     }
 
     @Override
     public void close() {
-      hiveStream.close();
-      try {
-        conn.close();
-      } catch (SQLException e) {
-        throw new RuntimeException(e);
-      }
+      testStreamingConn.close();
+      benchStreamingConn.close();
     }
   }
 
   private class CapyTransactionBatch implements TransactionBatch {
-    private final TransactionBatch hiveBatch;
-    private final Connection conn;
-    private final AbstractRecordWriter writer;
-    private final RowBuilder rowBuilder;
-    private final StructObjectInspector rowInspector;
-    private final ObjectInspector[] colInspectors;
-    private final Row partRow;
-    private final PreparedStatement preparedStatement;
-    private boolean isClosed;
+    private final TransactionBatch testBatch;
+    private final TransactionBatch benchBatch;
 
-    public CapyTransactionBatch(TransactionBatch hiveBatch, Connection conn,
-                                RecordWriter writer) throws SerializationError, SerDeException {
-      this.hiveBatch = hiveBatch;
-      this.conn = conn;
-      this.writer = (AbstractRecordWriter)writer;
-      rowBuilder = new RowBuilder(testTable.getCombinedSchema());
-      rowInspector =
-          (StructObjectInspector)((AbstractRecordWriter) writer).getSerde().getObjectInspector();
-      List<? extends StructField> fields = rowInspector.getAllStructFieldRefs();
-      colInspectors = new ObjectInspector[fields.size()];
-      for (int i = 0; i < colInspectors.length; i++) {
-        colInspectors[i] = fields.get(i).getFieldObjectInspector();
-      }
+    public CapyTransactionBatch(TransactionBatch testBatch, TransactionBatch benchBatch)
+        throws SerializationError, SerDeException {
+      this.testBatch = testBatch;
+      this.benchBatch = benchBatch;
 
-      if (partitionVals != null && partitionVals.size() > 0) {
-        RowBuilder partRowBuilder = new RowBuilder(testTable.getPartCols());
-        partRow = partRowBuilder.build();
-        for (int i = 0; i < partRow.size(); i++) {
-          String val = partitionVals.get(i) == null ? "NULL" : partitionVals.get(i);
-          partRow.get(i).fromString(val, "NULL");
-        }
-      } else {
-        partRow = null;
-      }
-      try {
-        preparedStatement = testTable.getLoadingStatement(conn, bench);
-      } catch (SQLException e) {
-        throw new RuntimeException(e);
-      }
-      isClosed = false;
     }
 
     @Override
     public void beginNextTransaction() throws StreamingException, InterruptedException {
-      hiveBatch.beginNextTransaction();
+      testBatch.beginNextTransaction();
+      benchBatch.beginNextTransaction();
     }
 
     @Override
     public Long getCurrentTxnId() {
-      return hiveBatch.getCurrentTxnId();
+      return testBatch.getCurrentTxnId();
     }
 
     @Override
     public TxnState getCurrentTransactionState() {
-      return hiveBatch.getCurrentTransactionState();
+      return testBatch.getCurrentTransactionState();
     }
 
     @Override
     public void commit() throws StreamingException, InterruptedException {
-      hiveBatch.commit();
-      try {
-        conn.commit();
-      } catch (SQLException e) {
-        throw new StreamingException("Couldn't commit exception", e);
-      }
+      testBatch.commit();
+      benchBatch.commit();
     }
 
     @Override
     public void abort() throws StreamingException, InterruptedException {
-      hiveBatch.abort();
-      try {
-        conn.rollback();
-      } catch (SQLException e) {
-        throw new StreamingException("Couldn't rollback exception", e);
-      }
+      testBatch.abort();
+      benchBatch.abort();
     }
 
     @Override
     public int remainingTransactions() {
-      return hiveBatch.remainingTransactions();
+      return testBatch.remainingTransactions();
     }
 
     @Override
     public void write(byte[] record) throws StreamingException, InterruptedException {
-      hiveBatch.write(record);
-      writeBenchmark(record);
+      testBatch.write(record);
+      benchBatch.write(record);
     }
 
     @Override
     public void write(Collection<byte[]> records) throws StreamingException, InterruptedException {
-      hiveBatch.write(records);
-      for (byte[] record : records) writeBenchmark(record);
-    }
-
-    private void writeBenchmark(byte[] record) throws StreamingException {
-      // Convert the record from whatever format it came in (we don't know what it is) to an
-      // Object that Hive can parse with ObjectInspectors
-      Object objRow = writer.encode(record);
-
-      // Convert the Object to our Row format.  This may not fill up all of the columns because
-      // it won't have the partitions columns.
-      Row row = rowBuilder.build();
-      List<Object> objCols = rowInspector.getStructFieldsDataAsList(objRow);
-      for (int i = 0; i < colInspectors.length; i++) {
-        row.get(i).fromObject(colInspectors[i], objCols.get(i));
-      }
-
-      // If there are any partition values, append them here
-      if (partRow != null) row.append(partRow);
-
-      // Load it in via a prepared statement
-      try {
-        for (Column col : row) col.load(preparedStatement);
-        preparedStatement.executeUpdate();
-      } catch (SQLException e) {
-        throw new StreamingException("Unable to load into benchmark", e);
-      }
+      testBatch.write(records);
+      benchBatch.write(records);
     }
 
     @Override
     public void heartbeat() throws StreamingException {
-      hiveBatch.heartbeat();
+      testBatch.heartbeat();
+      benchBatch.heartbeat();
     }
 
     @Override
     public void close() throws StreamingException, InterruptedException {
-      hiveBatch.close();
+      testBatch.close();
+      benchBatch.close();
     }
 
     @Override
     public boolean isClosed() {
-      return isClosed;
+      return testBatch.isClosed() && benchBatch.isClosed();
     }
   }
 }

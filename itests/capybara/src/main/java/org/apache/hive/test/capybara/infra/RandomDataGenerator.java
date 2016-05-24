@@ -72,7 +72,8 @@ public class RandomDataGenerator extends DataGeneratorImpl implements Serializab
   public DataSet generateData(TestTable table, int scale, double[] pctNulls) {
     // Decide whether we're going to generate locally or on the cluster.  Remember that scale is
     // in K, while other values are in b.
-    if (scale * 1024 > TestConf.getClusterGenThreshold() && TestConf.onCluster()) {
+    if (scale * 1024 > TestManager.getTestManager().getTestConf().getClusterGenThreshold() &&
+        TestManager.getTestManager().getTestClusterManager().remote()) {
       return new ClusterDataGenerator(this).generateData(table, scale, pctNulls);
     }
 

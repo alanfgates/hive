@@ -18,7 +18,7 @@
 package org.apache.hive.test.capybara.iface;
 
 import org.apache.hive.test.capybara.data.DataSet;
-import org.apache.hive.test.capybara.infra.TestConf;
+import org.apache.hive.test.capybara.infra.TestManager;
 
 /**
  * Generate data for use by Hive and benchmarks.
@@ -47,7 +47,7 @@ public abstract class DataGenerator {
  * @return Data to be loaded.
  */
   final public DataSet generateData(TestTable table) {
-    return generateData(table, TestConf.getScale(), null);
+    return generateData(table, TestManager.getTestManager().getTestConf().getScale(), null);
   }
 
   /**

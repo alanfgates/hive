@@ -18,6 +18,7 @@
 package org.apache.hive.test.capybara.infra;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hive.test.capybara.data.FetchResult;
 import org.apache.hive.test.capybara.data.ResultCode;
 import org.apache.hive.test.capybara.data.Row;
@@ -26,7 +27,6 @@ import org.apache.hive.test.capybara.iface.DataStore;
 import org.apache.hive.test.capybara.iface.TestTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.hadoop.hive.metastore.api.FieldSchema;
 
 import java.io.IOException;
 import java.sql.Connection;
@@ -34,8 +34,10 @@ import java.sql.Driver;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Properties;
 
 /**
@@ -44,27 +46,37 @@ import java.util.Properties;
 abstract class DataStoreBase implements DataStore {
   static final private Logger LOG = LoggerFactory.getLogger(DataStoreBase.class.getName());
 
-  protected final ClusterManager clusterManager;
+  protected final TestConf testConf;
+  protected ClusterManager clusterManager;
+  protected List<String> registeredTables = new ArrayList<>();
+
   /**
    * SQL driver.  It is the responsibility of the sub-class to set this value.
    */
   protected Driver jdbcDriver;
 
-  /**
-   * Constructor for DataStores that will not be running on the cluster.  This should be all
-   * databases, such as Derby and Postges.
-   */
   protected DataStoreBase() {
-    clusterManager = null;
+    testConf = TestManager.getTestManager().getTestConf();
   }
 
-  /**
-   * Constructor for DataStores that will be running on the cluster, including mini-clusters.  In
-   * general this should just be Hive.
-   * @param clusterManager ClusterManager for this test
-   */
-  protected DataStoreBase(ClusterManager clusterManager) {
-    this.clusterManager = clusterManager;
+  @Override
+  public void afterTest() throws IOException {
+
+  }
+
+  @Override
+  public void setup(ClusterManager clusterMgr) throws IOException {
+    this.clusterManager = clusterMgr;
+  }
+
+  @Override
+  public void tearDown() throws IOException {
+
+  }
+
+  @Override
+  public void beforeTest() throws IOException {
+
   }
 
   /**
@@ -87,7 +99,7 @@ abstract class DataStoreBase implements DataStore {
         .append(getTableName(table))
         .append('\'');
     try {
-      FetchResult fetch = fetchData(sql.toString());
+      FetchResult fetch = executeSql(sql.toString());
       if (fetch.rc != ResultCode.SUCCESS) {
         if (beenThereDoneThat) {
           throw new RuntimeException("Unable to instantiate metadata table for testing.");
@@ -108,8 +120,8 @@ abstract class DataStoreBase implements DataStore {
           Iterator<Row> iter = fetch.data.iterator();
           if (iter.hasNext()) {
             Row row = iter.next();
-            return TestConf.fileFormat().equalsIgnoreCase(row.get(1).asString()) &&
-                TestConf.getScale() == row.get(2).asInt();
+            return testConf.getFileFormat().equalsIgnoreCase(row.get(1).asString()) &&
+                testConf.getScale() == row.get(2).asInt();
           } else {
             return false;
           }
@@ -123,12 +135,12 @@ abstract class DataStoreBase implements DataStore {
   }
 
   private void createTestTableTracker() throws SQLException, IOException {
-    FetchResult fetch = fetchData("create table testtables (tablename varchar(100) " +
+    FetchResult fetch = executeSql("create table testtables (tablename varchar(100) " +
         markColumnPrimaryKey() + ", metastore varchar(5), fileformat varchar(10), scale int)");
     if (fetch.rc != ResultCode.SUCCESS) {
       throw new RuntimeException("Unable to create test metadata table");
     }
-    if (clusterManager != null) clusterManager.registerTable(null, "testtables");
+    registerTable(null, "testtables");
   }
 
   /**
@@ -142,18 +154,18 @@ abstract class DataStoreBase implements DataStore {
     sql.append("insert into testtables (tablename, metastore, fileformat, scale) values ('")
         .append(getTableName(table))
         .append("', '")
-        .append(TestConf.metastore())
+        .append(clusterManager.getClusterConf().getMetastore())
         .append("', '")
-        .append(TestConf.fileFormat())
+        .append(testConf.getFileFormat())
         .append("', ")
-        .append(TestConf.getScale())
+        .append(testConf.getScale())
         .append(')');
     try {
-      FetchResult fetch = fetchData(sql.toString());
+      FetchResult fetch = executeSql(sql.toString());
       if (fetch.rc != ResultCode.SUCCESS) {
         throw new RuntimeException("Unable to record data in test metadata table");
       }
-      if (clusterManager != null) clusterManager.registerTable(table.getDbName(), table.getTableName());
+      registerTable(table.getDbName(), table.getTableName());
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -173,6 +185,23 @@ abstract class DataStoreBase implements DataStore {
   protected abstract String markColumnPrimaryKey();
 
   /**
+   * Register that a table was created as part of a test.  This list can be used later to
+   * determine tables that should be dropped.  Whether the tables should be dropped is up to the
+   * DataStore.  This is just a mechanism to remember that tables.
+   * @param dbName Database the table is in.
+   * @param tableName Table name.
+   */
+  protected void registerTable(String dbName, String tableName) {
+    StringBuilder builder = new StringBuilder();
+    if (dbName != null) {
+      builder.append(dbName)
+          .append('.');
+    }
+    builder.append(tableName);
+    registeredTables.add(builder.toString());
+  }
+
+  /**
    * Drop a table and remember that it's dropped.  This is for testing.
    * @param table table to drop
    * @throws SQLException
@@ -185,11 +214,11 @@ abstract class DataStoreBase implements DataStore {
         .append(getTableName(table))
         .append('\'');
     try {
-      FetchResult dropFetch = fetchData("drop table " + ifExists() + " " + getTableName(table));
+      FetchResult dropFetch = executeSql("drop table " + ifExists() + " " + getTableName(table));
       if (dropFetch.rc != ResultCode.SUCCESS) {
         LOG.debug("Failed to drop table, most likely means it does not exist yet" +  dropFetch.rc);
       }
-      FetchResult metaFetch = fetchData(sql.toString());
+      FetchResult metaFetch = executeSql(sql.toString());
       if (metaFetch.rc != ResultCode.SUCCESS) {
         LOG.debug("Failed to drop table from metadata, most likely means we don't know about it " +
             "yet, code is " + metaFetch.rc);

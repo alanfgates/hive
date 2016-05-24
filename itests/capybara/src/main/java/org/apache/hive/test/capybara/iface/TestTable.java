@@ -28,7 +28,6 @@ import org.apache.hive.test.capybara.data.FetchResult;
 import org.apache.hive.test.capybara.data.ResultCode;
 import org.apache.hive.test.capybara.data.Row;
 import org.apache.hive.test.capybara.infra.HiveStore;
-import org.apache.hive.test.capybara.infra.TestConf;
 import org.apache.hive.test.capybara.infra.TestManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,6 +47,9 @@ public class TestTable implements Serializable {
 
   static final private Logger LOG = LoggerFactory.getLogger(TestTable.class.getName());
 
+  private final TestManager testManager;
+  private final DataStore testStore;
+  private final DataStore benchStore;
   private final String dbName;
   private final String tableName;
   private final List<FieldSchema> cols;
@@ -83,13 +85,18 @@ public class TestTable implements Serializable {
    */
   public static TestTable fromHiveMetastore(String dbName, String tableName) throws IOException {
     try {
-      HiveStore hive = TestManager.getTestManager().getClusterManager().getHive();
+      ClusterManager testCluster = TestManager.getTestManager().getTestClusterManager();
+      DataStore testStore = testCluster.getStore();
+      if (!(testStore instanceof HiveStore)) {
+        throw new RuntimeException("fromMetadata not yet supported for non-Hive stores");
+      }
+      HiveStore hive = (HiveStore)testStore;
       IMetaStoreClient msClient = hive.getMetastoreConnection();
       Table msTable = msClient.getTable(dbName, tableName);
       // If we haven't started a session, start one, as we'll need it
-      if (SessionState.get() == null) SessionState.start(hive.getHiveConf());
+      if (SessionState.get() == null) SessionState.start(testCluster.getHiveConf());
       // If we haven't set the transaction manager, we need to do it
-      if (SessionState.get().getTxnMgr() == null) SessionState.get().initTxnMgr(hive.getHiveConf());
+      if (SessionState.get().getTxnMgr() == null) SessionState.get().initTxnMgr(testCluster.getHiveConf());
       TestTable testTable = new TestTable(dbName, tableName, msTable.getSd().getCols(),
           msTable.getPartitionKeysSize() > 0 ? msTable.getPartitionKeys() : null,
           null, null, null, 0,
@@ -293,6 +300,9 @@ public class TestTable implements Serializable {
                     List<FieldSchema> partCols, PrimaryKey pk, List<ForeignKey> fk,
                     DataGenerator partValsGenerator, int numParts, boolean isAcid,
                     String[] bucketCols, int numBuckets, boolean isTemporary) {
+    testManager = TestManager.getTestManager();
+    testStore = testManager.getTestClusterManager().getStore();
+    benchStore = testManager.getBenchmarkClusterManager().getStore();
     this.isTemporary = isTemporary;
     this.dbName = dbName == null ? "default" : dbName;
     this.tableName = tableName;
@@ -329,11 +339,8 @@ public class TestTable implements Serializable {
    * @throws IOException
    */
   public void create() throws SQLException, IOException {
-    HiveStore hive = TestManager.getTestManager().getClusterManager().getHive();
-    DataStore bench = TestManager.getTestManager().getBenchmark().getBenchDataStore();
-
-    hiveCreated = hive.createTable(this);
-    benchCreated = bench.createTable(this);
+    hiveCreated = testStore.createTable(this);
+    benchCreated = benchStore.createTable(this);
   }
 
   /**
@@ -362,10 +369,7 @@ public class TestTable implements Serializable {
    */
   public void populate(DataGenerator generator, int scale, double[] pctNull)
       throws SQLException, IOException {
-    HiveStore hive = TestManager.getTestManager().getClusterManager().getHive();
-    DataStore bench = TestManager.getTestManager().getBenchmark().getBenchDataStore();
-
-    scale = scale == -1 ? TestConf.getScale() : scale;
+    scale = scale == -1 ? testManager.getTestConf().getScale() : scale;
 
     DataSet data = null;
     if (hiveCreated || benchCreated) {
@@ -373,11 +377,11 @@ public class TestTable implements Serializable {
     }
     HiveLoader hiveLoader = null;
     if (hiveCreated) {
-      hiveLoader = new HiveLoader(this, data, hive);
+      hiveLoader = new HiveLoader(this, data, testStore);
       hiveLoader.start();
     }
     if (benchCreated) {
-      bench.loadData(this, data);
+      benchStore.loadData(this, data);
     }
     if (hiveLoader != null) {
       try {
@@ -403,21 +407,18 @@ public class TestTable implements Serializable {
    * @throws java.io.IOException
    */
   public void createTargetTable() throws IOException, SQLException {
-    HiveStore hive = TestManager.getTestManager().getClusterManager().getHive();
-    DataStore bench = TestManager.getTestManager().getBenchmark().getBenchDataStore();
-
-    hive.forceCreateTable(this);
-    bench.forceCreateTable(this);
+    testStore.forceCreateTable(this);
+    benchStore.forceCreateTable(this);
   }
 
   private class HiveLoader extends Thread {
     final TestTable table;
     final DataSet data;
-    final HiveStore hive;
+    final DataStore hive;
     SQLException stashedSqlException;
     IOException stashedIoException;
 
-    public HiveLoader(TestTable table, DataSet data, HiveStore hive) {
+    public HiveLoader(TestTable table, DataSet data, DataStore hive) {
       this.table = table;
       this.data = data;
       this.hive = hive;
@@ -628,8 +629,7 @@ public class TestTable implements Serializable {
     if (cachedData == null) {
       // TODO - create a FetchingDataSet that only fetches the data when requested.  Because it's
       // quite likely we won't actually need to fetch the data.
-      DataStore bench = TestManager.getTestManager().getBenchmark().getBenchDataStore();
-      FetchResult fetch = bench.fetchData("select * from " + toString());
+      FetchResult fetch = benchStore.executeSql("select * from " + toString());
       if (fetch.rc != ResultCode.SUCCESS) {
         throw new RuntimeException("Unable to fetch results from already populated table " +
             toString());

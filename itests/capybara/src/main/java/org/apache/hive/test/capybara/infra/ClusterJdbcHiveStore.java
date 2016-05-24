@@ -19,17 +19,15 @@ package org.apache.hive.test.capybara.infra;
 
 import org.apache.hadoop.hive.ql.QueryPlan;
 import org.apache.hive.test.capybara.data.FetchResult;
-import org.apache.hive.test.capybara.iface.ClusterManager;
 
 import java.io.IOException;
+import java.sql.Connection;
+import java.sql.Driver;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Properties;
 
 public class ClusterJdbcHiveStore extends HiveStore {
-  public ClusterJdbcHiveStore(ClusterManager clusterManager) {
-    super(clusterManager);
-  }
 
   @Override
   public QueryPlan explain(String sql) {
@@ -43,22 +41,52 @@ public class ClusterJdbcHiveStore extends HiveStore {
 
   @Override
   protected String connectionURL() {
-    return clusterManager.getJdbcConnectionInfo().connectionString;
+    ClusterConf cc = clusterManager.getClusterConf();
+    StringBuilder url = new StringBuilder("jdbc:hive2://")
+        .append(cc.getJdbcHost())
+        .append(cc.getJdbcPort());
+    return url.toString();
   }
 
   @Override
   protected Properties connectionProperties() {
-    return clusterManager.getJdbcConnectionInfo().properties;
+    ClusterConf cc = clusterManager.getClusterConf();
+    Properties properties = new Properties();
+    properties.put("user", cc.getJdbcUser());
+    properties.put("password", cc.getJdbcPasswd());
+    return properties;
   }
 
   @Override
-  public FetchResult fetchData(String sql) throws SQLException, IOException {
+  public FetchResult executeSql(String sql) throws SQLException, IOException {
+    instantiateJdbcDriver();
+    return jdbcFetch(sql);
+  }
+
+  @Override
+  public Connection getJdbcConnection(boolean autoCommit) throws SQLException {
+    instantiateJdbcDriver();
+    Connection conn = jdbcDriver.connect(connectionURL(), connectionProperties());
+    conn.setAutoCommit(autoCommit);
+    return conn;
+  }
+
+  @Override
+  public Class<? extends Driver> getJdbcDriverClass() {
+    try {
+      instantiateJdbcDriver();
+      return jdbcDriver.getClass();
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private void instantiateJdbcDriver() throws SQLException {
     if (jdbcDriver == null) {
       jdbcDriver = DriverManager.getDriver(connectionURL());
       if (jdbcDriver == null) {
         throw new RuntimeException("Unable to locate JDBC driver for URL " + connectionURL());
       }
     }
-    return jdbcFetch(sql);
   }
 }

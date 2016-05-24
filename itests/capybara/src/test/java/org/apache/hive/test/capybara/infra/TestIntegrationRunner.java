@@ -38,31 +38,38 @@ import java.sql.SQLException;
 public class TestIntegrationRunner extends IntegrationTest {
 
   @NoCli @Test public void testNoCli() {
-    Assert.assertNotEquals("cli", TestConf.access());
+    Assert.assertNotEquals(TestConf.ACCESS_CLI,
+        TestManager.getTestManager().getTestClusterManager().getClusterConf().getAccess());
   }
 
   @NoJdbc @Test public void testNoJdbc() {
-    Assert.assertNotEquals("jdbc", TestConf.access());
+    Assert.assertNotEquals(TestConf.ACCESS_JDBC,
+        TestManager.getTestManager().getTestClusterManager().getClusterConf().getAccess());
   }
 
   @NoOrc @Test public void testNoOrc() {
-    Assert.assertNotEquals("orc", TestConf.fileFormat());
+    Assert.assertNotEquals(TestConf.FILE_FORMAT_ORC,
+        TestManager.getTestManager().getTestConf().getFileFormat());
   }
 
   @NoParquet @Test public void testNoParquet() {
-    Assert.assertNotEquals("parquet", TestConf.fileFormat());
+    Assert.assertNotEquals(TestConf.FILE_FORMAT_PARQUET,
+        TestManager.getTestManager().getTestConf().getFileFormat());
   }
 
   @NoRcFile @Test public void testNoRcFile() {
-    Assert.assertNotEquals("rcfile", TestConf.fileFormat());
+    Assert.assertNotEquals(TestConf.FILE_FORMAT_RC,
+        TestManager.getTestManager().getTestConf().getFileFormat());
   }
 
   @NoTextFile @Test public void testTextFile() {
-    Assert.assertNotEquals("text", TestConf.fileFormat());
+    Assert.assertNotEquals(TestConf.FILE_FORMAT_TEXT,
+        TestManager.getTestManager().getTestConf().getFileFormat());
   }
 
   @NoTez @Test public void testTez() {
-    Assert.assertNotEquals("tez", TestConf.engine());
+    Assert.assertNotEquals(TestConf.ENGINE_TEZ,
+        TestManager.getTestManager().getTestClusterManager().getClusterConf().getEngine());
   }
 
   @AcidOn @Test public void testAcid() throws IOException, SQLException {
@@ -70,7 +77,8 @@ public class TestIntegrationRunner extends IntegrationTest {
   }
 
   @Test public void testNoSpark() {
-    Assert.assertNotEquals("spark", TestConf.engine());
+    Assert.assertNotEquals(TestConf.ENGINE_SPARK,
+        TestManager.getTestManager().getTestClusterManager().getClusterConf().getEngine());
     Assert.assertFalse(getCurrentConf().getBoolVar(HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY));
   }
 

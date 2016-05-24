@@ -18,8 +18,6 @@
 package org.apache.hive.test.capybara;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.QueryPlan;
 import org.apache.hive.hcatalog.streaming.HiveEndPoint;
@@ -27,17 +25,16 @@ import org.apache.hive.test.capybara.annotations.AcidOn;
 import org.apache.hive.test.capybara.annotations.MetadataOnly;
 import org.apache.hive.test.capybara.annotations.SqlStdAuthOn;
 import org.apache.hive.test.capybara.annotations.VectorOn;
-import org.apache.hive.test.capybara.data.ResultCode;
-import org.apache.hive.test.capybara.iface.Benchmark;
-import org.apache.hive.test.capybara.infra.CapyEndPoint;
-import org.apache.hive.test.capybara.iface.ClusterManager;
 import org.apache.hive.test.capybara.data.DataSet;
 import org.apache.hive.test.capybara.data.FetchResult;
-import org.apache.hive.test.capybara.infra.HiveStore;
+import org.apache.hive.test.capybara.data.ResultCode;
+import org.apache.hive.test.capybara.iface.ClusterManager;
+import org.apache.hive.test.capybara.iface.DataStore;
+import org.apache.hive.test.capybara.iface.TestTable;
+import org.apache.hive.test.capybara.infra.CapyEndPoint;
 import org.apache.hive.test.capybara.infra.IntegrationRunner;
 import org.apache.hive.test.capybara.infra.TestConf;
 import org.apache.hive.test.capybara.infra.TestManager;
-import org.apache.hive.test.capybara.iface.TestTable;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -65,9 +62,7 @@ import java.util.Map;
  * specifically tailored results by using {@link #runBenchmark} (for example, in
  * the case where a feature is not supported by the Benchmark but can be produced by a different
  * but semantically equivalent query).  This is not generally required for syntax differences as
- * the test framework can convert Hive SQL to ANSI SQL.  You can also provide your own
- * implementation of {@link org.apache.hive.test.capybara.iface.Benchmark} that will produce
- * results that make sense for your test.</p>
+ * the test framework can convert Hive SQL to ANSI SQL.</p>
  *
  * <p>If your query requires any setting not handled in the general annotations you can set that
  * using {@link #set}.</p>
@@ -94,37 +89,33 @@ import java.util.Map;
 public abstract class IntegrationTest {
   static final private Logger LOG = LoggerFactory.getLogger(IntegrationTest.class);
 
-  // The config files that will be read from $HADOOP_HOME/conf
-  static final private String[] hadoopConfigFiles = {"core-site.xml", "hdfs-site.xml"};
-
   private static TestManager testManager;
-  private static ClusterManager clusterManager;
-  // This is used to start up any mini-clusters.  It is also used as a template to build new
-  // config files for each Hive instance.
-  private static Configuration baseConf;
+  private static ClusterManager testCluster;
+  private static ClusterManager benchCluster;
 
   // This is the configuration used for a particular test.  This will be re-created in the
   // @Before method.
   private HiveConf oneTestConf;
-  private HiveStore hive;
-  private Benchmark bench;
-  private FetchResult hiveResults;
+  private HiveConf oneBenchConf;
+  private DataStore testStore;
+  private DataStore benchStore;
+  private FetchResult testResults;
   private FetchResult benchmarkResults;
   private Map<String, List<Annotation>> allAnnotations;
-  private boolean metadataOnly;
   private String lastQuery; // Used to keep track of the last query sent to runQuery/runHive
+  private boolean metadataOnly;
 
   @Rule public TestName name = new TestName();
 
   @BeforeClass
   public static void initClass() throws IOException {
     LOG.trace("Entering initClass");
-    baseConf = getBaseConf();
     testManager = TestManager.getTestManager();
-    testManager.setConf(baseConf);
     // Start any necessary mini-clusters
-    clusterManager = testManager.getClusterManager();
-    clusterManager.setup();
+    testCluster = testManager.getTestClusterManager();
+    testCluster.setup(TestConf.TEST_CLUSTER);
+    benchCluster = testManager.getBenchmarkClusterManager();
+    benchCluster.setup(TestConf.BENCH_CLUSTER);
     LOG.trace("Leaving initClass");
   }
 
@@ -132,62 +123,31 @@ public abstract class IntegrationTest {
   public static void teardownClass() throws IOException {
     LOG.trace("Entering teardownClass");
     // tear down any miniclusters we started
-    clusterManager.tearDown();
+    testCluster.tearDown();
+    benchCluster.tearDown();
     LOG.trace("Leaving teardownClass");
-  }
-
-  private static HiveConf getBaseConf() {
-    HiveConf conf;
-    if (TestConf.onCluster()) {
-      LOG.debug("Choosing cluster for config file ");
-      // If we're on the cluster, we want our HiveConf to reflect the info for that cluster, not
-      // whatever is currently in our classpath.  To make that happen we'll clear the contents of
-      // the configuration object and then force it to read exactly the files we want out of the
-      // HADOOP_HOME that has been passed to us.
-      String hadoopHome = System.getProperty("HADOOP_HOME");
-      if (hadoopHome == null) {
-        throw new RuntimeException("You must define HADOOP_HOME to run on a cluster");
-      }
-      String hadoopConf = hadoopHome + "/conf/";
-      // Build a configuration that doesn't read the default resources.
-      Configuration base = new Configuration(false);
-      conf = new HiveConf(base, HiveConf.class);
-      for (String hadoopConfigFile : hadoopConfigFiles) {
-        Path p = new Path(hadoopConf + hadoopConfigFile);
-        conf.addResource(p);
-      }
-    } else {
-      LOG.debug("Choosing local for config file ");
-      conf = new HiveConf();
-    }
-    return conf;
   }
 
   @Before
   public void initTest() throws SQLException, IOException {
     LOG.trace("Entering initTest");
-    metadataOnly = false;
 
-   // Create a new configuration file that will be used for this test.
-    oneTestConf = new HiveConf(baseConf, HiveConf.class);
-    clusterManager.setConf(oneTestConf);
-    // Allow dynamic partitioning, as we need it.
-    set(HiveConf.ConfVars.DYNAMICPARTITIONINGMODE.varname, "nonstrict");
+    // Give the cluster manager a chance to do any setup it needs to do.
+    testCluster.beforeTest();
+    benchCluster.beforeTest();
 
-    // Turn off strict mode, which stops certain queries.
-    set(HiveConf.ConfVars.HIVEMAPREDMODE.varname, "nonstrict");
-
-    // Set default file format to whatever has been chosen for this test, so we
-    // automatically get the right file format.
-    set(HiveConf.ConfVars.HIVEDEFAULTFILEFORMAT.varname, TestConf.fileFormat());
+    // Create a new configuration file that will be used for this test.
+    oneTestConf = testCluster.getHiveConf();
+    oneBenchConf = benchCluster.getHiveConf();
 
     // This has to be done after we create a new config so that Hive get's the right
     // config object.
-    hive = clusterManager.getHive();
-    bench = testManager.getBenchmark();
+    testStore = testCluster.getStore();
+    benchStore = benchCluster.getStore();
 
-    // Give the cluster manager a chance to do any setup it needs to do.
-    clusterManager.beforeTest();
+    // Add necessary configs
+    set(HiveConf.ConfVars.DYNAMICPARTITIONINGMODE.varname, "nonstrict");
+    set(HiveConf.ConfVars.HIVEDEFAULTFILEFORMAT.varname, testManager.getTestConf().getFileFormat());
 
     // Handle any annotations that set values in the config file
     List<Annotation> annotations = allAnnotations.get(name.getMethodName());
@@ -215,7 +175,7 @@ public abstract class IntegrationTest {
   private void handleValueAnnotation(String[] values) throws SQLException, IOException {
     Assert.assertEquals(0, values.length % 2);
     for (int i = 0; i < values.length; i += 2) {
-      set(values[i], values[i + 1]);
+      set(testCluster, values[i], values[i + 1]);
     }
 
   }
@@ -224,9 +184,8 @@ public abstract class IntegrationTest {
   public void teardownTest() throws Exception {
     LOG.trace("Entering teardownTest");
     // Give the benchmark a chance to cleanup if it needs to
-    testManager.getBenchmark().getBenchDataStore().cleanupAfterTest();
-    testManager.resetBenchmark();
-    clusterManager.afterTest();
+    testCluster.afterTest();
+    benchCluster.afterTest();
     LOG.trace("Leaving teardownTest");
   }
 
@@ -269,43 +228,50 @@ public abstract class IntegrationTest {
       throws SQLException, IOException {
     lastQuery = sql;
     try {
-      HiveRunner hiveRunner = new HiveRunner(sql, expectedException);
-      hiveRunner.start();
+      StoreRunner testRunner = new StoreRunner(testStore, sql, expectedException);
+      testRunner.start();
       if (!hiveOnly) {
         // While Hive runs in another thread, run the benchmark.
-        runBenchmark(sql, expectedResult);
+        StoreRunner benchRunner = new StoreRunner(benchStore, sql, null);
+        benchRunner.run();
+        benchmarkResults = benchRunner.results;
       }
-      hiveRunner.join();
-      if (expectedException != null && !hiveRunner.sawExpectedException) {
+      testRunner.join();
+      testResults = testRunner.results;
+      if (expectedException != null && !testRunner.sawExpectedException) {
         Assert.fail("Expected exception " + expectedException.getClass().getSimpleName() + " but "
-          + (hiveRunner.stashedException == null ? "got no exception " : " got " +
-            hiveRunner.stashedException.getClass().getSimpleName() + " instead."));
+          + (testRunner.stashedException == null ? "got no exception " : " got " +
+            testRunner.stashedException.getClass().getSimpleName() + " instead."));
       }
       // If an exception was thrown and we didn't expect it, go ahead and throw it on now.
-      if (hiveRunner.stashedException != null) {
-        if (SQLException.class.equals(hiveRunner.stashedException)) {
-          throw (SQLException)hiveRunner.stashedException;
-        } else if (IOException.class.equals(hiveRunner.stashedException)) {
-          throw (IOException)hiveRunner.stashedException;
+      if (testRunner.stashedException != null) {
+        if (SQLException.class.equals(testRunner.stashedException)) {
+          throw (SQLException)testRunner.stashedException;
+        } else if (IOException.class.equals(testRunner.stashedException)) {
+          throw (IOException)testRunner.stashedException;
         } else {
-          throw new RuntimeException(hiveRunner.stashedException);
+          throw new RuntimeException(testRunner.stashedException);
         }
       }
       if (expectedResult != ResultCode.ANY) {
-        Assert.assertEquals("Unexpected fetch result", expectedResult, hiveResults.rc);
+        Assert.assertEquals("Unexpected fetch result", expectedResult, testRunner.results.rc);
       }
     } catch (InterruptedException e) {
       throw new RuntimeException(e);
     }
   }
 
-  private class HiveRunner extends Thread {
+  private static class StoreRunner extends Thread {
     Throwable stashedException;
     boolean sawExpectedException = false;
     final String sql;
     final Throwable expectedException;
+    final DataStore store;
+    FetchResult results;
 
-    HiveRunner(String s, Throwable ee) {
+
+    StoreRunner(DataStore store, String s, Throwable ee) {
+      this.store = store;
       sql = s;
       expectedException = ee;
     }
@@ -313,7 +279,7 @@ public abstract class IntegrationTest {
     @Override
     public void run() {
       try {
-        hiveResults = hive.fetchData(sql);
+        results = store.executeSql(sql);
       } catch (Throwable e) {
         if (e.equals(expectedException)) sawExpectedException = true;
         else stashedException = e;
@@ -358,7 +324,7 @@ public abstract class IntegrationTest {
    */
   protected Explain explain(String sql) throws IOException, SQLException {
     LOG.debug("Going to explain query <" + sql + ">");
-    QueryPlan plan = hive.explain(sql);
+    QueryPlan plan = testStore.explain(sql);
     // plan may be null if we're on the cluster.
     return plan == null ? null : new Explain(plan);
   }
@@ -370,7 +336,7 @@ public abstract class IntegrationTest {
    * @return resulting data set
    */
   protected DataSet getResults() {
-    return hiveResults.data;
+    return testResults.data;
   }
 
    /**
@@ -381,7 +347,8 @@ public abstract class IntegrationTest {
    */
   protected void runBenchmark(String sql, ResultCode expectedResult)
       throws  SQLException, IOException {
-    benchmarkResults = bench.getBenchDataStore().fetchData(sql);
+    StoreRunner runner = new StoreRunner(benchStore, sql, null);
+    benchmarkResults = runner.results;
     if (expectedResult != ResultCode.ANY) {
       Assert.assertEquals(expectedResult, benchmarkResults.rc);
     }
@@ -419,7 +386,7 @@ public abstract class IntegrationTest {
    * @throws SQLException
    */
   protected void tableCompare(TestTable table) throws IOException, SQLException {
-    bench.getTableComparator().compare(hive, bench.getBenchDataStore(), table);
+    testManager.getTableComparator().compare(testCluster, benchCluster, table);
 
   }
 
@@ -428,7 +395,7 @@ public abstract class IntegrationTest {
    * successfully, as that is controlled by how you call runQuery.
    */
   protected void assertEmpty() {
-    Assert.assertTrue("Expected results of query to be empty", resultIsEmpty(hiveResults));
+    Assert.assertTrue("Expected results of query to be empty", resultIsEmpty(testResults));
     Assert.assertTrue("Expected results of benchmark to be empty", resultIsEmpty(benchmarkResults));
   }
 
@@ -437,15 +404,15 @@ public abstract class IntegrationTest {
   }
 
   private void compare(boolean sort) throws SQLException, IOException {
-    Assert.assertNotNull("Expected results of query to be non-empty", hiveResults.data);
+    Assert.assertNotNull("Expected results of query to be non-empty", testResults.data);
     Assert.assertNotNull("Expected results of benchmark to be non-empty", benchmarkResults.data);
-    if (hiveResults.data.getSchema() == null) {
+    if (testResults.data.getSchema() == null) {
       // When Hive's working from the command line it doesn't know the schema of its output.  To
       // solve this cheat and grab the schema from the benchmark, so we know how to interpret the
       // output.
-      hiveResults.data.setSchema(benchmarkResults.data.getSchema());
+      testResults.data.setSchema(benchmarkResults.data.getSchema());
     }
-    bench.getResultComparator(sort).compare(hiveResults.data, benchmarkResults.data);
+    testManager.getResultComparator(sort).compare(testResults.data, benchmarkResults.data);
   }
 
  /**
@@ -454,7 +421,8 @@ public abstract class IntegrationTest {
    * @param val value to set it to
    */
   protected void set(String var, String val) throws SQLException, IOException {
-    clusterManager.setConfVar(var, val);
+    set(testCluster, var, val);
+    set(benchCluster, var, val);
   }
 
   /**
@@ -487,6 +455,10 @@ public abstract class IntegrationTest {
     set(var, Double.toString(val));
   }
 
+  private void set(ClusterManager cluster, String var, String val) {
+    cluster.setConfVar(var, val);
+  }
+
   /**
    * Get a HiveEndPoint for streaming data too.  To test Hive streaming you must call this rather
    * than construct HiveEndPoint directly.  This call gives a subclass of HiveEndPoint that
@@ -496,8 +468,9 @@ public abstract class IntegrationTest {
    * @return a HiveEndPoint
    */
   protected HiveEndPoint getHiveEndPoint(TestTable testTable, List<String> partVals) {
-    return new CapyEndPoint(bench.getBenchDataStore(), testTable, getConf(),
-        hive.getMetastoreUri(), partVals);
+    return new CapyEndPoint(testStore.getStreamingEndPoint(testTable, partVals),
+        benchStore.getStreamingEndPoint(testTable, partVals), testTable,
+        testCluster.getHiveConf(), partVals);
   }
 
   protected IntegrationTest() {

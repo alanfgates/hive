@@ -17,16 +17,6 @@
  */
 package org.apache.hive.test.capybara.iface;
 
-import org.apache.hive.test.capybara.data.ResultCode;
-import org.apache.hive.test.capybara.data.Row;
-import org.apache.hive.test.capybara.infra.ClusterDataGenerator;
-import org.apache.hive.test.capybara.data.FetchResult;
-import org.apache.hive.test.capybara.infra.HiveStore;
-import org.apache.hive.test.capybara.infra.NonSortingComparator;
-import org.apache.hive.test.capybara.infra.TestConf;
-import org.apache.hive.test.capybara.infra.TestManager;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.FSDataInputStream;
@@ -46,11 +36,20 @@ import org.apache.hadoop.mapred.RunningJob;
 import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.mapred.lib.NLineInputFormat;
 import org.apache.hadoop.util.StringUtils;
+import org.apache.hive.test.capybara.data.FetchResult;
+import org.apache.hive.test.capybara.data.ResultCode;
+import org.apache.hive.test.capybara.data.Row;
+import org.apache.hive.test.capybara.infra.ClusterDataGenerator;
+import org.apache.hive.test.capybara.infra.NonSortingComparator;
+import org.apache.hive.test.capybara.infra.TestManager;
 import org.junit.Assert;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.sql.Driver;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -75,21 +74,23 @@ public class TableComparator {
   /**
    * Compare tables in Hive and the benchmark.  {@link java.lang.AssertionError} will be thrown
    * if the comparison fails.
-   * @param hive HiveStore that contains the table.
-   * @param bench Benchmark that contains the table.
+   * @param testCluster HiveStore that contains the table.
+   * @param benchCluster Benchmark that contains the table.
    * @param table test table to compare.
    * @throws IOException
    * @throws SQLException
    */
-  public void compare(HiveStore hive, BenchmarkDataStore bench, TestTable table)
+  public void compare(ClusterManager testCluster, ClusterManager benchCluster, TestTable table)
       throws IOException, SQLException {
-    if (!TestConf.onCluster()) {
-      localCompare(hive, bench, table);
+    DataStore hiveStore = testCluster.getStore();
+    DataStore benchStore = benchCluster.getStore();
+    if (!testCluster.remote() && !benchCluster.remote()) {
+      localCompare(hiveStore, benchStore, table);
       return;
     }
 
     // Step 1, get an estimated size
-    FetchResult cnt = hive.fetchData("select count(*) from " + table.getFullName());
+    FetchResult cnt = hiveStore.executeSql("select count(*) from " + table.getFullName());
     if (cnt.rc != ResultCode.SUCCESS) {
       throw new RuntimeException("Failed to count rows in " + table.getFullName());
     }
@@ -98,7 +99,7 @@ public class TableComparator {
     assert iter.hasNext();
     long rowCnt = iter.next().get(0).asLong();
 
-    FetchResult lmt = hive.fetchData("select * from " + table.getFullName() + " limit 100");
+    FetchResult lmt = hiveStore.executeSql("select * from " + table.getFullName() + " limit 100");
     if (lmt.rc != ResultCode.SUCCESS) {
       throw new RuntimeException("Failed to fetch first 100 rows in " + table.getFullName());
     }
@@ -109,18 +110,18 @@ public class TableComparator {
     int avg = sum / 100;
 
     long size = rowCnt * avg;
-    int parallelism = (int) (2 * size * 1024 / TestConf.getClusterGenThreshold());
+    int parallelism = (int) (2 * size * 1024 / TestManager.getTestManager().getTestConf().getClusterGenThreshold());
 
     // If parallelism turns out to be less than or equal to 1, do this locally as two separate selects.  Otherwise
     // we'll do it in the cluster
     if (parallelism <= 1) {
-      localCompare(hive, bench, table);
+      localCompare(hiveStore, benchStore, table);
     } else {
-      clusterCompare(hive, bench, table, parallelism);
+      clusterCompare(testCluster, benchCluster, table, parallelism);
     }
   }
 
-  private void localCompare(HiveStore hive, DataStore bench, TestTable table)
+  private void localCompare(DataStore testStore, DataStore benchStore, TestTable table)
       throws IOException, SQLException {
     List<FieldSchema> allCols = table.getCombinedSchema();
     StringBuilder colList = new StringBuilder();
@@ -137,9 +138,9 @@ public class TableComparator {
         .append(" order by ")
         .append(colList);
 
-    FetchResult hiveResult = hive.fetchData(sql.toString());
+    FetchResult hiveResult = testStore.executeSql(sql.toString());
     Assert.assertEquals(ResultCode.SUCCESS, hiveResult.rc);
-    FetchResult benchResult = bench.fetchData(sql.toString());
+    FetchResult benchResult = benchStore.executeSql(sql.toString());
     Assert.assertEquals(ResultCode.SUCCESS, benchResult.rc);
     if (hiveResult.data.getSchema() == null) {
       hiveResult.data.setSchema(benchResult.data.getSchema());
@@ -148,13 +149,16 @@ public class TableComparator {
     comparator.compare(hiveResult.data, benchResult.data);
   }
 
-  private void clusterCompare(HiveStore hive, BenchmarkDataStore bench, TestTable table,
-                              int parallelism) throws IOException, SQLException {
+  private void clusterCompare(ClusterManager testCluster, ClusterManager benchCluster,
+                              TestTable table, int parallelism) throws IOException, SQLException {
     // Step 2 pick a set of columns to divide the table up by.  We want columns likely to have a
     // wide distribution of values.  Thus we'll avoid boolean and tinyint.  We will also avoid
     // floating point because who knows how that plays across different platforms.  Also, don't
     // use partition columns as those will tend to have a limited set of values.
     List<String> orderByCols = new ArrayList<>(3);
+
+    DataStore testStore = testCluster.getStore();
+    DataStore benchStore = benchCluster.getStore();
 
     for (int i = 0; i < table.getCols().size() && orderByCols.size() < 3; i++) {
       FieldSchema col = table.getCols().get(i);
@@ -180,8 +184,8 @@ public class TableComparator {
         .setCols(allCols)
         .addPartCol(NTILE_COL, "int")
         .build();
-    hive.forceCreateTable(comparisonTable);
-    bench.forceCreateTable(comparisonTable);
+    testStore.forceCreateTable(comparisonTable);
+    benchStore.forceCreateTable(comparisonTable);
 
     StringBuilder sql = new StringBuilder("insert into ")
         .append(comparisonTableName)
@@ -203,9 +207,9 @@ public class TableComparator {
     }
     sql.append(") from ")
         .append(table.getFullName());
-    FetchResult hiveResult = hive.fetchData(sql.toString());
+    FetchResult hiveResult = testStore.executeSql(sql.toString());
     Assert.assertEquals(ResultCode.SUCCESS, hiveResult.rc);
-    FetchResult benchResult = bench.fetchData(sql.toString());
+    FetchResult benchResult = benchStore.executeSql(sql.toString());
     Assert.assertEquals(ResultCode.SUCCESS, benchResult.rc);
 
     // Step 4, create an MR job that will do the comparison in pieces, with each task comparing
@@ -215,16 +219,16 @@ public class TableComparator {
     // 3) the class of DataStore to use for bench.
     // 4) the list of columns in the table
     // 5) the name of the table
-    Configuration conf = TestManager.getTestManager().getConf();
-    FileSystem fs = TestManager.getTestManager().getClusterManager().getFileSystem();
-    Path inputFile = new Path(HiveStore.getDirForDumpFile());
+    Configuration conf = testCluster.getHiveConf();
+    FileSystem fs = testCluster.getFileSystem();
+    Path inputFile = new Path(testCluster.getDirForDumpFile());
     FSDataOutputStream out = fs.create(inputFile);
     for (int i = 0; i < parallelism; i++) {
       out.writeBytes(Integer.toString(i + 1));  // add 1 because SQL counts from 1
       out.writeBytes(FIELD_SEP);
-      out.writeBytes(hive.getClass().getName());
+      out.writeBytes(testCluster.getClass().getName());
       out.writeBytes(FIELD_SEP);
-      out.writeBytes(bench.getClass().getName());
+      out.writeBytes(benchCluster.getClass().getName());
       out.writeBytes(FIELD_SEP);
       first = true;
       for (FieldSchema col : allCols) {
@@ -238,7 +242,7 @@ public class TableComparator {
     }
     out.close();
 
-    Path outputFile = new Path(HiveStore.getDirForDumpFile());
+    Path outputFile = new Path(testCluster.getDirForDumpFile());
 
     JobConf job = new JobConf(conf);
     job.setJobName("Capybara data compare for " + table.getTableName());
@@ -253,12 +257,14 @@ public class TableComparator {
     TextOutputFormat.setOutputPath(job, outputFile);
 
     // Put the benchmark's JDBC driver jar into the cache so it will available on the cluster.
-    String jar =
-        bench.getDriverClass().getProtectionDomain().getCodeSource().getLocation().getPath();
-    Path hdfsJar = new Path(HiveStore.getDirForDumpFile() + "/" + "jdbc_driver.jar");
-    fs.copyFromLocalFile(new Path(jar), hdfsJar);
-    // Add jar to distributed classPath
-    DistributedCache.addFileToClassPath(hdfsJar, job);
+    Class<? extends Driver> driver = benchStore.getJdbcDriverClass();
+    if (driver != null) {
+      String jar = driver.getProtectionDomain().getCodeSource().getLocation().getPath();
+      Path hdfsJar = new Path(testCluster.getDirForDumpFile() + "/" + "jdbc_driver.jar");
+      fs.copyFromLocalFile(new Path(jar), hdfsJar);
+      // Add jar to distributed classPath
+      DistributedCache.addFileToClassPath(hdfsJar, job);
+    }
 
     RunningJob runningJob = JobClient.runJob(job);
     LOG.debug("Submitted comparison job " + job.getJobName());
@@ -292,6 +298,8 @@ public class TableComparator {
   }
 
   static class TableComparatorMapper implements Mapper<LongWritable, Text, NullWritable, Text> {
+    // TODO I seriously doubt this going to work.  It assumes Hive client is installed everywhere
+    // on the cluster and can access the data.  This won't work in general in clusters.
     private JobConf job;
 
     @Override
@@ -304,8 +312,8 @@ public class TableComparator {
       // Construct the appropriate classes.
       try {
         Class hiveClass = Class.forName(line[1]);
-        HiveStore hive = (HiveStore)hiveClass.newInstance();
-        hive.setConf(job);
+        DataStore hive = (DataStore)hiveClass.newInstance();
+        //hive.setConf(job);
 
         Class benchClass = Class.forName(line[2]);
         DataStore bench = (DataStore)benchClass.newInstance();
@@ -321,9 +329,9 @@ public class TableComparator {
             .append(" order by ")
             .append(line[3]);
 
-        FetchResult hiveResult = hive.fetchData(sql.toString());
+        FetchResult hiveResult = hive.executeSql(sql.toString());
         Assert.assertEquals(ResultCode.SUCCESS, hiveResult.rc);
-        FetchResult benchResult = bench.fetchData(sql.toString());
+        FetchResult benchResult = bench.executeSql(sql.toString());
         Assert.assertEquals(ResultCode.SUCCESS, benchResult.rc);
         if (hiveResult.data.getSchema() == null) {
           hiveResult.data.setSchema(benchResult.data.getSchema());

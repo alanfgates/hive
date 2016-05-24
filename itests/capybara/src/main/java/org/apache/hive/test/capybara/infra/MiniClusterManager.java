@@ -29,38 +29,33 @@ import org.apache.hadoop.hive.ql.WindowsPathUtil;
 import org.apache.hadoop.hive.shims.Utils;
 import org.apache.hadoop.mapreduce.MRJobConfig;
 import org.apache.hive.jdbc.miniHS2.MiniHS2;
-import org.apache.hive.test.capybara.iface.ClusterManager;
+import org.apache.hive.test.capybara.iface.DataStore;
 import org.apache.tez.test.MiniTezCluster;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
-import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 
 /**
  * Manager for mini-clusters
  */
-public class MiniClusterManager implements ClusterManager {
+public class MiniClusterManager extends ClusterManagerBase {
   static final private Logger LOG = LoggerFactory.getLogger(MiniClusterManager.class.getName());
 
   private static final String DFS_DIR = "minidfs";
   private static final String TEZ_DIR = "apps_staging_dir";
-  private Configuration conf;
   private MiniDFSCluster dfs;
   private MiniTezCluster tez;
-  private HiveStore hive;
   private MiniHS2 hs2;
-  private List<String> registeredTables = new ArrayList<>();
-  private Map<String, String> confVars = new HashMap<>();
 
   @Override
-  public void setup() throws IOException {
+  public void setup(String clusterType) throws IOException {
+    super.setup(clusterType);
+
+    getHiveConf(); // Make sure we've created the configuration object.
+
     File base = new File(baseDir() + DFS_DIR).getAbsoluteFile();
 
     FileUtil.fullyDelete(base);
@@ -105,8 +100,9 @@ public class MiniClusterManager implements ClusterManager {
     // dfsURI = "hdfs://localhost:"+ dfs.getNameNodePort();
 
     // if this is running Tez, construct Tez mini-cluster
-    if (TestConf.engine().equals(TestConf.ENGINE_TEZ)) {
-      tez = new MiniTezCluster("hive", TestConf.numTezTasks());
+    TestConf testConf = TestManager.getTestManager().getTestConf();
+    if (getClusterConf().getEngine().equals(TestConf.ENGINE_TEZ)) {
+      tez = new MiniTezCluster("hive", getClusterConf().getNumTezTasks());
       conf.set("mapred.tez.java.opts","-Xmx128m");
       conf.setInt("hive.tez.container.size", 128);
       conf.setBoolean("hive.merge.tezfiles", false);
@@ -144,56 +140,46 @@ public class MiniClusterManager implements ClusterManager {
       }
 
       conf.set(CommonConfigurationKeysPublic.FS_DEFAULT_NAME_KEY, nameNodeUri);
-    } else if (TestConf.engine().equals(TestConf.ENGINE_UNSPECIFIED)) {
+    } else if (getClusterConf().getEngine().equals(TestConf.ENGINE_MR)) {
       // ok, hope you know what you're doing
     } else {
-      throw new RuntimeException("Unknown engine: " + TestConf.engine());
+      throw new RuntimeException("Unknown engine: " + getClusterConf().getEngine());
     }
 
-    if (TestConf.access().equals(TestConf.ACCESS_JDBC)) {
-      /*
-      try {
-        hs2 = new MiniHS2((HiveConf)conf, dfs.getFileSystem());
-        hs2.start(Collections.<String, String>emptyMap());
-      } catch (Exception e) {
-        throw new IOException(e);
-      }
-      */
-    }
-
+    // TODO make this work with MiniHS2, in this case we need to not start our own file system
+    // but use the one in MiniHS2 instead.
     // TODO if this is running Hbase metastore, construct HBase mini-cluster
     // TODO if this is running secure, construct mini kdc
   }
 
   @Override
-  public void tearDown() {
+  public void tearDown() throws IOException {
+    super.tearDown();
+    // TODO - move this into store.teardown for the mini stores
+    /*
     Exception caughtException = null;
     for (String dbNameTableName : registeredTables) {
       try {
-        getHive().fetchData("drop table " + dbNameTableName);
+        getHive().executeSql("drop table " + dbNameTableName);
       } catch (SQLException | IOException e) {
         LOG.error("Unable to drop table " + dbNameTableName, e);
         caughtException = e;
         // Keep going so we get everything shutdown, finally close it at the end
       }
     }
+    */
 
     // tear down any mini-clusters we've constructed.
     if (dfs != null) dfs.shutdown();
     if (tez != null) tez.stop();
     if (hs2 != null) hs2.stop();
-    if (caughtException != null) throw new RuntimeException(caughtException);
-  }
-
-  @Override
-  public void beforeTest() throws IOException {
-
+    //if (caughtException != null) throw new RuntimeException(caughtException);
   }
 
   @Override
   public void afterTest() throws IOException {
     if (tez != null) tez.close();
-    hive = null;
+    store = null;
   }
 
   @Override
@@ -207,22 +193,29 @@ public class MiniClusterManager implements ClusterManager {
   }
 
   @Override
-  public HiveStore getHive() {
-    assert conf != null;
-    if (hive == null) {
-      String access = TestConf.access();
+  public DataStore getStore() {
+    if (store == null) {
+      String access = getClusterConf().getAccess();
       if (access.equals(TestConf.ACCESS_CLI)) {
-        hive = new MiniCliHiveStore(this);
+        store = new MiniCliHiveStore();
       } else if (access.equals(TestConf.ACCESS_JDBC)) {
-        hive = new MiniHS2HiveStore(this);
+        store = new MiniHS2HiveStore();
       } else {
         throw new RuntimeException("Unknown access method " + access);
       }
-      hive.setConf(conf);
     }
-    return hive;
+    return store;
   }
 
+  @Override
+  public HiveConf getHiveConf() {
+    if (conf == null) {
+      conf = new HiveConf();
+    }
+    return conf;
+  }
+
+  /*
   @Override
   public JdbcInfo getJdbcConnectionInfo() {
     if (hs2 == null) {
@@ -237,37 +230,7 @@ public class MiniClusterManager implements ClusterManager {
   }
 
   @Override
-  public void registerTable(String dbName, String tableName) {
-    StringBuilder builder = new StringBuilder();
-    if (dbName != null) {
-      builder.append(dbName)
-          .append('.');
-    }
-    builder.append(tableName);
-    registeredTables.add(builder.toString());
-  }
-
-  @Override
-  public void setConfVar(String var, String val) {
-    confVars.put(var, val);
-    conf.set(var, val);
-  }
-
-  @Override
-  public Map<String, String> getConfVars() {
-    return confVars;
-  }
-
-  @Override
-  public void setConf(Configuration conf) {
-    this.conf = conf;
-
-  }
-
-  @Override
-  public Configuration getConf() {
-    return conf;
-  }
+  */
 
   private String baseDir() {
     return System.getProperty("java.io.tmpdir") + System.getProperty("file.separator");

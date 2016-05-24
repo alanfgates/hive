@@ -89,7 +89,7 @@ public class TestDerbyStore {
       Assert.fail();
     }
 
-    FetchResult fetch = derby.fetchData("select c1 from foo");
+    FetchResult fetch = derby.executeSql("select c1 from foo");
     Assert.assertEquals(ResultCode.SUCCESS, fetch.rc);
 
     Iterator<Row> iter = fetch.data.iterator();
@@ -119,7 +119,7 @@ public class TestDerbyStore {
 
       derby.loadData(defaultTable, data);
 
-      derby.fetchData("create schema testschema");
+      derby.executeSql("create schema testschema");
       createdSchema = true;
       otherTable = TestTable.getBuilder("tind").setDbName("testschema").setCols(cols).build();
       rows = Arrays.asList("3,mary", "4,elizabeth");
@@ -129,7 +129,7 @@ public class TestDerbyStore {
       derby.createTable(otherTable);
       derby.loadData(otherTable, data);
 
-      FetchResult fetch = derby.fetchData("select c1 from tind");
+      FetchResult fetch = derby.executeSql("select c1 from tind");
       Assert.assertEquals(ResultCode.SUCCESS, fetch.rc);
 
       Iterator<Row> iter = fetch.data.iterator();
@@ -139,7 +139,7 @@ public class TestDerbyStore {
       Assert.assertEquals(2, iter.next().get(0).asInt());
       Assert.assertFalse(iter.hasNext());
 
-      fetch = derby.fetchData("select c1 from testschema.tind");
+      fetch = derby.executeSql("select c1 from testschema.tind");
       Assert.assertEquals(ResultCode.SUCCESS, fetch.rc);
 
       iter = fetch.data.iterator();
@@ -150,7 +150,7 @@ public class TestDerbyStore {
       Assert.assertFalse(iter.hasNext());
     } finally {
       if (otherTable != null) derby.dropTable(otherTable);
-      if (createdSchema) derby.fetchData("drop schema testschema restrict");
+      if (createdSchema) derby.executeSql("drop schema testschema restrict");
     }
   }
 
@@ -185,13 +185,13 @@ public class TestDerbyStore {
 
   @Test
   public void failureOk() throws Exception {
-    FetchResult fetch = derby.fetchData("drop table if exists fred");
+    FetchResult fetch = derby.executeSql("drop table if exists fred");
     Assert.assertEquals(ResultCode.SUCCESS, fetch.rc);
 
-    fetch = derby.fetchData("create table fred (a int)");
+    fetch = derby.executeSql("create table fred (a int)");
     Assert.assertEquals(ResultCode.SUCCESS, fetch.rc);
 
-    fetch = derby.fetchData("create table if not exists fred (a int)");
+    fetch = derby.executeSql("create table if not exists fred (a int)");
     Assert.assertEquals(ResultCode.SUCCESS, fetch.rc);
   }
 }

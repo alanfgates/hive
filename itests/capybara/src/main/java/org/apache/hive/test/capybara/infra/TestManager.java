@@ -18,24 +18,22 @@
 package org.apache.hive.test.capybara.infra;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.hadoop.conf.Configurable;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hive.test.capybara.iface.Benchmark;
 import org.apache.hive.test.capybara.iface.ClusterManager;
+import org.apache.hive.test.capybara.iface.ResultComparator;
+import org.apache.hive.test.capybara.iface.TableComparator;
 
 /**
  * Manage all aspects of the test.  This is the glue that holds all the pieces together.  The two
  * most important pieces here are the ClusterManager, which contains references to the cluster
  * being run on, and Benchmark, which references the generator of expected results for the tests.
  */
-public class TestManager implements Configurable {
+public class TestManager {
 
   private static TestManager self = null;
 
-  private Configuration conf;
-  private ClusterManager cluster;
-  private Benchmark bench;
-  private Benchmark oneTimeBench;
+  private final TestConf testConf;
+  private ClusterManager testCluster;
+  private ClusterManager benchCluster;
 
   public static TestManager getTestManager() {
     if (self == null) {
@@ -45,63 +43,60 @@ public class TestManager implements Configurable {
   }
 
   private TestManager() {
-
+    testConf = new TestConf();
   }
 
   /**
    * Get the cluster manager for this test.
    * @return cluster manager
    */
-  public ClusterManager getClusterManager() {
-    if (cluster == null) {
-      cluster = TestConf.onCluster() ? new ExternalClusterManager() : new MiniClusterManager();
-      cluster.setConf(conf);
+  public ClusterManager getTestClusterManager() {
+    if (testCluster == null) {
+      testCluster = testConf.getTestCluster();
     }
-    return cluster;
+    return testCluster;
   }
 
   /**
    * Get the benchmark for this test.
    * @return benchmark
    */
-  public Benchmark getBenchmark() {
-    if (oneTimeBench != null) return oneTimeBench;
-    if (bench == null) {
-      bench = TestConf.onCluster() ? new PostgresBenchmark() : new DerbyBenchmark();
+  public ClusterManager getBenchmarkClusterManager() {
+    if (benchCluster == null) {
+      benchCluster = testConf.getBenchCluster();
     }
-    return bench;
+    return benchCluster;
   }
 
   /**
-   * Set up a special Benchmark for this test.  This gives the user an opportunity to inject a
-   * special Benchmark for a particular test, rather than using whatever is standard for the
-   * current configuration.  This will be reset at the end of the test.
-   * @param bench special Benchmark to use
+   * Get the ResultComparator to use with this Benchmark.
+   * @param sort Whether the result sets should be sorted as part of doing the comparison.  If
+   *             this is false it is assumed that the results are either already sorted or single
+   *             valued.
+   * @return ResultComparator
    */
-  public void setOneTimeBenchmark(Benchmark bench) {
-    oneTimeBench = bench;
+  public ResultComparator getResultComparator(boolean sort) {
+    if (sort) return new SortingComparator();
+    else return new NonSortingComparator();
   }
 
   /**
-   * Reset the Benchmark to the standard for the current configuration.  This will be called at
-   * the end of each test by the system.
+   * Get a ResultComparator that will compare data already in a table.  This is intended for use
+   * with insert statements.  Note that it is generally slower for small data sets than
+   * {@link #getResultComparator(boolean)} but much faster for large ones since it can run in the
+   * cluster.
+   * @return TableComparator
    */
-  public void resetBenchmark() {
-    oneTimeBench = null;
+  public TableComparator getTableComparator() {
+    return new TableComparator();
   }
 
-  @Override
-  public void setConf(Configuration conf) {
-    this.conf = conf;
-  }
-
-  @Override
-  public Configuration getConf() {
-    return conf;
+  public TestConf getTestConf() {
+    return testConf;
   }
 
   @VisibleForTesting
   void setClusterManager(ClusterManager clusterMgr) {
-    cluster = clusterMgr;
+    testCluster = clusterMgr;
   }
 }

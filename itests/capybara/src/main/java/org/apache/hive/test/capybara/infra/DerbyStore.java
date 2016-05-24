@@ -154,14 +154,18 @@ public class DerbyStore extends AnsiSqlStore {
   }
 
   @Override
-  public Class getDriverClass() {
+  public Class getJdbcDriverClass() {
     return jdbcDriver.getClass();
   }
 
   @Override
-  public void cleanupAfterTest() throws SQLException, IOException {
-    for (String tempTable : tempTables) {
-      jdbcFetch("drop table " + tempTable, Long.MAX_VALUE, true);
+  public void afterTest() throws IOException {
+    try {
+      for (String tempTable : tempTables) {
+        jdbcFetch("drop table " + tempTable, Long.MAX_VALUE, true);
+      }
+    } catch (SQLException e) {
+      throw new IOException(e);
     }
   }
 

@@ -18,11 +18,11 @@
 package org.apache.hive.test.capybara.infra;
 
 import org.apache.hive.test.capybara.data.FetchResult;
-import org.apache.hive.test.capybara.iface.ClusterManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.sql.Connection;
 import java.sql.Driver;
 import java.sql.SQLException;
 import java.util.Properties;
@@ -33,29 +33,44 @@ import java.util.Properties;
 class MiniHS2HiveStore extends MiniHiveStoreBase {
   private static final Logger LOG = LoggerFactory.getLogger(AnsiSqlStore.class.getName());
 
-  public MiniHS2HiveStore(ClusterManager clusterManager) {
-    super(clusterManager);
-    try {
-      Class cls = Class.forName("org.apache.hive.jdbc.HiveDriver");
-      jdbcDriver = (Driver)cls.newInstance();
-    } catch (ClassNotFoundException|IllegalAccessException|InstantiationException e) {
-      throw new RuntimeException(e);
-    }
-  }
-
   @Override
-  public FetchResult fetchData(String sql) throws SQLException, IOException {
+  public FetchResult executeSql(String sql) throws SQLException, IOException {
     LOG.debug("Going to run query <" + sql + "> against MiniHS2");
+    instantiateJdbcDriver();
     return jdbcFetch(sql, Long.MAX_VALUE, false);
   }
 
   @Override
+  public Connection getJdbcConnection(boolean autoCommit) throws SQLException {
+    instantiateJdbcDriver();
+    Connection conn = jdbcDriver.connect("", null);
+    return conn;
+  }
+
+  @Override
+  public Class<? extends Driver> getJdbcDriverClass() {
+    instantiateJdbcDriver();
+    return jdbcDriver.getClass();
+  }
+
+  @Override
   protected String connectionURL() {
-    return clusterManager.getJdbcConnectionInfo().connectionString;
+    return "";
   }
 
   @Override
   protected Properties connectionProperties() {
-    return clusterManager.getJdbcConnectionInfo().properties;
+    return null;
+  }
+
+  private void instantiateJdbcDriver() {
+    if (jdbcDriver == null) {
+      try {
+        Class cls = Class.forName("org.apache.hive.jdbc.HiveDriver");
+        jdbcDriver = (Driver) cls.newInstance();
+      } catch (ClassNotFoundException | IllegalAccessException | InstantiationException e) {
+        throw new RuntimeException(e);
+      }
+    }
   }
 }

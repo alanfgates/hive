@@ -24,6 +24,7 @@ import org.apache.hive.test.capybara.data.FetchResult;
 import org.apache.hive.test.capybara.data.ResultCode;
 import org.apache.hive.test.capybara.data.Row;
 import org.apache.hive.test.capybara.iface.ClusterManager;
+import org.apache.hive.test.capybara.iface.DataStore;
 import org.apache.hive.test.capybara.iface.TestTable;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -42,21 +43,23 @@ public class TestMiniHS2HiveStore {
 
   private static HiveConf conf;
   private static ClusterManager mgr;
-  private static HiveStore hive;
+  private static DataStore testStore;
 
   @BeforeClass
   public static void setup() throws IOException {
-    conf = new HiveConf();
+    /*conf = new HiveConf();
     conf.setVar(HiveConf.ConfVars.DYNAMICPARTITIONINGMODE, "nonstrict");
     //conf.setBoolVar(HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY, false);
 
     TestManager.getTestManager().setConf(conf);
     TestConf.setEngine(TestConf.ENGINE_UNSPECIFIED);
-    TestConf.setAccess(TestConf.ACCESS_JDBC);
-    mgr = TestManager.getTestManager().getClusterManager();
-    mgr.setup();
+    */
+    TestManager.getTestManager().getTestConf().getProperties().setProperty(
+        TestConf.TEST_CLUSTER + TestConf.CLUSTER_ACCESS, TestConf.ACCESS_JDBC);
+    mgr = TestManager.getTestManager().getTestClusterManager();
+    mgr.setup(TestConf.TEST_CLUSTER);
     mgr.setConfVar(HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY.varname, "false");
-    hive = mgr.getHive();
+    testStore = mgr.getStore();
   }
 
   @AfterClass
@@ -67,7 +70,7 @@ public class TestMiniHS2HiveStore {
   @Test
   public void hive() throws Exception {
     // Load some data, then read it back.
-    FetchResult fetch = hive.fetchData("create table foo (c1 int, c2 varchar(32))");
+    FetchResult fetch = testStore.executeSql("create table foo (c1 int, c2 varchar(32))");
     Assert.assertEquals(ResultCode.SUCCESS, fetch.rc);
 
     TestTable table = TestTable.fromHiveMetastore("default", "foo");
@@ -76,9 +79,9 @@ public class TestMiniHS2HiveStore {
     StaticDataGenerator gen = new StaticDataGenerator(rows, ",");
     DataSet data = gen.generateData(table);
 
-    hive.loadData(table, data);
+    testStore.loadData(table, data);
 
-    fetch = hive.fetchData("select c1 from foo");
+    fetch = testStore.executeSql("select c1 from foo");
     Assert.assertEquals(ResultCode.SUCCESS, fetch.rc);
 
     fetch.data.setSchema(Arrays.asList(new FieldSchema("c1", "int", "")));
