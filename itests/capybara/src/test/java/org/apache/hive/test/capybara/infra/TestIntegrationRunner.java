@@ -73,13 +73,7 @@ public class TestIntegrationRunner extends IntegrationTest {
   }
 
   @AcidOn @Test public void testAcid() throws IOException, SQLException {
-    Assert.assertTrue(getCurrentConf().getBoolVar(HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY));
-  }
-
-  @Test public void testNoSpark() {
-    Assert.assertNotEquals(TestConf.ENGINE_SPARK,
-        TestManager.getTestManager().getTestClusterManager().getClusterConf().getEngine());
-    Assert.assertFalse(getCurrentConf().getBoolVar(HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY));
+    Assert.assertTrue(getSingleTestConfBool(HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY.varname));
   }
 
 }

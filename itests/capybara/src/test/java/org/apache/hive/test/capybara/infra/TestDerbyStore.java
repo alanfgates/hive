@@ -17,19 +17,23 @@
  */
 package org.apache.hive.test.capybara.infra;
 
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hive.test.capybara.data.DataSet;
 import org.apache.hive.test.capybara.data.FetchResult;
 import org.apache.hive.test.capybara.data.ResultCode;
 import org.apache.hive.test.capybara.data.Row;
-import org.apache.hive.test.capybara.iface.TestTable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.hive.test.capybara.iface.ClusterManager;
 import org.apache.hive.test.capybara.iface.DataGenerator;
+import org.apache.hive.test.capybara.iface.DataStore;
+import org.apache.hive.test.capybara.iface.TestTable;
+import org.hamcrest.core.IsInstanceOf;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -39,8 +43,17 @@ public class TestDerbyStore {
   static private DerbyStore derby;
 
   @BeforeClass
-  public static void setup() {
-    derby = new DerbyStore();
+  public static void setup() throws IOException {
+    TestManager testMgr = TestManager.getTestManager();
+    // Make it so we get the null cluster manager
+    testMgr.getTestConf().getProperties().setProperty(TestConf.TEST_CLUSTER +
+        TestConf.CLUSTER_CLUSTER_MANAGER, NullCluster.class.getName());
+    testMgr.getTestClusterManager().setup(TestConf.TEST_CLUSTER);
+    ClusterManager clusterManager = testMgr.getBenchmarkClusterManager();
+    clusterManager.setup(TestConf.BENCH_CLUSTER);
+    DataStore tmpStore = clusterManager.getStore();
+    Assert.assertThat(tmpStore, new IsInstanceOf(DerbyStore.class));
+    derby = (DerbyStore)tmpStore;
   }
 
   @Test

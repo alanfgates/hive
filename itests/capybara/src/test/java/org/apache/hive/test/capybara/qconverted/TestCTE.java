@@ -38,7 +38,7 @@ public class TestCTE extends IntegrationTest {
     TableTool.createPseudoTpch();
 
     runQuery("with q1 as (select l_lineitem, l_orderkey from ph_lineitem), " +
-        "q2 as (select o_orderkey, o_custkey from o_custkey) " +
+        "q2 as (select o_orderkey, o_custkey from ph_order) " +
         "select l_lineitem, o_custkey from q1 join q2 on (q1.l_orderkey = q2.o_orderkey)");
     sortAndCompare();
   }

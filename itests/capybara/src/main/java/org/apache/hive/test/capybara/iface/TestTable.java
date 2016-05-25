@@ -301,8 +301,12 @@ public class TestTable implements Serializable {
                     DataGenerator partValsGenerator, int numParts, boolean isAcid,
                     String[] bucketCols, int numBuckets, boolean isTemporary) {
     testManager = TestManager.getTestManager();
-    testStore = testManager.getTestClusterManager().getStore();
-    benchStore = testManager.getBenchmarkClusterManager().getStore();
+    try {
+      testStore = testManager.getTestClusterManager().getStore();
+      benchStore = testManager.getBenchmarkClusterManager().getStore();
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
     this.isTemporary = isTemporary;
     this.dbName = dbName == null ? "default" : dbName;
     this.tableName = tableName;

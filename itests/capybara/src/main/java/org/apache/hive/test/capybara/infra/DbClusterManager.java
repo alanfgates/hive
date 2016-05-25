@@ -22,6 +22,8 @@ import org.apache.hive.test.capybara.iface.DataStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+
 /**
  * A cluster manager for handling "clusters" that are really a database
  */
@@ -36,8 +38,11 @@ public class DbClusterManager extends ClusterManagerBase {
   }
 
   @Override
-  public DataStore getStore() {
-    if (store == null) store = getClusterConf().getDataStore();
+  public DataStore getStore() throws IOException {
+    if (store == null) {
+      store = getClusterConf().getDataStore();
+      store.setup(this);
+    }
     return store;
   }
 

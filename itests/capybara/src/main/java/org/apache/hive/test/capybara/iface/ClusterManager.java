@@ -76,7 +76,7 @@ public interface ClusterManager {
    * Get a DataStore that works for this cluster.
    * @return connection to DataStore
    */
-  DataStore getStore();
+  DataStore getStore() throws IOException;
 
   /**
    * Directory we can use for storing a temporary file.  This should be HDFS accessible if the 

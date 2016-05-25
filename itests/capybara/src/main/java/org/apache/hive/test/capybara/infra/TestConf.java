@@ -34,24 +34,7 @@ import java.util.Properties;
  */
 public class TestConf {
 
-  /**
-   * Property to set to control when generated data is spilled to disk.  In bytes.
-   */
-  //public static final String SPILL_SIZE_PROPERTY =  "hive.test.capybara.data.spill.size";
-
-  /**
-   * Default spill size.
-   */
-  //public static final String SPILL_SIZE_DEFAULT = Integer.toString(1024 * 1024 * 256);
-
-  /*
-  public static int getSpillSize() {
-    // Keep in mind that twice the spill size may be in memory at a time as it will be spilling
-    // one batch while it is generating the next.
-    return Integer.valueOf(System.getProperty(SPILL_SIZE_PROPERTY, SPILL_SIZE_DEFAULT));
-  }
-
-  */
+  // TODO Need a way to set a config var for all tests
   static final private Logger LOG = LoggerFactory.getLogger(TestConf.class);
 
   private static Properties defaults;
@@ -71,7 +54,7 @@ public class TestConf {
 
   // Key names inside a cluster
   @VisibleForTesting static final String CLUSTER_ACCESS = ".access";
-  private static final String CLUSTER_CLUSTER_MANAGER = ".manager";
+  @VisibleForTesting static final String CLUSTER_CLUSTER_MANAGER = ".manager";
   private static final String CLUSTER_ENGINE = ".engine";
   static final String CLUSTER_HADOOP_HOME = ".hadoop_home";
   static final String CLUSTER_HIVE_HOME = ".hive_home";

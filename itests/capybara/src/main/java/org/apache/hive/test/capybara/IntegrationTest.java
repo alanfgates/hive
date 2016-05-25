@@ -17,7 +17,6 @@
  */
 package org.apache.hive.test.capybara;
 
-import com.google.common.annotations.VisibleForTesting;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.QueryPlan;
 import org.apache.hive.hcatalog.streaming.HiveEndPoint;
@@ -65,7 +64,7 @@ import java.util.Map;
  * the test framework can convert Hive SQL to ANSI SQL.</p>
  *
  * <p>If your query requires any setting not handled in the general annotations you can set that
- * using {@link #set}.</p>
+ * using {@link #setConfVar}.</p>
  *
  * <p>{@link #runQuery(String)}expects the query to return successfully.  For testing negative
  * queries use {@link #runQuery(String, org.apache.hive.test.capybara.data.ResultCode, Throwable)} which allows
@@ -95,8 +94,6 @@ public abstract class IntegrationTest {
 
   // This is the configuration used for a particular test.  This will be re-created in the
   // @Before method.
-  private HiveConf oneTestConf;
-  private HiveConf oneBenchConf;
   private DataStore testStore;
   private DataStore benchStore;
   private FetchResult testResults;
@@ -136,18 +133,15 @@ public abstract class IntegrationTest {
     testCluster.beforeTest();
     benchCluster.beforeTest();
 
-    // Create a new configuration file that will be used for this test.
-    oneTestConf = testCluster.getHiveConf();
-    oneBenchConf = benchCluster.getHiveConf();
-
     // This has to be done after we create a new config so that Hive get's the right
     // config object.
     testStore = testCluster.getStore();
     benchStore = benchCluster.getStore();
 
     // Add necessary configs
-    set(HiveConf.ConfVars.DYNAMICPARTITIONINGMODE.varname, "nonstrict");
-    set(HiveConf.ConfVars.HIVEDEFAULTFILEFORMAT.varname, testManager.getTestConf().getFileFormat());
+    //setConfVarForOneTest(HiveConf.ConfVars.DYNAMICPARTITIONINGMODE.varname, "nonstrict");
+    setConfVarForOneTest(HiveConf.ConfVars.HIVEDEFAULTFILEFORMAT.varname,
+        testManager.getTestConf().getFileFormat());
 
     // Handle any annotations that set values in the config file
     List<Annotation> annotations = allAnnotations.get(name.getMethodName());
@@ -175,7 +169,7 @@ public abstract class IntegrationTest {
   private void handleValueAnnotation(String[] values) throws SQLException, IOException {
     Assert.assertEquals(0, values.length % 2);
     for (int i = 0; i < values.length; i += 2) {
-      set(testCluster, values[i], values[i + 1]);
+      setConfVar(testCluster, values[i], values[i + 1]);
     }
 
   }
@@ -190,11 +184,13 @@ public abstract class IntegrationTest {
   }
 
   /**
-   * Get a copy of the configuration object that is active for this test.
+   * Get a copy of the configuration object that is active for this test.  Note that settings
+   * values in this will not affect the tests.  To do that call
+   * {@link #setConfVarForOneTest(String, String)}
    * @return conf
    */
   protected HiveConf getConf() {
-    return new HiveConf(oneTestConf);
+    return testCluster.getHiveConf();
   }
 
   /**
@@ -417,45 +413,88 @@ public abstract class IntegrationTest {
 
  /**
    * Set a value in the configuration for this test.  This value will not persist across tests.
+   * To set a value across all tests use the test configuration file.
    * @param var variable to set
    * @param val value to set it to
    */
-  protected void set(String var, String val) throws SQLException, IOException {
-    set(testCluster, var, val);
-    set(benchCluster, var, val);
+  protected void setConfVarForOneTest(String var, String val) {
+    setConfVar(testCluster, var, val);
+    setConfVar(benchCluster, var, val);
+  }
+
+  /**
+   * Get a configuration value that was set just for this test.
+   * @param var
+   * @return
+   */
+  protected String getSingleTestConfVar(String var) {
+    return testCluster.getConfVars().get(var);
   }
 
   /**
    * Set a value in the configuration for this test.  This value will not persist across tests.
-   * the source of truth.
+   * To set a value across all tests use the test configuration file.
    * @param var variable to set
    * @param val value to set it to
    */
-  protected void set(String var, int val) throws SQLException, IOException {
-    set(var, Integer.toString(val));
+  protected void setConfVarForOneTest(String var, int val) {
+    setConfVarForOneTest(var, Integer.toString(val));
+  }
+
+  /**
+   * Get a configuration value that was set just for this test.
+   * @param var
+   * @return
+   */
+  protected Integer getSingleTestConfInt(String var) {
+    String str = testCluster.getConfVars().get(var);
+    if (str == null) return null;
+    else return Integer.valueOf(str);
   }
 
   /**
    * Set a value in the configuration for this test.  This value will not persist across tests.
-   * the source of truth.
+   * To set a value across all tests use the test configuration file.
    * @param var variable to set
    * @param val value to set it to
    */
-  protected void set(String var, boolean val) throws SQLException, IOException {
-    set(var, Boolean.toString(val));
+  protected void setConfVarForOneTest(String var, boolean val) {
+    setConfVarForOneTest(var, Boolean.toString(val));
+  }
+
+  /**
+   * Get a configuration value that was set just for this test.
+   * @param var
+   * @return
+   */
+  protected Boolean getSingleTestConfBool(String var) {
+    String str = testCluster.getConfVars().get(var);
+    if (str == null) return null;
+    else return Boolean.valueOf(str);
   }
 
   /**
    * Set a value in the configuration for this test.  This value will not persist across tests.
-   * the source of truth.
+   * To set a value across all tests use the test configuration file.
    * @param var variable to set
    * @param val value to set it to
    */
-  protected void set(String var, double val) throws SQLException, IOException {
-    set(var, Double.toString(val));
+  protected void setConfVarForOneTest(String var, double val) {
+    setConfVarForOneTest(var, Double.toString(val));
   }
 
-  private void set(ClusterManager cluster, String var, String val) {
+  /**
+   * Get a configuration value that was set just for this test.
+   * @param var
+   * @return
+   */
+  protected Double getSingleTestConfDouble(String var) {
+    String str = testCluster.getConfVars().get(var);
+    if (str == null) return null;
+    else return Double.valueOf(str);
+  }
+
+  private void setConfVar(ClusterManager cluster, String var, String val) {
     cluster.setConfVar(var, val);
   }
 
@@ -489,9 +528,5 @@ public abstract class IntegrationTest {
    */
   public void setAnnotations(Map<String, List<Annotation>> annotations) {
     allAnnotations = annotations;
-  }
-
-  @VisibleForTesting protected HiveConf getCurrentConf() {
-    return oneTestConf;
   }
 }

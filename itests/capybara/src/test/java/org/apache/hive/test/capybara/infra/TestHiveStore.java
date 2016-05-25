@@ -18,7 +18,6 @@
 package org.apache.hive.test.capybara.infra;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hive.test.capybara.data.DataSet;
 import org.apache.hive.test.capybara.data.FetchResult;
@@ -43,23 +42,31 @@ public class TestHiveStore {
 
   static final private Logger LOG = LoggerFactory.getLogger(TestHiveStore.class.getName());
 
-  private static HiveConf conf;
+  //private static HiveConf conf;
   private static ClusterManager mgr;
   private static DataStore testStore;
 
   @BeforeClass
   public static void setup() throws IOException {
+
     /*
     conf.setVar(HiveConf.ConfVars.DYNAMICPARTITIONINGMODE, "nonstrict");
     conf.setVar(HiveConf.ConfVars.HIVEMAPREDMODE, "nonstrict");
     TestConf.setEngine(TestConf.ENGINE_UNSPECIFIED);
-    */
     mgr = new MiniClusterManager();
-    //mgr.setConf(conf);
+    mgr.setConf(conf);
     mgr.setup(TestConf.TEST_CLUSTER);
     testStore = mgr.getStore();
     TestManager.getTestManager().setClusterManager(mgr);
-    //TestManager.getTestManager().setConf(conf);
+    TestManager.getTestManager().setConf(conf);
+    */
+    TestManager testMgr = TestManager.getTestManager();
+    testMgr.getTestConf().getProperties().setProperty(TestConf.BENCH_CLUSTER +
+        TestConf.CLUSTER_CLUSTER_MANAGER, NullCluster.class.getName());
+    testMgr.getBenchmarkClusterManager().setup(TestConf.BENCH_CLUSTER);
+    mgr = testMgr.getTestClusterManager();
+    mgr.setup(TestConf.TEST_CLUSTER);
+    testStore = mgr.getStore();
 
   }
 

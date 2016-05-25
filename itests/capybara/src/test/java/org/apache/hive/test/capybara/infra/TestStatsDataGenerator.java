@@ -20,6 +20,7 @@ package org.apache.hive.test.capybara.infra;
 import org.apache.hive.test.capybara.data.DataSet;
 import org.apache.hive.test.capybara.data.Row;
 import org.apache.hive.test.capybara.iface.TestTable;
+import org.junit.Before;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -27,6 +28,7 @@ import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
@@ -41,6 +43,17 @@ import java.util.Set;
 
 public class TestStatsDataGenerator {
   static final private Logger LOG = LoggerFactory.getLogger(TestStatsDataGenerator.class.getName());
+
+  @Before
+  public void setup() throws IOException {
+    TestManager testMgr = TestManager.getTestManager();
+    testMgr.getTestConf().getProperties().setProperty(TestConf.TEST_CLUSTER +
+        TestConf.CLUSTER_CLUSTER_MANAGER, NullCluster.class.getName());
+    testMgr.getTestConf().getProperties().setProperty(TestConf.BENCH_CLUSTER +
+        TestConf.CLUSTER_CLUSTER_MANAGER, NullCluster.class.getName());
+    testMgr.getTestClusterManager().setup(TestConf.TEST_CLUSTER);
+    testMgr.getBenchmarkClusterManager().setup(TestConf.BENCH_CLUSTER);
+  }
 
   @Test
   public void scale() {

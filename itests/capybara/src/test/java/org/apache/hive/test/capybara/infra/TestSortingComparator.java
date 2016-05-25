@@ -41,7 +41,14 @@ public class TestSortingComparator {
   private List<FieldSchema> cols;
 
   @Before
-  public void createTable() {
+  public void createTable() throws IOException {
+    TestManager testMgr = TestManager.getTestManager();
+    testMgr.getTestConf().getProperties().setProperty(TestConf.TEST_CLUSTER +
+        TestConf.CLUSTER_CLUSTER_MANAGER, NullCluster.class.getName());
+    testMgr.getTestConf().getProperties().setProperty(TestConf.BENCH_CLUSTER +
+        TestConf.CLUSTER_CLUSTER_MANAGER, NullCluster.class.getName());
+    testMgr.getTestClusterManager().setup(TestConf.TEST_CLUSTER);
+    testMgr.getBenchmarkClusterManager().setup(TestConf.BENCH_CLUSTER);
     final String tableName = "alltypes";
 
 

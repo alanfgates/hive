@@ -24,6 +24,8 @@ import org.apache.hive.test.capybara.iface.DataStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+
 /**
  * Manage external clusters.
  */
@@ -40,12 +42,13 @@ public class ExternalClusterManager extends ClusterManagerBase {
   }
 
   @Override
-  public DataStore getStore() {
+  public DataStore getStore() throws IOException {
     if (store == null) {
       String access = getClusterConf().getAccess();
       if (access.equals(TestConf.ACCESS_CLI)) store = new ClusterCliHiveStore();
       else if (access.equals(TestConf.ACCESS_JDBC)) store = new ClusterJdbcHiveStore();
       else throw new RuntimeException("Unknown access method " + access);
+      store.setup(this);
     }
     return store;
   }

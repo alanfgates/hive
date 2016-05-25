@@ -28,9 +28,9 @@ public class TestSkewJoin extends IntegrationTest {
 
   @Ignore // This needs some work
   public void skewjoin() throws Exception {
-    set("hive.explain.user", false);
-    set("hive.optimize.skewjoin", true);
-    set("hive.skewjoin.key", 2);
+    setConfVarForOneTest("hive.explain.user", false);
+    setConfVarForOneTest("hive.optimize.skewjoin", true);
+    setConfVarForOneTest("hive.skewjoin.key", 2);
 
     // SORT_QUERY_RESULTS
     TestTable t1 = TestTable.getBuilder("SJ1")
@@ -137,16 +137,16 @@ public class TestSkewJoin extends IntegrationTest {
 
   @Test
   public void skewjoin_union_remove_1() throws Exception {
-    set("hive.optimize.skewjoin.compiletime", true);
-    set("hive.mapred.supports.subdirectories", true);
+    setConfVarForOneTest("hive.optimize.skewjoin.compiletime", true);
+    setConfVarForOneTest("hive.mapred.supports.subdirectories", true);
 
-    set("hive.stats.autogather", false);
-    set("hive.optimize.union.remove", true);
+    setConfVarForOneTest("hive.stats.autogather", false);
+    setConfVarForOneTest("hive.optimize.union.remove", true);
 
-    set("hive.merge.mapfiles", false);
-    set("hive.merge.mapredfiles", false);
-    set("hive.merge.sparkfiles", false);
-    set("mapred.input.dir.recursive", true);
+    setConfVarForOneTest("hive.merge.mapfiles", false);
+    setConfVarForOneTest("hive.merge.mapredfiles", false);
+    setConfVarForOneTest("hive.merge.sparkfiles", false);
+    setConfVarForOneTest("mapred.input.dir.recursive", true);
 
     // This is to test the union->selectstar->filesink and skewjoin optimization
     // Union of 2 map-reduce subqueries is performed for the skew join
@@ -171,7 +171,7 @@ public class TestSkewJoin extends IntegrationTest {
 
     // a simple join query with skew on both the tables on the join key
 
-    set("hive.input.format", "org.apache.hadoop.hive.ql.io.HiveInputFormat");
+    setConfVarForOneTest("hive.input.format", "org.apache.hadoop.hive.ql.io.HiveInputFormat");
 
     runQuery("SELECT * FROM T1 a JOIN T2 b ON a.k = b.k ORDER BY a.k, b.k, a.val, b.val");
 
@@ -194,16 +194,16 @@ public class TestSkewJoin extends IntegrationTest {
 
   @Test
   public void skewjoin_union_remove_2() throws Exception {
-    set("hive.optimize.skewjoin.compiletime", true);
-    set("hive.mapred.supports.subdirectories", true);
+    setConfVarForOneTest("hive.optimize.skewjoin.compiletime", true);
+    setConfVarForOneTest("hive.mapred.supports.subdirectories", true);
 
-    set("hive.stats.autogather", false);
-    set("hive.optimize.union.remove", true);
+    setConfVarForOneTest("hive.stats.autogather", false);
+    setConfVarForOneTest("hive.optimize.union.remove", true);
 
-    set("hive.merge.mapfiles", false);
-    set("hive.merge.mapredfiles", false);
-    set("hive.merge.sparkfiles", false);
-    set("mapred.input.dir.recursive", true);
+    setConfVarForOneTest("hive.merge.mapfiles", false);
+    setConfVarForOneTest("hive.merge.mapredfiles", false);
+    setConfVarForOneTest("hive.merge.sparkfiles", false);
+    setConfVarForOneTest("mapred.input.dir.recursive", true);
     RandomDataGenerator generator = new RandomDataGenerator(38);
 
     runQuery("drop table if exists T1");
@@ -229,7 +229,7 @@ public class TestSkewJoin extends IntegrationTest {
    // Since this test creates sub-directories for the output table, it might be easier
    // to run the test only on hadoop 23
 
-    set("hive.input.format", "org.apache.hadoop.hive.ql.io.HiveInputFormat");
+    setConfVarForOneTest("hive.input.format", "org.apache.hadoop.hive.ql.io.HiveInputFormat");
 
     runQuery("SELECT a.*, b.*, c.* FROM T1 a JOIN T2 b ON a.k = b.k JOIN T3 c on a.k = c.k " +
         "ORDER BY a.k, b.k, c.k, a.val, b.val, c.val");

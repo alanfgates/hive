@@ -32,9 +32,9 @@ public class TestExplain extends IntegrationTest {
   @Test
   public void limitPushdown() throws Exception {
     // Set configuration values for this test
-    set("hive.explain.user", false);
-    set("hive.limit.pushdown.memory.usage", 0.3f);
-    set("hive.optimize.reducededuplication.min.reducer", 1);
+    setConfVarForOneTest("hive.explain.user", false);
+    setConfVarForOneTest("hive.limit.pushdown.memory.usage", 0.3f);
+    setConfVarForOneTest("hive.optimize.reducededuplication.min.reducer", 1);
 
     // TableTool provides a set of standard table for testing.  This particular one gets the
     // src table, which has two string fields, k and value.

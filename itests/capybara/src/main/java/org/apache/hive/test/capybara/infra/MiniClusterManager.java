@@ -56,6 +56,9 @@ public class MiniClusterManager extends ClusterManagerBase {
 
     getHiveConf(); // Make sure we've created the configuration object.
 
+    // Turn off strict dynamic partitioning.
+    conf.setVar(HiveConf.ConfVars.DYNAMICPARTITIONINGMODE, "nonstrict");
+
     File base = new File(baseDir() + DFS_DIR).getAbsoluteFile();
 
     FileUtil.fullyDelete(base);
@@ -155,31 +158,17 @@ public class MiniClusterManager extends ClusterManagerBase {
   @Override
   public void tearDown() throws IOException {
     super.tearDown();
-    // TODO - move this into store.teardown for the mini stores
-    /*
-    Exception caughtException = null;
-    for (String dbNameTableName : registeredTables) {
-      try {
-        getHive().executeSql("drop table " + dbNameTableName);
-      } catch (SQLException | IOException e) {
-        LOG.error("Unable to drop table " + dbNameTableName, e);
-        caughtException = e;
-        // Keep going so we get everything shutdown, finally close it at the end
-      }
-    }
-    */
 
     // tear down any mini-clusters we've constructed.
     if (dfs != null) dfs.shutdown();
     if (tez != null) tez.stop();
     if (hs2 != null) hs2.stop();
-    //if (caughtException != null) throw new RuntimeException(caughtException);
   }
 
   @Override
   public void afterTest() throws IOException {
     if (tez != null) tez.close();
-    store = null;
+    //store = null;
   }
 
   @Override
@@ -193,7 +182,7 @@ public class MiniClusterManager extends ClusterManagerBase {
   }
 
   @Override
-  public DataStore getStore() {
+  public DataStore getStore() throws IOException {
     if (store == null) {
       String access = getClusterConf().getAccess();
       if (access.equals(TestConf.ACCESS_CLI)) {
@@ -203,6 +192,7 @@ public class MiniClusterManager extends ClusterManagerBase {
       } else {
         throw new RuntimeException("Unknown access method " + access);
       }
+      store.setup(this);
     }
     return store;
   }

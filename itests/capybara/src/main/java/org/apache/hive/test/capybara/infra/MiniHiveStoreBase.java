@@ -21,8 +21,15 @@ import org.apache.hadoop.hive.ql.Driver;
 import org.apache.hadoop.hive.ql.QueryPlan;
 import org.apache.hadoop.hive.ql.session.SessionState;
 import org.junit.Assert;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.sql.SQLException;
 
 abstract class MiniHiveStoreBase extends HiveStore {
+  static final private Logger LOG = LoggerFactory.getLogger(MiniClusterManager.class.getName());
+
   private ThreadLocal<Driver> driver;
 
   protected Driver getDriver() {
@@ -38,6 +45,27 @@ abstract class MiniHiveStoreBase extends HiveStore {
       };
     }
     return driver.get();
+  }
+
+  @Override
+  public void tearDown() throws IOException {
+    LOG.debug("Dropping created tables");
+    super.tearDown();
+
+    LOG.debug("XXX registeredTables is null " + (registeredTables == null));
+    Exception caughtException = null;
+    for (String dbNameTableName : registeredTables) {
+      LOG.debug("Dropping table " + dbNameTableName);
+      try {
+        executeSql("drop table " + dbNameTableName);
+      } catch (SQLException | IOException e) {
+        LOG.error("Unable to drop table " + dbNameTableName, e);
+        caughtException = e;
+        // Keep going so we get everything shutdown, finally close it at the end
+      }
+    }
+    if (caughtException != null) throw new RuntimeException(caughtException);
+
   }
 
   @Override

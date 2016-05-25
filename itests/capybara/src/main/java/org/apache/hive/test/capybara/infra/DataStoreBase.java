@@ -199,6 +199,7 @@ abstract class DataStoreBase implements DataStore {
     }
     builder.append(tableName);
     registeredTables.add(builder.toString());
+    LOG.debug("Registering table " + builder.toString());
   }
 
   /**
