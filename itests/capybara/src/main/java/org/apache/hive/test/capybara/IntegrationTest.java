@@ -139,7 +139,6 @@ public abstract class IntegrationTest {
     benchStore = benchCluster.getStore();
 
     // Add necessary configs
-    //setConfVarForOneTest(HiveConf.ConfVars.DYNAMICPARTITIONINGMODE.varname, "nonstrict");
     setConfVarForOneTest(HiveConf.ConfVars.HIVEDEFAULTFILEFORMAT.varname,
         testManager.getTestConf().getFileFormat());
 

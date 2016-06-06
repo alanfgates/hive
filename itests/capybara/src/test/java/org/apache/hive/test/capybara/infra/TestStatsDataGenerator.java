@@ -141,7 +141,7 @@ public class TestStatsDataGenerator {
   }
 
   @Test
-  public void nonPartitionedAllTypes() {
+  public void nonPartitionedAllTypes() throws IOException {
     List<FieldSchema> cols = new ArrayList<>();
     cols.add(new FieldSchema("col1", "bigint", ""));
     cols.add(new FieldSchema("col2", "int", ""));

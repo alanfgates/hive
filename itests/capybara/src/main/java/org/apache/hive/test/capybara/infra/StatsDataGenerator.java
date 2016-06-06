@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hive.test.capybara.iface.DataGenerator;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.sql.Date;
@@ -52,7 +53,7 @@ public class StatsDataGenerator extends RandomDataGenerator implements Serializa
   }
 
   @Override
-  public DataSet generateData(TestTable table, int scale, double[] pctNulls) {
+  public DataSet generateData(TestTable table, int scale, double[] pctNulls) throws IOException {
     tableStats.scale(scale);
     return super.generateData(table, scale, pctNulls);
   }

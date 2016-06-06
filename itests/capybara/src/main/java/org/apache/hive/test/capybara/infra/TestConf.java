@@ -56,12 +56,12 @@ public class TestConf {
   @VisibleForTesting static final String CLUSTER_ACCESS = ".access";
   @VisibleForTesting static final String CLUSTER_CLUSTER_MANAGER = ".manager";
   private static final String CLUSTER_ENGINE = ".engine";
-  static final String CLUSTER_HADOOP_HOME = ".hadoop_home";
-  static final String CLUSTER_HIVE_HOME = ".hive_home";
+  static final String CLUSTER_HADOOP_CONF_DIR = ".hadoop.conf.dir";
+  static final String CLUSTER_HIVE_HOME = ".hive.home";
   private static final String CLUSTER_JDBC_HOST = ".jdbc.host";
   private static final String CLUSTER_JDBC_DB = ".jdbc.db";
   private static final String CLUSTER_JDBC_PASSWD = ".jdbc.password";
-  private static final String CLUSTER_JDBC_PORT = ".jdbc.password";
+  private static final String CLUSTER_JDBC_PORT = ".jdbc.port";
   private static final String CLUSTER_JDBC_USER = ".jdbc.user";
   private static final String CLUSTER_METASTORE = ".metastore";
   private static final String CLUSTER_NUM_TEZ_TASKS = ".tez.num_tasks";
@@ -246,8 +246,8 @@ public class TestConf {
     }
 
     @Override
-    public String getHadoopHome() {
-      return properties.getProperty(clusterType + CLUSTER_HADOOP_HOME);
+    public String getHadoopConfDir() {
+      return properties.getProperty(clusterType + CLUSTER_HADOOP_CONF_DIR);
     }
 
     @Override

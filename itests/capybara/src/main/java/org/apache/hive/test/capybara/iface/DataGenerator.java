@@ -20,6 +20,8 @@ package org.apache.hive.test.capybara.iface;
 import org.apache.hive.test.capybara.data.DataSet;
 import org.apache.hive.test.capybara.infra.TestManager;
 
+import java.io.IOException;
+
 /**
  * Generate data for use by Hive and benchmarks.
  */
@@ -37,7 +39,8 @@ public abstract class DataGenerator {
    *                 result in the default setting (1% of values per column)
    * @return Data to be loaded.
    */
-  abstract public DataSet generateData(TestTable table, int scale, double[] pctNulls);
+  abstract public DataSet generateData(TestTable table, int scale, double[] pctNulls) throws
+      IOException;
 
 /**
  * Generate data.  This is equivalent to calling {@link #generateData(TestTable,int,double[])} with
@@ -46,7 +49,7 @@ public abstract class DataGenerator {
  * @param table table to generate for
  * @return Data to be loaded.
  */
-  final public DataSet generateData(TestTable table) {
+  final public DataSet generateData(TestTable table) throws IOException {
     return generateData(table, TestManager.getTestManager().getTestConf().getScale(), null);
   }
 
@@ -59,7 +62,7 @@ public abstract class DataGenerator {
    *              may need it occasionally for dimension or fixed sized tables.
    * @return Data to be loaded.
    */
-  final public DataSet generateData(TestTable table, int scale) {
+  final public DataSet generateData(TestTable table, int scale) throws IOException {
     return generateData(table, scale, null);
   }
 

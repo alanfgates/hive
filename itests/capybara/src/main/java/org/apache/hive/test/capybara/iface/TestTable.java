@@ -300,39 +300,39 @@ public class TestTable implements Serializable {
                     List<FieldSchema> partCols, PrimaryKey pk, List<ForeignKey> fk,
                     DataGenerator partValsGenerator, int numParts, boolean isAcid,
                     String[] bucketCols, int numBuckets, boolean isTemporary) {
-    testManager = TestManager.getTestManager();
     try {
+      testManager = TestManager.getTestManager();
       testStore = testManager.getTestClusterManager().getStore();
       benchStore = testManager.getBenchmarkClusterManager().getStore();
+      this.isTemporary = isTemporary;
+      this.dbName = dbName == null ? "default" : dbName;
+      this.tableName = tableName;
+      this.cols = cols;
+      this.partCols = partCols;
+      primaryKey = pk;
+      foreignKeys = fk;
+      this.isAcid = isAcid;
+      this.bucketCols = bucketCols;
+      this.numBuckets = numBuckets;
+      if (partValsGenerator != null) {
+        assert numParts == 0;
+        partVals = new ArrayList<>();
+        // This is very meta, but we need a TestTable definition just to build these few rows.
+        // That TestTable needs to match the schema of the partition columns, not the regular
+        // columns, thus we can't use 'this' here.
+        TestTable meta = new TestTable("fake", "fake", partCols, null, null, null, null, 0, false,
+            null, 0, isTemporary);
+        DataSet ds = partValsGenerator.generateData(meta);
+        for (Row row : ds) partVals.add(row);
+        this.numParts = partVals.size();
+      } else {
+        partVals = null;
+        if (numParts != 0) {
+          this.numParts = numParts;
+        }
+      }
     } catch (IOException e) {
       throw new RuntimeException(e);
-    }
-    this.isTemporary = isTemporary;
-    this.dbName = dbName == null ? "default" : dbName;
-    this.tableName = tableName;
-    this.cols = cols;
-    this.partCols = partCols;
-    primaryKey = pk;
-    foreignKeys = fk;
-    this.isAcid = isAcid;
-    this.bucketCols = bucketCols;
-    this.numBuckets = numBuckets;
-    if (partValsGenerator != null) {
-      assert numParts == 0;
-      partVals = new ArrayList<>();
-      // This is very meta, but we need a TestTable definition just to build these few rows.
-      // That TestTable needs to match the schema of the partition columns, not the regular
-      // columns, thus we can't use 'this' here.
-      TestTable meta = new TestTable("fake", "fake", partCols, null, null, null, null, 0, false,
-          null, 0, isTemporary);
-      DataSet ds = partValsGenerator.generateData(meta);
-      for (Row row : ds) partVals.add(row);
-      this.numParts = partVals.size();
-    } else {
-      partVals = null;
-      if (numParts != 0) {
-        this.numParts = numParts;
-      }
     }
   }
 
@@ -395,6 +395,7 @@ public class TestTable implements Serializable {
       }
       if (hiveLoader.stashedIoException != null) throw hiveLoader.stashedIoException;
       if (hiveLoader.stashedSqlException != null) throw hiveLoader.stashedSqlException;
+      if (hiveLoader.stashedThrowable != null) throw new RuntimeException(hiveLoader.stashedThrowable);
     }
     /*
     */
@@ -421,6 +422,7 @@ public class TestTable implements Serializable {
     final DataStore hive;
     SQLException stashedSqlException;
     IOException stashedIoException;
+    Throwable stashedThrowable;
 
     public HiveLoader(TestTable table, DataSet data, DataStore hive) {
       this.table = table;
@@ -436,6 +438,9 @@ public class TestTable implements Serializable {
         stashedSqlException = e;
       } catch (IOException e) {
         stashedIoException = e;
+      } catch (Throwable t) {
+        LOG.error("HiveLoader caught throwable: ", t);
+        stashedThrowable = t;
       }
     }
   }

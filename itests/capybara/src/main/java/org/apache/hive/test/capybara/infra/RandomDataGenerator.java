@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hive.test.capybara.iface.DataGenerator;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -69,7 +70,7 @@ public class RandomDataGenerator extends DataGeneratorImpl implements Serializab
   }
 
   @Override
-  public DataSet generateData(TestTable table, int scale, double[] pctNulls) {
+  public DataSet generateData(TestTable table, int scale, double[] pctNulls) throws IOException {
     // Decide whether we're going to generate locally or on the cluster.  Remember that scale is
     // in K, while other values are in b.
     if (scale * 1024 > TestManager.getTestManager().getTestConf().getClusterGenThreshold() &&
@@ -129,7 +130,7 @@ public class RandomDataGenerator extends DataGeneratorImpl implements Serializab
 
   private void generateData(GeneratedDataSet rows, RowBuilder builder,
                             ColGenerator[] generators, Row partVals, int scale,
-                            double[] pctNulls) {
+                            double[] pctNulls) throws IOException {
     long generatedSize = 0;
     while (generatedSize < scale * 1024) {
       Row row = builder.build();

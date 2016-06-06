@@ -66,13 +66,13 @@ class GeneratedDataSet extends DataSet {
     return rows.iterator();
   }
 
-  void addRow(Row row) {
+  void addRow(Row row) throws IOException {
     rows.add(row);
     currentSize += row.lengthInBytes();
     if (currentSize > spillSize) spill();
   }
 
-  private void spill() {
+  private void spill() throws IOException {
     LOG.debug("Spilling rows because currentSize got to " + currentSize);
     try {
       if (test == null) test = TestManager.getTestManager().getTestClusterManager().getStore();
@@ -108,6 +108,7 @@ class GeneratedDataSet extends DataSet {
       try {
         store.dumpToFileForImport(data);
       } catch (IOException e) {
+        LOG.error("Dumper thread caught IOException", e);
         stashed = e;
       }
     }

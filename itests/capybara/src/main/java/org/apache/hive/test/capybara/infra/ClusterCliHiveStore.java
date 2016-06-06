@@ -161,6 +161,7 @@ class ClusterCliHiveStore extends HiveStore {
           String line;
           while ((line = reader.readLine()) != null) lines.add(line);
         } catch (IOException e) {
+          LOG.error("Stream Pumper thread caught IOException ", e);
           throw new RuntimeException(e);
         }
 

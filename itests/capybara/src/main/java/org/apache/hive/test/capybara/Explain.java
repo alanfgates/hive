@@ -152,7 +152,6 @@ public class Explain {
     }
     while (toSearch.size() > 0) {
       Operator<? extends OperatorDesc> op = toSearch.pollFirst();
-      LOG.debug("XXX Looking at operator of type " + op.getClass().getName());
       if (op.getClass().equals(lookFor)) {
         results.add((T)op);
         if (returnFirst) return results;

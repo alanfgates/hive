@@ -251,7 +251,9 @@ abstract class DataStoreBase implements DataStore {
    * @throws SQLException
    */
   protected Connection connect(boolean autoCommit) throws SQLException {
-    Connection conn = jdbcDriver.connect(connectionURL(), connectionProperties());
+    String connectionURL = connectionURL();
+    LOG.debug("Going to connect to JDBC via " + connectionURL);
+    Connection conn = jdbcDriver.connect(connectionURL, connectionProperties());
     conn.setAutoCommit(autoCommit);
     return conn;
   }

@@ -92,6 +92,7 @@ public abstract class HiveStore extends DataStoreBase {
     // Dump the data into an HDFS file.  Then create a table with that as it's location.
     // Finally run a SQL statement to insert into the destination table from there.
     String tmpTableName = table.getDbName() + "_" + table.getTableName() + "_tmp_load";
+    LOG.debug("Going to dump data to load into temp table " + tmpTableName);
 
     // Check whether this data has already been dumped.  If so, don't do it again.
     Path dir = rows.getClusterLocation();
@@ -99,10 +100,8 @@ public abstract class HiveStore extends DataStoreBase {
       // It hasn't been dumped, so do it now.
       dumpToFileForImport(rows);
       dir = dataSetDumps.get(rows.uniqueId()).getFirst();
+    } else {
     }
-
-
-    // Drop the temp table in case we've previously created it.  Ignore any errors.
     executeSql("drop table " + tmpTableName);
 
     // Create a temp table with the file in the right location.
@@ -171,6 +170,7 @@ public abstract class HiveStore extends DataStoreBase {
       dataSetDumps.put(rows.uniqueId(), new ObjectPair<>(dir, file));
     } else {
       Path file = pathPair.getSecond();
+      LOG.debug("Going to dump data for import to " + file.toUri().toString());
       FSDataOutputStream output = fs.append(file);
       writeToFile(output, rows);
     }

@@ -36,8 +36,9 @@ public class ExampleTest extends IntegrationTest {
   public void simple() throws Exception {
     TableTool.createAllTypes();
 
-    runQuery("select cvarchar, cchar, cstring, cint, cbigint, csmallint, ctinyint, " +
-        "cfloat, cdecimal, cdate, ctimestamp, cboolean from alltypes");
+    /*runQuery("select cvarchar, cchar, cstring, cint, cbigint, csmallint, ctinyint, " +
+        "cfloat, cdecimal, cdate, ctimestamp, cboolean from alltypes");*/
+    runQuery("select cvarchar from alltypes");
     sortAndCompare();
   }
 

@@ -42,10 +42,10 @@ public interface ClusterConf {
   public String getEngine();
 
   /**
-   * Get directory where Hadoop is stored on the local machine.
+   * Get directory where Hadoop configuration files are stored on the local machine.
    * @return directory
    */
-  public String getHadoopHome();
+  public String getHadoopConfDir();
 
   /**
    * Get directory where Hive is stored on the local machine.

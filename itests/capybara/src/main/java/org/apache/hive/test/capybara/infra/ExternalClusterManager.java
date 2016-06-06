@@ -57,10 +57,10 @@ public class ExternalClusterManager extends ClusterManagerBase {
   public HiveConf getHiveConf() {
     if (conf == null) {
       ClusterConf cc = getClusterConf();
-      String hadoopHome = cc.getHadoopHome();
-      if (hadoopHome == null) {
+      String hadoopConfDir = cc.getHadoopConfDir();
+      if (hadoopConfDir == null) {
         throw new RuntimeException("You must define the property " + clusterType +
-            TestConf.CLUSTER_HADOOP_HOME + " to run on a cluster");
+            TestConf.CLUSTER_HADOOP_CONF_DIR + " to run on a cluster");
       }
       String hiveHome = cc.getHiveHome();
       if (hiveHome == null) {
@@ -68,18 +68,20 @@ public class ExternalClusterManager extends ClusterManagerBase {
             TestConf.CLUSTER_HIVE_HOME + " to run on a cluster");
       }
 
-      String hadoopConf = hadoopHome + System.getProperty("file.separator") + "conf"
-          + System.getProperty("file.separator");
+      hadoopConfDir += System.getProperty("file.separator");
       // Build a configuration that doesn't read the default resources.
       Configuration base = new Configuration(false);
-      HiveConf conf = new HiveConf(base, HiveConf.class);
+      conf = new HiveConf(base, HiveConf.class);
       for (String hadoopConfigFile : hadoopConfigFiles) {
-        Path p = new Path(hadoopConf + hadoopConfigFile);
+        LOG.debug("Going to add " + hadoopConfDir + hadoopConfigFile +
+            " as resource in our HiveConf");
+        Path p = new Path(hadoopConfDir + hadoopConfigFile);
         conf.addResource(p);
       }
 
       String hiveConf = hiveHome +  System.getProperty("file.separator") + "conf"
           + System.getProperty("file.separator") + hiveConfigFile;
+      LOG.debug("Going to add " + hiveConf + " as resource in our HiveConf");
       conf.addResource(new Path(hiveConf));
     }
     return conf;

@@ -57,7 +57,7 @@ public class TestRandomDataGenerator {
   }
 
   @Test
-  public void nonPartitionedAllTypes() {
+  public void nonPartitionedAllTypes() throws IOException {
     List<FieldSchema> cols = new ArrayList<>();
     cols.add(new FieldSchema("col1", "bigint", ""));
     cols.add(new FieldSchema("col2", "int", ""));
@@ -158,7 +158,7 @@ public class TestRandomDataGenerator {
   }
 
   @Test
-  public void differentNumNulls() {
+  public void differentNumNulls() throws IOException {
     List<FieldSchema> cols = new ArrayList<>();
     cols.add(new FieldSchema("col1", "bigint", ""));
     cols.add(new FieldSchema("col2", "int", ""));
@@ -192,7 +192,7 @@ public class TestRandomDataGenerator {
   }
 
   @Test
-  public void partitions() {
+  public void partitions() throws IOException {
     List<FieldSchema> cols = new ArrayList<>();
     cols.add(new FieldSchema("col1", "varchar(3)", ""));
     cols.add(new FieldSchema("col2", "date", ""));
@@ -221,7 +221,7 @@ public class TestRandomDataGenerator {
   }
 
   @Test
-  public void presetPartitions() {
+  public void presetPartitions() throws IOException {
     List<FieldSchema> cols = new ArrayList<>();
     cols.add(new FieldSchema("col1", "varchar(3)", ""));
     cols.add(new FieldSchema("col2", "date", ""));
@@ -256,7 +256,7 @@ public class TestRandomDataGenerator {
   }
 
   @Test
-  public void autoPartitionCount() {
+  public void autoPartitionCount() throws IOException {
     List<FieldSchema> cols = new ArrayList<>();
     cols.add(new FieldSchema("col1", "varchar(3)", ""));
     cols.add(new FieldSchema("col2", "date", ""));
@@ -284,7 +284,7 @@ public class TestRandomDataGenerator {
   }
 
   @Test
-  public void primaryKey() {
+  public void primaryKey() throws IOException {
     List<FieldSchema> cols = new ArrayList<>();
     cols.add(new FieldSchema("col1", "varchar(3)", ""));
     cols.add(new FieldSchema("col2", "date", ""));
@@ -314,7 +314,7 @@ public class TestRandomDataGenerator {
   }
 
   @Test
-  public void sequence() {
+  public void sequence() throws IOException {
     List<FieldSchema> cols = new ArrayList<>();
     cols.add(new FieldSchema("col1", "bigint", ""));
     cols.add(new FieldSchema("col2", "date", ""));
@@ -341,7 +341,7 @@ public class TestRandomDataGenerator {
   }
 
   @Test
-  public void foreignKey() {
+  public void foreignKey() throws IOException {
     TestTable dim = TestTable.getBuilder("dim")
         .addCol("col1", "bigint")
         .addCol("col2", "date")

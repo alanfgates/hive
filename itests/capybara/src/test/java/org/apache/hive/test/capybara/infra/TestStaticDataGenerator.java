@@ -51,7 +51,7 @@ public class TestStaticDataGenerator {
   }
 
   @Test
-  public void allTypes() throws SQLException {
+  public void allTypes() throws SQLException, IOException {
 
     final String tableName = "alltypes";
 
@@ -110,7 +110,7 @@ public class TestStaticDataGenerator {
   }
 
   @Test
-  public void partitioned() throws SQLException {
+  public void partitioned() throws SQLException, IOException {
 
     final String tableName = "alltypes";
 

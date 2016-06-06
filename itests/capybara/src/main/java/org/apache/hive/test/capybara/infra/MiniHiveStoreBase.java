@@ -52,7 +52,6 @@ abstract class MiniHiveStoreBase extends HiveStore {
     LOG.debug("Dropping created tables");
     super.tearDown();
 
-    LOG.debug("XXX registeredTables is null " + (registeredTables == null));
     Exception caughtException = null;
     for (String dbNameTableName : registeredTables) {
       LOG.debug("Dropping table " + dbNameTableName);
