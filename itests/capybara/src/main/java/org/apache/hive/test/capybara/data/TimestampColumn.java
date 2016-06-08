@@ -20,11 +20,13 @@ package org.apache.hive.test.capybara.data;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector;
 
+import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.util.Comparator;
 
 class TimestampColumn extends Column {
   TimestampColumn(int colNum) {
@@ -64,5 +66,21 @@ class TimestampColumn extends Column {
   @Override
   public Timestamp asTimestamp() {
     return (Timestamp)val;
+  }
+
+  @Override
+  public Comparator<Column> getComparator(Column other) throws SQLException {
+    if (other instanceof DateColumn) {
+      return buildColComparator(new Comparator<Comparable>() {
+        @Override
+        public int compare(Comparable o1, Comparable o2) {
+          // Timestamp impletement Comparable<Date>
+          return ((Timestamp) o1).compareTo((Date) o2);
+        }
+      });
+    } else {
+      throw new SQLException("Incompatible types, can't compare a timestamp to a " +
+          other.getClass().getSimpleName());
+    }
   }
 }

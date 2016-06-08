@@ -24,6 +24,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.util.Comparator;
 
 class StringColumn extends Column {
   StringColumn(int colNum) {
@@ -73,5 +74,13 @@ class StringColumn extends Column {
   @Override
   public String asString() {
     return (String)val;
+  }
+
+  @Override
+  public Comparator<Column> getComparator(Column other) throws SQLException {
+    // TODO everything can be stringified, so I should make this work with all the types except
+    // maybe bytes.
+    throw new SQLException("Incompatible types, can't compare a string to a " +
+        other.getClass().getSimpleName());
   }
 }

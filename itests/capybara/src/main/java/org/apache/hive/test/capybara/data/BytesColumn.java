@@ -26,6 +26,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.util.Arrays;
+import java.util.Comparator;
 
 /**
  * This one's a bit of a special case because byte[] isn't comparable.  Also, we Base64
@@ -121,5 +122,11 @@ class BytesColumn extends Column {
   public String toString(String nullIndicator, String quotes) {
     if (bVal == null) return nullIndicator;
     else return Base64.encodeBase64URLSafeString(bVal);
+  }
+
+  @Override
+  public Comparator<Column> getComparator(Column other) throws SQLException {
+    throw new SQLException("Incompatible types, can't compare a bytes to a " +
+        other.getClass().getSimpleName());
   }
 }

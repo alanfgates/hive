@@ -24,6 +24,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.util.Comparator;
 
 class BooleanColumn extends Column {
   BooleanColumn(int colNum) {
@@ -63,5 +64,11 @@ class BooleanColumn extends Column {
   @Override
   public boolean asBoolean() {
     return (Boolean)val;
+  }
+
+  @Override
+  public Comparator<Column> getComparator(Column other) throws SQLException {
+    throw new SQLException("Incompatible types, can't compare a boolean to a " +
+        other.getClass().getSimpleName());
   }
 }

@@ -24,7 +24,9 @@ import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.sql.Types;
+import java.util.Comparator;
 
 class DateColumn extends Column {
   DateColumn(int colNum) {
@@ -65,5 +67,21 @@ class DateColumn extends Column {
   @Override
   public Date asDate() {
     return (Date)val;
+  }
+
+  @Override
+  public Comparator<Column> getComparator(Column other) throws SQLException {
+    if (other instanceof TimestampColumn) {
+      return buildColComparator(new Comparator<Comparable>() {
+        @Override
+        public int compare(Comparable o1, Comparable o2) {
+          Timestamp val1 = new Timestamp(((Date)o1).getTime());
+          return val1.compareTo((Timestamp)o2);
+        }
+      });
+    } else {
+      throw new SQLException("Incompatible types, can't compare a date to a " +
+          other.getClass().getSimpleName());
+    }
   }
 }

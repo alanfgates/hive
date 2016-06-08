@@ -25,6 +25,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.Comparator;
 
 /**
  * A column value.  There are implementations for each Java object type containing column data.
@@ -35,6 +36,11 @@ import java.sql.Timestamp;
  *
  * Note that Columns themselves should
  * never be null.  Null in a column is represented by the contained val being null.
+ *
+ * Column implements Comparable&lt;Column&gt;.  This can be used for comparing two columns knows
+ * to be of the same type.  If you're not sure if they are the same type you can call
+ * {@link #getComparator} which will return a comparator specific to the column type you want to
+ * compare to.
  */
 public abstract class Column implements Comparable<Column> {
   /**
@@ -124,6 +130,27 @@ public abstract class Column implements Comparable<Column> {
   @Override
   public String toString() {
     return toString("NULL", "");
+  }
+
+  /**
+   * Get a comparator for comparing to columns of other types.
+   * @param other column to be compared to
+   * @return comparator
+   * @throws java.sql.SQLException if these two types are not comparable
+   */
+  public abstract Comparator<Column> getComparator(Column other) throws SQLException;
+
+  protected Comparator<Column> buildColComparator(final Comparator<Comparable> comparator) {
+    return new Comparator<Column>() {
+      @Override
+      public int compare(Column o1, Column o2) {
+        if (o1 == null) return 1;
+        if (o1.val == null && o2.val == null) return 0;
+        if (o1.val == null) return -1;
+        if (o2.val == null) return 1;
+        return comparator.compare(o1.val, o2.val);
+      }
+    };
   }
 
   // For the most part I don't expect to need these, as hopefully we don't usually need to

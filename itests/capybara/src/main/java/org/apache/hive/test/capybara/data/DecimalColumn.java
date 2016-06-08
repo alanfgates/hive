@@ -26,6 +26,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.util.Comparator;
 
 class DecimalColumn extends Column {
   DecimalColumn(int colNum) {
@@ -74,12 +75,85 @@ class DecimalColumn extends Column {
     if (val == null && that.val == null) return true;
     else if (val == null || that.val == null) return false;
 
+    return scaleMungingEquals((BigDecimal)val, (BigDecimal)that.val);
+  }
+
+  @Override
+  public Comparator<Column> getComparator(Column other) throws SQLException {
+    if (other instanceof ByteColumn) {
+      return buildColComparator(new Comparator<Comparable>() {
+        @Override
+        public int compare(Comparable o1, Comparable o2) {
+          BigDecimal val2 = new BigDecimal((Byte)o2);
+          // Try to use our local equals first, since it's special
+          if (scaleMungingEquals((BigDecimal) o1, val2)) return 0;
+          else return ((BigDecimal)o1).compareTo(val2);
+        }
+      });
+    } else if (other instanceof ShortColumn) {
+      return buildColComparator(new Comparator<Comparable>() {
+        @Override
+        public int compare(Comparable o1, Comparable o2) {
+          BigDecimal val2 = new BigDecimal((Short)o2);
+          // Try to use our local equals first, since it's special
+          if (scaleMungingEquals((BigDecimal) o1, val2)) return 0;
+          else return ((BigDecimal)o1).compareTo(val2);
+        }
+      });
+    } else if (other instanceof IntColumn) {
+      return buildColComparator(new Comparator<Comparable>() {
+        @Override
+        public int compare(Comparable o1, Comparable o2) {
+          BigDecimal val2 = new BigDecimal((Integer)o2);
+          // Try to use our local equals first, since it's special
+          if (scaleMungingEquals((BigDecimal) o1, val2)) return 0;
+          else return ((BigDecimal)o1).compareTo(val2);
+        }
+      });
+    } else if (other instanceof LongColumn) {
+      return buildColComparator(new Comparator<Comparable>() {
+        @Override
+        public int compare(Comparable o1, Comparable o2) {
+          BigDecimal val2 = new BigDecimal((Long)o2);
+          // Try to use our local equals first, since it's special
+          if (scaleMungingEquals((BigDecimal) o1, val2)) return 0;
+          else return ((BigDecimal)o1).compareTo(val2);
+        }
+      });
+    } else if (other instanceof FloatColumn) {
+      // See comments on DoubleColumn below on why we're converting the BigDecimal
+      return buildColComparator(new Comparator<Comparable>() {
+        @Override
+        public int compare(Comparable o1, Comparable o2) {
+          Double val1 = ((BigDecimal)o1).doubleValue();
+          Double val2 = Double.valueOf((Float)o2);
+          if (DoubleColumn.checkBits(val1, val2)) return 0;
+          else return val1.compareTo(val2);
+        }
+      });
+    } else if (other instanceof DoubleColumn) {
+      // We'll move the BD to a double.  This is less accomodating in terms of size (since BD can
+      // be much larger) but we want double's equal semantics because the odds of getting exact
+      // equality here seem remote.
+      return buildColComparator(new Comparator<Comparable>() {
+        @Override
+        public int compare(Comparable o1, Comparable o2) {
+          Double val1 = ((BigDecimal)o1).doubleValue();
+          if (DoubleColumn.checkBits(val1, (Double)o2)) return 0;
+          else return val1.compareTo((Double)o2);
+        }
+      });
+    } else {
+      throw new SQLException("Incompatible types, can't compare a BigDecimal to a " +
+          other.getClass().getSimpleName());
+    }
+  }
+
+  private static boolean scaleMungingEquals(BigDecimal bd1, BigDecimal bd2) {
     // Handle the fact that values may have different scales, since Hive is sloppy about not
     // appending trailing zeros.
-    BigDecimal thisVal = (BigDecimal)val;
-    BigDecimal thatVal = (BigDecimal)that.val;
-    if (thisVal.scale() == thatVal.scale()) {
-      return thisVal.equals(thatVal);
+    if (bd1.scale() == bd2.scale()) {
+      return bd1.equals(bd2);
     } else {
       // TODO - I'm not sure this is the best choice.  This picks the
       // TODO - entry with the lowest scale, subtracts one, and compares both entries at that
@@ -89,9 +163,9 @@ class DecimalColumn extends Column {
       // TODO - stores may assign different scales (e.g. avg(decimal(10,2)) produces a
       // TODO - decimal(10,6)  in Hive and a decimal (10,4) in Derby.)  But it will obscure
       // TODO - cases where we'd like to check that scale is properly kept.
-      int newScale = Math.min(thisVal.scale(), thatVal.scale()) - 1;
-      BigDecimal newThisVal = thisVal.setScale(newScale, RoundingMode.FLOOR);
-      BigDecimal newThatVal = thatVal.setScale(newScale, RoundingMode.FLOOR);
+      int newScale = Math.min(bd1.scale(), bd2.scale()) - 1;
+      BigDecimal newThisVal = bd1.setScale(newScale, RoundingMode.FLOOR);
+      BigDecimal newThatVal = bd2.setScale(newScale, RoundingMode.FLOOR);
       return newThisVal.equals(newThatVal);
     }
   }

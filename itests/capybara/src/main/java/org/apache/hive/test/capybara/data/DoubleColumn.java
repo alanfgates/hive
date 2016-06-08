@@ -20,10 +20,12 @@ package org.apache.hive.test.capybara.data;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.DoubleObjectInspector;
 
+import java.math.BigDecimal;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.util.Comparator;
 
 class DoubleColumn extends Column {
   DoubleColumn(int colNum) {
@@ -72,18 +74,7 @@ class DoubleColumn extends Column {
     if (val == null && that.val == null) return true;
     else if (val == null || that.val == null) return false;
 
-    // We want to be fuzzy in our comparisons, but just using a hard wired differential is hard
-    // because we don't know the scale.  So look at the bits and mask out the last few, as
-    // these are where the difference is likely to be.
-    long thisBits = Double.doubleToLongBits((Double)val);
-    long thatBits = Double.doubleToLongBits((Double)that.val);
-
-    // Make sure the sign is the same
-    if ((thisBits & 0x8000000000000000L) != (thatBits & 0x8000000000000000L)) return false;
-    // Check the exponent
-    if ((thisBits & 0x7ff0000000000000L) != (thatBits & 0x7ff0000000000000L)) return false;
-    // Check the mantissa, but leave off the last eight bits
-    return (thisBits & 0x000fffff00000000L) == (thatBits & 0x000fffff00000000L);
+    return checkBits((Double)val, (Double)that.val);
   }
 
   @Override
@@ -91,5 +82,89 @@ class DoubleColumn extends Column {
     // Override this since we're playing a little fast and loose with equals
     if (equals(other)) return 0;
     else return super.compareTo(other);
+  }
+
+  @Override
+  public Comparator<Column> getComparator(Column other) throws SQLException {
+    if (other instanceof ByteColumn) {
+      return buildColComparator(new Comparator<Comparable>() {
+        @Override
+        public int compare(Comparable o1, Comparable o2) {
+          Double val2 = Double.valueOf((Byte) o2);
+          if (checkBits((Double) o1, val2)) return 0;
+          else return ((Double) o1).compareTo(val2);
+        }
+      });
+    } else if (other instanceof ShortColumn) {
+      return buildColComparator(new Comparator<Comparable>() {
+        @Override
+        public int compare(Comparable o1, Comparable o2) {
+          Double val2 = Double.valueOf((Short) o2);
+          if (checkBits((Double)o1, val2)) return 0;
+          else return ((Double)o1).compareTo(val2);
+        }
+      });
+    } else if (other instanceof IntColumn) {
+      return buildColComparator(new Comparator<Comparable>() {
+        @Override
+        public int compare(Comparable o1, Comparable o2) {
+          Double val2 = Double.valueOf((Integer)o2);
+          if (checkBits((Double)o1, val2)) return 0;
+          else return ((Double)o1).compareTo(val2);
+        }
+      });
+    } else if (other instanceof LongColumn) {
+      return buildColComparator(new Comparator<Comparable>() {
+        @Override
+        public int compare(Comparable o1, Comparable o2) {
+          Double val2 = Double.valueOf((Long) o2);
+          if (checkBits((Double) o1, val2)) return 0;
+          else return ((Double) o1).compareTo(val2);
+        }
+      });
+    }
+    if (other instanceof FloatColumn) {
+      return buildColComparator(new Comparator<Comparable>() {
+        @Override
+        public int compare(Comparable o1, Comparable o2) {
+          Double val2 = Double.valueOf((Float) o2);
+          // We can't just use compareTo as we need to do our fuzzy bit masking first, because we
+          // want "close enough" to be equal
+          if (checkBits((Double) o1, val2)) return 0;
+          else return ((Double) o1).compareTo(val2);
+        }
+      });
+    } else if (other instanceof DecimalColumn) {
+      // We'll move the BD to a double.  This is less accomodating in terms of size (since BD can
+      // be much larger) but we want double's equal semantics because the odds of getting exact
+      // equality here seem remote.
+      return buildColComparator(new Comparator<Comparable>() {
+        @Override
+        public int compare(Comparable o1, Comparable o2) {
+          Double val2 = ((BigDecimal)o2).doubleValue();
+          if (checkBits((Double)o1, val2)) return 0;
+          else return ((Double)o1).compareTo(val2);
+        }
+      });
+    } else {
+      throw new SQLException("Incompatible types, can't compare a double to a " +
+          other.getClass().getSimpleName());
+    }
+  }
+
+  static boolean checkBits(Double d1, Double d2) {
+
+    // We want to be fuzzy in our comparisons, but just using a hard wired differential is hard
+    // because we don't know the scale.  So look at the bits and mask out the last few, as
+    // these are where the difference is likely to be.
+    long bits1 = Double.doubleToLongBits(d1);
+    long bits2 = Double.doubleToLongBits(d2);
+
+    // Make sure the sign is the same
+    if ((bits1 & 0x8000000000000000L) != (bits2 & 0x8000000000000000L)) return false;
+    // Check the exponent
+    if ((bits1 & 0x7ff0000000000000L) != (bits2 & 0x7ff0000000000000L)) return false;
+    // Check the mantissa, but leave off the last eight bits
+    return (bits1 & 0x000fffff00000000L) == (bits2 & 0x000fffff00000000L);
   }
 }

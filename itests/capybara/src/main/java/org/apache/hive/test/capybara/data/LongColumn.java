@@ -24,6 +24,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.util.Comparator;
 
 
 class LongColumn extends Column {
@@ -64,5 +65,37 @@ class LongColumn extends Column {
   @Override
   public long asLong() {
     return (Long)val;
+  }
+
+  @Override
+  public Comparator<Column> getComparator(Column other) throws SQLException {
+    if (other instanceof IntColumn) {
+      return buildColComparator(new Comparator<Comparable>() {
+        @Override
+        public int compare(Comparable o1, Comparable o2) {
+          Long val2 = Long.valueOf((Integer)o2);
+          return o1.compareTo(val2);
+        }
+      });
+    } else if (other instanceof ShortColumn) {
+      return buildColComparator(new Comparator<Comparable>() {
+        @Override
+        public int compare(Comparable o1, Comparable o2) {
+          Long val2 = Long.valueOf((Short) o2);
+          return o1.compareTo(val2);
+        }
+      });
+    } else if (other instanceof ByteColumn) {
+      return buildColComparator(new Comparator<Comparable>() {
+        @Override
+        public int compare(Comparable o1, Comparable o2) {
+          Long val2 = Long.valueOf((Byte) o2);
+          return o1.compareTo(val2);
+        }
+      });
+    } else {
+      throw new SQLException("Incompatible types, can't compare a long to a " +
+        other.getClass().getSimpleName());
+    }
   }
 }

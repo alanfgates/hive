@@ -17,12 +17,21 @@
  */
 package org.apache.hive.test.capybara.data;
 
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
 /**
  * A row of data.  This is a list of Columns, along with methods for sorting, comparing,
  * hashing, and turning a row to a string.
+ *
+ * Rows implement Comparable&lt;Row&gt;.  This can be used whenever comparing against another
+ * rows known to be of the same schema (e.g., when sorting output from a DataStore).  If you need
+ * to compare against a row that <i>may</i> of a different type use
+ * {@link #getComparator} instead.  This will produce a comparator that can handle the
+ * differences in the rows.
  */
 public class Row implements Iterable<Column>, Comparable<Row> {
   private List<Column> cols;
@@ -106,6 +115,45 @@ public class Row implements Iterable<Column>, Comparable<Row> {
     return cols.equals(((Row)other).cols);
   }
 
+  /**
+   * Get a comparator for comparing this row with another row.  This method need not be called
+   * for every row, but it should be called for each different type of row.  The returned
+   * comparator will be specific to the row type being compared against.
+   * @param other row to compare this row against
+   * @return comparator
+   * @throws java.sql.SQLException if it is not possible to compare these rows
+   */
+  public Comparator<Row> getComparator(Row other) throws SQLException {
+    if (size() != other.size()) {
+      throw new SQLException("Attempt to compare two rows of different size.  Row 1 has " + size()
+          + " columns while row 2 has " + other.size());
+    }
+    final List<Comparator<Column>> colComparators = new ArrayList<>(size());
+    boolean sawDifferentType = false;
+    for (int i = 0; i < size(); i++) {
+      if (cols.get(i).getClass().equals(other.cols.get(i).getClass())) {
+        colComparators.add(equalityColComparator);
+      } else {
+        colComparators.add(cols.get(i).getComparator(other.cols.get(i)));
+        sawDifferentType = true;
+      }
+    }
+    if (sawDifferentType) {
+      return new Comparator<Row>() {
+        @Override
+        public int compare(Row o1, Row o2) {
+          for (int i = 0; i < colComparators.size(); i++) {
+            int rc = colComparators.get(i).compare(o1.get(i), o2.get(i));
+            if (rc != 0) return rc;
+          }
+          return 0;
+        }
+      };
+    }
+    else return equalityRowComparator;
+
+  }
+
   @Override
   public int hashCode() {
     return cols.hashCode();
@@ -134,4 +182,19 @@ public class Row implements Iterable<Column>, Comparable<Row> {
     builder.append('>');
     return builder.toString();
   }
+
+  private static Comparator<Row> equalityRowComparator = new Comparator<Row>() {
+    @Override
+    public int compare(Row o1, Row o2) {
+      return o1.compareTo(o2);
+    }
+  };
+
+  private static Comparator<Column> equalityColComparator = new Comparator<Column>() {
+    @Override
+    public int compare(Column o1, Column o2) {
+      return o1.compareTo(o2);
+    }
+  };
+
 }

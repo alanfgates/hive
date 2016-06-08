@@ -24,6 +24,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.util.Comparator;
 
 class ByteColumn extends Column {
   ByteColumn(int colNum) {
@@ -63,5 +64,37 @@ class ByteColumn extends Column {
   @Override
   public byte asByte() {
     return (Byte)val;
+  }
+
+  @Override
+  public Comparator<Column> getComparator(Column other) throws SQLException {
+    if (other instanceof LongColumn) {
+      return buildColComparator(new Comparator<Comparable>() {
+        @Override
+        public int compare(Comparable o1, Comparable o2) {
+          Long val1 = Long.valueOf((Byte)o1);
+          return val1.compareTo((Long)o2);
+        }
+      });
+    } else if (other instanceof IntColumn) {
+      return buildColComparator(new Comparator<Comparable>() {
+        @Override
+        public int compare(Comparable o1, Comparable o2) {
+          Integer val1 = Integer.valueOf((Byte)o1);
+          return val1.compareTo((Integer)o2);
+        }
+      });
+    } else if (other instanceof ShortColumn) {
+      return buildColComparator(new Comparator<Comparable>() {
+        @Override
+        public int compare(Comparable o1, Comparable o2) {
+          Short val1 = Short.valueOf((Byte)o1);
+          return val1.compareTo((Short)o2);
+        }
+      });
+    } else {
+      throw new SQLException("Incompatible types, can't compare a byte to a " +
+          other.getClass().getSimpleName());
+    }
   }
 }
