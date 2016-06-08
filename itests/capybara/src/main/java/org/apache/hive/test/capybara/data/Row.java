@@ -118,4 +118,20 @@ public class Row implements Iterable<Column>, Comparable<Row> {
   public void append(Row that) {
     cols.addAll(that.cols);
   }
+
+  /**
+   * Describe the schema of this row.
+   * @return description
+   */
+  public String describe() {
+    StringBuilder builder = new StringBuilder("Schema<");
+    boolean isFirst = true;
+    for (Column c : cols) {
+      if (isFirst) isFirst = false;
+      else builder.append(",");
+      builder.append(c.getClass().getSimpleName());
+    }
+    builder.append('>');
+    return builder.toString();
+  }
 }

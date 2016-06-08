@@ -61,10 +61,15 @@ public class NonSortingComparator extends ResultComparator {
 
       if (!hiveRow.equals(benchRow)) {
 
-        LOG.debug("Last 25 Hive rows:");
-        while (!hiveQueue.isEmpty()) LOG.debug(hiveQueue.poll().toString(",", "NULL", "'"));
-        LOG.debug("Last 25 Bench rows:");
-        while (!benchQueue.isEmpty()) LOG.debug(benchQueue.poll().toString(",", "NULL", "'"));
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("Schema of failing hive row is " + hiveRow.describe());
+          LOG.debug("Schema of failing bench row is " + benchRow.describe());
+          LOG.debug("Last 25 Hive rows:");
+          while (!hiveQueue.isEmpty()) LOG.debug(hiveQueue.poll().toString(",", "NULL", "'"));
+          LOG.debug("Last 25 Bench rows:");
+          while (!benchQueue.isEmpty()) LOG.debug(benchQueue.poll().toString(",", "NULL", "'"));
+        }
+
 
         Assert.fail("Mismatch at row " + rowNum + " hive row is <" +
             hiveRow.toString(",", "NULL", "") + "> bench row is <" +

@@ -20,6 +20,7 @@ package org.apache.hive.test.capybara.infra;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hive.common.ObjectPair;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
@@ -157,6 +158,10 @@ public abstract class HiveStore extends DataStoreBase {
 
   @Override
   public void dumpToFileForImport(DataSet rows) throws IOException {
+    // For any files and directories we create as part of this dump we need to set the permission
+    // to 777 so that others can drop them if need be.  This is important because when
+    // working on a cluster via JDBC the process doing the drop table when we're done with this
+    // might not be running as the same user as this process is running as.
     ClusterManager clusterMgr = TestManager.getTestManager().getTestClusterManager();
     FileSystem fs = clusterMgr.getFileSystem();
     ObjectPair<Path, Path> pathPair = dataSetDumps.get(rows.uniqueId());
@@ -164,15 +169,18 @@ public abstract class HiveStore extends DataStoreBase {
       Path dir = new Path(clusterMgr.getDirForDumpFile());
       LOG.debug("Going to dump data for import to " + dir.toUri().toString());
       fs.mkdirs(dir);
+      fs.setPermission(dir, new FsPermission("777"));
       Path file = new Path(dir, "file");
       FSDataOutputStream output = fs.create(file);
       writeToFile(output, rows);
       dataSetDumps.put(rows.uniqueId(), new ObjectPair<>(dir, file));
+      fs.setPermission(file, new FsPermission("777"));
     } else {
       Path file = pathPair.getSecond();
       LOG.debug("Going to dump data for import to " + file.toUri().toString());
       FSDataOutputStream output = fs.append(file);
       writeToFile(output, rows);
+      fs.setPermission(file, new FsPermission("777"));
     }
   }
 
