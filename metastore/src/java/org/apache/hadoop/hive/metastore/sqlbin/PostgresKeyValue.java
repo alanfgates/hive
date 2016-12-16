@@ -28,7 +28,6 @@ import org.apache.commons.dbcp.PoolableConnectionFactory;
 import org.apache.commons.dbcp.PoolingDataSource;
 import org.apache.commons.pool.ObjectPool;
 import org.apache.commons.pool.impl.GenericObjectPool;
-import org.apache.hadoop.hbase.filter.Filter;
 import org.apache.hadoop.hive.common.ObjectPair;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.SQLForeignKey;
@@ -53,8 +52,6 @@ import org.apache.thrift.transport.TMemoryBuffer;
 import javax.sql.DataSource;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
@@ -73,7 +70,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Class to manage storing object in and reading them from HBase.
  */
 public class PostgresKeyValue {
-  public final static List<PostgresTable> tables = new ArrayList<>();
+  public final static List<PostgresTable> initialPostgresTables = new ArrayList<>();
 
   // Column names used throughout
   // General column name that catalog objects are stored in.
@@ -97,7 +94,8 @@ public class PostgresKeyValue {
   final static PostgresTable DB_TABLE =
       new PostgresTable("MS_DBS")
         .addStringKey("db_name")
-        .addByteColumn(CATALOG_COL);
+        .addByteColumn(CATALOG_COL)
+        .addToInitialTableList();
 
   // Define the Function table
   /*
@@ -145,7 +143,8 @@ public class PostgresKeyValue {
           .addByteColumn(CATALOG_COL)
           .addByteColumn(STATS_COL)
           .addByteColumn(PRIMARY_KEY_COL)
-          .addByteColumn(FOREIGN_KEY_COL);
+          .addByteColumn(FOREIGN_KEY_COL)
+          .addToInitialTableList();
 
   /*
   final static PostgresTable INDEX_TABLE =
@@ -200,15 +199,22 @@ public class PostgresKeyValue {
   }
 
   public PostgresKeyValue() {
-    try {
-      connectToPostgres();
-      createTablesIfNotExist();
+  }
 
-      dbCache = new HashMap<>(5);
-      tableCache = new HashMap<>(20);
-      partCache = new HashMap<>(1000);
-    } catch (IOException e) {
-      throw new RuntimeException(e);
+  /**********************************************************************************************
+   * Methods to connect to Postgres and make sure all of the appropriate tables exist.
+   *********************************************************************************************/
+  private void init() {
+    if (partCache == null) {
+      try {
+        connectToPostgres();
+
+        dbCache = new HashMap<>(5);
+        tableCache = new HashMap<>(20);
+        partCache = new HashMap<>(1000);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
     }
   }
 
@@ -216,6 +222,7 @@ public class PostgresKeyValue {
     if (connPool != null) return;
 
     synchronized (PostgresKeyValue.class) {
+      LOG.info("Connecting to Postgres");
       String driverUrl = HiveConf.getVar(conf, HiveConf.ConfVars.METASTORECONNECTURLKEY);
       String user = HiveConf.getVar(conf, HiveConf.ConfVars.METASTORE_CONNECTION_USER_NAME);
       String passwd =
@@ -259,38 +266,45 @@ public class PostgresKeyValue {
     }
   }
 
-  // Synchronize this so not everyone's doing it at once.
-  private void createTablesIfNotExist() throws IOException {
-    synchronized (PostgresKeyValue.class) {
-      if (!tablesCreated) {
-        begin();
-        boolean commit = false;
-        LOG.info("Tables not yet created, creating now...");
-        try {
-          // First, figure out if they are already there
-          DatabaseMetaData dmd = currentConnection.getMetaData();
-          ResultSet rs =
-              dmd.getTables(currentConnection.getCatalog(), currentConnection.getSchema(),
-                  TABLE_TABLE.getName(), null);
-          if (rs.next()) return; // We've already created the tables.
-          for (PostgresTable table : tables) {
-            createTableInPostgres(table);
+  // Synchronize this so not everyone's doing it at once.  This should only be called by begin()
+  private void createTablesIfNotExist() throws SQLException {
+    assert currentConnection != null;
+    if (!tablesCreated) {
+      synchronized (PostgresKeyValue.class) {
+        if (!tablesCreated) { // check again, someone else might have done it while we waited.
+          boolean commit = false;
+          try {
+            // First, figure out if they are already there
+            DatabaseMetaData dmd = currentConnection.getMetaData();
+            ResultSet rs =
+                dmd.getTables(currentConnection.getCatalog(), currentConnection.getSchema(),
+                    TABLE_TABLE.getName().toLowerCase(), null);
+            if (rs.next()) {
+              LOG.debug("Tables have already been created, not creating.");
+              commit = true;
+              return; // We've already created the tables.
+            }
+            LOG.info("Tables not found in catalog " + currentConnection.getCatalog() + ", schema " +
+                currentConnection.getSchema() + ", creating them...");
+            for (PostgresTable table : initialPostgresTables) {
+              createTableInPostgres(table);
+            }
+            LOG.info("Done creating tables");
+            tablesCreated = true;
+            commit = true;
+          } finally {
+            if (commit) {
+              commit();
+              beginInternal(); // We need to open a new connection so the next call has one.
+            }
+            else rollback();
           }
-          LOG.info("Done creating tables");
-          tablesCreated = true;
-          commit = true;
-        } catch (SQLException e) {
-          throw new IOException(e);
-        } finally {
-          if (commit) commit();
-          else rollback();
         }
       }
     }
   }
 
-  private void createTableInPostgres(PostgresTable table)
-      throws SQLException {
+  private void createTableInPostgres(PostgresTable table) throws SQLException {
     StringBuilder buf = new StringBuilder("create table ")
         .append(table.getName())
         .append(" (");
@@ -313,11 +327,12 @@ public class PostgresKeyValue {
       buf.append(')');
     }
     buf.append(')');
-    Statement stmt = currentConnection.createStatement();
-    if (LOG.isInfoEnabled()) {
-      LOG.info("Creating table with statement <" + buf.toString() + ">");
+    try (Statement stmt = currentConnection.createStatement()) {
+      if (LOG.isInfoEnabled()) {
+        LOG.info("Creating table with statement <" + buf.toString() + ">");
+      }
+      stmt.execute(buf.toString());
     }
-    stmt.execute(buf.toString());
 
   }
 
@@ -328,57 +343,50 @@ public class PostgresKeyValue {
   /**
    * Begin a transaction
    */
-  public void begin() {
+  public void begin() throws SQLException{
     assert currentConnection == null;
-    try {
-      int rc = 10;
-      while (true) {
-        try {
-          currentConnection = connPool.getConnection();
-          currentConnection.setAutoCommit(false);
-          currentConnection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
-        } catch (SQLException e){
-          try {
-            if (currentConnection != null) currentConnection.close();
-          } catch (SQLException e2) {
-            LOG.error("Unable to close broken connection", e2);
-            // Not sure what I can do here
-          }
-          if ((--rc) <= 0) throw new IOException(e);
-          LOG.error("There is a problem with a connection from the pool, retrying(rc=" + rc + "): ", e);
-        }
+    // We can't connect to postgres in the constructor because we don't have the configuration
+    // file yet at that point.  So instead always check here in the begin to see if we've connected.
+    init();
+    beginInternal();
+    createTablesIfNotExist();
+  }
+
+  private void beginInternal() throws SQLException {
+    int rc = 10;
+    while (true) {
+      try {
+        currentConnection = connPool.getConnection();
+        currentConnection.setAutoCommit(false);
+        currentConnection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+        return;
+      } catch (SQLException e){
+        if (currentConnection != null) currentConnection.close();
+        if ((--rc) <= 0) throw e;
+        LOG.error("There is a problem with a connection from the pool, retrying(rc=" + rc + "): ", e);
       }
-    } catch (IOException e) {
-      throw new RuntimeException(e);
     }
   }
 
   /**
    * Commit a transaction
    */
-  public void commit() {
-    try {
-      assert currentConnection != null;
-      currentConnection.commit();
-      currentConnection.close();
-      currentConnection = null;
-    } catch (SQLException e) {
-      throw new RuntimeException(e);
-    }
+  public void commit() throws SQLException {
+    assert currentConnection != null;
+    currentConnection.commit();
+    currentConnection.close();
+    currentConnection = null;
   }
 
-  public void rollback() {
-    try {
-      assert currentConnection != null;
+  public void rollback() throws SQLException {
+    if (currentConnection != null) {
       currentConnection.rollback();
       currentConnection.close();
       currentConnection = null;
-    } catch (SQLException e) {
-      throw new RuntimeException(e);
     }
   }
 
-  public void close() throws IOException {
+  public void close() throws SQLException {
     if (currentConnection != null) rollback();
   }
 
@@ -390,9 +398,9 @@ public class PostgresKeyValue {
    * Fetch a database object
    * @param name name of the database to fetch
    * @return the database object, or null if there is no such database
-   * @throws IOException
+   * @throws SQLException
    */
-  public Database getDb(String name) throws IOException {
+  public Database getDb(String name) throws SQLException {
     Database db = dbCache.get(name);
     if (db == null) {
       byte[] serialized = getByKey(DB_TABLE, CATALOG_COL, name);
@@ -409,9 +417,9 @@ public class PostgresKeyValue {
    * @param regex Regular expression to use in searching for database names.  It is expected to
    *              be a Java regular expression.  If it is null then all databases will be returned.
    * @return list of databases matching the regular expression.
-   * @throws IOException
+   * @throws SQLException
    */
-  public List<Database> scanDatabases(String regex) throws IOException {
+  public List<Database> scanDatabases(String regex) throws SQLException {
     List<byte[]> results = scanOnKeyWithRegex(DB_TABLE, CATALOG_COL, regex);
     List<Database> dbs = new ArrayList<>();
     for (byte[] serialized : results) {
@@ -425,9 +433,9 @@ public class PostgresKeyValue {
   /**
    * Store a database object
    * @param database database object to store
-   * @throws IOException
+   * @throws SQLException
    */
-  public void putDb(Database database) throws IOException {
+  public void putDb(Database database) throws SQLException {
     byte[] serialized = serialize(database);
     storeOnKey(DB_TABLE, CATALOG_COL, serialized, database.getName());
     dbCache.put(database.getName(), database);
@@ -436,14 +444,14 @@ public class PostgresKeyValue {
   /**
    * Drop a database
    * @param name name of db to drop
-   * @throws IOException
+   * @throws SQLException
    */
-  public void deleteDb(String name) throws IOException {
+  public void deleteDb(String name) throws SQLException {
     deleteOnKey(DB_TABLE, name);
     dbCache.remove(name);
   }
 
-  public int getDatabaseCount() throws IOException {
+  public int getDatabaseCount() throws SQLException {
     return (int)getCount(DB_TABLE);
   }
 
@@ -458,10 +466,10 @@ public class PostgresKeyValue {
    * @param partVals list of values that specify the partition, given in the same order as the
    *                 columns they belong to
    * @return The partition objec,t or null if there is no such partition
-   * @throws IOException
+   * @throws SQLException
    */
   public Partition getPartition(String dbName, String tableName, List<String> partVals)
-      throws IOException {
+      throws SQLException {
     List<String> partCacheKey = buildPartCacheKey(dbName, tableName, partVals);
     Partition part = partCache.get(partCacheKey);
     if (part == null) {
@@ -482,9 +490,9 @@ public class PostgresKeyValue {
    * partitions this should not be called as it will blindly increment the ref counter for the
    * storage descriptor.
    * @param partition partition object to add
-   * @throws IOException
+   * @throws SQLException
    */
-  public void putPartition(Partition partition) throws IOException {
+  public void putPartition(Partition partition) throws SQLException {
     /*
     byte[] hash = putStorageDescriptor(partition.getSd());
     byte[][] serialized = HBaseUtils.serializePartition(partition,
@@ -500,10 +508,10 @@ public class PostgresKeyValue {
    * @param tableName table name
    * @param maxPartitions max partitions to fetch.  If negative all partitions will be returned.
    * @return List of partitions that match the criteria.
-   * @throws IOException
+   * @throws SQLException
    */
   public List<Partition> scanPartitionsInTable(String dbName, String tableName, int maxPartitions)
-      throws IOException {
+      throws SQLException {
     /*
     if (maxPartitions < 0) maxPartitions = Integer.MAX_VALUE;
     Collection<Partition> cached = partCache.getAllForTable(dbName, tableName);
@@ -523,7 +531,7 @@ public class PostgresKeyValue {
   }
 
 
-  public int getPartitionCount() throws IOException {
+  public int getPartitionCount() throws SQLException {
     /*
     Filter fil = new FirstKeyOnlyFilter();
     Iterator<Result> iter = scan(PART_TABLE, fil);
@@ -533,7 +541,7 @@ public class PostgresKeyValue {
   }
 
   private byte[] getPartitionByKey(PostgresTable table, String colName, List<Object> partVals)
-      throws IOException {
+      throws SQLException {
     List<String> pkCols = table.getPrimaryKeyCols();
     assert pkCols.size() == 2 + partVals.size();
     StringBuilder buf = new StringBuilder("select ")
@@ -546,62 +554,55 @@ public class PostgresKeyValue {
       buf.append(pkCols.get(i))
           .append(" = ? ");
     }
-    try (PreparedStatement stmt = currentConnection.prepareStatement(buf.toString())) {
-      for (int i = 0; i < partVals.size(); i++) {
-        stmt.setObject(i + 1, partVals.get(i));
-      }
-      ResultSet rs = stmt.executeQuery();
-      if (rs.next()) {
-        return rs.getBytes(1);
-      } else {
-        return null;
-      }
-    } catch (SQLException e) {
-      throw new IOException(e);
+    PreparedStatement stmt = currentConnection.prepareStatement(buf.toString());
+    for (int i = 0; i < partVals.size(); i++) {
+      stmt.setObject(i + 1, partVals.get(i));
+    }
+    ResultSet rs = stmt.executeQuery();
+    if (rs.next()) {
+      return rs.getBytes(1);
+    } else {
+      return null;
     }
 
   }
 
   // Figure out if we alrady have a table for this partition.  If so, return it.  Otherwise
   // create one.
-  private PostgresTable findPartitionTable(String dbName, String tableName) throws IOException {
+  private PostgresTable findPartitionTable(String dbName, String tableName) throws SQLException {
     String partTableName = buildPartTableName(dbName, tableName);
     PostgresTable table = partitionTables.get(partTableName);
     if (table == null) {
       // Check to see if the table exists but we don't have it in the cache.  I don't put this
       // part in the synchronized section because it's ok if two threads do this at the same time,
       // if a bit wasteful.
-      try {
-        DatabaseMetaData dmd = currentConnection.getMetaData();
-        ResultSet rs = dmd.getTables(currentConnection.getCatalog(), currentConnection.getSchema(),
-            partTableName, null);
-        if (rs.next()) {
-          // So we know the table is there, we understand the mapping so we can build the
-          // PostgresTable object.
-          table = postgresTableFromPartition(dbName, tableName);
-          // Put it in the map.  It's ok if we're in a race condition and someone else already has.
-          partitionTables.put(partTableName, table);
-        } else {
-          // The table isn't there.  We need to lock because we don't want a race condition on
-          // creating the table.
-          synchronized (PostgresKeyValue.class) {
-            // check again, someone may have built it while we waited for the lock.
-            table = partitionTables.get(partTableName);
-            if (table == null) {
-              table = postgresTableFromPartition(dbName, tableName);
-              createTableInPostgres(table);
-            }
+      DatabaseMetaData dmd = currentConnection.getMetaData();
+      ResultSet rs = dmd.getTables(currentConnection.getCatalog(), currentConnection.getSchema(),
+          partTableName, null);
+      if (rs.next()) {
+        // So we know the table is there, we understand the mapping so we can build the
+        // PostgresTable object.
+        table = postgresTableFromPartition(dbName, tableName);
+        // Put it in the map.  It's ok if we're in a race condition and someone else already has.
+        partitionTables.put(partTableName, table);
+      } else {
+        // The table isn't there.  We need to lock because we don't want a race condition on
+        // creating the table.
+        synchronized (PostgresKeyValue.class) {
+          // check again, someone may have built it while we waited for the lock.
+          table = partitionTables.get(partTableName);
+          if (table == null) {
+            table = postgresTableFromPartition(dbName, tableName);
+            createTableInPostgres(table);
           }
         }
-      } catch (SQLException e) {
-        throw new IOException(e);
       }
     }
     return table;
   }
 
   private PostgresTable postgresTableFromPartition(String dbName, String tableName) throws
-      IOException {
+      SQLException {
     PostgresTable pTable = new PostgresTable(buildPartTableName(dbName, tableName));
     Table hTable = getTable(dbName, tableName);
     for (FieldSchema fs : hTable.getPartitionKeys()) {
@@ -656,9 +657,9 @@ public class PostgresKeyValue {
    * @param dbName database the table is in
    * @param tableName table name
    * @return Table object, or null if no such table
-   * @throws IOException
+   * @throws SQLException
    */
-  public Table getTable(String dbName, String tableName) throws IOException {
+  public Table getTable(String dbName, String tableName) throws SQLException {
     ObjectPair<String, String> tableNameObj = new ObjectPair<>(dbName, tableName);
     Table table = tableCache.get(tableNameObj);
     if (table == null) {
@@ -678,9 +679,9 @@ public class PostgresKeyValue {
    *              be a Java regular expression.  If it is null then all tables in the indicated
    *              database will be returned.
    * @return list of tables matching the regular expression.
-   * @throws IOException
+   * @throws SQLException
    */
-  public List<Table> scanTables(String dbName, String regex) throws IOException {
+  public List<Table> scanTables(String dbName, String regex) throws SQLException {
     List<byte[]> results = scanOnKeyWithRegex(TABLE_TABLE, CATALOG_COL, regex, dbName);
     List<Table> tables = new ArrayList<>();
     for (byte[] serialized : results) {
@@ -694,9 +695,9 @@ public class PostgresKeyValue {
   /**
    * Put a table object.
    * @param table table object
-   * @throws IOException
+   * @throws SQLException
    */
-  public void putTable(Table table) throws IOException {
+  public void putTable(Table table) throws SQLException {
     storeOnKey(TABLE_TABLE, CATALOG_COL, serialize(table), table.getDbName(), table.getTableName());
     tableCache.put(new ObjectPair<>(table.getDbName(), table.getTableName()), table);
   }
@@ -705,9 +706,9 @@ public class PostgresKeyValue {
    * Delete a table
    * @param dbName name of database table is in
    * @param tableName table to drop
-   * @throws IOException
+   * @throws SQLException
    */
-  public void deleteTable(String dbName, String tableName) throws IOException {
+  public void deleteTable(String dbName, String tableName) throws SQLException {
     deleteOnKey(TABLE_TABLE, dbName, tableName);
     tableCache.remove(new ObjectPair<>(dbName, tableName));
   }
@@ -716,7 +717,7 @@ public class PostgresKeyValue {
    * Print out a table.
    * @param name The name for the table.  This must include dbname.tablename
    * @return string containing the table
-   * @throws IOException
+   * @throws SQLException
    * @throws TException
    */
   public String printTable(String name) throws IOException, TException {
@@ -735,7 +736,7 @@ public class PostgresKeyValue {
     return null;
   }
 
-  public int getTableCount() throws IOException {
+  public int getTableCount() throws SQLException {
     return (int)getCount(TABLE_TABLE);
   }
 
@@ -752,10 +753,10 @@ public class PostgresKeyValue {
    * @param partVals partition values that define partition to update statistics for. If this is
    *          null, then these will be assumed to be table level statistics
    * @param stats Stats object with stats for one or more columns
-   * @throws IOException
+   * @throws SQLException
    */
   public void updateStatistics(String dbName, String tableName, List<String> partVals,
-      ColumnStatistics stats) throws IOException {
+      ColumnStatistics stats) throws SQLException {
     /*
     byte[] key = getStatisticsKey(dbName, tableName, partVals);
     String hbaseTable = getStatisticsTable(partVals);
@@ -1136,7 +1137,7 @@ public class PostgresKeyValue {
    * @throws IOException wraps any SQLExceptions thrown by the database
    */
   private byte[] getByKey(PostgresTable table, String colName, String... keyVals)
-      throws IOException {
+      throws SQLException {
     List<String> pkCols = table.getPrimaryKeyCols();
     assert pkCols.size() == keyVals.length;
     try (Statement stmt = currentConnection.createStatement()) {
@@ -1158,8 +1159,6 @@ public class PostgresKeyValue {
       } else {
         return null;
       }
-    } catch (SQLException e) {
-      throw new IOException(e);
     }
 
   }
@@ -1180,7 +1179,7 @@ public class PostgresKeyValue {
    * @throws IOException wraps any SQLException
    */
   private List<byte[]> scanOnKeyWithRegex(PostgresTable table, String colName, String regex,
-                                          String... keyVals) throws IOException {
+                                          String... keyVals) throws SQLException {
     try (Statement stmt = currentConnection.createStatement()) {
       List<byte[]> results = new ArrayList<>();
       StringBuilder buf = new StringBuilder("select ")
@@ -1216,8 +1215,6 @@ public class PostgresKeyValue {
         results.add(rs.getBytes(1));
       }
       return results;
-    } catch (SQLException e) {
-      throw new IOException(e);
     }
   }
 
@@ -1229,10 +1226,10 @@ public class PostgresKeyValue {
    * @param colVal value to set the column to
    * @param keyVals list of values for the primary key.  This must match the number of columns in
    *                the primary key.
-   * @throws IOException wraps any SQLExceptions that happen
+   * @throws SQLException wraps any SQLExceptions that happen
    */
   private void storeOnKey(PostgresTable table, String colName, byte[] colVal, String... keyVals)
-      throws IOException {
+      throws SQLException {
     List<String> pkCols = table.getPrimaryKeyCols();
     assert pkCols.size() == keyVals.length;
     byte[] serialized = getByKey(table, colName, keyVals);
@@ -1242,7 +1239,7 @@ public class PostgresKeyValue {
 
   // Do not call directly, use storeOnKey
   private void insertOnKey(PostgresTable table, String colName, byte[] colVal, String... keyVals)
-      throws IOException {
+      throws SQLException {
     List<String> pkCols = table.getPrimaryKeyCols();
     StringBuilder buf = new StringBuilder("insert into ")
         .append(table.getName())
@@ -1263,15 +1260,13 @@ public class PostgresKeyValue {
       if (rowsInserted != 1) {
         String msg = "Expected to insert a row for " + serializeKey(table, keyVals) + ", but did not";
         LOG.error(msg);
-        throw new IOException(msg);
+        throw new RuntimeException(msg);
       }
-    } catch (SQLException e) {
-      throw new IOException(e);
     }
   }
 
   private void updateOnKey(PostgresTable table, String colName, byte[] colVal, String... keyVals)
-      throws IOException {
+      throws SQLException {
     List<String> pkCols = table.getPrimaryKeyCols();
     StringBuilder buf = new StringBuilder("update table ")
         .append(table.getName())
@@ -1293,14 +1288,12 @@ public class PostgresKeyValue {
       if (rowsUpdated != 1) {
         String msg = "Expected to update a row for " + serializeKey(table, keyVals) + ", but did not";
         LOG.error(msg);
-        throw new IOException(msg);
+        throw new RuntimeException(msg);
       }
-    } catch (SQLException e) {
-      throw new IOException(e);
     }
   }
 
-  private void deleteOnKey(PostgresTable table, String... keyVals) throws IOException {
+  private void deleteOnKey(PostgresTable table, String... keyVals) throws SQLException {
     List<String> pkCols = table.getPrimaryKeyCols();
     assert pkCols.size() == keyVals.length;
     StringBuilder buf = new StringBuilder("delete from ")
@@ -1318,24 +1311,19 @@ public class PostgresKeyValue {
       if (rowsDeleted != 1) {
         String msg = "Expected to delete a row for " + serializeKey(table, keyVals) + ", but did not";
         LOG.error(msg);
-        throw new IOException(msg);
+        throw new RuntimeException(msg);
       }
-    } catch (SQLException e) {
-      throw new IOException(e);
     }
   }
 
-  private long getCount(PostgresTable table) throws IOException {
+  private long getCount(PostgresTable table) throws SQLException {
     StringBuilder buf = new StringBuilder("select count(*) from ")
         .append(table.getName());
     try (Statement stmt = currentConnection.createStatement()) {
       ResultSet rs = stmt.executeQuery(buf.toString());
       rs.next();
       return rs.getLong(1);
-    } catch (SQLException e) {
-      throw new IOException(e);
     }
-
   }
 
   /**********************************************************************************************
@@ -1355,25 +1343,25 @@ public class PostgresKeyValue {
     return buf.toString();
   }
 
-  private byte[] serialize(TBase obj) throws IOException {
+  private byte[] serialize(TBase obj) {
     try {
       TMemoryBuffer buf = new TMemoryBuffer(1000);
       TProtocol protocol = new TCompactProtocol(buf);
       obj.write(protocol);
       return buf.getArray();
     } catch (TException e) {
-      throw new IOException(e);
+      throw new RuntimeException(e);
     }
   }
 
-  private void deserialize(TBase obj, byte[] serialized) throws IOException {
+  private void deserialize(TBase obj, byte[] serialized) {
     try {
       TMemoryBuffer buf = new TMemoryBuffer(serialized.length);
       buf.read(serialized, 0, serialized.length);
       TProtocol protocol = new TCompactProtocol(buf);
       obj.read(protocol);
     } catch (TException e) {
-      throw new IOException(e);
+      throw new RuntimeException(e);
     }
   }
 
@@ -1414,6 +1402,8 @@ public class PostgresKeyValue {
     private List<String> pkCols;
     private Map<String, PostgresColumn> colsByName;
 
+    // TODO sort the table names so we get consistent order of creation
+
     PostgresTable(String name) {
       this.name = name;
       colsByName = new HashMap<>();
@@ -1435,7 +1425,7 @@ public class PostgresKeyValue {
     }
 
     PostgresTable addStringKey(String name) {
-      return addColumn(name, "varchar(255)", false);
+      return addColumn(name, "varchar(255)", true);
     }
 
     String getName() {
@@ -1456,6 +1446,11 @@ public class PostgresKeyValue {
 
     PostgresColumn getCol(String name) {
       return colsByName.get(name);
+    }
+
+    PostgresTable addToInitialTableList() {
+      initialPostgresTables.add(this);
+      return this;
     }
 
   }

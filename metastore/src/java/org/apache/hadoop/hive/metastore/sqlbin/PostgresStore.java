@@ -58,6 +58,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 
@@ -76,25 +77,50 @@ public class PostgresStore implements RawStore {
 
   @Override
   public boolean openTransaction() {
-    if (txnDepth++ == 0) getPostgres().begin();
-    return true;
+    try {
+      if (txnDepth++ == 0) getPostgres().begin();
+      return true;
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
   public boolean commitTransaction() {
-    if (--txnDepth < 1) getPostgres().commit();
-    return true;
+    try {
+      if (--txnDepth < 1) getPostgres().commit();
+      return true;
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
   public void rollbackTransaction() {
-    getPostgres().rollback();
-    txnDepth = 0;
+    try {
+      getPostgres().rollback();
+      txnDepth = 0;
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
   public void createDatabase(Database db) throws InvalidObjectException, MetaException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    System.out.println("Opening txn");
+    openTransaction();
+    try {
+      // HiveMetaStore already checks for existence of the database, don't recheck
+      System.out.println("Putting db");
+      getPostgres().putDb(db);
+      commit = true;
+    } catch (SQLException e) {
+      LOG.error("Unable to create database ", e);
+      throw new MetaException("Unable to read from or write to postgres " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
 
   }
 
@@ -867,9 +893,20 @@ public class PostgresStore implements RawStore {
 
   private PostgresKeyValue getPostgres() {
     if (pgres == null) {
+      System.out.println("pgres is null, getting a new one");
       pgres = new PostgresKeyValue();
       pgres.setConf(conf);
     }
     return pgres;
+  }
+
+  private void commitOrRoleBack(boolean commit) {
+    if (commit) {
+      LOG.debug("Committing transaction");
+      commitTransaction();
+    } else {
+      LOG.debug("Rolling back transaction");
+      rollbackTransaction();
+    }
   }
 }

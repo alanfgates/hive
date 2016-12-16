@@ -102,6 +102,12 @@
       <version>${derby.version}</version>
     </dependency>
     <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <version>9.4.1207</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>org.datanucleus</groupId>
       <artifactId>datanucleus-api-jdo</artifactId>
       <version>${datanucleus-api-jdo.version}</version>
