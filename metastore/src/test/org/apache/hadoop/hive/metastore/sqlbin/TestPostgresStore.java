@@ -103,21 +103,24 @@ public class TestPostgresStore {
 
   @Test
   public void tables() throws InvalidObjectException, MetaException {
+    String dbName = "default";
+    String tableName = "tbl1";
+
     List<FieldSchema> cols = Collections.singletonList(
         new FieldSchema("a", "varchar(32)", "")
     );
     SerDeInfo serde = new SerDeInfo("serde", "serde", Collections.<String, String>emptyMap());
     StorageDescriptor sd = new StorageDescriptor(cols, "file:/tmp/tbl1", "inputformat",
         "outputformat", false, 0, serde, null, null, Collections.<String, String>emptyMap());
-    Table table = new Table("tbl1", "default", "me", 1, 2, 3, sd, null,
+    Table table = new Table(tableName, dbName, "me", 1, 2, 3, sd, null,
         Collections.<String, String>emptyMap(), null, null, TableType.MANAGED_TABLE.name());
     store.createTable(table);
 
     table = store.getTable("default", "tbl1");
 
     // I assume thrift de/serialization works, so I'm not going to check every field.
-    Assert.assertEquals("tbl1", table.getTableName());
-    Assert.assertEquals("default", table.getDbName());
+    Assert.assertEquals(tableName, table.getTableName());
+    Assert.assertEquals(dbName, table.getDbName());
     Assert.assertEquals("me", table.getOwner());
     cols = table.getSd().getCols();
     Assert.assertEquals(1, cols.size());
@@ -127,9 +130,10 @@ public class TestPostgresStore {
 
   @Test
   public void functions() throws InvalidObjectException, MetaException {
-    Function count = new Function("count", "default", "o.a.h.count", "me", PrincipalType.ROLE, 1,
+    String dbName = "default";
+    Function count = new Function("count", dbName, "o.a.h.count", "me", PrincipalType.ROLE, 1,
         FunctionType.JAVA, Collections.<ResourceUri>emptyList());
-    Function sum = new Function("sum", "default", "o.a.h.count", "me", PrincipalType.ROLE, 1,
+    Function sum = new Function("sum", dbName, "o.a.h.count", "me", PrincipalType.ROLE, 1,
         FunctionType.JAVA, Collections.<ResourceUri>emptyList());
     store.createFunction(count);
     store.createFunction(sum);
@@ -141,5 +145,39 @@ public class TestPostgresStore {
             funcs.get(1).getFunctionName().equals("sum")) ||
         (funcs.get(0).getFunctionName().equals("sum") &&
             funcs.get(1).getFunctionName().equals("count")));
+  }
+
+  @Test
+  public void partitions() throws InvalidObjectException, MetaException, NoSuchObjectException {
+    String dbName = "default";
+    String tableName = "ptbl1";
+    List<String> pVals = Collections.singletonList("a");
+
+    List<FieldSchema> cols = Collections.singletonList(
+        new FieldSchema("a", "varchar(32)", "")
+    );
+    SerDeInfo serde = new SerDeInfo("serde", "serde", Collections.<String, String>emptyMap());
+    StorageDescriptor sd = new StorageDescriptor(cols, "file:/tmp/tbl1", "inputformat",
+        "outputformat", false, 0, serde, null, null, Collections.<String, String>emptyMap());
+    List<FieldSchema> pcols = Collections.singletonList(
+        new FieldSchema("pcol", "string", "")
+    );
+    // We need to create a real table because all of the partition calls reference the table table
+    Table table = new Table("ptbl1", "default", "me", 1, 2, 3, sd, pcols,
+        Collections.<String, String>emptyMap(), null, null, TableType.MANAGED_TABLE.name());
+    store.createTable(table);
+    tablesToDrop.add(PostgresKeyValue.buildPartTableName(dbName, tableName));
+
+    Partition part = new Partition(pVals, dbName, tableName, 1, 2, sd,
+        Collections.<String, String>emptyMap());
+    store.addPartition(part);
+
+    part = store.getPartition(dbName, tableName, pVals);
+
+    Assert.assertEquals(dbName, part.getDbName());
+    Assert.assertEquals(tableName, part.getTableName());
+    Assert.assertEquals(pVals.get(0), part.getValues().get(0));
+
+
   }
 }

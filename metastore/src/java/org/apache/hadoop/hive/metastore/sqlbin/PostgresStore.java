@@ -223,7 +223,18 @@ public class PostgresStore implements RawStore {
 
   @Override
   public boolean addPartition(Partition part) throws InvalidObjectException, MetaException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      getPostgres().putPartition(part);
+      commit = true;
+      return true;
+    } catch (SQLException e) {
+      LOG.error("Unable to add partition", e);
+      throw new MetaException("Unable to read from or write to hbase " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
@@ -241,7 +252,22 @@ public class PostgresStore implements RawStore {
   @Override
   public Partition getPartition(String dbName, String tableName, List<String> part_vals) throws
       MetaException, NoSuchObjectException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      Partition part = getPostgres().getPartition(dbName, tableName, part_vals);
+      if (part == null) {
+        throw new NoSuchObjectException("Unable to find partition " +
+            HBaseStore.partNameForErrorMsg(dbName, tableName, part_vals));
+      }
+      commit = true;
+      return part;
+    } catch (SQLException e) {
+      LOG.error("Unable to get partition", e);
+      throw new MetaException("Error reading partition " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override

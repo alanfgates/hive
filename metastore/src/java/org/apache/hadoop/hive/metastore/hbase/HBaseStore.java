@@ -2526,13 +2526,13 @@ public class HBaseStore implements RawStore {
   }
 
   // This is for building error messages only.  It does not look up anything in the metastore.
-  private String tableNameForErrorMsg(String dbName, String tableName) {
+  public static String tableNameForErrorMsg(String dbName, String tableName) {
     return dbName + "." + tableName;
   }
 
   // This is for building error messages only.  It does not look up anything in the metastore as
   // they may just throw another error.
-  private String partNameForErrorMsg(String dbName, String tableName, List<String> partVals) {
+  public static String partNameForErrorMsg(String dbName, String tableName, List<String> partVals) {
     return tableNameForErrorMsg(dbName, tableName) + "." + StringUtils.join(partVals, ':');
   }
 

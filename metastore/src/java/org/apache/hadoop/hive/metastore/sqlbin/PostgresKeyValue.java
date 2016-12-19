@@ -27,6 +27,7 @@ import org.apache.commons.dbcp.ConnectionFactory;
 import org.apache.commons.dbcp.DriverManagerConnectionFactory;
 import org.apache.commons.dbcp.PoolableConnectionFactory;
 import org.apache.commons.dbcp.PoolingDataSource;
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.pool.ObjectPool;
 import org.apache.commons.pool.impl.GenericObjectPool;
 import org.apache.hadoop.hive.common.ObjectPair;
@@ -531,6 +532,7 @@ public class PostgresKeyValue {
     List<String> partCacheKey = buildPartCacheKey(dbName, tableName, partVals);
     Partition part = partCache.get(partCacheKey);
     if (part == null) {
+      LOG.debug("Partition not found in caching, going to Postgres");
       Table hTable = getTable(dbName, tableName);
       PostgresTable pTable = findPartitionTable(dbName, tableName);
       byte[] serialized =
@@ -551,13 +553,22 @@ public class PostgresKeyValue {
    * @throws SQLException
    */
   public void putPartition(Partition partition) throws SQLException {
-    /*
-    byte[] hash = putStorageDescriptor(partition.getSd());
-    byte[][] serialized = HBaseUtils.serializePartition(partition,
-        HBaseUtils.getPartitionKeyTypes(getTable(partition.getDbName(), partition.getTableName()).getPartitionKeys()), hash);
-    store(PART_TABLE, serialized[0], CATALOG_CF, CATALOG_COL, serialized[1]);
-    partCache.put(partition.getDbName(), partition.getTableName(), partition);
-    */
+    // We need to figure out which table we're going to write this too.
+    PostgresTable pTable = findPartitionTable(partition.getDbName(), partition.getTableName());
+    // We will need the Hive table to properly translate the partition values.
+    Table hTable = getTable(partition.getDbName(), partition.getTableName());
+    List<Object> translated = translatePartVals(hTable, partition.getValues());
+    byte[] serialized = serialize(partition);
+    // We need to determine if this partition is already in store.  If so, we need to update
+    // instead of insert.
+    if (getPartition(partition.getDbName(), partition.getTableName(), partition.getValues()) == null) {
+      insertPartitionOnKey(pTable, CATALOG_COL, serialized, partition, translated);
+    } else {
+      updatePartitionOnKey(pTable, CATALOG_COL, serialized, partition, translated);
+    }
+    List<String> partCacheKey =
+        buildPartCacheKey(partition.getDbName(), partition.getTableName(), partition.getValues());
+    partCache.put(partCacheKey, partition);
   }
 
   /**
@@ -598,10 +609,89 @@ public class PostgresKeyValue {
     return 0;
   }
 
+  private void insertPartitionOnKey(PostgresTable pTable, String colName, byte[] serialized,
+                                    Partition part, List<Object> translatedKeys) throws SQLException {
+    List<String> pkCols = pTable.getPrimaryKeyCols();
+    StringBuilder buf = new StringBuilder("insert into ")
+        .append(pTable.getName())
+        .append(" (");
+    for (String pkCol : pkCols) {
+      buf.append(pkCol)
+          .append(", ");
+    }
+    buf.append(colName)
+        .append(") values (");
+    for (int i = 0; i < pkCols.size(); i++) buf.append("?,");
+    buf.append("?)");
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Going to prepare statement " + buf.toString());
+    }
+    try (PreparedStatement stmt = currentConnection.prepareStatement(buf.toString())) {
+      fillInPartitionKeyWithSpecificTypes(pTable, pkCols, stmt, translatedKeys, 1);
+      stmt.setBytes(part.getValuesSize() + 1, serialized);
+
+      int rowsInserted = stmt.executeUpdate();
+      if (rowsInserted != 1) {
+        String msg = "Expected to insert a row into " + pTable.getName() + " with key " +
+            StringUtils.join(part.getValues(), ':') + ", but did not";
+        LOG.error(msg);
+        throw new RuntimeException(msg);
+      }
+    }
+  }
+
+  private void updatePartitionOnKey(PostgresTable pTable, String colName, byte[] serialized,
+                                    Partition part, List<Object> translatedKeys) throws SQLException {
+    List<String> pkCols = pTable.getPrimaryKeyCols();
+    StringBuilder buf = new StringBuilder("update table ")
+        .append(pTable.getName())
+        .append(" set ")
+        .append(colName)
+        .append(" = ?")
+        .append(" where ");
+    boolean first = true;
+    for (String pkCol : pkCols) {
+      if (first) first = false;
+      else buf.append(" and ");
+      buf.append(pkCol)
+          .append(" = ? ");
+    }
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Going to prepare statement " + buf.toString());
+    }
+    try (PreparedStatement stmt = currentConnection.prepareStatement(buf.toString())) {
+      stmt.setBytes(1, serialized);
+      fillInPartitionKeyWithSpecificTypes(pTable, pkCols, stmt, translatedKeys, 2);
+
+      int rowsUpdated = stmt.executeUpdate();
+      if (rowsUpdated != 1) {
+        String msg = "Expected to update a row in " + pTable.getName() + " with key " +
+            StringUtils.join(part.getValues(), ':') + ", but did not";
+        LOG.error(msg);
+        throw new RuntimeException(msg);
+      }
+    }
+  }
+
+  private void fillInPartitionKeyWithSpecificTypes(PostgresTable pTable, List<String> pkCols,
+                                                   PreparedStatement stmt,
+                                                   List<Object> translatedKeys, int colOffset)
+      throws SQLException {
+    for (int i = 0; i < pkCols.size(); i++) {
+      PostgresColumn pCol = pTable.getCol(pkCols.get(i));
+      if (pCol.getType().startsWith("varchar")) {
+        stmt.setString(i + colOffset, (String)translatedKeys.get(i));
+      } else {
+        throw new RuntimeException("Unsupported partition key type " + pCol.getType());
+      }
+    }
+
+  }
+
   private byte[] getPartitionByKey(PostgresTable table, String colName, List<Object> partVals)
       throws SQLException {
     List<String> pkCols = table.getPrimaryKeyCols();
-    assert pkCols.size() == 2 + partVals.size();
+    assert pkCols.size() == partVals.size();
     StringBuilder buf = new StringBuilder("select ")
         .append(colName)
         .append(" from ")
@@ -693,7 +783,8 @@ public class PostgresKeyValue {
     }
   }
 
-  private String buildPartTableName(String dbName, String tableName) {
+  @VisibleForTesting
+  static String buildPartTableName(String dbName, String tableName) {
     return "parttable_" + dbName + "_" + tableName;
   }
 
