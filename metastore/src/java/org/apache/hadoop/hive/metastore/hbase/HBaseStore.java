@@ -2605,7 +2605,7 @@ public class HBaseStore implements RawStore {
     return valLists;
   }
 
-  private String likeToRegex(String like) {
+  public static String likeToRegex(String like) {
     if (like == null) return null;
     // Convert Hive's strange like syntax to Java regex.  Per
     // https://cwiki.apache.org/confluence/display/Hive/LanguageManual+DDL#LanguageManualDDL-Show

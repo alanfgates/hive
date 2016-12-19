@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hive.metastore.sqlbin;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.FileMetadataHandler;
 import org.apache.hadoop.hive.metastore.RawStore;
@@ -52,6 +53,7 @@ import org.apache.hadoop.hive.metastore.api.Type;
 import org.apache.hadoop.hive.metastore.api.UnknownDBException;
 import org.apache.hadoop.hive.metastore.api.UnknownPartitionException;
 import org.apache.hadoop.hive.metastore.api.UnknownTableException;
+import org.apache.hadoop.hive.metastore.hbase.HBaseStore;
 import org.apache.hadoop.hive.metastore.partition.spec.PartitionSpecProxy;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
@@ -59,6 +61,7 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -108,11 +111,9 @@ public class PostgresStore implements RawStore {
   @Override
   public void createDatabase(Database db) throws InvalidObjectException, MetaException {
     boolean commit = false;
-    System.out.println("Opening txn");
     openTransaction();
     try {
       // HiveMetaStore already checks for existence of the database, don't recheck
-      System.out.println("Putting db");
       getPostgres().putDb(db);
       commit = true;
     } catch (SQLException e) {
@@ -126,7 +127,21 @@ public class PostgresStore implements RawStore {
 
   @Override
   public Database getDatabase(String name) throws NoSuchObjectException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      Database db = getPostgres().getDb(name);
+      if (db == null) {
+        throw new NoSuchObjectException("Unable to find db " + name);
+      }
+      commit = true;
+      return db;
+    } catch (SQLException e) {
+      LOG.error("Unable to get db", e);
+      throw new NoSuchObjectException("Error reading db " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
@@ -167,8 +182,18 @@ public class PostgresStore implements RawStore {
 
   @Override
   public void createTable(Table tbl) throws InvalidObjectException, MetaException {
-    throw new UnsupportedOperationException();
-
+    boolean commit = false;
+    openTransaction();
+    // HiveMetaStore above us checks if the table already exists, so we can blindly store it here.
+    try {
+      getPostgres().putTable(tbl);
+      commit = true;
+    } catch (SQLException e) {
+      LOG.error("Unable to create table ", e);
+      throw new MetaException("Unable to read from or write to postgres " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
@@ -179,7 +204,21 @@ public class PostgresStore implements RawStore {
 
   @Override
   public Table getTable(String dbName, String tableName) throws MetaException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      Table table = getPostgres().getTable(dbName, tableName);
+      if (table == null) {
+        LOG.debug("Unable to find table " + tableNameForErrorMsg(dbName, tableName));
+      }
+      commit = true;
+      return table;
+    } catch (SQLException e) {
+      LOG.error("Unable to get table", e);
+      throw new MetaException("Error reading table " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
@@ -728,7 +767,17 @@ public class PostgresStore implements RawStore {
 
   @Override
   public void createFunction(Function func) throws InvalidObjectException, MetaException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      getPostgres().putFunction(func);
+      commit = true;
+    } catch (SQLException e) {
+      LOG.error("Unable to create function", e);
+      throw new MetaException("Unable to read from or write to postgres " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
 
   }
 
@@ -753,12 +802,36 @@ public class PostgresStore implements RawStore {
 
   @Override
   public List<Function> getAllFunctions() throws MetaException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      List<Function> funcs = getPostgres().scanFunctions(null, null);
+      commit = true;
+      return funcs;
+    } catch (SQLException e) {
+      LOG.error("Unable to get functions" + e);
+      throw new MetaException("Unable to read from or write to postgres " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
   public List<String> getFunctions(String dbName, String pattern) throws MetaException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      List<Function> funcs = getPostgres().scanFunctions(dbName, HBaseStore.likeToRegex(pattern));
+      List<String> funcNames = new ArrayList<>(funcs.size());
+      for (Function func : funcs) funcNames.add(func.getFunctionName());
+      commit = true;
+      return funcNames;
+    } catch (SQLException e) {
+      LOG.error("Unable to get functions" + e);
+      throw new MetaException("Unable to read from or write to postgres " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
@@ -893,7 +966,6 @@ public class PostgresStore implements RawStore {
 
   private PostgresKeyValue getPostgres() {
     if (pgres == null) {
-      System.out.println("pgres is null, getting a new one");
       pgres = new PostgresKeyValue();
       pgres.setConf(conf);
     }
@@ -908,5 +980,14 @@ public class PostgresStore implements RawStore {
       LOG.debug("Rolling back transaction");
       rollbackTransaction();
     }
+  }
+
+  private String tableNameForErrorMsg(String dbName, String tableName) {
+    return dbName + "." + tableName;
+  }
+
+  @VisibleForTesting
+  PostgresKeyValue connectionForTest() {
+    return getPostgres();
   }
 }

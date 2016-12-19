@@ -18,6 +18,7 @@
  */
 package org.apache.hadoop.hive.metastore.sqlbin;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.jolbox.bonecp.BoneCPConfig;
 import com.jolbox.bonecp.BoneCPDataSource;
 import com.zaxxer.hikari.HikariConfig;
@@ -29,20 +30,13 @@ import org.apache.commons.dbcp.PoolingDataSource;
 import org.apache.commons.pool.ObjectPool;
 import org.apache.commons.pool.impl.GenericObjectPool;
 import org.apache.hadoop.hive.common.ObjectPair;
-import org.apache.hadoop.hive.metastore.api.FieldSchema;
-import org.apache.hadoop.hive.metastore.api.SQLForeignKey;
-import org.apache.hadoop.hive.metastore.api.SQLPrimaryKey;
+import org.apache.hadoop.hive.metastore.api.*;
 import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.thrift.protocol.TCompactProtocol;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.metastore.api.AggrStats;
-import org.apache.hadoop.hive.metastore.api.ColumnStatistics;
-import org.apache.hadoop.hive.metastore.api.Database;
-import org.apache.hadoop.hive.metastore.api.Partition;
-import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.thrift.TBase;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TProtocol;
@@ -58,11 +52,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 
@@ -77,6 +67,10 @@ public class PostgresKeyValue {
   final static String CATALOG_COL = "catalog_object";
   // General column for storing stats
   final static String STATS_COL = "stats";
+  // If this is set in the config, the cache will be set such that it always misses, thus ensuring
+  // we're really reading from and writing to postgres.
+  @VisibleForTesting
+  static final String CACHE_OFF = "hive.metastore.postgres.nocache";
 
 
   // Define the Aggregate stats table
@@ -91,6 +85,7 @@ public class PostgresKeyValue {
         */
 
   // Define the Database table
+  @VisibleForTesting
   final static PostgresTable DB_TABLE =
       new PostgresTable("MS_DBS")
         .addStringKey("db_name")
@@ -98,13 +93,14 @@ public class PostgresKeyValue {
         .addToInitialTableList();
 
   // Define the Function table
-  /*
   final static PostgresTable FUNC_TABLE =
       new PostgresTable("MS_FUNCS")
           .addStringKey("db_name")
           .addStringKey("function_name")
-          .addByteColumn(CATALOG_COL);
+          .addByteColumn(CATALOG_COL)
+          .addToInitialTableList();
 
+  /*
   final static PostgresTable GLOBAL_PRIVS_TABLE =
       new PostgresTable("MS_GLOBAL_PRIVS")
         .addByteColumn(CATALOG_COL);
@@ -134,6 +130,7 @@ public class PostgresKeyValue {
         .addColumn(SEQUENCES_NEXT, "bigint");
         */
 
+  @VisibleForTesting
   final static String PRIMARY_KEY_COL = "primary_key_obj";
   final static String FOREIGN_KEY_COL = "foreign_key_obj";
   final static PostgresTable TABLE_TABLE =
@@ -209,9 +206,16 @@ public class PostgresKeyValue {
       try {
         connectToPostgres();
 
-        dbCache = new HashMap<>(5);
-        tableCache = new HashMap<>(20);
-        partCache = new HashMap<>(1000);
+        if (conf.getBoolean(CACHE_OFF, false)) {
+          LOG.info("Turning off caching, I hope you know what you're doing!");
+          dbCache = new MissingCache<>();
+          tableCache = new MissingCache<>();
+          partCache = new MissingCache<>();
+        } else {
+          dbCache = new HashMap<>(5);
+          tableCache = new HashMap<>(20);
+          partCache = new HashMap<>(1000);
+        }
       } catch (IOException e) {
         throw new RuntimeException(e);
       }
@@ -333,6 +337,25 @@ public class PostgresKeyValue {
       }
       stmt.execute(buf.toString());
     }
+  }
+
+  /**
+   * Drop a postgres table.  This is only intended for use by tests so they can have a clean slate.
+   * You should not be dropping any tables in postgres in non-testing cases.
+   * @param tableName name of table to drop.
+   * @throws SQLException
+   */
+  @VisibleForTesting
+  void dropPostgresTable(String tableName) throws SQLException {
+    StringBuilder buf = new StringBuilder("drop table ")
+        .append(tableName);
+    try (Statement stmt = currentConnection.createStatement()) {
+      LOG.info("Dropping table with statement <" + buf.toString() + ">");
+      stmt.execute(buf.toString());
+    }
+  }
+
+  /**
 
   }
 
@@ -453,6 +476,41 @@ public class PostgresKeyValue {
 
   public int getDatabaseCount() throws SQLException {
     return (int)getCount(DB_TABLE);
+  }
+
+  /**********************************************************************************************
+   * Function related methods
+   *********************************************************************************************/
+
+  /**
+   * Store a function object
+   * @param function function object to store
+   * @throws IOException
+   */
+  void putFunction(Function function) throws SQLException {
+    byte[] serialized = serialize(function);
+    storeOnKey(FUNC_TABLE, CATALOG_COL, serialized, function.getDbName(),
+        function.getFunctionName());
+  }
+
+  /**
+   * Get a list of functions.
+   * @param dbName Name of the database to search in.  Null means to search all.
+   * @param regex Regular expression to use in searching for function names.  It is expected to
+   *              be a Java regular expression.  If it is null then all functions will be returned.
+   * @return list of functions matching the regular expression.
+   * @throws SQLException
+   */
+  public List<Function> scanFunctions(String dbName, String regex) throws SQLException {
+    String[] key = dbName == null ? null : new String[]{dbName};
+    List<byte[]> results = scanOnKeyWithRegex(FUNC_TABLE, CATALOG_COL, regex, key);
+    List<Function> funcs = new ArrayList<>();
+    for (byte[] serialized : results) {
+      Function func = new Function();
+      deserialize(func, serialized);
+      funcs.add(func);
+    }
+    return funcs;
   }
 
   /**********************************************************************************************
@@ -1153,6 +1211,9 @@ public class PostgresKeyValue {
             .append(keyVals[i])
             .append('\'');
       }
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Going to run query " + buf.toString());
+      }
       ResultSet rs = stmt.executeQuery(buf.toString());
       if (rs.next()) {
         return rs.getBytes(1);
@@ -1187,7 +1248,7 @@ public class PostgresKeyValue {
           .append(" from ")
           .append(table.getName());
       if (regex != null || keyVals != null) {
-        buf.append("where ");
+        buf.append(" where ");
         boolean first = true;
         int keyColNum = 0;
         List<String> keyCols = table.getPrimaryKeyCols();
@@ -1209,6 +1270,9 @@ public class PostgresKeyValue {
               .append(regex)
               .append('\'');
         }
+      }
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Going to run query " + buf.toString());
       }
       ResultSet rs = stmt.executeQuery(buf.toString());
       while (rs.next()) {
@@ -1246,15 +1310,18 @@ public class PostgresKeyValue {
         .append(" (");
     for (String pkCol : pkCols) {
       buf.append(pkCol)
-          .append(" ?,");
+        .append(", ");
     }
     buf.append(colName)
         .append(") values (");
     for (int i = 0; i < pkCols.size(); i++) buf.append("?,");
     buf.append("?)");
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Going to prepare statement " + buf.toString());
+    }
     try (PreparedStatement stmt = currentConnection.prepareStatement(buf.toString())) {
       for (int i = 0; i < keyVals.length; i++) stmt.setString(i + 1, keyVals[i]);
-      stmt.setBytes(keyVals.length + 2, colVal);
+      stmt.setBytes(keyVals.length + 1, colVal);
 
       int rowsInserted = stmt.executeUpdate();
       if (rowsInserted != 1) {
@@ -1348,7 +1415,10 @@ public class PostgresKeyValue {
       TMemoryBuffer buf = new TMemoryBuffer(1000);
       TProtocol protocol = new TCompactProtocol(buf);
       obj.write(protocol);
-      return buf.getArray();
+      byte[] serialized = new byte[buf.length()];
+      buf.read(serialized, 0, buf.length());
+      return serialized;
+
     } catch (TException e) {
       throw new RuntimeException(e);
     }
@@ -1357,7 +1427,7 @@ public class PostgresKeyValue {
   private void deserialize(TBase obj, byte[] serialized) {
     try {
       TMemoryBuffer buf = new TMemoryBuffer(serialized.length);
-      buf.read(serialized, 0, serialized.length);
+      buf.write(serialized, 0, serialized.length);
       TProtocol protocol = new TCompactProtocol(buf);
       obj.read(protocol);
     } catch (TException e) {
@@ -1453,6 +1523,14 @@ public class PostgresKeyValue {
       return this;
     }
 
+  }
+
+  private static class MissingCache<K, V> extends HashMap<K, V> {
+    // Always return null, thus assuring the cache always misses.
+    @Override
+    public V get(Object key) {
+      return null;
+    }
   }
 
 }

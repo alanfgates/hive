@@ -19,17 +19,12 @@ package org.apache.hadoop.hive.metastore.sqlbin;
 
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.RawStore;
-import org.apache.hadoop.hive.metastore.api.Database;
-import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
-import org.apache.hadoop.hive.metastore.api.MetaException;
-import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.apache.hadoop.hive.metastore.TableType;
+import org.apache.hadoop.hive.metastore.api.*;
+import org.junit.*;
 
-import java.util.Collections;
+import java.sql.SQLException;
+import java.util.*;
 
 public class TestPostgresStore {
 
@@ -38,10 +33,16 @@ public class TestPostgresStore {
   private static final String POSTGRES_JDBC = "hive.test.posgres.jdbc";
   private static final String POSTGRES_USER = "hive.test.posgres.user";
   private static final String POSTGRES_PASSWD = "hive.test.posgres.password";
-  private static RawStore store;
+  private static PostgresStore store;
+  // If you create any tables with partitions, you must add the corresponding partition table into
+  // this list so that it gets dropped at test start time.
+  private static List<String> tablesToDrop = new ArrayList<>();
 
   @BeforeClass
-  public static void connect() throws MetaException {
+  public static void connect() throws MetaException, SQLException {
+    tablesToDrop.add(PostgresKeyValue.DB_TABLE.getName());
+    tablesToDrop.add(PostgresKeyValue.TABLE_TABLE.getName());
+    tablesToDrop.add(PostgresKeyValue.FUNC_TABLE.getName());
     String jdbc = System.getProperty(POSTGRES_JDBC);
     if (jdbc != null) {
       HiveConf conf = new HiveConf();
@@ -54,9 +55,28 @@ public class TestPostgresStore {
       String passwd = System.getProperty(POSTGRES_PASSWD);
       if (passwd == null) passwd = "hive";
       conf.setVar(HiveConf.ConfVars.METASTOREPWD, passwd);
+      conf.set(PostgresKeyValue.CACHE_OFF, "true");
 
       store = new PostgresStore();
       store.setConf(conf);
+    }
+
+  }
+
+  @AfterClass
+  public static void cleanup() throws SQLException {
+    PostgresKeyValue psql = store.connectionForTest();
+    try {
+      psql.begin();
+      for (String table : tablesToDrop) {
+        try {
+          psql.dropPostgresTable(table);
+        } catch (SQLException e) {
+          // Ignore it, as it likely just means we haven't created the tables previously
+        }
+      }
+    } finally {
+      psql.commit();
     }
 
   }
@@ -79,5 +99,47 @@ public class TestPostgresStore {
     Assert.assertEquals("description", db.getDescription());
     Assert.assertEquals("file:/somewhere", db.getLocationUri());
     Assert.assertEquals(0, db.getParametersSize());
+  }
+
+  @Test
+  public void tables() throws InvalidObjectException, MetaException {
+    List<FieldSchema> cols = Collections.singletonList(
+        new FieldSchema("a", "varchar(32)", "")
+    );
+    SerDeInfo serde = new SerDeInfo("serde", "serde", Collections.<String, String>emptyMap());
+    StorageDescriptor sd = new StorageDescriptor(cols, "file:/tmp/tbl1", "inputformat",
+        "outputformat", false, 0, serde, null, null, Collections.<String, String>emptyMap());
+    Table table = new Table("tbl1", "default", "me", 1, 2, 3, sd, null,
+        Collections.<String, String>emptyMap(), null, null, TableType.MANAGED_TABLE.name());
+    store.createTable(table);
+
+    table = store.getTable("default", "tbl1");
+
+    // I assume thrift de/serialization works, so I'm not going to check every field.
+    Assert.assertEquals("tbl1", table.getTableName());
+    Assert.assertEquals("default", table.getDbName());
+    Assert.assertEquals("me", table.getOwner());
+    cols = table.getSd().getCols();
+    Assert.assertEquals(1, cols.size());
+    Assert.assertEquals("a", cols.get(0).getName());
+
+  }
+
+  @Test
+  public void functions() throws InvalidObjectException, MetaException {
+    Function count = new Function("count", "default", "o.a.h.count", "me", PrincipalType.ROLE, 1,
+        FunctionType.JAVA, Collections.<ResourceUri>emptyList());
+    Function sum = new Function("sum", "default", "o.a.h.count", "me", PrincipalType.ROLE, 1,
+        FunctionType.JAVA, Collections.<ResourceUri>emptyList());
+    store.createFunction(count);
+    store.createFunction(sum);
+
+    List<Function> funcs = store.getAllFunctions();
+    Assert.assertEquals(2, funcs.size());
+    Assert.assertTrue(
+        (funcs.get(0).getFunctionName().equals("count") &&
+            funcs.get(1).getFunctionName().equals("sum")) ||
+        (funcs.get(0).getFunctionName().equals("sum") &&
+            funcs.get(1).getFunctionName().equals("count")));
   }
 }
