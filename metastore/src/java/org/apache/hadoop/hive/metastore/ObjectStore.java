@@ -415,7 +415,7 @@ public class ObjectStore implements RawStore, Configurable {
    * @param conf Configuration.
    * @return The partition expression proxy.
    */
-  private static PartitionExpressionProxy createExpressionProxy(Configuration conf) {
+  public static PartitionExpressionProxy createExpressionProxy(Configuration conf) {
     String className = HiveConf.getVar(conf, HiveConf.ConfVars.METASTORE_EXPRESSION_PROXY_CLASS);
     try {
       @SuppressWarnings("unchecked")

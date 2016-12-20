@@ -19,9 +19,7 @@ package org.apache.hadoop.hive.metastore.sqlbin;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.metastore.FileMetadataHandler;
-import org.apache.hadoop.hive.metastore.RawStore;
-import org.apache.hadoop.hive.metastore.TableType;
+import org.apache.hadoop.hive.metastore.*;
 import org.apache.hadoop.hive.metastore.api.AggrStats;
 import org.apache.hadoop.hive.metastore.api.ColumnStatistics;
 import org.apache.hadoop.hive.metastore.api.CurrentNotificationEventId;
@@ -54,6 +52,7 @@ import org.apache.hadoop.hive.metastore.api.UnknownDBException;
 import org.apache.hadoop.hive.metastore.api.UnknownPartitionException;
 import org.apache.hadoop.hive.metastore.api.UnknownTableException;
 import org.apache.hadoop.hive.metastore.hbase.HBaseStore;
+import org.apache.hadoop.hive.metastore.parser.ExpressionTree;
 import org.apache.hadoop.hive.metastore.partition.spec.PartitionSpecProxy;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
@@ -71,6 +70,7 @@ public class PostgresStore implements RawStore {
   private Configuration conf;
   private int txnDepth;
   private PostgresKeyValue pgres; // Do not use this directly, call getPostgres()
+  private PartitionExpressionProxy expressionProxy = null;
 
   @Override
   public void shutdown() {
@@ -127,20 +127,15 @@ public class PostgresStore implements RawStore {
 
   @Override
   public Database getDatabase(String name) throws NoSuchObjectException {
-    boolean commit = false;
-    openTransaction();
     try {
       Database db = getPostgres().getDb(name);
       if (db == null) {
         throw new NoSuchObjectException("Unable to find db " + name);
       }
-      commit = true;
       return db;
     } catch (SQLException e) {
       LOG.error("Unable to get db", e);
       throw new NoSuchObjectException("Error reading db " + e.getMessage());
-    } finally {
-      commitOrRoleBack(commit);
     }
   }
 
@@ -204,20 +199,15 @@ public class PostgresStore implements RawStore {
 
   @Override
   public Table getTable(String dbName, String tableName) throws MetaException {
-    boolean commit = false;
-    openTransaction();
     try {
       Table table = getPostgres().getTable(dbName, tableName);
       if (table == null) {
         LOG.debug("Unable to find table " + tableNameForErrorMsg(dbName, tableName));
       }
-      commit = true;
       return table;
     } catch (SQLException e) {
       LOG.error("Unable to get table", e);
       throw new MetaException("Error reading table " + e.getMessage());
-    } finally {
-      commitOrRoleBack(commit);
     }
   }
 
@@ -252,21 +242,16 @@ public class PostgresStore implements RawStore {
   @Override
   public Partition getPartition(String dbName, String tableName, List<String> part_vals) throws
       MetaException, NoSuchObjectException {
-    boolean commit = false;
-    openTransaction();
     try {
       Partition part = getPostgres().getPartition(dbName, tableName, part_vals);
       if (part == null) {
         throw new NoSuchObjectException("Unable to find partition " +
             HBaseStore.partNameForErrorMsg(dbName, tableName, part_vals));
       }
-      commit = true;
       return part;
     } catch (SQLException e) {
       LOG.error("Unable to get partition", e);
       throw new MetaException("Error reading partition " + e.getMessage());
-    } finally {
-      commitOrRoleBack(commit);
     }
   }
 
@@ -402,7 +387,20 @@ public class PostgresStore implements RawStore {
   public boolean getPartitionsByExpr(String dbName, String tblName, byte[] expr,
                                      String defaultPartitionName, short maxParts,
                                      List<Partition> result) throws TException {
-    throw new UnsupportedOperationException();
+    try {
+      ExpressionTree exprTree = PartFilterExprUtil.makeExpressionTree(expressionProxy, expr);
+      if (exprTree == null) {
+        LOG.warn("Failed to unparse expression tree, falling back to client side partition selection");
+
+        result.addAll(getPostgres().scanPartitionsInTable(dbName, tblName, maxParts));
+        return true;
+      }
+      return getPostgres().scanPartitionsByExpr(dbName, tblName, exprTree, result);
+    } catch (SQLException e) {
+      String msg = "Failed to get expressions by expression: " + e.getMessage();
+      LOG.error(msg);
+      throw new MetaException(msg);
+    }
   }
 
   @Override
@@ -992,8 +990,15 @@ public class PostgresStore implements RawStore {
 
   private PostgresKeyValue getPostgres() {
     if (pgres == null) {
+      expressionProxy = ObjectStore.createExpressionProxy(conf);
+
       pgres = new PostgresKeyValue();
       pgres.setConf(conf);
+      try {
+        pgres.begin();
+      } catch (SQLException e) {
+        throw new RuntimeException(e);
+      }
     }
     return pgres;
   }

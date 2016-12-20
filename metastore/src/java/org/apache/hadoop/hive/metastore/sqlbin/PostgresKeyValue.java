@@ -32,6 +32,8 @@ import org.apache.commons.pool.ObjectPool;
 import org.apache.commons.pool.impl.GenericObjectPool;
 import org.apache.hadoop.hive.common.ObjectPair;
 import org.apache.hadoop.hive.metastore.api.*;
+import org.apache.hadoop.hive.metastore.parser.ExpressionTree;
+import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.thrift.protocol.TCompactProtocol;
 import org.slf4j.Logger;
@@ -47,12 +49,7 @@ import org.apache.thrift.transport.TMemoryBuffer;
 import javax.sql.DataSource;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -368,12 +365,13 @@ public class PostgresKeyValue {
    * Begin a transaction
    */
   public void begin() throws SQLException{
-    assert currentConnection == null;
-    // We can't connect to postgres in the constructor because we don't have the configuration
-    // file yet at that point.  So instead always check here in the begin to see if we've connected.
-    init();
-    beginInternal();
-    createTablesIfNotExist();
+    if (currentConnection == null) {
+      // We can't connect to postgres in the constructor because we don't have the configuration
+      // file yet at that point.  So instead always check here in the begin to see if we've connected.
+      init();
+      beginInternal();
+      createTablesIfNotExist();
+    }
   }
 
   private void beginInternal() throws SQLException {
@@ -581,22 +579,79 @@ public class PostgresKeyValue {
    */
   public List<Partition> scanPartitionsInTable(String dbName, String tableName, int maxPartitions)
       throws SQLException {
-    /*
-    if (maxPartitions < 0) maxPartitions = Integer.MAX_VALUE;
-    Collection<Partition> cached = partCache.getAllForTable(dbName, tableName);
-    if (cached != null) {
-      return maxPartitions < cached.size()
-          ? new ArrayList<>(cached).subList(0, maxPartitions)
-          : new ArrayList<>(cached);
+    List<Partition> parts = new ArrayList<>(maxPartitions > 0 ? maxPartitions : 100);
+    int maxPartitionsInternal = maxPartitions > 0 ? maxPartitions : Integer.MAX_VALUE;
+    PostgresTable pTable = findPartitionTable(dbName, tableName);
+    StringBuilder buf = new StringBuilder("select ")
+        .append(CATALOG_COL)
+        .append(" from ")
+        .append(pTable.getName());
+    try (Statement stmt = currentConnection.createStatement()) {
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Going to execute query " + buf.toString());
+      }
+      ResultSet rs = stmt.executeQuery(buf.toString());
+      while (rs.next() && parts.size() <= maxPartitionsInternal) {
+        Partition part = new Partition();
+        deserialize(part, rs.getBytes(1));
+        parts.add(part);
+      }
     }
-    byte[] keyPrefix = HBaseUtils.buildPartitionKey(dbName, tableName, new ArrayList<String>(),
-        new ArrayList<String>(), false);
-    List<Partition> parts = scanPartitionsWithFilter(dbName, tableName, keyPrefix,
-        HBaseUtils.getEndPrefix(keyPrefix), -1, null);
-    partCache.put(dbName, tableName, parts, true);
-    return maxPartitions < parts.size() ? parts.subList(0, maxPartitions) : parts;
-    */
-    return null;
+    return parts;
+  }
+
+  /**
+   * Pass a partition filter down to Postgres and use that to determine the partitions to fetch.
+   * @param dbName database the table is in
+   * @param tableName table name
+   * @param exprTree expression tree, unparsed already
+   * @param result list of partitions matching the expression, or perhaps more if we returned true
+   * @return if true, then there are partitions in the result that are
+   */
+  public boolean scanPartitionsByExpr(String dbName, String tableName, ExpressionTree exprTree,
+                                      int maxPartitions, List<Partition> result)
+      throws SQLException, MetaException {
+    PostgresTable pTable = findPartitionTable(dbName, tableName);
+    Table hTable = getTable(dbName, tableName);
+    PartitionFilterBuilder visitor = new PartitionFilterBuilder(pTable, hTable);
+    exprTree.accept(visitor);
+    if (visitor.generatedFilter.hasError()) {
+      LOG.warn("Failed to push down SQL filter to metastore");
+      result.addAll(scanPartitionsInTable(dbName, tableName, maxPartitions));
+      return true;
+    }
+
+    // Otherwise, let's use this filter to run the query.
+    int maxPartitionsInternal = maxPartitions > 0 ? maxPartitions : Integer.MAX_VALUE;
+    StringBuilder buf = new StringBuilder("select ")
+        .append(CATALOG_COL)
+        .append(" from ")
+        .append(pTable.getName())
+        .append(" where ")
+        .append(visitor.generatedFilter.getFilter());
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Going to prepare statement " + buf.toString());
+    }
+    try (PreparedStatement stmt = currentConnection.prepareStatement(buf.toString())) {
+      assert visitor.pVals.size() == visitor.pTypes.size();
+      for (int i = 0; i < visitor.pVals.size(); i++) {
+        switch (visitor.pTypes.get(i)) {
+          case Types.VARCHAR:
+            stmt.setString(i + 1, (String)visitor.pVals.get(i));
+            break;
+
+          default:
+            throw new RuntimeException("Unsupported type " + visitor.pTypes.get(i));
+        }
+      }
+      ResultSet rs = stmt.executeQuery();
+      while (rs.next() && result.size() <= maxPartitionsInternal) {
+        Partition part = new Partition();
+        deserialize(part, rs.getBytes(1));
+        result.add(part);
+      }
+      return false;
+    }
   }
 
 
@@ -1621,6 +1676,69 @@ public class PostgresKeyValue {
     @Override
     public V get(Object key) {
       return null;
+    }
+  }
+
+  // A visitor for the expression tree that generators a Postgres where clause
+  private static class PartitionFilterBuilder extends ExpressionTree.TreeVisitor {
+    private final PostgresTable pTable;
+    private final Table hTable;
+    private final ExpressionTree.FilterBuilder generatedFilter;
+    private final List<Object> pVals;
+    private final List<Integer> pTypes; // needed for prepareStatement to know how to insert values
+
+    public PartitionFilterBuilder(PostgresTable pTable, Table hTable) {
+      this.pTable = pTable;
+      this.hTable = hTable;
+      this.generatedFilter = new ExpressionTree.FilterBuilder(false);
+      this.pVals = new ArrayList<>();
+      pTypes = new ArrayList<>();
+
+    }
+
+    @Override
+    protected void beginTreeNode(ExpressionTree.TreeNode node) throws MetaException {
+      generatedFilter.append(" ( ");
+    }
+
+    @Override
+    protected void midTreeNode(ExpressionTree.TreeNode node) throws MetaException {
+      // This looks strange, as it seems to assume that anything here that isn't an and is an or,
+      // which does not seem obvious.  I took this from MetaStoreDirectSql.PartitionFilterGenerator
+      generatedFilter.append(node.getAndOr() == ExpressionTree.LogicalOperator.AND ? " and " :
+          " or ");
+    }
+
+    @Override
+    protected void endTreeNode(ExpressionTree.TreeNode node) throws MetaException {
+      generatedFilter.append(" ) ");
+    }
+
+    @Override
+    protected void visit(ExpressionTree.LeafNode node) throws MetaException {
+      // Figure out which partition column we're dealing with here
+      int partColIndex = node.getPartColIndexForFilter(hTable, generatedFilter);
+      if (generatedFilter.hasError()) return;
+
+      // Get value and figure out type based on column types
+      String colType = hTable.getPartitionKeys().get(partColIndex).getType();
+      if (colType.equals(serdeConstants.STRING_TYPE_NAME)) {
+        pTypes.add(Types.VARCHAR);
+      } else {
+        // TODO, expand this
+        throw new RuntimeException("Unsupported type " + colType);
+      }
+      pVals.add(node.value);
+
+      generatedFilter.append(hTable.getPartitionKeys().get(partColIndex).getName())
+          .append(" ")
+          .append(node.operator.getSqlOp())
+          .append(" ? ");
+    }
+
+    @Override
+    protected boolean shouldStop() {
+      return generatedFilter.hasError();
     }
   }
 
