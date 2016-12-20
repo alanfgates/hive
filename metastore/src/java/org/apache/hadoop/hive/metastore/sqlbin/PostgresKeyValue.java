@@ -31,7 +31,17 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.commons.pool.ObjectPool;
 import org.apache.commons.pool.impl.GenericObjectPool;
 import org.apache.hadoop.hive.common.ObjectPair;
-import org.apache.hadoop.hive.metastore.api.*;
+import org.apache.hadoop.hive.metastore.api.AggrStats;
+import org.apache.hadoop.hive.metastore.api.ColumnStatistics;
+import org.apache.hadoop.hive.metastore.api.ColumnStatisticsObj;
+import org.apache.hadoop.hive.metastore.api.Database;
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.hadoop.hive.metastore.api.Function;
+import org.apache.hadoop.hive.metastore.api.MetaException;
+import org.apache.hadoop.hive.metastore.api.Partition;
+import org.apache.hadoop.hive.metastore.api.SQLForeignKey;
+import org.apache.hadoop.hive.metastore.api.SQLPrimaryKey;
+import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.parser.ExpressionTree;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.shims.ShimLoader;
@@ -49,8 +59,22 @@ import org.apache.thrift.transport.TMemoryBuffer;
 import javax.sql.DataSource;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.sql.*;
-import java.util.*;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Types;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 
@@ -67,6 +91,10 @@ public class PostgresKeyValue {
   final static String STATS_COL = "stats";
   // If this is set in the config, the cache will be set such that it always misses, thus ensuring
   // we're really reading from and writing to postgres.
+
+  // These two are used together a lot, so let's store them together and avoid all the object creation.
+  private final static List<String> CAT_AND_STATS_COLS = Arrays.asList(CATALOG_COL, STATS_COL);
+
   @VisibleForTesting
   static final String CACHE_OFF = "hive.metastore.postgres.nocache";
 
@@ -170,6 +198,7 @@ public class PostgresKeyValue {
   // threads.  The key is expected to be the partition table name, that is
   // "parttable_<dbname>_<tablename>"
   private static Map<String, PostgresTable> partitionTables = new ConcurrentHashMap<>();
+  private static Map<String, PostgresTable> partitionStatsTables = new ConcurrentHashMap<>();
 
   private static DataSource connPool;
   private static boolean tablesCreated = false;
@@ -179,7 +208,10 @@ public class PostgresKeyValue {
 
   private Map<String, Database> dbCache;
   private Map<ObjectPair<String, String>, Table> tableCache;
+  private Map<ObjectPair<String, String>, ColumnStatistics> tableStatsCache;
   private Map<List<String>, Partition> partCache;
+  private Map<List<String>, ColumnStatisticsObj> partStatsCache;
+  private int clearCnt;
 
   /**
    * Set the configuration for all HBaseReadWrite instances.
@@ -208,12 +240,18 @@ public class PostgresKeyValue {
           LOG.info("Turning off caching, I hope you know what you're doing!");
           dbCache = new MissingCache<>();
           tableCache = new MissingCache<>();
+          tableStatsCache = new MissingCache<>();
           partCache = new MissingCache<>();
+          partStatsCache = new MissingCache<>();
         } else {
+          // TODO make the sizes configurable
           dbCache = new HashMap<>(5);
           tableCache = new HashMap<>(20);
+          tableStatsCache = new HashMap<>(20);
           partCache = new HashMap<>(1000);
+          partStatsCache = new HashMap<>(1000);
         }
+        clearCnt = 0;
       } catch (IOException e) {
         throw new RuntimeException(e);
       }
@@ -425,7 +463,7 @@ public class PostgresKeyValue {
   public Database getDb(String name) throws SQLException {
     Database db = dbCache.get(name);
     if (db == null) {
-      byte[] serialized = getByKey(DB_TABLE, CATALOG_COL, name);
+      byte[] serialized = getBinaryColumnByKey(DB_TABLE, CATALOG_COL, name);
       if (serialized == null) return null;
       db = new Database();
       deserialize(db, serialized);
@@ -514,6 +552,11 @@ public class PostgresKeyValue {
 
   /**********************************************************************************************
    * Partition related methods
+   * The whole way that partitions are stored requires some explanation.  Each partition is stored
+   * in its own table, with the primary key of the table being the partition columns of the
+   * Hive table.  This allows us to correctly map the data types and be very efficient in our
+   * filtering of partitions.  For statistics, a second table exists that has the same
+   * primary key plus the column name after all of the partition keys.
    *********************************************************************************************/
 
   /**
@@ -559,7 +602,7 @@ public class PostgresKeyValue {
     byte[] serialized = serialize(partition);
     // We need to determine if this partition is already in store.  If so, we need to update
     // instead of insert.
-    if (getPartition(partition.getDbName(), partition.getTableName(), partition.getValues()) == null) {
+    if (getPartitionByKey(pTable, CATALOG_COL, translated) == null) {
       insertPartitionOnKey(pTable, CATALOG_COL, serialized, partition, translated);
     } else {
       updatePartitionOnKey(pTable, CATALOG_COL, serialized, partition, translated);
@@ -664,6 +707,7 @@ public class PostgresKeyValue {
     return 0;
   }
 
+  // This is written to work on both the partition tables and partition stats tables
   private void insertPartitionOnKey(PostgresTable pTable, String colName, byte[] serialized,
                                     Partition part, List<Object> translatedKeys) throws SQLException {
     List<String> pkCols = pTable.getPrimaryKeyCols();
@@ -695,6 +739,7 @@ public class PostgresKeyValue {
     }
   }
 
+  // This is written to work on both the partition tables and partition stats tables
   private void updatePartitionOnKey(PostgresTable pTable, String colName, byte[] serialized,
                                     Partition part, List<Object> translatedKeys) throws SQLException {
     List<String> pkCols = pTable.getPrimaryKeyCols();
@@ -743,6 +788,7 @@ public class PostgresKeyValue {
 
   }
 
+  // This is written to work on both the partition tables and partition stats tables
   private byte[] getPartitionByKey(PostgresTable table, String colName, List<Object> partVals)
       throws SQLException {
     List<String> pkCols = table.getPrimaryKeyCols();
@@ -770,11 +816,86 @@ public class PostgresKeyValue {
 
   }
 
-  // Figure out if we alrady have a table for this partition.  If so, return it.  Otherwise
+  // Figure out if we already have a table for this partition.  If so, return it.  Otherwise
   // create one.
   private PostgresTable findPartitionTable(String dbName, String tableName) throws SQLException {
+    return findPartitionTable(dbName, tableName, true);
+  }
+
+  private interface PartitionTableBuilder {
+    PostgresTable postgresTableFromPartition(String dbName, String tableName) throws SQLException;
+
+    String getPartitionTableName(String dbName, String tableName);
+
+    Map<String, PostgresTable> getCache();
+  }
+
+  private PartitionTableBuilder partitionTableBuilder = new PartitionTableBuilder() {
+    @Override
+    public PostgresTable postgresTableFromPartition(String dbName, String tableName) throws
+        SQLException {
+      PostgresTable pTable = new PostgresTable(getPartitionTableName(dbName, tableName));
+      Table hTable = getTable(dbName, tableName);
+      for (FieldSchema fs : hTable.getPartitionKeys()) {
+        pTable.addColumn(fs.getName(), hiveToPostgresType(fs.getType()), true);
+      }
+      pTable.addByteColumn(CATALOG_COL);
+      return pTable;
+    }
+
+    @Override
+    public String getPartitionTableName(String dbName, String tableName) {
+      return buildPartTableName(dbName, tableName);
+    }
+
+    @Override
+    public Map<String, PostgresTable> getCache() {
+      return partitionTables;
+    }
+  };
+
+  private PartitionTableBuilder partitionStatsTableBuilder = new PartitionTableBuilder() {
+    @Override
+    public PostgresTable postgresTableFromPartition(String dbName, String tableName) throws SQLException {
+      PostgresTable pTable = new PostgresTable(getPartitionTableName(dbName, tableName));
+      Table hTable = getTable(dbName, tableName);
+      for (FieldSchema fs : hTable.getPartitionKeys()) {
+        pTable.addColumn(fs.getName(), hiveToPostgresType(fs.getType()), true);
+      }
+      pTable.addStringKey("column_name")
+          .addByteColumn(CATALOG_COL);
+      return pTable;
+    }
+
+    @Override
+    public String getPartitionTableName(String dbName, String tableName) {
+      return buildPartStatsTableName(dbName, tableName);
+    }
+
+    @Override
+    public Map<String, PostgresTable> getCache() {
+      return partitionStatsTables;
+    }
+  };
+
+  // See if a partition table exists.  Maybe create it if not.
+  private PostgresTable findPartitionTable(String dbName, String tableName,
+                                           boolean buildIfNotExists) throws SQLException {
+    return findPartitionTableOrStatsTable(dbName, tableName, partitionTableBuilder,
+        buildIfNotExists);
+  }
+
+  private PostgresTable findPartitionStatsTable(String dbName, String tableName,
+                                                boolean buildIfNotExists) throws SQLException {
+    return findPartitionTableOrStatsTable(dbName, tableName, partitionStatsTableBuilder,
+        buildIfNotExists);
+  }
+
+  private PostgresTable findPartitionTableOrStatsTable(String dbName, String tableName,
+                                                       PartitionTableBuilder builder,
+                                                       boolean buildIfNotExists) throws SQLException {
     String partTableName = buildPartTableName(dbName, tableName);
-    PostgresTable table = partitionTables.get(partTableName);
+    PostgresTable table = builder.getCache().get(partTableName);
     if (table == null) {
       // Check to see if the table exists but we don't have it in the cache.  I don't put this
       // part in the synchronized section because it's ok if two threads do this at the same time,
@@ -785,35 +906,23 @@ public class PostgresKeyValue {
       if (rs.next()) {
         // So we know the table is there, we understand the mapping so we can build the
         // PostgresTable object.
-        table = postgresTableFromPartition(dbName, tableName);
+        table = builder.postgresTableFromPartition(dbName, tableName);
         // Put it in the map.  It's ok if we're in a race condition and someone else already has.
-        partitionTables.put(partTableName, table);
-      } else {
+        builder.getCache().put(partTableName, table);
+      } else if (buildIfNotExists) {
         // The table isn't there.  We need to lock because we don't want a race condition on
         // creating the table.
         synchronized (PostgresKeyValue.class) {
           // check again, someone may have built it while we waited for the lock.
-          table = partitionTables.get(partTableName);
+          table = builder.getCache().get(partTableName);
           if (table == null) {
-            table = postgresTableFromPartition(dbName, tableName);
+            table = builder.postgresTableFromPartition(dbName, tableName);
             createTableInPostgres(table);
           }
         }
       }
     }
     return table;
-  }
-
-  private PostgresTable postgresTableFromPartition(String dbName, String tableName) throws
-      SQLException {
-    PostgresTable pTable = new PostgresTable(buildPartTableName(dbName, tableName));
-    Table hTable = getTable(dbName, tableName);
-    for (FieldSchema fs : hTable.getPartitionKeys()) {
-      pTable.addColumn(fs.getName(), hiveToPostgresType(fs.getType()), true);
-    }
-    pTable.addByteColumn(CATALOG_COL)
-        .addByteColumn(STATS_COL);
-    return pTable;
   }
 
   private List<Object> translatePartVals(Table hTable, List<String> partVals) {
@@ -843,6 +952,11 @@ public class PostgresKeyValue {
     return "parttable_" + dbName + "_" + tableName;
   }
 
+  @VisibleForTesting
+  static String buildPartStatsTableName(String dbName, String tableName) {
+    return "partstatstable_" + dbName + "_" + tableName;
+  }
+
   private List<String> buildPartCacheKey(String dbName, String tableName, List<String> partVals) {
     List<String> key = new ArrayList<>(2 + partVals.size());
     key.add(dbName);
@@ -864,20 +978,29 @@ public class PostgresKeyValue {
    * @throws SQLException
    */
   public Table getTable(String dbName, String tableName) throws SQLException {
-    ObjectPair<String, String> tableNameObj = new ObjectPair<>(dbName, tableName);
-    Table table = tableCache.get(tableNameObj);
+    ObjectPair<String, String> cacheKey = new ObjectPair<>(dbName, tableName);
+    Table table = tableCache.get(cacheKey);
     if (table == null) {
-      byte[] serialized = getByKey(TABLE_TABLE, CATALOG_COL, dbName, tableName);
+      // Prefetch the statis object as well, because the odds are we'll need it.
+      byte[][] serialized = getBinaryColumnsByKey(TABLE_TABLE, CAT_AND_STATS_COLS, dbName,
+          tableName);
       if (serialized == null) return null;
       table = new Table();
-      deserialize(table, serialized);
-      tableCache.put(tableNameObj, table);
+      deserialize(table, serialized[0]);
+      tableCache.put(cacheKey, table);
+      if (serialized[1] != null) {
+        ColumnStatistics tableStats = new ColumnStatistics();
+        deserialize(tableStats, serialized[1]);
+        tableStatsCache.put(cacheKey, tableStats);
+      }
     }
     return table;
   }
 
   /**
-   * Get a list of tables.
+   * Get a list of tables.  This method does not populate the table cache or the stats cache because
+   * it assumes that this is being used to do show tables or something, not a query where we may
+   * need to reference the tables again soon.
    * @param dbName Database these tables are in
    * @param regex Regular expression to use in searching for table names.  It is expected to
    *              be a Java regular expression.  If it is null then all tables in the indicated
@@ -914,7 +1037,14 @@ public class PostgresKeyValue {
    */
   public void deleteTable(String dbName, String tableName) throws SQLException {
     deleteOnKey(TABLE_TABLE, dbName, tableName);
-    tableCache.remove(new ObjectPair<>(dbName, tableName));
+    ObjectPair<String, String> cacheKey = new ObjectPair<>(dbName, tableName);
+    tableCache.remove(cacheKey);
+    tableStatsCache.remove(cacheKey);
+    // If we've built a special partition table for this table drop it too.
+    PostgresTable partitionTable = findPartitionTable(dbName, tableName, false);
+    if (partitionTable != null) {
+      dropPostgresTable(partitionTable.getName());
+    }
   }
 
   /**
@@ -950,30 +1080,44 @@ public class PostgresKeyValue {
    *********************************************************************************************/
 
   /**
-   * Update statistics for one or more columns for a table or a partition.
+   * Update statistics for one or more columns for a table.
    *
    * @param dbName database the table is in
    * @param tableName table to update statistics for
-   * @param partVals partition values that define partition to update statistics for. If this is
-   *          null, then these will be assumed to be table level statistics
    * @param stats Stats object with stats for one or more columns
    * @throws SQLException
    */
-  public void updateStatistics(String dbName, String tableName, List<String> partVals,
-      ColumnStatistics stats) throws SQLException {
-    /*
-    byte[] key = getStatisticsKey(dbName, tableName, partVals);
-    String hbaseTable = getStatisticsTable(partVals);
-    byte[][] colnames = new byte[stats.getStatsObjSize()][];
-    byte[][] serialized = new byte[stats.getStatsObjSize()][];
-    for (int i = 0; i < stats.getStatsObjSize(); i++) {
-      ColumnStatisticsObj obj = stats.getStatsObj().get(i);
-      serialized[i] = HBaseUtils.serializeStatsForOneColumn(stats, obj);
-      String colname = obj.getColName();
-      colnames[i] = HBaseUtils.buildKey(colname);
+  public void updateTableStatistics(String dbName, String tableName, ColumnStatistics stats)
+      throws SQLException {
+    // It's possible that this is for a different set of columns.  So we need to union any existing
+    // stats for different columns
+    // Doing a get table will fetch the stats into the stats cache, if there are any
+    ObjectPair<String, String> cacheKey = new ObjectPair<>(dbName, tableName);
+    // Passing null for the column names works for now because getTableStatistics always returns
+    // everything it has.  If this quits being true we need a special returns everything option.
+    ColumnStatistics currentStats = getTableStatistics(dbName, tableName, null);
+    if (currentStats == null) {
+      // There's nothing there now.  So just store what we were given and be done
+      storeOnKey(TABLE_TABLE, STATS_COL, serialize(stats), dbName, tableName);
+      tableStatsCache.put(cacheKey, stats);
+    } else {
+      // Make a copy so we're not messing up other people's objects
+      ColumnStatistics unionedStats = new ColumnStatistics(stats);
+      // Build a probe on the new side so this isn't an n^2 operation
+      Set<String> probe = new HashSet<>();
+      for (ColumnStatisticsObj newCso : stats.getStatsObj()) {
+        probe.add(newCso.getColName());
+      }
+      // Now, walk through the old side and see if it contains anything that is not in the new set.
+      // If so, put it in the new set.
+      for (ColumnStatisticsObj currentCso : stats.getStatsObj()) {
+        if (!probe.contains(currentCso.getColName())) {
+          unionedStats.addToStatsObj(currentCso);
+        }
+      }
+      storeOnKey(TABLE_TABLE, STATS_COL, serialize(unionedStats), dbName, tableName);
+      tableStatsCache.put(cacheKey, stats);
     }
-    store(hbaseTable, key, STATS_CF, colnames, serialized);
-    */
   }
 
   /**
@@ -983,37 +1127,56 @@ public class PostgresKeyValue {
    * @param tblName name of table
    * @param colNames list of column names to get statistics for
    * @return column statistics for indicated table
-   * @throws IOException
+   * @throws SQLException if something goes wrong
    */
   public ColumnStatistics getTableStatistics(String dbName, String tblName, List<String> colNames)
-      throws IOException {
-    /*
-    byte[] tabKey = HBaseUtils.buildKey(dbName, tblName);
-    ColumnStatistics tableStats = new ColumnStatistics();
-    ColumnStatisticsDesc statsDesc = new ColumnStatisticsDesc();
-    statsDesc.setIsTblLevel(true);
-    statsDesc.setDbName(dbName);
-    statsDesc.setTableName(tblName);
-    tableStats.setStatsDesc(statsDesc);
-    byte[][] colKeys = new byte[colNames.size()][];
-    for (int i = 0; i < colKeys.length; i++) {
-      colKeys[i] = HBaseUtils.buildKey(colNames.get(i));
-    }
-    Result result = read(TABLE_TABLE, tabKey, STATS_CF, colKeys);
-    for (int i = 0; i < colKeys.length; i++) {
-      byte[] serializedColStats = result.getValue(STATS_CF, colKeys[i]);
-      if (serializedColStats == null) {
-        // There were no stats for this column, so skip it
-        continue;
+      throws SQLException {
+    ObjectPair<String, String> cacheKey = new ObjectPair<>(dbName, tblName);
+    ColumnStatistics stats = tableStatsCache.get(cacheKey);
+    if (stats == null) {
+      byte[] serialized = getBinaryColumnByKey(TABLE_TABLE, STATS_COL, dbName, tblName);
+      if (serialized != null) {
+        stats = new ColumnStatistics();
+        deserialize(stats, serialized);
+        tableStatsCache.put(cacheKey, stats);
       }
-      ColumnStatisticsObj obj =
-          HBaseUtils.deserializeStatsForOneColumn(tableStats, serializedColStats);
-      obj.setColName(colNames.get(i));
-      tableStats.addToStatsObj(obj);
     }
-    return tableStats;
-    */
-    return null;
+    return stats;
+
+    // Even if there are stats, they may not be (just) the ones the user asked for.  We need to
+    // weed out any extra.
+    // TODO - do we really, or can the code above us handle extras?  For now assume it can and weed
+    // later if we find it can't.
+  }
+
+  /**
+   * Update statistics for one or more columns for a partition.
+   * @param dbName database the table is in
+   * @param tableName table the partitions are in
+   * @param partVals values for the partition, should be a complete match that specifies exactly
+   *                 one partition.
+   * @param stats column stats for this partition, this may include a number of columns.
+   * @throws SQLException if something goes wrong
+   */
+  public void updatePartitionStatistics(String dbName, String tableName, List<String> partVals,
+                                        ColumnStatistics stats) throws SQLException {
+    PostgresTable statsTable = findPartitionStatsTable(dbName, tableName, true);
+    Table hTable = getTable(dbName, tableName);
+    Partition partition = getPartition(dbName, tableName, partVals);
+    List<Object> translatedPartVals = translatePartVals(hTable, partVals);
+    for (ColumnStatisticsObj cso : stats.getStatsObj()) {
+      List<Object> keyForThisStatsObj = new ArrayList<>(translatedPartVals);
+      keyForThisStatsObj.add(cso.getColName());
+      byte[] serialized = serialize(cso);
+      if (getPartitionByKey(statsTable, STATS_COL, keyForThisStatsObj) == null) {
+        insertPartitionOnKey(statsTable, STATS_COL, serialized, partition, keyForThisStatsObj);
+      } else {
+        updatePartitionOnKey(statsTable, STATS_COL, serialized, partition, keyForThisStatsObj);
+      }
+      List<String> cacheKey = new ArrayList<>(partVals);
+      cacheKey.add(cso.getColName());
+      partStatsCache.put(cacheKey, cso);
+    }
   }
 
   /**
@@ -1033,9 +1196,9 @@ public class PostgresKeyValue {
    */
   public List<ColumnStatistics> getPartitionStatistics(String dbName, String tblName,
       List<String> partNames, List<List<String>> partVals, List<String> colNames)
-      throws IOException {
-    /*
+      throws SQLException {
     List<ColumnStatistics> statsList = new ArrayList<>(partNames.size());
+    /*
     Map<List<String>, String> valToPartMap = new HashMap<>(partNames.size());
     List<Get> gets = new ArrayList<>(partNames.size() * colNames.size());
     assert partNames.size() == partVals.size();
@@ -1082,17 +1245,6 @@ public class PostgresKeyValue {
     */
     return null;
   }
-
-  /**
-   * Get a reference to the stats cache.
-   * @return the stats cache.
-   */
-  /*
-  public StatsCache getStatsCache() {
-    //return statsCache;
-    return null;
-  }
-  */
 
   /**
    * Get aggregated stats.  Only intended for use by
@@ -1326,11 +1478,38 @@ public class PostgresKeyValue {
     dbCache.clear();
     tableCache.clear();
     partCache.clear();
+    if (clearCnt++ % 10 == 0) {
+      // TODO we should do something more sophisticated than this, but for now it allows us to keep
+      // the stats a little longer before we clear the cache.
+      tableStatsCache.clear();
+    }
   }
 
   /**********************************************************************************************
    * General access methods
    *********************************************************************************************/
+
+  private boolean recordExists(PostgresTable table, String... keyVals) throws SQLException {
+    List<String> pkCols = table.getPrimaryKeyCols();
+    assert pkCols.size() == keyVals.length;
+    try (Statement stmt = currentConnection.createStatement()) {
+      StringBuilder buf = new StringBuilder("select 1 from ")
+          .append(table.getName())
+          .append(" where ");
+      for (int i = 0; i < keyVals.length; i++) {
+        if (i != 0) buf.append(" and ");
+        buf.append(pkCols.get(i))
+            .append(" = '")
+            .append(keyVals[i])
+            .append('\'');
+      }
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Going to run query " + buf.toString());
+      }
+      ResultSet rs = stmt.executeQuery(buf.toString());
+      return rs.next();
+    }
+  }
 
   /**
    * Read one binary column in one record using the key.
@@ -1338,16 +1517,27 @@ public class PostgresKeyValue {
    * @param colName column name to read
    * @param keyVals 1 or more key values.  This must match the number of items in the primary key.
    * @return serialized version of the object, or null if there is no matching version.
-   * @throws IOException wraps any SQLExceptions thrown by the database
+   * @throws SQLException any SQLExceptions thrown by the database
    */
-  private byte[] getByKey(PostgresTable table, String colName, String... keyVals)
+  private byte[] getBinaryColumnByKey(PostgresTable table, String colName, String... keyVals)
       throws SQLException {
+    byte[][] cols = getBinaryColumnsByKey(table, Collections.singletonList(colName), keyVals);
+    return cols == null ? null : cols[0];
+  }
+
+  private byte[][] getBinaryColumnsByKey(PostgresTable table, List<String> colNames,
+                                       String... keyVals) throws SQLException {
     List<String> pkCols = table.getPrimaryKeyCols();
     assert pkCols.size() == keyVals.length;
     try (Statement stmt = currentConnection.createStatement()) {
-      StringBuilder buf = new StringBuilder("select ")
-          .append(colName)
-          .append(" from ")
+      StringBuilder buf = new StringBuilder("select ");
+      boolean first = true;
+      for (String colName : colNames) {
+        if (first) first = false;
+        else buf.append(", ");
+        buf.append(colName);
+      }
+      buf.append(" from ")
           .append(table.getName())
           .append(" where ");
       for (int i = 0; i < keyVals.length; i++) {
@@ -1362,12 +1552,15 @@ public class PostgresKeyValue {
       }
       ResultSet rs = stmt.executeQuery(buf.toString());
       if (rs.next()) {
-        return rs.getBytes(1);
+        byte[][] result = new byte[(colNames.size())][];
+        for (int i = 0; i < colNames.size(); i++) {
+          result[i] = rs.getBytes(i + 1);
+        }
+        return result;
       } else {
         return null;
       }
     }
-
   }
 
   /**
@@ -1442,9 +1635,8 @@ public class PostgresKeyValue {
       throws SQLException {
     List<String> pkCols = table.getPrimaryKeyCols();
     assert pkCols.size() == keyVals.length;
-    byte[] serialized = getByKey(table, colName, keyVals);
-    if (serialized == null) insertOnKey(table, colName, colVal, keyVals);
-    else updateOnKey(table, colName, colVal, keyVals);
+    if (recordExists(table, keyVals)) updateOnKey(table, colName, colVal, keyVals);
+    else insertOnKey(table, colName, colVal, keyVals);
   }
 
   // Do not call directly, use storeOnKey
@@ -1463,6 +1655,7 @@ public class PostgresKeyValue {
     for (int i = 0; i < pkCols.size(); i++) buf.append("?,");
     buf.append("?)");
     if (LOG.isDebugEnabled()) {
+      System.out.println("Going to prepare statement " + buf.toString());
       LOG.debug("Going to prepare statement " + buf.toString());
     }
     try (PreparedStatement stmt = currentConnection.prepareStatement(buf.toString())) {
@@ -1481,7 +1674,7 @@ public class PostgresKeyValue {
   private void updateOnKey(PostgresTable table, String colName, byte[] colVal, String... keyVals)
       throws SQLException {
     List<String> pkCols = table.getPrimaryKeyCols();
-    StringBuilder buf = new StringBuilder("update table ")
+    StringBuilder buf = new StringBuilder("update ")
         .append(table.getName())
         .append(" set ")
         .append(colName)
@@ -1493,6 +1686,10 @@ public class PostgresKeyValue {
           .append(" = '")
           .append(keyVals[i])
           .append('\'');
+    }
+    if (LOG.isDebugEnabled()) {
+      System.out.println("Going to prepare statement " + buf.toString());
+      LOG.debug("Going to prepare statement " + buf.toString());
     }
     try (PreparedStatement stmt = currentConnection.prepareStatement(buf.toString())) {
       stmt.setBytes(1, colVal);

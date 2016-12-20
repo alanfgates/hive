@@ -19,38 +19,9 @@ package org.apache.hadoop.hive.metastore.sqlbin;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.metastore.*;
-import org.apache.hadoop.hive.metastore.api.AggrStats;
-import org.apache.hadoop.hive.metastore.api.ColumnStatistics;
-import org.apache.hadoop.hive.metastore.api.CurrentNotificationEventId;
-import org.apache.hadoop.hive.metastore.api.Database;
-import org.apache.hadoop.hive.metastore.api.FileMetadataExprType;
-import org.apache.hadoop.hive.metastore.api.Function;
-import org.apache.hadoop.hive.metastore.api.HiveObjectPrivilege;
-import org.apache.hadoop.hive.metastore.api.Index;
-import org.apache.hadoop.hive.metastore.api.InvalidInputException;
-import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
-import org.apache.hadoop.hive.metastore.api.InvalidPartitionException;
-import org.apache.hadoop.hive.metastore.api.MetaException;
-import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
-import org.apache.hadoop.hive.metastore.api.NotificationEvent;
-import org.apache.hadoop.hive.metastore.api.NotificationEventRequest;
-import org.apache.hadoop.hive.metastore.api.NotificationEventResponse;
-import org.apache.hadoop.hive.metastore.api.Partition;
-import org.apache.hadoop.hive.metastore.api.PartitionEventType;
-import org.apache.hadoop.hive.metastore.api.PrincipalPrivilegeSet;
-import org.apache.hadoop.hive.metastore.api.PrincipalType;
-import org.apache.hadoop.hive.metastore.api.PrivilegeBag;
-import org.apache.hadoop.hive.metastore.api.Role;
-import org.apache.hadoop.hive.metastore.api.RolePrincipalGrant;
-import org.apache.hadoop.hive.metastore.api.SQLForeignKey;
-import org.apache.hadoop.hive.metastore.api.SQLPrimaryKey;
-import org.apache.hadoop.hive.metastore.api.Table;
-import org.apache.hadoop.hive.metastore.api.TableMeta;
-import org.apache.hadoop.hive.metastore.api.Type;
-import org.apache.hadoop.hive.metastore.api.UnknownDBException;
-import org.apache.hadoop.hive.metastore.api.UnknownPartitionException;
-import org.apache.hadoop.hive.metastore.api.UnknownTableException;
+import org.apache.hadoop.hive.metastore.api.*;
 import org.apache.hadoop.hive.metastore.hbase.HBaseStore;
 import org.apache.hadoop.hive.metastore.parser.ExpressionTree;
 import org.apache.hadoop.hive.metastore.partition.spec.PartitionSpecProxy;
@@ -70,7 +41,7 @@ public class PostgresStore implements RawStore {
   private Configuration conf;
   private int txnDepth;
   private PostgresKeyValue pgres; // Do not use this directly, call getPostgres()
-  private PartitionExpressionProxy expressionProxy = null;
+  private PartitionExpressionProxy expressionProxy; // Do not use directly, call getExpressionProxy()
 
   @Override
   public void shutdown() {
@@ -108,6 +79,16 @@ public class PostgresStore implements RawStore {
     }
   }
 
+  // Begin for read.  This way we don't have to open a transaction and later close it.
+  private void beginRead() {
+    // Don't increment the transaction counter, as we don't expect a commit/rollback if a read fails.
+    try {
+      getPostgres().begin();
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
   @Override
   public void createDatabase(Database db) throws InvalidObjectException, MetaException {
     boolean commit = false;
@@ -128,6 +109,7 @@ public class PostgresStore implements RawStore {
   @Override
   public Database getDatabase(String name) throws NoSuchObjectException {
     try {
+      beginRead();
       Database db = getPostgres().getDb(name);
       if (db == null) {
         throw new NoSuchObjectException("Unable to find db " + name);
@@ -200,6 +182,7 @@ public class PostgresStore implements RawStore {
   @Override
   public Table getTable(String dbName, String tableName) throws MetaException {
     try {
+      beginRead();
       Table table = getPostgres().getTable(dbName, tableName);
       if (table == null) {
         LOG.debug("Unable to find table " + tableNameForErrorMsg(dbName, tableName));
@@ -243,6 +226,7 @@ public class PostgresStore implements RawStore {
   public Partition getPartition(String dbName, String tableName, List<String> part_vals) throws
       MetaException, NoSuchObjectException {
     try {
+      beginRead();
       Partition part = getPostgres().getPartition(dbName, tableName, part_vals);
       if (part == null) {
         throw new NoSuchObjectException("Unable to find partition " +
@@ -388,14 +372,15 @@ public class PostgresStore implements RawStore {
                                      String defaultPartitionName, short maxParts,
                                      List<Partition> result) throws TException {
     try {
-      ExpressionTree exprTree = PartFilterExprUtil.makeExpressionTree(expressionProxy, expr);
+      beginRead();
+      ExpressionTree exprTree = PartFilterExprUtil.makeExpressionTree(getExpressionProxy(), expr);
       if (exprTree == null) {
         LOG.warn("Failed to unparse expression tree, falling back to client side partition selection");
 
         result.addAll(getPostgres().scanPartitionsInTable(dbName, tblName, maxParts));
         return true;
       }
-      return getPostgres().scanPartitionsByExpr(dbName, tblName, exprTree, result);
+      return getPostgres().scanPartitionsByExpr(dbName, tblName, exprTree, maxParts, result);
     } catch (SQLException e) {
       String msg = "Failed to get expressions by expression: " + e.getMessage();
       LOG.error(msg);
@@ -616,29 +601,104 @@ public class PostgresStore implements RawStore {
   @Override
   public boolean updateTableColumnStatistics(ColumnStatistics colStats) throws
       NoSuchObjectException, MetaException, InvalidObjectException, InvalidInputException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      //update table properties
+      List<ColumnStatisticsObj> statsObjs = colStats.getStatsObj();
+      List<String> colNames = new ArrayList<>();
+      for (ColumnStatisticsObj statsObj:statsObjs) {
+        colNames.add(statsObj.getColName());
+      }
+      String dbName = colStats.getStatsDesc().getDbName();
+      String tableName = colStats.getStatsDesc().getTableName();
+      Table newTable = getTable(dbName, tableName);
+      Table newTableCopy = newTable.deepCopy();
+      StatsSetupConst.setColumnStatsState(newTableCopy.getParameters(), colNames);
+      getPostgres().putTable(newTableCopy);
+
+      getPostgres().updateTableStatistics(colStats.getStatsDesc().getDbName(),
+          colStats.getStatsDesc().getTableName(), colStats);
+
+      commit = true;
+      return true;
+    } catch (SQLException e) {
+      LOG.error("Unable to update column statistics", e);
+      throw new MetaException("Failed to update column statistics, " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
-  public boolean updatePartitionColumnStatistics(ColumnStatistics statsObj,
+  public boolean updatePartitionColumnStatistics(ColumnStatistics colStats,
                                                  List<String> partVals) throws
       NoSuchObjectException, MetaException, InvalidObjectException, InvalidInputException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      // update partition properties
+      String db_name = colStats.getStatsDesc().getDbName();
+      String tbl_name = colStats.getStatsDesc().getTableName();
+      Partition oldPart = getPostgres().getPartition(db_name, tbl_name, partVals);
+      Partition new_partCopy = oldPart.deepCopy();
+      List<String> colNames = new ArrayList<>();
+      List<ColumnStatisticsObj> statsObjs = colStats.getStatsObj();
+      for (ColumnStatisticsObj statsObj : statsObjs) {
+        colNames.add(statsObj.getColName());
+      }
+      StatsSetupConst.setColumnStatsState(new_partCopy.getParameters(), colNames);
+      getPostgres().putPartition(new_partCopy);
+
+      getPostgres().updatePartitionStatistics(colStats.getStatsDesc().getDbName(),
+          colStats.getStatsDesc().getTableName(), partVals, colStats);
+      // We need to invalidate aggregates that include this partition
+      // TODO we should be able to do this from inside updatePartitionStatistics
+      /*
+      getPostgres().getStatsCache().invalidate(colStats.getStatsDesc().getDbName(),
+          colStats.getStatsDesc().getTableName(), colStats.getStatsDesc().getPartName());
+          */
+
+      commit = true;
+      return true;
+    } catch (SQLException e) {
+      LOG.error("Unable to update column statistics", e);
+      throw new MetaException("Failed to update column statistics, " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
   public ColumnStatistics getTableColumnStatistics(String dbName, String tableName,
-                                                   List<String> colName) throws MetaException,
-      NoSuchObjectException {
-    throw new UnsupportedOperationException();
+                                                   List<String> colName)
+      throws MetaException, NoSuchObjectException {
+    beginRead();
+    try {
+      ColumnStatistics cs = getPostgres().getTableStatistics(dbName, tableName, colName);
+      return cs;
+    } catch (SQLException e) {
+      LOG.error("Unable to fetch column statistics", e);
+      throw new MetaException("Failed to fetch column statistics, " + e.getMessage());
+    }
   }
 
   @Override
   public List<ColumnStatistics> getPartitionColumnStatistics(String dbName, String tblName,
                                                              List<String> partNames,
-                                                             List<String> colNames) throws
-      MetaException, NoSuchObjectException {
-    throw new UnsupportedOperationException();
+                                                             List<String> colNames)
+      throws MetaException, NoSuchObjectException {
+    beginRead();
+    List<List<String>> partVals = new ArrayList<>(partNames.size());
+    for (String partName : partNames) {
+      partVals.add(HBaseStore.partNameToVals(partName));
+    }
+    try {
+      return getPostgres().getPartitionStatistics(dbName, tblName, partNames, partVals, colNames);
+    } catch (SQLException e) {
+      LOG.error("Unable to fetch column statistics", e);
+      throw new MetaException("Failed fetching column statistics, " + e.getMessage());
+    }
   }
 
   @Override
@@ -990,8 +1050,6 @@ public class PostgresStore implements RawStore {
 
   private PostgresKeyValue getPostgres() {
     if (pgres == null) {
-      expressionProxy = ObjectStore.createExpressionProxy(conf);
-
       pgres = new PostgresKeyValue();
       pgres.setConf(conf);
       try {
@@ -1001,6 +1059,13 @@ public class PostgresStore implements RawStore {
       }
     }
     return pgres;
+  }
+
+  private PartitionExpressionProxy getExpressionProxy() {
+    if (expressionProxy == null) {
+      expressionProxy = ObjectStore.createExpressionProxy(conf);
+    }
+    return expressionProxy;
   }
 
   private void commitOrRoleBack(boolean commit) {

@@ -22,7 +22,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.cache.CacheLoader;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.hadoop.hive.common.ObjectPair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -2587,7 +2586,7 @@ public class HBaseStore implements RawStore {
     return FileUtils.makePartName(partCols, partVals);
   }
 
-  private static List<String> partNameToVals(String name) {
+  public static List<String> partNameToVals(String name) {
     if (name == null) return null;
     List<String> vals = new ArrayList<String>();
     String[] kvp = name.split("/");

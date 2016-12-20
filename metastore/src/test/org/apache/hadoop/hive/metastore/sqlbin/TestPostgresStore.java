@@ -21,6 +21,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.RawStore;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.*;
+import org.apache.orc.IntegerColumnStatistics;
 import org.junit.*;
 
 import java.sql.SQLException;
@@ -177,9 +178,49 @@ public class TestPostgresStore {
     Assert.assertEquals(dbName, part.getDbName());
     Assert.assertEquals(tableName, part.getTableName());
     Assert.assertEquals(pVals.get(0), part.getValues().get(0));
+  }
 
+  @Test
+  public void tableStats() throws InvalidObjectException, MetaException, NoSuchObjectException, InvalidInputException {
+    String dbName = "default";
+    String tableName = "stbl1";
 
+    List<FieldSchema> cols = Arrays.asList(
+        new FieldSchema("a", "varchar(32)", ""),
+        new FieldSchema("b", "int", ""),
+        new FieldSchema("c", "decimal(10,2)", "")
+    );
+    SerDeInfo serde = new SerDeInfo("serde", "serde", Collections.<String, String>emptyMap());
+    StorageDescriptor sd = new StorageDescriptor(cols, "file:/tmp/tbl1", "inputformat",
+        "outputformat", false, 0, serde, null, null, Collections.<String, String>emptyMap());
+    Table table = new Table(tableName, dbName, "me", 1, 2, 3, sd, null,
+        Collections.<String, String>emptyMap(), null, null, TableType.MANAGED_TABLE.name());
+    store.createTable(table);
 
+    ColumnStatisticsData csd_a = ColumnStatisticsData.stringStats(
+        new StringColumnStatsData(317, 87.2, 57, 98732)
+    );
 
+    LongColumnStatsData ldata = new LongColumnStatsData(97, 102920);
+    ldata.setLowValue(0);
+    ldata.setHighValue(14123123);
+
+    ColumnStatisticsData csd_b = ColumnStatisticsData.longStats(ldata);
+
+    ColumnStatisticsDesc statsDec = new ColumnStatisticsDesc(true, dbName, tableName);
+    List<ColumnStatisticsObj> statsObjs = Arrays.asList(
+        new ColumnStatisticsObj("a", "varchar(32)", csd_a),
+        new ColumnStatisticsObj("b", "int", csd_b)
+    );
+    ColumnStatistics cs = new ColumnStatistics(statsDec, statsObjs);
+    store.updateTableColumnStatistics(cs);
+
+    cs = store.getTableColumnStatistics(dbName, tableName, Collections.singletonList("a"));
+    ColumnStatisticsObj cso1 = cs.getStatsObj().get(0);
+    Assert.assertEquals("a", cso1.getColName());
+    Assert.assertEquals(317, cso1.getStatsData().getStringStats().getMaxColLen());
+    cso1 = cs.getStatsObj().get(1);
+    Assert.assertEquals("b", cso1.getColName());
+    Assert.assertEquals(97, cso1.getStatsData().getLongStats().getNumNulls());
   }
 }
