@@ -675,8 +675,7 @@ public class PostgresStore implements RawStore {
       throws MetaException, NoSuchObjectException {
     beginRead();
     try {
-      ColumnStatistics cs = getPostgres().getTableStatistics(dbName, tableName, colName);
-      return cs;
+      return getPostgres().getTableStatistics(dbName, tableName);
     } catch (SQLException e) {
       LOG.error("Unable to fetch column statistics", e);
       throw new MetaException("Failed to fetch column statistics, " + e.getMessage());
@@ -694,7 +693,7 @@ public class PostgresStore implements RawStore {
       partVals.add(HBaseStore.partNameToVals(partName));
     }
     try {
-      return getPostgres().getPartitionStatistics(dbName, tblName, partNames, partVals, colNames);
+      return getPostgres().getPartitionStatistics(dbName, tblName, partVals);
     } catch (SQLException e) {
       LOG.error("Unable to fetch column statistics", e);
       throw new MetaException("Failed fetching column statistics, " + e.getMessage());

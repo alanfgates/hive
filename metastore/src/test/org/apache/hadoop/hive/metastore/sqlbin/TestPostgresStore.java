@@ -21,6 +21,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.RawStore;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.*;
+import org.apache.hadoop.hive.metastore.hbase.HBaseStore;
 import org.apache.orc.IntegerColumnStatistics;
 import org.junit.*;
 
@@ -215,12 +216,147 @@ public class TestPostgresStore {
     ColumnStatistics cs = new ColumnStatistics(statsDec, statsObjs);
     store.updateTableColumnStatistics(cs);
 
-    cs = store.getTableColumnStatistics(dbName, tableName, Collections.singletonList("a"));
+    cs = store.getTableColumnStatistics(dbName, tableName, null);
     ColumnStatisticsObj cso1 = cs.getStatsObj().get(0);
     Assert.assertEquals("a", cso1.getColName());
     Assert.assertEquals(317, cso1.getStatsData().getStringStats().getMaxColLen());
     cso1 = cs.getStatsObj().get(1);
     Assert.assertEquals("b", cso1.getColName());
     Assert.assertEquals(97, cso1.getStatsData().getLongStats().getNumNulls());
+
+    // Now add some new stats, make sure the merge happens properly
+    ldata = new LongColumnStatsData(107, 202820);
+    ldata.setLowValue(0);
+    ldata.setHighValue(98797433);
+    csd_b = ColumnStatisticsData.longStats(ldata);
+
+    DecimalColumnStatsData ddata = new DecimalColumnStatsData(7, 1384729);
+    ColumnStatisticsData csd_c = ColumnStatisticsData.decimalStats(ddata);
+    statsObjs = Arrays.asList(
+        new ColumnStatisticsObj("b", "int", csd_b),
+        new ColumnStatisticsObj("c", "decimal(10, 2)", csd_c)
+    );
+    cs = new ColumnStatistics(statsDec, statsObjs);
+    store.updateTableColumnStatistics(cs);
+
+    cs = store.getTableColumnStatistics(dbName, tableName, null);
+    boolean sawA = false, sawB = false, sawC = false;
+
+    Assert.assertEquals(3, cs.getStatsObjSize());
+    for (int i = 0; i < 3; i++) {
+      cso1 = cs.getStatsObj().get(i);
+      if ("a".equals(cso1.getColName())) {
+        sawA = true;
+        Assert.assertEquals(317, cso1.getStatsData().getStringStats().getMaxColLen());
+      } else if ("b".equals(cso1.getColName())) {
+        sawB = true;
+        Assert.assertEquals(107, cso1.getStatsData().getLongStats().getNumNulls());
+      } else if ("c".equals(cso1.getColName())) {
+        sawC = true;
+        Assert.assertEquals(7, cso1.getStatsData().getDecimalStats().getNumNulls());
+      } else {
+        Assert.fail("Unknown column " + cso1.getColName());
+      }
+    }
+    Assert.assertTrue(sawA);
+    Assert.assertTrue(sawB);
+    Assert.assertTrue(sawC);
+  }
+
+  @Test
+  public void partStats() throws InvalidObjectException, MetaException, NoSuchObjectException, InvalidInputException {
+    String dbName = "default";
+    String tableName = "sptbl1";
+    List<String> pVals = Collections.singletonList("a");
+
+    List<FieldSchema> cols = Arrays.asList(
+        new FieldSchema("a", "varchar(32)", ""),
+        new FieldSchema("b", "int", ""),
+        new FieldSchema("c", "decimal(10,2)", "")
+    );
+    SerDeInfo serde = new SerDeInfo("serde", "serde", Collections.<String, String>emptyMap());
+    StorageDescriptor sd = new StorageDescriptor(cols, "file:/tmp/tbl1", "inputformat",
+        "outputformat", false, 0, serde, null, null, Collections.<String, String>emptyMap());
+    List<FieldSchema> pcols = Collections.singletonList(
+        new FieldSchema("pcol", "string", "")
+    );
+    Table table = new Table(tableName, dbName, "me", 1, 2, 3, sd, pcols,
+        Collections.<String, String>emptyMap(), null, null, TableType.MANAGED_TABLE.name());
+    store.createTable(table);
+    tablesToDrop.add(PostgresKeyValue.buildPartTableName(dbName, tableName));
+
+    Partition part = new Partition(pVals, dbName, tableName, 1, 2, sd,
+        Collections.<String, String>emptyMap());
+    store.addPartition(part);
+
+    ColumnStatisticsData csd_a = ColumnStatisticsData.stringStats(
+        new StringColumnStatsData(317, 87.2, 57, 98732)
+    );
+
+    LongColumnStatsData ldata = new LongColumnStatsData(97, 102920);
+    ldata.setLowValue(0);
+    ldata.setHighValue(14123123);
+
+    ColumnStatisticsData csd_b = ColumnStatisticsData.longStats(ldata);
+
+    ColumnStatisticsDesc statsDec = new ColumnStatisticsDesc(false, dbName, tableName);
+    String partName = HBaseStore.buildExternalPartName(table, pVals);
+    statsDec.setPartName(partName);
+    List<ColumnStatisticsObj> statsObjs = Arrays.asList(
+        new ColumnStatisticsObj("a", "varchar(32)", csd_a),
+        new ColumnStatisticsObj("b", "int", csd_b)
+    );
+    ColumnStatistics cs = new ColumnStatistics(statsDec, statsObjs);
+    store.updatePartitionColumnStatistics(cs, pVals);
+
+    cs = null; // make sure we don't accidently test against this
+    List<ColumnStatistics> statsList = store.getPartitionColumnStatistics(dbName, tableName,
+        Collections.singletonList(partName), null);
+    ColumnStatisticsObj cso1 = statsList.get(0).getStatsObj().get(0);
+    Assert.assertEquals("a", cso1.getColName());
+    Assert.assertEquals(317, cso1.getStatsData().getStringStats().getMaxColLen());
+    cso1 = statsList.get(0).getStatsObj().get(1);
+    Assert.assertEquals("b", cso1.getColName());
+    Assert.assertEquals(97, cso1.getStatsData().getLongStats().getNumNulls());
+
+    // Now add some new stats, make sure the merge happens properly
+    ldata = new LongColumnStatsData(107, 202820);
+    ldata.setLowValue(0);
+    ldata.setHighValue(98797433);
+    csd_b = ColumnStatisticsData.longStats(ldata);
+
+    DecimalColumnStatsData ddata = new DecimalColumnStatsData(7, 1384729);
+    ColumnStatisticsData csd_c = ColumnStatisticsData.decimalStats(ddata);
+    statsObjs = Arrays.asList(
+        new ColumnStatisticsObj("b", "int", csd_b),
+        new ColumnStatisticsObj("c", "decimal(10, 2)", csd_c)
+    );
+    cs = new ColumnStatistics(statsDec, statsObjs);
+    store.updatePartitionColumnStatistics(cs, pVals);
+
+    cs = null;
+    statsList = store.getPartitionColumnStatistics(dbName, tableName,
+        Collections.singletonList(partName), null);
+    boolean sawA = false, sawB = false, sawC = false;
+
+    Assert.assertEquals(3, statsList.get(0).getStatsObjSize());
+    for (int i = 0; i < 3; i++) {
+      cso1 = statsList.get(0).getStatsObj().get(i);
+      if ("a".equals(cso1.getColName())) {
+        sawA = true;
+        Assert.assertEquals(317, cso1.getStatsData().getStringStats().getMaxColLen());
+      } else if ("b".equals(cso1.getColName())) {
+        sawB = true;
+        Assert.assertEquals(107, cso1.getStatsData().getLongStats().getNumNulls());
+      } else if ("c".equals(cso1.getColName())) {
+        sawC = true;
+        Assert.assertEquals(7, cso1.getStatsData().getDecimalStats().getNumNulls());
+      } else {
+        Assert.fail("Unknown column " + cso1.getColName());
+      }
+    }
+    Assert.assertTrue(sawA);
+    Assert.assertTrue(sawB);
+    Assert.assertTrue(sawC);
   }
 }
