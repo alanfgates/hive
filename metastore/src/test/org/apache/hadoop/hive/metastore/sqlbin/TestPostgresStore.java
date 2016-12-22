@@ -37,6 +37,7 @@ import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Partition;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.hadoop.hive.metastore.api.ResourceUri;
+import org.apache.hadoop.hive.metastore.api.Role;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.StringColumnStatsData;
@@ -424,4 +425,18 @@ public class TestPostgresStore {
     Assert.assertEquals(70, scsd.getNumNulls());
     // Don't know what to do with numDVs, but if the others are working I assume it is too
   }
+
+  @Test
+  public void roles() throws NoSuchObjectException, InvalidObjectException, MetaException {
+    String roleName = "thisisarole";
+    String roleOwner = "me";
+    store.addRole(roleName, roleOwner);
+
+    Role role = store.getRole(roleName);
+
+    Assert.assertNotNull(role);
+    Assert.assertEquals(roleName, role.getRoleName());
+    Assert.assertEquals(roleOwner, role.getOwnerName());
+  }
+
 }

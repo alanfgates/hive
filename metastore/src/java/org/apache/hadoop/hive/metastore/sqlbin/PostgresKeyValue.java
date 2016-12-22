@@ -40,6 +40,7 @@ import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.Function;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.Partition;
+import org.apache.hadoop.hive.metastore.api.Role;
 import org.apache.hadoop.hive.metastore.api.SQLForeignKey;
 import org.apache.hadoop.hive.metastore.api.SQLPrimaryKey;
 import org.apache.hadoop.hive.metastore.api.Table;
@@ -140,12 +141,15 @@ public class PostgresKeyValue {
   final static PostgresTable GLOBAL_PRIVS_TABLE =
       new PostgresTable("MS_GLOBAL_PRIVS")
         .addByteColumn(CATALOG_COL);
+        */
 
   final static PostgresTable ROLE_TABLE =
       new PostgresTable("MS_ROLES")
         .addStringKey("role_name")
-        .addByteColumn(CATALOG_COL);
+        .addByteColumn(CATALOG_COL)
+        .addToInitialTableList();
 
+  /*
   final static String DELEGATION_TOKEN_COL = "delegation_token";
   final static String MASTER_KEY_COL = "master_key";
 
@@ -542,7 +546,7 @@ public class PostgresKeyValue {
   /**
    * Store a function object
    * @param function function object to store
-   * @throws IOException
+   * @throws SQLException
    */
   void putFunction(Function function) throws SQLException {
     byte[] serialized = serialize(function);
@@ -978,6 +982,29 @@ public class PostgresKeyValue {
     key.addAll(partVals);
     return key;
 
+  }
+
+  /**********************************************************************************************
+   * Role related methods
+   *********************************************************************************************/
+
+  /**
+   * Get a role.
+   * @param roleName name of the role to get
+   * @return the role, or null if there is no such role.
+   * @throws SQLException
+   */
+  public Role getRole(String roleName) throws SQLException {
+    byte[] serialized = getBinaryColumnByKey(ROLE_TABLE, CATALOG_COL, roleName);
+    if (serialized == null) return null;
+    Role role = new Role();
+    deserialize(role, serialized);
+    return role;
+  }
+
+  public void putRole(Role role) throws SQLException {
+    byte[] serialized = serialize(role);
+    storeOnKey(ROLE_TABLE, CATALOG_COL, serialized, role.getRoleName());
   }
 
   /**********************************************************************************************
@@ -1560,7 +1587,7 @@ public class PostgresKeyValue {
    *                there are not key elements to match exactly.
    * @return list of serialized objects retrieved by the scan.  If no objects match, the list
    * will be empty.
-   * @throws IOException wraps any SQLException
+   * @throws SQLException wraps any SQLException
    */
   private List<byte[]> scanOnKeyWithRegex(PostgresTable table, String colName, String regex,
                                           String... keyVals) throws SQLException {
@@ -1938,9 +1965,9 @@ public class PostgresKeyValue {
   static PostgresStore connectForTest(HiveConf conf, List<String> tablesToDrop) {
     String jdbc = System.getProperty(TEST_POSTGRES_JDBC);
     if (jdbc != null) {
-      tablesToDrop.add(PostgresKeyValue.DB_TABLE.getName());
-      tablesToDrop.add(PostgresKeyValue.TABLE_TABLE.getName());
-      tablesToDrop.add(PostgresKeyValue.FUNC_TABLE.getName());
+      for (PostgresTable pTable : initialPostgresTables) {
+        tablesToDrop.add(pTable.getName());
+      }
       conf.setVar(HiveConf.ConfVars.METASTORE_RAW_STORE_IMPL,
           PostgresStore.class.getCanonicalName());
       conf.setVar(HiveConf.ConfVars.METASTORECONNECTURLKEY, jdbc);
@@ -1970,6 +1997,7 @@ public class PostgresKeyValue {
           try {
             psql.dropPostgresTable(table);
           } catch (SQLException e) {
+            LOG.error("Error dropping table, your next test run will likely fail", e);
             // Ignore it, as it likely just means we haven't created the tables previously
           }
         }

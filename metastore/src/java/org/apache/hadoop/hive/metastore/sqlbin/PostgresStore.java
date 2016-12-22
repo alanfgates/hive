@@ -240,7 +240,7 @@ public class PostgresStore implements RawStore {
       return true;
     } catch (SQLException e) {
       LOG.error("Unable to add partition", e);
-      throw new MetaException("Unable to read from or write to hbase " + e.getMessage());
+      throw new MetaException("Unable to read from or write to Postgres " + e.getMessage());
     } finally {
       commitOrRoleBack(commit);
     }
@@ -459,9 +459,25 @@ public class PostgresStore implements RawStore {
   }
 
   @Override
-  public boolean addRole(String rowName, String ownerName) throws InvalidObjectException,
+  public boolean addRole(String roleName, String ownerName) throws InvalidObjectException,
       MetaException, NoSuchObjectException {
-    throw new UnsupportedOperationException();
+    int now = (int)(System.currentTimeMillis()/1000);
+    Role role = new Role(roleName, now, ownerName);
+    boolean commit = false;
+    openTransaction();
+    try {
+      if (getPostgres().getRole(roleName) != null) {
+        throw new InvalidObjectException("Role " + roleName + " already exists");
+      }
+      getPostgres().putRole(role);
+      commit = true;
+      return true;
+    } catch (SQLException e) {
+      LOG.error("Unable to create role ", e);
+      throw new MetaException("Unable to read from or write to Postgres " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
@@ -570,7 +586,8 @@ public class PostgresStore implements RawStore {
   @Override
   public boolean grantPrivileges(PrivilegeBag privileges) throws InvalidObjectException,
       MetaException, NoSuchObjectException {
-    throw new UnsupportedOperationException();
+    // TODO, this is cheating but for now just return true always.
+    return true;
   }
 
   @Override
@@ -581,7 +598,17 @@ public class PostgresStore implements RawStore {
 
   @Override
   public Role getRole(String roleName) throws NoSuchObjectException {
-    throw new UnsupportedOperationException();
+    beginRead();
+    try {
+      Role role = getPostgres().getRole(roleName);
+      if (role == null) {
+        throw new NoSuchObjectException("Unable to find role " + roleName);
+      }
+      return role;
+    } catch (SQLException e) {
+      LOG.error("Unable to get role", e);
+      throw new NoSuchObjectException("Error reading table " + e.getMessage());
+    }
   }
 
   @Override
