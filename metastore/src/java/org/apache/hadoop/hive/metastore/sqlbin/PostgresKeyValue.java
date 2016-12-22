@@ -23,7 +23,6 @@ import com.jolbox.bonecp.BoneCPConfig;
 import com.jolbox.bonecp.BoneCPDataSource;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import org.apache.commons.dbcp.ConnectionFactory;
 import org.apache.commons.dbcp.DriverManagerConnectionFactory;
 import org.apache.commons.dbcp.PoolableConnectionFactory;
@@ -35,7 +34,6 @@ import org.apache.hadoop.hive.common.HiveStatsUtils;
 import org.apache.hadoop.hive.common.ObjectPair;
 import org.apache.hadoop.hive.metastore.api.AggrStats;
 import org.apache.hadoop.hive.metastore.api.ColumnStatistics;
-import org.apache.hadoop.hive.metastore.api.ColumnStatisticsDesc;
 import org.apache.hadoop.hive.metastore.api.ColumnStatisticsObj;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -91,7 +89,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Class to manage storing object in and reading them from HBase.
  */
 public class PostgresKeyValue {
-  public final static List<PostgresTable> initialPostgresTables = new ArrayList<>();
+  private final static List<PostgresTable> initialPostgresTables = new ArrayList<>();
 
   // Column names used throughout
   // General column name that catalog objects are stored in.
@@ -106,6 +104,9 @@ public class PostgresKeyValue {
 
   @VisibleForTesting
   static final String CACHE_OFF = "hive.metastore.postgres.nocache";
+  static final String TEST_POSTGRES_JDBC = "hive.test.postgres.jdbc";
+  static final String TEST_POSTGRES_USER = "hive.test.postgres.user";
+  static final String TEST_POSTGRES_PASSWD = "hive.test.postgres.password";
 
 
   // Define the Aggregate stats table
@@ -1920,4 +1921,61 @@ public class PostgresKeyValue {
     }
   }
 
+  /*****************************************************************************************
+   * Methods for test classes.  These are provided so that tests can connect to Postgres.
+   *****************************************************************************************/
+  /**
+   * Connect to the store.  This must be called before PostgresStore is instantiated.  This
+   * methods assumes the systems property defined by {@link #TEST_POSTGRES_JDBC} has been set.
+   * Optionally the user can also set {@link #TEST_POSTGRES_USER} and {@link #TEST_POSTGRES_PASSWD}
+   * @param conf configuration file.  This will be populated with a set of values appropriate
+   *             for testing.
+   * @param tablesToDrop A list of tables that should be dropped at the end of testing.  This list
+   *                     will be populated by this method and should be passed to
+   *                     {@link #cleanupAfterTest(PostgresStore, List)}.
+   * @return
+   */
+  static PostgresStore connectForTest(HiveConf conf, List<String> tablesToDrop) {
+    String jdbc = System.getProperty(TEST_POSTGRES_JDBC);
+    if (jdbc != null) {
+      tablesToDrop.add(PostgresKeyValue.DB_TABLE.getName());
+      tablesToDrop.add(PostgresKeyValue.TABLE_TABLE.getName());
+      tablesToDrop.add(PostgresKeyValue.FUNC_TABLE.getName());
+      conf.setVar(HiveConf.ConfVars.METASTORE_RAW_STORE_IMPL,
+          PostgresStore.class.getCanonicalName());
+      conf.setVar(HiveConf.ConfVars.METASTORECONNECTURLKEY, jdbc);
+      String user = System.getProperty(TEST_POSTGRES_USER);
+      if (user == null) user = "hive";
+      conf.setVar(HiveConf.ConfVars.METASTORE_CONNECTION_USER_NAME, user);
+      String passwd = System.getProperty(TEST_POSTGRES_PASSWD);
+      if (passwd == null) passwd = "hive";
+      conf.setVar(HiveConf.ConfVars.METASTOREPWD, passwd);
+      conf.set(PostgresKeyValue.CACHE_OFF, "true");
+
+      PostgresStore store = new PostgresStore();
+      store.setConf(conf);
+      return store;
+    } else {
+      return null;
+    }
+  }
+
+  static void cleanupAfterTest(PostgresStore store, List<String> tablesToDrop) throws SQLException {
+    String jdbc = System.getProperty(TEST_POSTGRES_JDBC);
+    if (jdbc != null) {
+      PostgresKeyValue psql = store.connectionForTest();
+      try {
+        psql.begin();
+        for (String table : tablesToDrop) {
+          try {
+            psql.dropPostgresTable(table);
+          } catch (SQLException e) {
+            // Ignore it, as it likely just means we haven't created the tables previously
+          }
+        }
+      } finally {
+        psql.commit();
+      }
+    }
+  }
 }

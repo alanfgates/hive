@@ -18,23 +18,47 @@
 package org.apache.hadoop.hive.metastore.sqlbin;
 
 import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.metastore.RawStore;
 import org.apache.hadoop.hive.metastore.TableType;
-import org.apache.hadoop.hive.metastore.api.*;
+import org.apache.hadoop.hive.metastore.api.AggrStats;
+import org.apache.hadoop.hive.metastore.api.ColumnStatistics;
+import org.apache.hadoop.hive.metastore.api.ColumnStatisticsData;
+import org.apache.hadoop.hive.metastore.api.ColumnStatisticsDesc;
+import org.apache.hadoop.hive.metastore.api.ColumnStatisticsObj;
+import org.apache.hadoop.hive.metastore.api.Database;
+import org.apache.hadoop.hive.metastore.api.DecimalColumnStatsData;
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.hadoop.hive.metastore.api.Function;
+import org.apache.hadoop.hive.metastore.api.FunctionType;
+import org.apache.hadoop.hive.metastore.api.InvalidInputException;
+import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
+import org.apache.hadoop.hive.metastore.api.LongColumnStatsData;
+import org.apache.hadoop.hive.metastore.api.MetaException;
+import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
+import org.apache.hadoop.hive.metastore.api.Partition;
+import org.apache.hadoop.hive.metastore.api.PrincipalType;
+import org.apache.hadoop.hive.metastore.api.ResourceUri;
+import org.apache.hadoop.hive.metastore.api.SerDeInfo;
+import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
+import org.apache.hadoop.hive.metastore.api.StringColumnStatsData;
+import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.hbase.HBaseStore;
-import org.apache.orc.IntegerColumnStatistics;
-import org.junit.*;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.Assume;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import java.sql.SQLException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 public class TestPostgresStore {
 
   // If this property is defined, we'll know that the user intends to connect to an external
   // postgres, all tests will be ignored.
-  private static final String POSTGRES_JDBC = "hive.test.posgres.jdbc";
-  private static final String POSTGRES_USER = "hive.test.posgres.user";
-  private static final String POSTGRES_PASSWD = "hive.test.posgres.password";
   private static PostgresStore store;
   // If you create any tables with partitions, you must add the corresponding partition table into
   // this list so that it gets dropped at test start time.
@@ -42,50 +66,17 @@ public class TestPostgresStore {
 
   @BeforeClass
   public static void connect() throws MetaException, SQLException {
-    tablesToDrop.add(PostgresKeyValue.DB_TABLE.getName());
-    tablesToDrop.add(PostgresKeyValue.TABLE_TABLE.getName());
-    tablesToDrop.add(PostgresKeyValue.FUNC_TABLE.getName());
-    String jdbc = System.getProperty(POSTGRES_JDBC);
-    if (jdbc != null) {
-      HiveConf conf = new HiveConf();
-      conf.setVar(HiveConf.ConfVars.METASTORE_RAW_STORE_IMPL,
-          PostgresStore.class.getCanonicalName());
-      conf.setVar(HiveConf.ConfVars.METASTORECONNECTURLKEY, jdbc);
-      String user = System.getProperty(POSTGRES_USER);
-      if (user == null) user = "hive";
-      conf.setVar(HiveConf.ConfVars.METASTORE_CONNECTION_USER_NAME, user);
-      String passwd = System.getProperty(POSTGRES_PASSWD);
-      if (passwd == null) passwd = "hive";
-      conf.setVar(HiveConf.ConfVars.METASTOREPWD, passwd);
-      conf.set(PostgresKeyValue.CACHE_OFF, "true");
-
-      store = new PostgresStore();
-      store.setConf(conf);
-    }
-
+    store = PostgresKeyValue.connectForTest(new HiveConf(), tablesToDrop);
   }
 
   @AfterClass
   public static void cleanup() throws SQLException {
-    PostgresKeyValue psql = store.connectionForTest();
-    try {
-      psql.begin();
-      for (String table : tablesToDrop) {
-        try {
-          psql.dropPostgresTable(table);
-        } catch (SQLException e) {
-          // Ignore it, as it likely just means we haven't created the tables previously
-        }
-      }
-    } finally {
-      psql.commit();
-    }
-
+    PostgresKeyValue.cleanupAfterTest(store, tablesToDrop);
   }
 
   @Before
   public void checkExternalPostgres() {
-    Assume.assumeNotNull(System.getProperty(POSTGRES_JDBC));
+    Assume.assumeNotNull(System.getProperty(PostgresKeyValue.TEST_POSTGRES_JDBC));
   }
 
   @Test
