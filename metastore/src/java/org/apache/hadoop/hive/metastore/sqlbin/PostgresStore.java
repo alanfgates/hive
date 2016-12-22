@@ -81,8 +81,7 @@ public class PostgresStore implements RawStore {
 
   @Override
   public void shutdown() {
-    throw new UnsupportedOperationException();
-
+    if (txnDepth > 0) rollbackTransaction();
   }
 
   @Override
@@ -115,16 +114,6 @@ public class PostgresStore implements RawStore {
     }
   }
 
-  // Begin for read.  This way we don't have to open a transaction and later close it.
-  private void beginRead() {
-    // Don't increment the transaction counter, as we don't expect a commit/rollback if a read fails.
-    try {
-      getPostgres().begin();
-    } catch (SQLException e) {
-      throw new RuntimeException(e);
-    }
-  }
-
   @Override
   public void createDatabase(Database db) throws InvalidObjectException, MetaException {
     boolean commit = false;
@@ -144,16 +133,20 @@ public class PostgresStore implements RawStore {
 
   @Override
   public Database getDatabase(String name) throws NoSuchObjectException {
+    boolean commit = false;
+    openTransaction();
     try {
-      beginRead();
       Database db = getPostgres().getDb(name);
       if (db == null) {
         throw new NoSuchObjectException("Unable to find db " + name);
       }
+      commit = true;
       return db;
     } catch (SQLException e) {
       LOG.error("Unable to get db", e);
       throw new NoSuchObjectException("Error reading db " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
     }
   }
 
@@ -217,16 +210,20 @@ public class PostgresStore implements RawStore {
 
   @Override
   public Table getTable(String dbName, String tableName) throws MetaException {
+    boolean commit = false;
+    openTransaction();
     try {
-      beginRead();
       Table table = getPostgres().getTable(dbName, tableName);
       if (table == null) {
         LOG.debug("Unable to find table " + tableNameForErrorMsg(dbName, tableName));
       }
+      commit = true;
       return table;
     } catch (SQLException e) {
       LOG.error("Unable to get table", e);
       throw new MetaException("Error reading table " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
     }
   }
 
@@ -261,17 +258,21 @@ public class PostgresStore implements RawStore {
   @Override
   public Partition getPartition(String dbName, String tableName, List<String> part_vals) throws
       MetaException, NoSuchObjectException {
+    boolean commit = false;
+    openTransaction();
     try {
-      beginRead();
       Partition part = getPostgres().getPartition(dbName, tableName, part_vals);
       if (part == null) {
         throw new NoSuchObjectException("Unable to find partition " +
             HBaseStore.partNameForErrorMsg(dbName, tableName, part_vals));
       }
+      commit = true;
       return part;
     } catch (SQLException e) {
       LOG.error("Unable to get partition", e);
       throw new MetaException("Error reading partition " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
     }
   }
 
@@ -407,8 +408,9 @@ public class PostgresStore implements RawStore {
   public boolean getPartitionsByExpr(String dbName, String tblName, byte[] expr,
                                      String defaultPartitionName, short maxParts,
                                      List<Partition> result) throws TException {
+    openTransaction();
+    boolean commit = false;
     try {
-      beginRead();
       ExpressionTree exprTree = PartFilterExprUtil.makeExpressionTree(getExpressionProxy(), expr);
       if (exprTree == null) {
         LOG.warn("Failed to unparse expression tree, falling back to client side partition selection");
@@ -416,11 +418,15 @@ public class PostgresStore implements RawStore {
         result.addAll(getPostgres().scanPartitionsInTable(dbName, tblName, maxParts));
         return true;
       }
-      return getPostgres().scanPartitionsByExpr(dbName, tblName, exprTree, maxParts, result);
+      boolean rc = getPostgres().scanPartitionsByExpr(dbName, tblName, exprTree, maxParts, result);
+      commit = true;
+      return rc;
     } catch (SQLException e) {
       String msg = "Failed to get expressions by expression: " + e.getMessage();
       LOG.error(msg);
       throw new MetaException(msg);
+    } finally {
+      commitOrRoleBack(commit);
     }
   }
 
@@ -489,7 +495,8 @@ public class PostgresStore implements RawStore {
   public boolean grantRole(Role role, String userName, PrincipalType principalType, String grantor,
                            PrincipalType grantorType, boolean grantOption) throws MetaException,
       NoSuchObjectException, InvalidObjectException {
-    throw new UnsupportedOperationException();
+    // TODO - cheating here, need to implement this.
+    return true;
   }
 
   @Override
@@ -598,16 +605,20 @@ public class PostgresStore implements RawStore {
 
   @Override
   public Role getRole(String roleName) throws NoSuchObjectException {
-    beginRead();
+    openTransaction();
+    boolean commit = false;
     try {
       Role role = getPostgres().getRole(roleName);
       if (role == null) {
         throw new NoSuchObjectException("Unable to find role " + roleName);
       }
+      commit = true;
       return role;
     } catch (SQLException e) {
       LOG.error("Unable to get role", e);
       throw new NoSuchObjectException("Error reading table " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
     }
   }
 
@@ -730,12 +741,17 @@ public class PostgresStore implements RawStore {
   public ColumnStatistics getTableColumnStatistics(String dbName, String tableName,
                                                    List<String> colName)
       throws MetaException, NoSuchObjectException {
-    beginRead();
+    boolean commit = false;
+    openTransaction();
     try {
-      return getPostgres().getTableStatistics(dbName, tableName, colName);
+      ColumnStatistics cs = getPostgres().getTableStatistics(dbName, tableName, colName);
+      commit = true;
+      return cs;
     } catch (SQLException e) {
       LOG.error("Unable to fetch column statistics", e);
       throw new MetaException("Failed to fetch column statistics, " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
     }
   }
 
@@ -744,16 +760,22 @@ public class PostgresStore implements RawStore {
                                                              List<String> partNames,
                                                              List<String> colNames)
       throws MetaException, NoSuchObjectException {
-    beginRead();
     List<List<String>> partVals = new ArrayList<>(partNames.size());
     for (String partName : partNames) {
       partVals.add(HBaseStore.partNameToVals(partName));
     }
+    boolean commit = false;
+    openTransaction();
     try {
-      return getPostgres().getPartitionStatistics(dbName, tblName, partVals, colNames);
+      List<ColumnStatistics> css =
+          getPostgres().getPartitionStatistics(dbName, tblName, partVals, colNames);
+      commit = true;
+      return css;
     } catch (SQLException e) {
       LOG.error("Unable to fetch column statistics", e);
       throw new MetaException("Failed fetching column statistics, " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
     }
   }
 
@@ -940,26 +962,35 @@ public class PostgresStore implements RawStore {
 
   @Override
   public List<Function> getAllFunctions() throws MetaException {
-    beginRead();
+    boolean commit = false;
+    openTransaction();
     try {
-      return getPostgres().scanFunctions(null, null);
+      List<Function> fss = getPostgres().scanFunctions(null, null);
+      commit = true;
+      return fss;
     } catch (SQLException e) {
       LOG.error("Unable to get functions", e);
       throw new MetaException("Unable to read from or write to postgres " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
     }
   }
 
   @Override
   public List<String> getFunctions(String dbName, String pattern) throws MetaException {
-    beginRead();
+    boolean commit = false;
+    openTransaction();
     try {
       List<Function> funcs = getPostgres().scanFunctions(dbName, HBaseStore.likeToRegex(pattern));
       List<String> funcNames = new ArrayList<>(funcs.size());
       for (Function func : funcs) funcNames.add(func.getFunctionName());
+      commit = true;
       return funcNames;
     } catch (SQLException e) {
       LOG.error("Unable to get functions", e);
       throw new MetaException("Unable to read from or write to postgres " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
     }
   }
 
@@ -968,12 +999,17 @@ public class PostgresStore implements RawStore {
                                       List<String> colNames) throws MetaException,
       NoSuchObjectException {
     List<List<String>> partVals = HBaseStore.partNameListToValsList(partNames);
-    beginRead();
+    boolean commit = false;
+    openTransaction();
     try {
-      return getPostgres().getAggregatedStats(dbName, tblName, partNames, partVals, colNames);
+      AggrStats aggrStats = getPostgres().getAggregatedStats(dbName, tblName, partNames, partVals, colNames);
+      commit = true;
+      return aggrStats;
     } catch (SQLException e) {
       LOG.error("Unable to get aggregated stats", e);
       throw new MetaException("Unable to read from or write to postgres " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
     }
 
   }
