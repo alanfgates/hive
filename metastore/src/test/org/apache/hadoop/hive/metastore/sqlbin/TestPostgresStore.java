@@ -261,10 +261,15 @@ public class TestPostgresStore {
     Assert.assertTrue(sawA);
     Assert.assertTrue(sawB);
     Assert.assertTrue(sawC);
+
+    cs = store.getTableColumnStatistics(dbName, tableName, Collections.singletonList("a"));
+    Assert.assertEquals(1, cs.getStatsObjSize());
+    Assert.assertEquals("a", cs.getStatsObj().get(0).getColName());
   }
 
   @Test
-  public void partStats() throws InvalidObjectException, MetaException, NoSuchObjectException, InvalidInputException {
+  public void partStats() throws InvalidObjectException, MetaException, NoSuchObjectException,
+                                 InvalidInputException {
     String dbName = "default";
     String tableName = "sptbl1";
     List<String> pVals = Collections.singletonList("a");
@@ -358,5 +363,74 @@ public class TestPostgresStore {
     Assert.assertTrue(sawA);
     Assert.assertTrue(sawB);
     Assert.assertTrue(sawC);
+
+    statsList = store.getPartitionColumnStatistics(dbName, tableName,
+        Collections.singletonList(partName), Collections.singletonList("a"));
+    Assert.assertEquals(1, statsList.get(0).getStatsObjSize());
+    Assert.assertEquals("a", statsList.get(0).getStatsObj().get(0).getColName());
+  }
+
+  @Test
+  public void aggrStats() throws InvalidObjectException, MetaException, NoSuchObjectException,
+      InvalidInputException {
+    String dbName = "default";
+    String tableName = "astbl";
+    List<List<String>> pValLists = Arrays.asList(
+        Collections.singletonList("a"),
+        Collections.singletonList("b"),
+        Collections.singletonList("c")
+        );
+    List<String> partNames = new ArrayList<>();
+
+
+    List<FieldSchema> cols = Collections.singletonList(new FieldSchema("a", "varchar(32)", ""));
+    SerDeInfo serde = new SerDeInfo("serde", "serde", Collections.<String, String>emptyMap());
+    StorageDescriptor sd = new StorageDescriptor(cols, "file:/tmp/tbl1", "inputformat",
+        "outputformat", false, 0, serde, null, null, Collections.<String, String>emptyMap());
+    List<FieldSchema> pcols = Collections.singletonList(
+        new FieldSchema("pcol", "string", "")
+    );
+    Table table = new Table(tableName, dbName, "me", 1, 2, 3, sd, pcols,
+        Collections.<String, String>emptyMap(), null, null, TableType.MANAGED_TABLE.name());
+    store.createTable(table);
+    tablesToDrop.add(PostgresKeyValue.buildPartTableName(dbName, tableName));
+
+    long maxColLen = 100;
+    double avgColLen = 10;
+    long numNulls = 10;
+    long numDVs = 100;
+    for (List<String> pVals : pValLists) {
+      Partition part = new Partition(pVals, dbName, tableName, 1, 2, sd,
+          Collections.<String, String>emptyMap());
+      store.addPartition(part);
+      partNames.add(HBaseStore.buildExternalPartName(table, pVals));
+
+      ColumnStatisticsData csd_a = ColumnStatisticsData.stringStats(
+          new StringColumnStatsData(maxColLen, avgColLen, numNulls, numDVs)
+      );
+      maxColLen *= 2;
+      avgColLen *= 2;
+      numNulls *= 2;
+      numDVs *= 2;
+      ColumnStatisticsDesc statsDec = new ColumnStatisticsDesc(false, dbName, tableName);
+      statsDec.setPartName(HBaseStore.buildExternalPartName(table, pVals));
+      List<ColumnStatisticsObj> statsObjs =
+          Collections.singletonList(new ColumnStatisticsObj("a", "varchar(32)", csd_a));
+      ColumnStatistics cs = new ColumnStatistics(statsDec, statsObjs);
+      store.updatePartitionColumnStatistics(cs, pVals);
+    }
+
+    AggrStats aggrStats = store.get_aggr_stats_for(dbName, tableName, partNames,
+        Collections.singletonList("a"));
+
+    Assert.assertNotNull(aggrStats);
+    Assert.assertEquals(3, aggrStats.getPartsFound());
+    Assert.assertEquals(1, aggrStats.getColStatsSize());
+    Assert.assertEquals("a", aggrStats.getColStats().get(0).getColName());
+    StringColumnStatsData scsd = aggrStats.getColStats().get(0).getStatsData().getStringStats();
+    Assert.assertEquals(400, scsd.getMaxColLen());
+    // Can't calculate average col length because we don't know the number of distinct values
+    Assert.assertEquals(70, scsd.getNumNulls());
+    // Don't know what to do with numDVs, but if the others are working I assume it is too
   }
 }

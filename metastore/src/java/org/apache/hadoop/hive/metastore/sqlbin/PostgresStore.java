@@ -17,7 +17,9 @@
  */
 package org.apache.hadoop.hive.metastore.sqlbin;
 
+import co.cask.tephra.TxConstants;
 import com.google.common.annotations.VisibleForTesting;
+import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.metastore.*;
@@ -652,12 +654,6 @@ public class PostgresStore implements RawStore {
 
       getPostgres().updatePartitionStatistics(colStats.getStatsDesc().getDbName(),
           colStats.getStatsDesc().getTableName(), partVals, colStats);
-      // We need to invalidate aggregates that include this partition
-      // TODO we should be able to do this from inside updatePartitionStatistics
-      /*
-      getPostgres().getStatsCache().invalidate(colStats.getStatsDesc().getDbName(),
-          colStats.getStatsDesc().getTableName(), colStats.getStatsDesc().getPartName());
-          */
 
       commit = true;
       return true;
@@ -675,7 +671,7 @@ public class PostgresStore implements RawStore {
       throws MetaException, NoSuchObjectException {
     beginRead();
     try {
-      return getPostgres().getTableStatistics(dbName, tableName);
+      return getPostgres().getTableStatistics(dbName, tableName, colName);
     } catch (SQLException e) {
       LOG.error("Unable to fetch column statistics", e);
       throw new MetaException("Failed to fetch column statistics, " + e.getMessage());
@@ -693,7 +689,7 @@ public class PostgresStore implements RawStore {
       partVals.add(HBaseStore.partNameToVals(partName));
     }
     try {
-      return getPostgres().getPartitionStatistics(dbName, tblName, partVals);
+      return getPostgres().getPartitionStatistics(dbName, tblName, partVals, colNames);
     } catch (SQLException e) {
       LOG.error("Unable to fetch column statistics", e);
       throw new MetaException("Failed fetching column statistics, " + e.getMessage());
@@ -885,35 +881,26 @@ public class PostgresStore implements RawStore {
 
   @Override
   public List<Function> getAllFunctions() throws MetaException {
-    boolean commit = false;
-    openTransaction();
+    beginRead();
     try {
-      List<Function> funcs = getPostgres().scanFunctions(null, null);
-      commit = true;
-      return funcs;
+      return getPostgres().scanFunctions(null, null);
     } catch (SQLException e) {
-      LOG.error("Unable to get functions" + e);
+      LOG.error("Unable to get functions", e);
       throw new MetaException("Unable to read from or write to postgres " + e.getMessage());
-    } finally {
-      commitOrRoleBack(commit);
     }
   }
 
   @Override
   public List<String> getFunctions(String dbName, String pattern) throws MetaException {
-    boolean commit = false;
-    openTransaction();
+    beginRead();
     try {
       List<Function> funcs = getPostgres().scanFunctions(dbName, HBaseStore.likeToRegex(pattern));
       List<String> funcNames = new ArrayList<>(funcs.size());
       for (Function func : funcs) funcNames.add(func.getFunctionName());
-      commit = true;
       return funcNames;
     } catch (SQLException e) {
-      LOG.error("Unable to get functions" + e);
+      LOG.error("Unable to get functions", e);
       throw new MetaException("Unable to read from or write to postgres " + e.getMessage());
-    } finally {
-      commitOrRoleBack(commit);
     }
   }
 
@@ -921,7 +908,15 @@ public class PostgresStore implements RawStore {
   public AggrStats get_aggr_stats_for(String dbName, String tblName, List<String> partNames,
                                       List<String> colNames) throws MetaException,
       NoSuchObjectException {
-    throw new UnsupportedOperationException();
+    List<List<String>> partVals = HBaseStore.partNameListToValsList(partNames);
+    beginRead();
+    try {
+      return getPostgres().getAggregatedStats(dbName, tblName, partNames, partVals, colNames);
+    } catch (SQLException e) {
+      LOG.error("Unable to get aggregated stats", e);
+      throw new MetaException("Unable to read from or write to postgres " + e.getMessage());
+    }
+
   }
 
   @Override
@@ -948,8 +943,7 @@ public class PostgresStore implements RawStore {
 
   @Override
   public void flushCache() {
-    throw new UnsupportedOperationException();
-
+    getPostgres().flushCatalogCache();
   }
 
   @Override

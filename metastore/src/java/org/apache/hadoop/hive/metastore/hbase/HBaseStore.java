@@ -2596,7 +2596,7 @@ public class HBaseStore implements RawStore {
     return vals;
   }
 
-  static List<List<String>> partNameListToValsList(List<String> partNames) {
+  public static List<List<String>> partNameListToValsList(List<String> partNames) {
     List<List<String>> valLists = new ArrayList<List<String>>(partNames.size());
     for (String partName : partNames) {
       valLists.add(partNameToVals(partName));

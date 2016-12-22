@@ -23,6 +23,7 @@ import com.jolbox.bonecp.BoneCPConfig;
 import com.jolbox.bonecp.BoneCPDataSource;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import org.apache.commons.dbcp.ConnectionFactory;
 import org.apache.commons.dbcp.DriverManagerConnectionFactory;
 import org.apache.commons.dbcp.PoolableConnectionFactory;
@@ -30,9 +31,11 @@ import org.apache.commons.dbcp.PoolingDataSource;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.pool.ObjectPool;
 import org.apache.commons.pool.impl.GenericObjectPool;
+import org.apache.hadoop.hive.common.HiveStatsUtils;
 import org.apache.hadoop.hive.common.ObjectPair;
 import org.apache.hadoop.hive.metastore.api.AggrStats;
 import org.apache.hadoop.hive.metastore.api.ColumnStatistics;
+import org.apache.hadoop.hive.metastore.api.ColumnStatisticsDesc;
 import org.apache.hadoop.hive.metastore.api.ColumnStatisticsObj;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -42,9 +45,10 @@ import org.apache.hadoop.hive.metastore.api.Partition;
 import org.apache.hadoop.hive.metastore.api.SQLForeignKey;
 import org.apache.hadoop.hive.metastore.api.SQLPrimaryKey;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.hbase.stats.ColumnStatsAggregator;
+import org.apache.hadoop.hive.metastore.hbase.stats.ColumnStatsAggregatorFactory;
 import org.apache.hadoop.hive.metastore.parser.ExpressionTree;
 import org.apache.hadoop.hive.serde.serdeConstants;
-import org.apache.hadoop.hive.serde2.MetadataTypedColumnsetSerDe;
 import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.thrift.protocol.TCompactProtocol;
 import org.slf4j.Logger;
@@ -60,6 +64,8 @@ import org.apache.thrift.transport.TMemoryBuffer;
 import javax.sql.DataSource;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
@@ -76,6 +82,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 
 
@@ -211,7 +219,9 @@ public class PostgresKeyValue {
   private Map<ObjectPair<String, String>, ColumnStatistics> tableStatsCache;
   private Map<List<String>, Partition> partCache;
   private Map<List<String>, ColumnStatistics> partStatsCache;
+  private Map<byte[], AggrStats> aggrStatsCache;
   private int clearCnt;
+  private MessageDigest md;
 
   /**
    * Set the configuration for all HBaseReadWrite instances.
@@ -235,6 +245,12 @@ public class PostgresKeyValue {
     if (partCache == null) {
       try {
         connectToPostgres();
+        try {
+          md = MessageDigest.getInstance("MD5");
+        } catch (NoSuchAlgorithmException e) {
+          LOG.error("Unable to instantiate MD5 hash", e);
+          throw new RuntimeException(e);
+        }
 
         if (conf.getBoolean(CACHE_OFF, false)) {
           LOG.info("Turning off caching, I hope you know what you're doing!");
@@ -243,13 +259,16 @@ public class PostgresKeyValue {
           tableStatsCache = new MissingCache<>();
           partCache = new MissingCache<>();
           partStatsCache = new MissingCache<>();
+          aggrStatsCache = new MissingCache<>();
         } else {
           // TODO make the sizes configurable
+          // TODO bound the caches
           dbCache = new HashMap<>(5);
           tableCache = new HashMap<>(20);
           tableStatsCache = new HashMap<>(20);
           partCache = new HashMap<>(1000);
           partStatsCache = new HashMap<>(1000);
+          aggrStatsCache = new HashMap<>(100);
         }
         clearCnt = 0;
       } catch (IOException e) {
@@ -1086,9 +1105,7 @@ public class PostgresKeyValue {
     // It's possible that this is for a different set of columns.  So we need to union any existing
     // stats for different columns
     ObjectPair<String, String> cacheKey = new ObjectPair<>(dbName, tableName);
-    // Passing null for the column names works for now because getTableStatistics always returns
-    // everything it has.  If this quits being true we need a special returns everything option.
-    ColumnStatistics currentStats = getTableStatistics(dbName, tableName);
+    ColumnStatistics currentStats = getTableStatistics(dbName, tableName, null);
     ColumnStatistics unionedStats =
         (currentStats == null) ? stats : unionStatistics(currentStats, stats);
     updateOnKey(TABLE_TABLE, STATS_COL, serialize(unionedStats), dbName, tableName);
@@ -1096,16 +1113,16 @@ public class PostgresKeyValue {
   }
 
   /**
-   * Get statistics for a table.  At the moment this returns all column statistics for the table,
-   * not just the requested ones.  Hopefully this is ok.  Going through and weeding them out is
-   * not efficient.
+   * Get statistics for a table.
    *
    * @param dbName name of database table is in
    * @param tblName name of table
+   * @param colNames names of the columns to fetch.  If null is passed, all available stats will
+   *                 be returned.
    * @return column statistics for indicated table
    * @throws SQLException if something goes wrong
    */
-  public ColumnStatistics getTableStatistics(String dbName, String tblName)
+  public ColumnStatistics getTableStatistics(String dbName, String tblName, List<String> colNames)
       throws SQLException {
     ObjectPair<String, String> cacheKey = new ObjectPair<>(dbName, tblName);
     ColumnStatistics stats = tableStatsCache.get(cacheKey);
@@ -1118,12 +1135,10 @@ public class PostgresKeyValue {
         tableStatsCache.put(cacheKey, stats);
       }
     }
-    return stats;
 
-    // Even if there are stats, they may not be (just) the ones the user asked for.  We need to
-    // weed out any extra.
-    // TODO - do we really, or can the code above us handle extras?  For now assume it can and weed
-    // later if we find it can't.
+    // If the caller has asked for only some columns, return just the columns requested
+    if (stats != null && colNames != null) return trimStats(stats, colNames);
+    else return stats;
   }
 
   /**
@@ -1155,19 +1170,19 @@ public class PostgresKeyValue {
    * already being pre-fetched in the various getPartitions calls.  It will work even if that
    * hasn't happened, but it will be very slow.
    *
-   * Like {@link #getTableStatistics(String, String)} this returns all of the column stats,
-   * not just the ones for the requested columns.  Hopefully this is ok.
-   *
    * @param dbName name of database table is in
    * @param tblName table partitions are in
    * @param partValLists partition values for each partition, needed because this class doesn't know how
    *          to translate from partName to partVals
+   * @param colNames names of the columns to fetch.  If null is passed, all available stats will
+   *                 be returned.
    * @return list of ColumnStats, one for each partition for which we found at least one column's
    * stats.
    * @throws SQLException
    */
   public List<ColumnStatistics> getPartitionStatistics(String dbName, String tblName,
-                                                       List<List<String>> partValLists)
+                                                       List<List<String>> partValLists,
+                                                       List<String> colNames)
       throws SQLException {
     List<ColumnStatistics> statsList = new ArrayList<>(partValLists.size());
     Table hTable = getTable(dbName, tblName);
@@ -1176,7 +1191,16 @@ public class PostgresKeyValue {
       List<Object> translatedPartVals = translatePartVals(hTable, partVals);
       statsList.add(getSinglePartitionStatistics(dbName, tblName, pTable, partVals, translatedPartVals));
     }
-    return statsList;
+    // If the caller has asked for only some columns, return just the columns requested
+    if (colNames != null) {
+      List<ColumnStatistics> trimmedStatsList = new ArrayList<>(statsList.size());
+      for (ColumnStatistics stats : statsList) {
+        if (stats != null) trimmedStatsList.add(trimStats(stats, colNames));
+      }
+      return trimmedStatsList;
+    } else {
+      return statsList;
+    }
   }
 
   private ColumnStatistics getSinglePartitionStatistics(String dbName, String tableName,
@@ -1197,87 +1221,107 @@ public class PostgresKeyValue {
     return stats;
   }
 
-  /**
-   * Get aggregated stats.  Only intended for use by
-   * {@link org.apache.hadoop.hive.metastore.hbase.StatsCache}.  Others should not call directly
-   * but should call StatsCache.get instead.
-   * @param key The md5 hash associated with this partition set
-   * @return stats if hbase has them, else null
-   * @throws IOException
-   */
-  public AggrStats getAggregatedStats(byte[] key) throws IOException{
-    /*
-    byte[] serialized = read(AGGR_STATS_TABLE, key, CATALOG_CF, AGGR_STATS_STATS_COL);
-    if (serialized == null) return null;
-    return HBaseUtils.deserializeAggrStats(serialized);
-    */
-    return null;
-
-  }
-
-  /**
-   * Put aggregated stats  Only intended for use by
-   * {@link org.apache.hadoop.hive.metastore.hbase.StatsCache}.  Others should not call directly
-   * but should call StatsCache.put instead.
-   * @param key The md5 hash associated with this partition set
-   * @param dbName Database these partitions are in
-   * @param tableName Table these partitions are in
-   * @param partNames Partition names
-   * @param colName Column stats are for
-   * @param stats Stats
-   * @throws IOException
-   */
-  public void putAggregatedStats(byte[] key, String dbName, String tableName, List<String> partNames,
-                          String colName, AggrStats stats) throws IOException {
-    /*
-    // Serialize the part names
-    List<String> protoNames = new ArrayList<>(partNames.size() + 3);
-    protoNames.add(dbName);
-    protoNames.add(tableName);
-    protoNames.add(colName);
-    protoNames.addAll(partNames);
-    // Build a bloom Filter for these partitions
-    BloomFilter bloom = new BloomFilter(partNames.size(), STATS_BF_ERROR_RATE);
-    for (String partName : partNames) {
-      bloom.add(partName.getBytes(HBaseUtils.ENCODING));
+  // Assumes allStats has already been checked for null
+  private ColumnStatistics trimStats(ColumnStatistics allStats, List<String> colNames) {
+    Set<String> cols = new HashSet<>(colNames);
+    // It's possible we're lucky and the columns requested and available match
+    if (cols.size() == allStats.getStatsObjSize()) {
+      boolean sawMismatch = false;
+      for (ColumnStatisticsObj cso : allStats.getStatsObj()) {
+        if (!cols.contains(cso.getColName())) {
+          sawMismatch = true;
+          break;
+        }
+      }
+      if (!sawMismatch) return allStats;
     }
-    byte[] serializedFilter = HBaseUtils.serializeBloomFilter(dbName, tableName, bloom);
-
-    byte[] serializedStats = HBaseUtils.serializeAggrStats(stats);
-    store(AGGR_STATS_TABLE, key, CATALOG_CF,
-        new byte[][]{AGGR_STATS_BLOOM_COL, AGGR_STATS_STATS_COL},
-        new byte[][]{serializedFilter, serializedStats});
-    */
-  }
-
-  // TODO - We shouldn't remove an entry from the cache as soon as a single partition is deleted.
-  // TODO - Instead we should keep track of how many partitions have been deleted and only remove
-  // TODO - an entry once it passes a certain threshold, like 5%, of partitions have been removed.
-  // TODO - That requires moving this from a filter to a co-processor.
-  /**
-   * Invalidate stats associated with the listed partitions.  This method is intended for use
-   * only by {@link org.apache.hadoop.hive.metastore.hbase.StatsCache}.
-   * @return List of md5 hash keys for the partition stat sets that were removed.
-   * @throws IOException
-   */
-    /*
-  public List<StatsCache.StatsCacheKey>
-  invalidateAggregatedStats(HbaseMetastoreProto.AggrStatsInvalidatorFilter filter)
-      throws IOException {
-    Iterator<Result> results = scan(AGGR_STATS_TABLE, new AggrStatsInvalidatorFilter(filter));
-    if (!results.hasNext()) return Collections.emptyList();
-    List<Delete> deletes = new ArrayList<>();
-    List<StatsCache.StatsCacheKey> keys = new ArrayList<>();
-    while (results.hasNext()) {
-      Result result = results.next();
-      deletes.add(new Delete(result.getRow()));
-      keys.add(new StatsCache.StatsCacheKey(result.getRow()));
+    ColumnStatistics trimmedStats = new ColumnStatistics();
+    trimmedStats.setStatsDesc(allStats.getStatsDesc());
+    for (ColumnStatisticsObj cso : allStats.getStatsObj()) {
+      if (cols.contains(cso.getColName())) {
+        trimmedStats.addToStatsObj(cso);
+      }
     }
-    HTableInterface htab = conn.getHBaseTable(AGGR_STATS_TABLE);
-    htab.delete(deletes);
-    return keys;
+    return trimmedStats;
   }
-    */
+
+  /**
+   * Get aggregated statistics for partitions.  If this is in the cache it will be returned from
+   * there.  If not, it will aggregate the stats, cache the result, and return.
+   * @param dbName database the table is in
+   * @param tableName table name
+   * @param partNames names of partitions to aggregate
+   * @param partValList list of partition values of partitions to aggregate
+   * @param colNames column names to aggregate
+   * @return aggregated stats
+   * @throws SQLException
+   */
+  public AggrStats getAggregatedStats(String dbName, String tableName, List<String> partNames,
+                                      List<List<String>> partValList, List<String> colNames)
+      throws SQLException {
+    // - look to see if we already have it in our local cache
+    byte[] cacheKey = getAggrStatsKey(dbName, tableName, partNames, colNames);
+    AggrStats aggrStats = aggrStatsCache.get(cacheKey);
+    if (aggrStats == null) {
+      LOG.debug("Aggregated stats not found in the cache, aggregating stats");
+      // Ok, no dice.  Fetch the requested stats and aggregate them ourselves
+      List<ColumnStatistics> partStats =
+          getPartitionStatistics(dbName, tableName, partValList, colNames);
+      if (partStats != null && partStats.size() > 0) {
+        Set<String> cols = new HashSet<>(colNames);
+        // For each column, we need to build a stats aggregator.  This aggregator takes the column
+        // name, a list of part names, and a list of ColumnStatistics.
+        // So build a map of columns to ColumnStatistics then build an aggregator
+        // for each column name.
+        Map<String, List<ColumnStatistics>> colStatsMap = new HashMap<>(colNames.size());
+        for (ColumnStatistics singlePartStats : partStats) {
+          for (ColumnStatisticsObj cso : singlePartStats.getStatsObj()) {
+            // Only put this in if this is a column we care about
+            if (cols.contains(cso.getColName())) {
+              List<ColumnStatistics> css = colStatsMap.get(cso.getColName());
+              if (css == null) {
+                css = new ArrayList<>();
+                colStatsMap.put(cso.getColName(), css);
+              }
+              ColumnStatistics statsForOneCol = new ColumnStatistics();
+              statsForOneCol.setStatsDesc(singlePartStats.getStatsDesc());
+              statsForOneCol.addToStatsObj(cso);
+              css.add(statsForOneCol);
+            }
+          }
+        }
+        // We may have gotten back only stats for columns we weren't asked about
+        if (colStatsMap.size() > 0) {
+          try {
+            aggrStats = new AggrStats();
+            int numBitVectors = HiveStatsUtils.getNumBitVectorsForNDVEstimation(conf);
+            boolean useDensityFunctionForNDVEstimation =
+                HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_METASTORE_STATS_NDV_DENSITY_FUNCTION);
+
+            // At this point we know we have only columns we care about in our map
+            for (Map.Entry<String, List<ColumnStatistics>> entry : colStatsMap.entrySet()) {
+              List<String> partNamesList = new ArrayList<>(entry.getValue().size());
+              for (ColumnStatistics cs : entry.getValue()) {
+                partNamesList.add(cs.getStatsDesc().getPartName());
+              }
+              // We assume all of the instances of the column are the same type, so just grab the
+              // first ColumnStatisticsObj and use it to choose
+              ColumnStatsAggregator aggregator = ColumnStatsAggregatorFactory.getColumnStatsAggregator(
+                  entry.getValue().get(0).getStatsObj().get(0).getStatsData().getSetField(),
+                  numBitVectors, useDensityFunctionForNDVEstimation);
+              ColumnStatisticsObj cso = aggregator.aggregate(entry.getKey(), partNamesList, entry.getValue());
+              aggrStats.setPartsFound(Math.max(aggrStats.getPartsFound(), entry.getValue().size()));
+              aggrStats.addToColStats(cso);
+            }
+            aggrStatsCache.put(cacheKey, aggrStats);
+          } catch (Exception e) {
+            throw new SQLException(e);
+          }
+        }
+      }
+    }
+    return aggrStats;
+  }
 
   private ColumnStatistics unionStatistics(final ColumnStatistics currentStats,
                                            final ColumnStatistics newStats) {
@@ -1298,47 +1342,16 @@ public class PostgresKeyValue {
     return unionedStats;
   }
 
-  /*
-  private byte[] getStatisticsKey(String dbName, String tableName, List<String> partVals) throws IOException {
-    return partVals == null ? HBaseUtils.buildKey(dbName, tableName) : HBaseUtils
-        .buildPartitionKey(dbName, tableName,
-            HBaseUtils.getPartitionKeyTypes(getTable(dbName, tableName).getPartitionKeys()),
-            partVals);
-  }
-
-  private String getStatisticsTable(List<String> partVals) {
-    return partVals == null ? TABLE_TABLE : PART_TABLE;
-  }
-
-  private ColumnStatistics buildColStats(byte[] key, boolean fromTable) throws IOException {
-    // We initialize this late so that we don't create extras in the case of
-    // partitions with no stats
-    ColumnStatistics colStats = new ColumnStatistics();
-    ColumnStatisticsDesc csd = new ColumnStatisticsDesc();
-
-    // If this is a table key, parse it as one
-    List<String> reconstructedKey;
-    if (fromTable) {
-      reconstructedKey = Arrays.asList(HBaseUtils.deserializeKey(key));
-      csd.setIsTblLevel(true);
-    } else {
-      reconstructedKey = HBaseUtils.deserializePartitionKey(key, this);
-      csd.setIsTblLevel(false);
-    }
-    csd.setDbName(reconstructedKey.get(0));
-    csd.setTableName(reconstructedKey.get(1));
-    if (!fromTable) {
-      // Build the part name, for which we need the table
-      Table table = getTable(reconstructedKey.get(0), reconstructedKey.get(1));
-      if (table == null) {
-        throw new RuntimeException("Unable to find table " + reconstructedKey.get(0) + "." +
-            reconstructedKey.get(1) + " even though I have a partition for it!");
-      }
-      csd.setPartName(HBaseStore.buildExternalPartName(table, reconstructedKey.subList(2,
-          reconstructedKey.size())));
-    }
-    colStats.setStatsDesc(csd);
-    return colStats;
+  private byte[] getAggrStatsKey(String dbName, String tableName, List<String> partNames,
+                                 List<String> colNames) {
+    md.reset();
+    md.update(dbName.getBytes());
+    md.update(tableName.getBytes());
+    SortedSet<String> sorted = new TreeSet<>(partNames);
+    for (String partName : sorted) md.update(partName.getBytes());
+    sorted = new TreeSet<>(colNames);
+    for (String partName : sorted) md.update(partName.getBytes());
+    return md.digest();
   }
 
   /**********************************************************************************************
@@ -1446,10 +1459,12 @@ public class PostgresKeyValue {
     dbCache.clear();
     tableCache.clear();
     partCache.clear();
-    if (clearCnt++ % 10 == 0) {
+    if (clearCnt++ % 100 == 0) {
       // TODO we should do something more sophisticated than this, but for now it allows us to keep
       // the stats a little longer before we clear the cache.
       tableStatsCache.clear();
+      partStatsCache.clear();
+      aggrStatsCache.clear();
     }
   }
 
@@ -1623,7 +1638,6 @@ public class PostgresKeyValue {
     for (int i = 0; i < pkCols.size(); i++) buf.append("?,");
     buf.append("?)");
     if (LOG.isDebugEnabled()) {
-      System.out.println("Going to prepare statement " + buf.toString());
       LOG.debug("Going to prepare statement " + buf.toString());
     }
     try (PreparedStatement stmt = currentConnection.prepareStatement(buf.toString())) {
@@ -1656,7 +1670,6 @@ public class PostgresKeyValue {
           .append('\'');
     }
     if (LOG.isDebugEnabled()) {
-      System.out.println("Going to prepare statement " + buf.toString());
       LOG.debug("Going to prepare statement " + buf.toString());
     }
     try (PreparedStatement stmt = currentConnection.prepareStatement(buf.toString())) {
