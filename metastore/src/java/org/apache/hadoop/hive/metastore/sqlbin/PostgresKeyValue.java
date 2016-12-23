@@ -40,10 +40,12 @@ import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.Function;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.Partition;
+import org.apache.hadoop.hive.metastore.api.PrincipalPrivilegeSet;
 import org.apache.hadoop.hive.metastore.api.Role;
 import org.apache.hadoop.hive.metastore.api.SQLForeignKey;
 import org.apache.hadoop.hive.metastore.api.SQLPrimaryKey;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.hbase.MetadataStore;
 import org.apache.hadoop.hive.metastore.hbase.stats.ColumnStatsAggregator;
 import org.apache.hadoop.hive.metastore.hbase.stats.ColumnStatsAggregatorFactory;
 import org.apache.hadoop.hive.metastore.parser.ExpressionTree;
@@ -63,6 +65,7 @@ import org.apache.thrift.transport.TMemoryBuffer;
 import javax.sql.DataSource;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
@@ -89,7 +92,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Class to manage storing object in and reading them from HBase.
  */
-public class PostgresKeyValue {
+public class PostgresKeyValue implements MetadataStore {
   private final static List<PostgresTable> initialPostgresTables = new ArrayList<>();
 
   // Column names used throughout
@@ -137,11 +140,15 @@ public class PostgresKeyValue {
           .addByteColumn(CATALOG_COL)
           .addToInitialTableList();
 
-  /*
+  // Define the global privileges table.  Giving this a key is shear laziness since it will
+  // always have only one record.  But it makes it easier to write the code because there are
+  // already a bunch of methods to store and retrieve on a key.
+  final static String GLOBAL_PRIVS_KEY = "globalprivs";
   final static PostgresTable GLOBAL_PRIVS_TABLE =
       new PostgresTable("MS_GLOBAL_PRIVS")
-        .addByteColumn(CATALOG_COL);
-        */
+          .addStringKey(GLOBAL_PRIVS_KEY)
+          .addByteColumn(CATALOG_COL)
+          .addToInitialTableList();
 
   final static PostgresTable ROLE_TABLE =
       new PostgresTable("MS_ROLES")
@@ -540,6 +547,25 @@ public class PostgresKeyValue {
   }
 
   /**********************************************************************************************
+   * File metadata related methods
+   *********************************************************************************************/
+  @Override
+  public void getFileMetadata(List<Long> fileIds, ByteBuffer[] result) throws IOException {
+
+  }
+
+  @Override
+  public void storeFileMetadata(List<Long> fileIds, List<ByteBuffer> metadataBuffers,
+                                ByteBuffer[] addedCols, ByteBuffer[][] addedVals) throws IOException, InterruptedException {
+
+  }
+
+  @Override
+  public void storeFileMetadata(long fileId, ByteBuffer metadata, ByteBuffer[] addedCols, ByteBuffer[] addedVals) throws IOException, InterruptedException {
+
+  }
+
+  /**********************************************************************************************
    * Function related methods
    *********************************************************************************************/
 
@@ -572,6 +598,42 @@ public class PostgresKeyValue {
       funcs.add(func);
     }
     return funcs;
+  }
+
+  /**********************************************************************************************
+   * Global Privilege related methods
+   *********************************************************************************************/
+
+  /**
+   * Fetch the global privileges object
+   * @return
+   * @throws IOException
+   */
+  public PrincipalPrivilegeSet getGlobalPrivs() throws IOException {
+    try {
+      byte[] serialized = getBinaryColumnByKey(GLOBAL_PRIVS_TABLE, CATALOG_COL, GLOBAL_PRIVS_KEY);
+      if (serialized == null) return null;
+      PrincipalPrivilegeSet globalPrivs = new PrincipalPrivilegeSet();
+      deserialize(globalPrivs, serialized);
+      return globalPrivs;
+    } catch (SQLException e) {
+      LOG.error("Failed to fetch global privileges", e);
+      throw new IOException(e);
+    }
+  }
+
+  /**
+   * Store the global privileges object
+   * @throws IOException
+   */
+  public void putGlobalPrivs(PrincipalPrivilegeSet privs) throws IOException {
+    try {
+      byte[] serialized = serialize(privs);
+      storeOnKey(GLOBAL_PRIVS_TABLE, CATALOG_COL, serialized, GLOBAL_PRIVS_KEY);
+    } catch (SQLException e) {
+      LOG.error("Failed to store global privileges", e);
+      throw new IOException(e);
+    }
   }
 
   /**********************************************************************************************

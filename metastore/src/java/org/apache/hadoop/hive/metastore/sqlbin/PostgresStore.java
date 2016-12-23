@@ -59,6 +59,7 @@ import org.apache.hadoop.hive.metastore.api.UnknownDBException;
 import org.apache.hadoop.hive.metastore.api.UnknownPartitionException;
 import org.apache.hadoop.hive.metastore.api.UnknownTableException;
 import org.apache.hadoop.hive.metastore.hbase.HBaseStore;
+import org.apache.hadoop.hive.metastore.hbase.PrivilegeHelper;
 import org.apache.hadoop.hive.metastore.parser.ExpressionTree;
 import org.apache.hadoop.hive.metastore.partition.spec.PartitionSpecProxy;
 import org.apache.thrift.TException;
@@ -78,6 +79,7 @@ public class PostgresStore implements RawStore {
   private int txnDepth;
   private PostgresKeyValue pgres; // Do not use this directly, call getPostgres()
   private PartitionExpressionProxy expressionProxy; // Do not use directly, call getExpressionProxy()
+  private PrivilegeHelper privilegeHelper;
 
   @Override
   public void shutdown() {
@@ -593,14 +595,36 @@ public class PostgresStore implements RawStore {
   @Override
   public boolean grantPrivileges(PrivilegeBag privileges) throws InvalidObjectException,
       MetaException, NoSuchObjectException {
-    // TODO, this is cheating but for now just return true always.
-    return true;
+    boolean commit = false;
+    openTransaction();
+    try {
+      getPrivilegeHelper().grantPrivileges(privileges);
+      commit = true;
+      return true;
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
   public boolean revokePrivileges(PrivilegeBag privileges, boolean grantOption) throws
       InvalidObjectException, MetaException, NoSuchObjectException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      getPrivilegeHelper().revokePrivileges(privileges, grantOption);
+      commit = true;
+      return true;
+    } finally {
+      commitOrRoleBack(commit);
+    }
+  }
+
+  private PrivilegeHelper getPrivilegeHelper() {
+    if (privilegeHelper == null) {
+      privilegeHelper = new PrivilegeHelper(this, getPostgres());
+    }
+    return privilegeHelper;
   }
 
   @Override

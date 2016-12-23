@@ -18,6 +18,8 @@
 
 package org.apache.hadoop.hive.metastore.hbase;
 
+import org.apache.hadoop.hive.metastore.api.PrincipalPrivilegeSet;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -48,5 +50,20 @@ public interface MetadataStore {
    */
   void storeFileMetadata(long fileId, ByteBuffer metadata, ByteBuffer[] addedCols,
       ByteBuffer[] addedVals) throws IOException, InterruptedException;
+
+
+  /**
+   * Get the global privileges from the store
+   * @return the global privileges
+   * @throws IOException
+   */
+  PrincipalPrivilegeSet getGlobalPrivs() throws IOException;
+
+  /**
+   * Write the global privileges back to the store
+   * @param privs the global privileges
+   * @throws IOException
+   */
+  void putGlobalPrivs(PrincipalPrivilegeSet privs) throws IOException;
 
 }

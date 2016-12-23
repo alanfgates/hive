@@ -551,7 +551,7 @@ public class HBaseReadWrite implements MetadataStore {
    * @return
    * @throws IOException
    */
-  PrincipalPrivilegeSet getGlobalPrivs() throws IOException {
+  public PrincipalPrivilegeSet getGlobalPrivs() throws IOException {
     byte[] key = GLOBAL_PRIVS_KEY;
     byte[] serialized = read(GLOBAL_PRIVS_TABLE, key, CATALOG_CF, CATALOG_COL);
     if (serialized == null) return null;
@@ -562,7 +562,7 @@ public class HBaseReadWrite implements MetadataStore {
    * Store the global privileges object
    * @throws IOException
    */
-  void putGlobalPrivs(PrincipalPrivilegeSet privs) throws IOException {
+  public void putGlobalPrivs(PrincipalPrivilegeSet privs) throws IOException {
     byte[] key = GLOBAL_PRIVS_KEY;
     byte[] serialized = HBaseUtils.serializePrincipalPrivilegeSet(privs);
     store(GLOBAL_PRIVS_TABLE, key, CATALOG_CF, CATALOG_COL, serialized);

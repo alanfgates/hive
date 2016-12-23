@@ -104,6 +104,7 @@ public class HBaseStore implements RawStore {
   private int txnNestLevel = 0;
   private PartitionExpressionProxy expressionProxy = null;
   private Map<FileMetadataExprType, FileMetadataHandler> fmHandlers;
+  private PrivilegeHelper privilegeHelper;
 
   public HBaseStore() {
   }
@@ -1473,21 +1474,7 @@ public class HBaseStore implements RawStore {
     boolean commit = false;
     openTransaction();
     try {
-      for (HiveObjectPrivilege priv : privileges.getPrivileges()) {
-        // Locate the right object to deal with
-        PrivilegeInfo privilegeInfo = findPrivilegeToGrantOrRevoke(priv);
-
-        // Now, let's see if we've already got this privilege
-        for (PrivilegeGrantInfo info : privilegeInfo.grants) {
-          if (info.getPrivilege().equals(priv.getGrantInfo().getPrivilege())) {
-            throw new InvalidObjectException(priv.getPrincipalName() + " already has " +
-                priv.getGrantInfo().getPrivilege() + " on " + privilegeInfo.typeErrMsg);
-          }
-        }
-        privilegeInfo.grants.add(priv.getGrantInfo());
-
-        writeBackGrantOrRevoke(priv, privilegeInfo);
-      }
+      getPrivilegeHelper().grantPrivileges(privileges);
       commit = true;
       return true;
     } finally {
@@ -1501,19 +1488,7 @@ public class HBaseStore implements RawStore {
     boolean commit = false;
     openTransaction();
     try {
-      for (HiveObjectPrivilege priv : privileges.getPrivileges()) {
-        PrivilegeInfo privilegeInfo = findPrivilegeToGrantOrRevoke(priv);
-
-        for (int i = 0; i < privilegeInfo.grants.size(); i++) {
-          if (privilegeInfo.grants.get(i).getPrivilege().equals(
-              priv.getGrantInfo().getPrivilege())) {
-            if (grantOption) privilegeInfo.grants.get(i).setGrantOption(false);
-            else privilegeInfo.grants.remove(i);
-            break;
-          }
-        }
-        writeBackGrantOrRevoke(priv, privilegeInfo);
-      }
+      getPrivilegeHelper().revokePrivileges(privileges, grantOption);
       commit = true;
       return true;
     } finally {
@@ -1521,122 +1496,11 @@ public class HBaseStore implements RawStore {
     }
   }
 
-  private static class PrivilegeInfo {
-    Database db;
-    Table table;
-    List<PrivilegeGrantInfo> grants;
-    String typeErrMsg;
-    PrincipalPrivilegeSet privSet;
-  }
-
-  private PrivilegeInfo findPrivilegeToGrantOrRevoke(HiveObjectPrivilege privilege)
-      throws MetaException, NoSuchObjectException, InvalidObjectException {
-    PrivilegeInfo result = new PrivilegeInfo();
-    switch (privilege.getHiveObject().getObjectType()) {
-      case GLOBAL:
-        try {
-          result.privSet = createOnNull(getHBase().getGlobalPrivs());
-        } catch (IOException e) {
-          LOG.error("Unable to fetch global privileges", e);
-          throw new MetaException("Unable to fetch global privileges, " + e.getMessage());
-        }
-        result.typeErrMsg = "global";
-        break;
-
-      case DATABASE:
-        result.db = getDatabase(privilege.getHiveObject().getDbName());
-        result.typeErrMsg = "database " + result.db.getName();
-        result.privSet = createOnNull(result.db.getPrivileges());
-        break;
-
-      case TABLE:
-        result.table = getTable(privilege.getHiveObject().getDbName(),
-            privilege.getHiveObject().getObjectName());
-        result.typeErrMsg = "table " + result.table.getTableName();
-        result.privSet = createOnNull(result.table.getPrivileges());
-        break;
-
-      case PARTITION:
-      case COLUMN:
-        throw new RuntimeException("HBase metastore does not support partition or column " +
-            "permissions");
-
-      default:
-        throw new RuntimeException("Woah bad, unknown object type " +
-            privilege.getHiveObject().getObjectType());
+  private PrivilegeHelper getPrivilegeHelper() {
+    if (privilegeHelper == null) {
+      privilegeHelper = new PrivilegeHelper(this, getHBase());
     }
-
-    // Locate the right PrivilegeGrantInfo
-    Map<String, List<PrivilegeGrantInfo>> grantInfos;
-    switch (privilege.getPrincipalType()) {
-      case USER:
-        grantInfos = result.privSet.getUserPrivileges();
-        result.typeErrMsg = "user";
-        break;
-
-      case GROUP:
-        throw new RuntimeException("HBase metastore does not support group permissions");
-
-      case ROLE:
-        grantInfos = result.privSet.getRolePrivileges();
-        result.typeErrMsg = "role";
-        break;
-
-      default:
-        throw new RuntimeException("Woah bad, unknown principal type " +
-            privilege.getPrincipalType());
-    }
-
-    // Find the requested name in the grantInfo
-    result.grants = grantInfos.get(privilege.getPrincipalName());
-    if (result.grants == null) {
-      // Means we don't have any grants for this user yet.
-      result.grants = new ArrayList<PrivilegeGrantInfo>();
-      grantInfos.put(privilege.getPrincipalName(), result.grants);
-    }
-    return result;
-  }
-
-  private PrincipalPrivilegeSet createOnNull(PrincipalPrivilegeSet pps) {
-    // If this is the first time a user has been granted a privilege set will be null.
-    if (pps == null) {
-      pps = new PrincipalPrivilegeSet();
-    }
-    if (pps.getUserPrivileges() == null) {
-      pps.setUserPrivileges(new HashMap<String, List<PrivilegeGrantInfo>>());
-    }
-    if (pps.getRolePrivileges() == null) {
-      pps.setRolePrivileges(new HashMap<String, List<PrivilegeGrantInfo>>());
-    }
-    return pps;
-  }
-
-  private void writeBackGrantOrRevoke(HiveObjectPrivilege priv, PrivilegeInfo pi)
-      throws MetaException, NoSuchObjectException, InvalidObjectException {
-    // Now write it back
-    switch (priv.getHiveObject().getObjectType()) {
-      case GLOBAL:
-        try {
-          getHBase().putGlobalPrivs(pi.privSet);
-        } catch (IOException e) {
-          LOG.error("Unable to write global privileges", e);
-          throw new MetaException("Unable to write global privileges, " + e.getMessage());
-        }
-        break;
-
-      case DATABASE:
-        pi.db.setPrivileges(pi.privSet);
-        alterDatabase(pi.db.getName(), pi.db);
-        break;
-
-      case TABLE:
-        pi.table.setPrivileges(pi.privSet);
-        alterTable(pi.table.getDbName(), pi.table.getTableName(), pi.table);
-        break;
-
-      default:
-        throw new RuntimeException("Dude, you missed the second switch!");
-    }
+    return privilegeHelper;
   }
 
   @Override

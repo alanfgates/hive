@@ -87,6 +87,40 @@ public class TestPostgresStoreSql {
     Assert.assertEquals(response.getErrorMessage(), 0, response.getResponseCode());
     response = driver.run("create database if not exists " + dbName);
     Assert.assertEquals(response.getErrorMessage(), 0, response.getResponseCode());
+    response = driver.run("use " + dbName);
+    Assert.assertEquals(response.getErrorMessage(), 0, response.getResponseCode());
+    response = driver.run("create table date_dim\n" +
+        "(\n" +
+        "    d_date_sk                 bigint,\n" +
+        "    d_date_id                 string,\n" +
+        "    d_date                    string,\n" +
+        "    d_month_seq               int,\n" +
+        "    d_week_seq                int,\n" +
+        "    d_quarter_seq             int,\n" +
+        "    d_year                    int,\n" +
+        "    d_dow                     int,\n" +
+        "    d_moy                     int,\n" +
+        "    d_dom                     int,\n" +
+        "    d_qoy                     int,\n" +
+        "    d_fy_year                 int,\n" +
+        "    d_fy_quarter_seq          int,\n" +
+        "    d_fy_week_seq             int,\n" +
+        "    d_day_name                string,\n" +
+        "    d_quarter_name            string,\n" +
+        "    d_holiday                 string,\n" +
+        "    d_weekend                 string,\n" +
+        "    d_following_holiday       string,\n" +
+        "    d_first_dom               int,\n" +
+        "    d_last_dom                int,\n" +
+        "    d_same_day_ly             int,\n" +
+        "    d_same_day_lq             int,\n" +
+        "    d_current_day             string,\n" +
+        "    d_current_week            string,\n" +
+        "    d_current_month           string,\n" +
+        "    d_current_quarter         string,\n" +
+        "    d_current_year            string\n" +
+        ")");
+    Assert.assertEquals(response.getErrorMessage(), 0, response.getResponseCode());
   }
 
 }
