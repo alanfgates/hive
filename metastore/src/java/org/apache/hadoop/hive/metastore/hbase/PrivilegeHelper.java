@@ -36,6 +36,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * A class to help key value stores deal with privileges.
+ */
 public class PrivilegeHelper {
   static final private Logger LOG = LoggerFactory.getLogger(PrivilegeHelper.class.getName());
 

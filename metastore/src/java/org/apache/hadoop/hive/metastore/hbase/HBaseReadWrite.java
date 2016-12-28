@@ -190,11 +190,6 @@ public class HBaseReadWrite implements MetadataStore {
   private Counter sdMisses;
   private Counter sdOverflows;
   private List<Counter> counters;
-  // roleCache doesn't use ObjectCache because I don't want to limit the size.  I am assuming
-  // that the number of roles will always be small (< 100) so caching the whole thing should not
-  // be painful.
-  private final Map<String, HbaseMetastoreProto.RoleGrantInfoList> roleCache;
-  boolean entireRoleTableInCache;
 
   /**
    * Set the configuration for all HBaseReadWrite instances.
@@ -290,8 +285,6 @@ public class HBaseReadWrite implements MetadataStore {
       partCache = new PartitionCache(totalCatalogObjectsToCache, partHits, partMisses, partOverflows);
     }
     statsCache = StatsCache.getInstance(conf);
-    roleCache = new HashMap<>();
-    entireRoleTableInCache = false;
   }
 
   // Synchronize this so not everyone's doing it at once.
@@ -369,7 +362,7 @@ public class HBaseReadWrite implements MetadataStore {
    * @return list of databases matching the regular expression.
    * @throws IOException
    */
-  List<Database> scanDatabases(String regex) throws IOException {
+  public List<Database> scanDatabases(String regex) throws IOException {
     Filter filter = null;
     if (regex != null) {
       filter = new RowFilter(CompareFilter.CompareOp.EQUAL, new RegexStringComparator(regex));
@@ -393,6 +386,20 @@ public class HBaseReadWrite implements MetadataStore {
   void putDb(Database database) throws IOException {
     byte[][] serialized = HBaseUtils.serializeDatabase(database);
     store(DB_TABLE, serialized[0], CATALOG_CF, CATALOG_COL, serialized[1]);
+  }
+
+  @Override
+  public void writeBackChangedDatabases(List<Database> dbs) throws IOException {
+    List<Put> puts = new ArrayList<>();
+    for (Database db : dbs) {
+      byte[][] serialized = HBaseUtils.serializeDatabase(db);
+      Put put = new Put(serialized[0]);
+      put.add(CATALOG_CF, CATALOG_COL, serialized[1]);
+      puts.add(put);
+    }
+    HTableInterface htab = conn.getHBaseTable(DB_TABLE);
+    htab.put(puts);
+    conn.flush(htab);
   }
 
   /**
@@ -1087,31 +1094,12 @@ public class HBaseReadWrite implements MetadataStore {
     return HBaseUtils.deserializeRoleList(serialized);
   }
 
-  /**
-   * Find all roles directly participated in by a given principal.  This builds the role cache
-   * because it assumes that subsequent calls may be made to find roles participated in indirectly.
-   * @param name username or role name
-   * @param type user or role
-   * @return map of role name to grant info for all roles directly participated in.
-   */
-  List<Role> getPrincipalDirectRoles(String name, PrincipalType type)
-      throws IOException {
-    buildRoleCache();
-
-    Set<String> rolesFound = new HashSet<>();
-    for (Map.Entry<String, HbaseMetastoreProto.RoleGrantInfoList> e : roleCache.entrySet()) {
-      for (HbaseMetastoreProto.RoleGrantInfo giw : e.getValue().getGrantInfoList()) {
-        if (HBaseUtils.convertPrincipalTypes(giw.getPrincipalType()) == type &&
-            giw.getPrincipalName().equals(name)) {
-          rolesFound.add(e.getKey());
-          break;
-        }
-      }
-    }
-    List<Role> directRoles = new ArrayList<>(rolesFound.size());
+  @Override
+  public List<Role> getRoles(Collection<String> roleNames) throws IOException {
+    List<Role> roles = new ArrayList<>(roleNames.size());
     List<Get> gets = new ArrayList<>();
     HTableInterface htab = conn.getHBaseTable(ROLE_TABLE);
-    for (String roleFound : rolesFound) {
+    for (String roleFound : roleNames) {
       byte[] key = HBaseUtils.buildKey(roleFound);
       Get g = new Get(key);
       g.addColumn(CATALOG_CF, CATALOG_COL);
@@ -1122,40 +1110,26 @@ public class HBaseReadWrite implements MetadataStore {
     for (int i = 0; i < results.length; i++) {
       byte[] serialized = results[i].getValue(CATALOG_CF, CATALOG_COL);
       if (serialized != null) {
-        directRoles.add(HBaseUtils.deserializeRole(results[i].getRow(), serialized));
+        roles.add(HBaseUtils.deserializeRole(results[i].getRow(), serialized));
       }
     }
 
-    return directRoles;
+    return roles;
   }
 
-  /**
-   * Fetch all roles and users included directly in a given role.
-   * @param roleName name of the principal
-   * @return a list of all roles included in this role
-   * @throws IOException
-   */
-  HbaseMetastoreProto.RoleGrantInfoList getRolePrincipals(String roleName)
-      throws IOException, NoSuchObjectException {
-    HbaseMetastoreProto.RoleGrantInfoList rolePrincipals = roleCache.get(roleName);
-    if (rolePrincipals != null) return rolePrincipals;
+  @Override
+  public HbaseMetastoreProto.RoleGrantInfoList getRolePrincipals(String roleName)
+      throws IOException {
+    HbaseMetastoreProto.RoleGrantInfoList rolePrincipals;
     byte[] key = HBaseUtils.buildKey(roleName);
     byte[] serialized = read(ROLE_TABLE, key, CATALOG_CF, ROLES_COL);
     if (serialized == null) return null;
     rolePrincipals = HbaseMetastoreProto.RoleGrantInfoList.parseFrom(serialized);
-    roleCache.put(roleName, rolePrincipals);
     return rolePrincipals;
   }
 
-  /**
-   * Given a role, find all users who are either directly or indirectly participate in this role.
-   * This is expensive, it should be used sparingly.  It scan the entire userToRole table and
-   * does a linear search on each entry.
-   * @param roleName name of the role
-   * @return set of all users in the role
-   * @throws IOException
-   */
-  Set<String> findAllUsersInRole(String roleName) throws IOException {
+  @Override
+  public Set<String> findAllUsersInRole(String roleName) throws IOException {
     // Walk the userToRole table and collect every user that matches this role.
     Set<String> users = new HashSet<>();
     Iterator<Result> iter = scan(USER_TO_ROLE_TABLE, CATALOG_CF, CATALOG_COL);
@@ -1173,215 +1147,26 @@ public class HBaseReadWrite implements MetadataStore {
     return users;
   }
 
-  /**
-   * Add a principal to a role.
-   * @param roleName name of the role to add principal to
-   * @param grantInfo grant information for this principal.
-   * @throws java.io.IOException
-   * @throws NoSuchObjectException
-   *
-   */
-  void addPrincipalToRole(String roleName, HbaseMetastoreProto.RoleGrantInfo grantInfo)
-      throws IOException, NoSuchObjectException {
-    HbaseMetastoreProto.RoleGrantInfoList proto = getRolePrincipals(roleName);
-    List<HbaseMetastoreProto.RoleGrantInfo> rolePrincipals = new ArrayList<>();
-    if (proto != null) {
-      rolePrincipals.addAll(proto.getGrantInfoList());
-    }
-
-    rolePrincipals.add(grantInfo);
-    proto = HbaseMetastoreProto.RoleGrantInfoList.newBuilder()
-        .addAllGrantInfo(rolePrincipals)
-        .build();
-    byte[] key = HBaseUtils.buildKey(roleName);
-    store(ROLE_TABLE, key, CATALOG_CF, ROLES_COL, proto.toByteArray());
-    roleCache.put(roleName, proto);
-  }
-
-  /**
-   * Drop a principal from a role.
-   * @param roleName Name of the role to drop the principal from
-   * @param principalName name of the principal to drop from the role
-   * @param type user or role
-   * @param grantOnly if this is true, just remove the grant option, don't actually remove the
-   *                  user from the role.
-   * @throws NoSuchObjectException
-   * @throws IOException
-   */
-  void dropPrincipalFromRole(String roleName, String principalName, PrincipalType type,
-                             boolean grantOnly)
-      throws NoSuchObjectException, IOException {
-    HbaseMetastoreProto.RoleGrantInfoList proto = getRolePrincipals(roleName);
-    if (proto == null) return;
-    List<HbaseMetastoreProto.RoleGrantInfo> rolePrincipals = new ArrayList<>();
-    rolePrincipals.addAll(proto.getGrantInfoList());
-
-    for (int i = 0; i < rolePrincipals.size(); i++) {
-      if (HBaseUtils.convertPrincipalTypes(rolePrincipals.get(i).getPrincipalType()) == type &&
-          rolePrincipals.get(i).getPrincipalName().equals(principalName)) {
-        if (grantOnly) {
-          rolePrincipals.set(i,
-              HbaseMetastoreProto.RoleGrantInfo.newBuilder(rolePrincipals.get(i))
-                  .setGrantOption(false)
-                  .build());
-        } else {
-          rolePrincipals.remove(i);
-        }
-        break;
-      }
-    }
-    byte[] key = HBaseUtils.buildKey(roleName);
-    proto = HbaseMetastoreProto.RoleGrantInfoList.newBuilder()
-        .addAllGrantInfo(rolePrincipals)
-        .build();
-    store(ROLE_TABLE, key, CATALOG_CF, ROLES_COL, proto.toByteArray());
-    roleCache.put(roleName, proto);
-  }
-
-  /**
-   * Rebuild the row for a given user in the USER_TO_ROLE table.  This is expensive.  It
-   * should be called as infrequently as possible.
-   * @param userName name of the user
-   * @throws IOException
-   */
-  void buildRoleMapForUser(String userName) throws IOException, NoSuchObjectException {
-    // This is mega ugly.  Hopefully we don't have to do this too often.
-    // First, scan the role table and put it all in memory
-    buildRoleCache();
-    LOG.debug("Building role map for " + userName);
-
-    // Second, find every role the user participates in directly.
-    Set<String> rolesToAdd = new HashSet<>();
-    Set<String> rolesToCheckNext = new HashSet<>();
-    for (Map.Entry<String, HbaseMetastoreProto.RoleGrantInfoList> e : roleCache.entrySet()) {
-      for (HbaseMetastoreProto.RoleGrantInfo grantInfo : e.getValue().getGrantInfoList()) {
-        if (HBaseUtils.convertPrincipalTypes(grantInfo.getPrincipalType()) == PrincipalType.USER &&
-            userName .equals(grantInfo.getPrincipalName())) {
-          rolesToAdd.add(e.getKey());
-          rolesToCheckNext.add(e.getKey());
-          LOG.debug("Adding " + e.getKey() + " to list of roles user is in directly");
-          break;
-        }
-      }
-    }
-
-    // Third, find every role the user participates in indirectly (that is, they have been
-    // granted into role X and role Y has been granted into role X).
-    while (rolesToCheckNext.size() > 0) {
-      Set<String> tmpRolesToCheckNext = new HashSet<>();
-      for (String roleName : rolesToCheckNext) {
-        HbaseMetastoreProto.RoleGrantInfoList grantInfos = roleCache.get(roleName);
-        if (grantInfos == null) continue;  // happens when a role contains no grants
-        for (HbaseMetastoreProto.RoleGrantInfo grantInfo : grantInfos.getGrantInfoList()) {
-          if (HBaseUtils.convertPrincipalTypes(grantInfo.getPrincipalType()) == PrincipalType.ROLE &&
-              rolesToAdd.add(grantInfo.getPrincipalName())) {
-            tmpRolesToCheckNext.add(grantInfo.getPrincipalName());
-            LOG.debug("Adding " + grantInfo.getPrincipalName() +
-                " to list of roles user is in indirectly");
-          }
-        }
-      }
-      rolesToCheckNext = tmpRolesToCheckNext;
-    }
-
+  @Override
+  public void storeUserToRollMapping(String userName, Set<String> roles) throws IOException {
     byte[] key = HBaseUtils.buildKey(userName);
-    byte[] serialized = HBaseUtils.serializeRoleList(new ArrayList<>(rolesToAdd));
+    byte[] serialized = HBaseUtils.serializeRoleList(new ArrayList<>(roles));
     store(USER_TO_ROLE_TABLE, key, CATALOG_CF, CATALOG_COL, serialized);
   }
 
-  /**
-   * Remove all of the grants for a role.  This is not cheap.
-   * @param roleName Role to remove from all other roles and grants
-   * @throws IOException
-   */
-  void removeRoleGrants(String roleName) throws IOException {
-    buildRoleCache();
-
+  @Override
+  public void writeBackChangedRoles(Map<String, HbaseMetastoreProto.RoleGrantInfoList> changedRoles)
+      throws IOException {
     List<Put> puts = new ArrayList<>();
-    // First, walk the role table and remove any references to this role
-    for (Map.Entry<String, HbaseMetastoreProto.RoleGrantInfoList> e : roleCache.entrySet()) {
-      boolean madeAChange = false;
-      List<HbaseMetastoreProto.RoleGrantInfo> rgil = new ArrayList<>();
-      rgil.addAll(e.getValue().getGrantInfoList());
-      for (int i = 0; i < rgil.size(); i++) {
-        if (HBaseUtils.convertPrincipalTypes(rgil.get(i).getPrincipalType()) == PrincipalType.ROLE &&
-            rgil.get(i).getPrincipalName().equals(roleName)) {
-          rgil.remove(i);
-          madeAChange = true;
-          break;
-        }
-      }
-      if (madeAChange) {
-        Put put = new Put(HBaseUtils.buildKey(e.getKey()));
-        HbaseMetastoreProto.RoleGrantInfoList proto =
-            HbaseMetastoreProto.RoleGrantInfoList.newBuilder()
-            .addAllGrantInfo(rgil)
-            .build();
-        put.add(CATALOG_CF, ROLES_COL, proto.toByteArray());
-        puts.add(put);
-        roleCache.put(e.getKey(), proto);
-      }
+    for (Map.Entry<String, HbaseMetastoreProto.RoleGrantInfoList> e : changedRoles.entrySet()) {
+      Put put = new Put(HBaseUtils.buildKey(e.getKey()));
+      put.add(CATALOG_CF, ROLES_COL, e.getValue().toByteArray());
+      puts.add(put);
     }
 
-    if (puts.size() > 0) {
-      HTableInterface htab = conn.getHBaseTable(ROLE_TABLE);
-      htab.put(puts);
-      conn.flush(htab);
-    }
-
-    // Remove any global privileges held by this role
-    PrincipalPrivilegeSet global = getGlobalPrivs();
-    if (global != null &&
-        global.getRolePrivileges() != null &&
-        global.getRolePrivileges().remove(roleName) != null) {
-      putGlobalPrivs(global);
-    }
-
-    // Now, walk the db table
-    puts.clear();
-    List<Database> dbs = scanDatabases(null);
-    if (dbs == null) dbs = new ArrayList<>(); // rare, but can happen
-    for (Database db : dbs) {
-      if (db.getPrivileges() != null &&
-          db.getPrivileges().getRolePrivileges() != null &&
-          db.getPrivileges().getRolePrivileges().remove(roleName) != null) {
-        byte[][] serialized = HBaseUtils.serializeDatabase(db);
-        Put put = new Put(serialized[0]);
-        put.add(CATALOG_CF, CATALOG_COL, serialized[1]);
-        puts.add(put);
-      }
-    }
-
-    if (puts.size() > 0) {
-      HTableInterface htab = conn.getHBaseTable(DB_TABLE);
-      htab.put(puts);
-      conn.flush(htab);
-    }
-
-    // Finally, walk the table table
-    puts.clear();
-    for (Database db : dbs) {
-      List<Table> tables = scanTables(db.getName(), null);
-      if (tables != null) {
-        for (Table table : tables) {
-          if (table.getPrivileges() != null &&
-              table.getPrivileges().getRolePrivileges() != null &&
-              table.getPrivileges().getRolePrivileges().remove(roleName) != null) {
-            byte[][] serialized = HBaseUtils.serializeTable(table,
-                HBaseUtils.hashStorageDescriptor(table.getSd(), md));
-            Put put = new Put(serialized[0]);
-            put.add(CATALOG_CF, CATALOG_COL, serialized[1]);
-            puts.add(put);
-          }
-        }
-      }
-    }
-
-    if (puts.size() > 0) {
-      HTableInterface htab = conn.getHBaseTable(TABLE_TABLE);
-      htab.put(puts);
-      conn.flush(htab);
-    }
+    HTableInterface htab = conn.getHBaseTable(ROLE_TABLE);
+    htab.put(puts);
+    conn.flush(htab);
   }
 
   /**
@@ -1390,7 +1175,7 @@ public class HBaseReadWrite implements MetadataStore {
    * @return role object, or null if no such role
    * @throws IOException
    */
-  Role getRole(String roleName) throws IOException {
+  public Role getRole(String roleName) throws IOException {
     byte[] key = HBaseUtils.buildKey(roleName);
     byte[] serialized = read(ROLE_TABLE, key, CATALOG_CF, CATALOG_COL);
     if (serialized == null) return null;
@@ -1411,7 +1196,7 @@ public class HBaseReadWrite implements MetadataStore {
    * @param role role object
    * @throws IOException
    */
-  void putRole(Role role) throws IOException {
+  public void putRole(Role role) throws IOException {
     byte[][] serialized = HBaseUtils.serializeRole(role);
     store(ROLE_TABLE, serialized[0], CATALOG_CF, CATALOG_COL, serialized[1]);
   }
@@ -1421,10 +1206,10 @@ public class HBaseReadWrite implements MetadataStore {
    * @param roleName name of role to drop
    * @throws IOException
    */
-  void deleteRole(String roleName) throws IOException {
+  public void deleteRole(String roleName) throws IOException {
     byte[] key = HBaseUtils.buildKey(roleName);
     delete(ROLE_TABLE, key, null, null);
-    roleCache.remove(roleName);
+    //roleCache.remove(roleName);
   }
 
   String printRolesForUser(String userName) throws IOException {
@@ -1491,21 +1276,20 @@ public class HBaseReadWrite implements MetadataStore {
     return roles;
   }
 
-  private void buildRoleCache() throws IOException {
-    if (!entireRoleTableInCache) {
-      Iterator<Result> roles = scan(ROLE_TABLE, CATALOG_CF, ROLES_COL);
-      while (roles.hasNext()) {
-        Result res = roles.next();
-        String roleName = new String(res.getRow(), HBaseUtils.ENCODING);
-        HbaseMetastoreProto.RoleGrantInfoList grantInfos =
-            HbaseMetastoreProto.RoleGrantInfoList.parseFrom(res.getValue(CATALOG_CF, ROLES_COL));
-        roleCache.put(roleName, grantInfos);
-      }
-      entireRoleTableInCache = true;
+  @Override
+  public void populateRoleCache(Map<String, HbaseMetastoreProto.RoleGrantInfoList> cache) throws IOException {
+    Iterator<Result> roles = scan(ROLE_TABLE, CATALOG_CF, ROLES_COL);
+    while (roles.hasNext()) {
+      Result res = roles.next();
+      String roleName = new String(res.getRow(), HBaseUtils.ENCODING);
+      HbaseMetastoreProto.RoleGrantInfoList grantInfos =
+          HbaseMetastoreProto.RoleGrantInfoList.parseFrom(res.getValue(CATALOG_CF, ROLES_COL));
+      cache.put(roleName, grantInfos);
     }
+
   }
 
-  /**********************************************************************************************
+/**********************************************************************************************
    * Table related methods
    *********************************************************************************************/
 
@@ -1577,7 +1361,7 @@ public class HBaseReadWrite implements MetadataStore {
    * @return list of tables matching the regular expression.
    * @throws IOException
    */
-  List<Table> scanTables(String dbName, String regex) throws IOException {
+  public List<Table> scanTables(String dbName, String regex) throws IOException {
     // There's no way to know whether all the tables we are looking for are
     // in the cache, so we would need to scan one way or another.  Thus there's no value in hitting
     // the cache for this function.
@@ -1616,6 +1400,21 @@ public class HBaseReadWrite implements MetadataStore {
     byte[][] serialized = HBaseUtils.serializeTable(table, hash);
     store(TABLE_TABLE, serialized[0], CATALOG_CF, CATALOG_COL, serialized[1]);
     tableCache.put(new ObjectPair<>(table.getDbName(), table.getTableName()), table);
+  }
+
+  @Override
+  public void writeBackChangedTables(List<Table> tables) throws IOException {
+    List<Put> puts = new ArrayList<>();
+    for (Table table : tables) {
+      byte[][] serialized = HBaseUtils.serializeTable(table,
+          HBaseUtils.hashStorageDescriptor(table.getSd(), md));
+      Put put = new Put(serialized[0]);
+      put.add(CATALOG_CF, CATALOG_COL, serialized[1]);
+      puts.add(put);
+    }
+    HTableInterface htab = conn.getHBaseTable(TABLE_TABLE);
+    htab.put(puts);
+    conn.flush(htab);
   }
 
   /**
@@ -2647,12 +2446,6 @@ public class HBaseReadWrite implements MetadataStore {
     tableCache.flush();
     sdCache.flush();
     partCache.flush();
-    flushRoleCache();
-  }
-
-  private void flushRoleCache() {
-    roleCache.clear();
-    entireRoleTableInCache = false;
   }
 
   /**********************************************************************************************

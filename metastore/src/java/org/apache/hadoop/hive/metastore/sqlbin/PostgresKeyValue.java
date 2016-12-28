@@ -39,12 +39,15 @@ import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.Function;
 import org.apache.hadoop.hive.metastore.api.MetaException;
+import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Partition;
 import org.apache.hadoop.hive.metastore.api.PrincipalPrivilegeSet;
 import org.apache.hadoop.hive.metastore.api.Role;
 import org.apache.hadoop.hive.metastore.api.SQLForeignKey;
 import org.apache.hadoop.hive.metastore.api.SQLPrimaryKey;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.hbase.HBaseUtils;
+import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
 import org.apache.hadoop.hive.metastore.hbase.MetadataStore;
 import org.apache.hadoop.hive.metastore.hbase.stats.ColumnStatsAggregator;
 import org.apache.hadoop.hive.metastore.hbase.stats.ColumnStatsAggregatorFactory;
@@ -68,6 +71,7 @@ import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.sql.Array;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
@@ -113,17 +117,6 @@ public class PostgresKeyValue implements MetadataStore {
   static final String TEST_POSTGRES_PASSWD = "hive.test.postgres.password";
 
 
-  // Define the Aggregate stats table
-  /*
-  final static String STATS_HASH = "stats_md5";
-  final static String AGGR_STATS_BLOOM_COL = "bloom_filter";
-  final static PostgresTable AGGR_STATS_TABLE =
-      new PostgresTable("MS_AGGR_STATS")
-        .addColumn(STATS_HASH, "bytea", true)
-        .addByteColumn(STATS_COL)
-        .addByteColumn(AGGR_STATS_BLOOM_COL);
-        */
-
   // Define the Database table
   @VisibleForTesting
   final static PostgresTable DB_TABLE =
@@ -150,11 +143,22 @@ public class PostgresKeyValue implements MetadataStore {
           .addByteColumn(CATALOG_COL)
           .addToInitialTableList();
 
+  final static String R_NAME_COL = "role_name";
+  final static String R_PP_COL = "participating_principals";
   final static PostgresTable ROLE_TABLE =
       new PostgresTable("MS_ROLES")
-        .addStringKey("role_name")
-        .addByteColumn(CATALOG_COL)
-        .addToInitialTableList();
+          .addStringKey(R_NAME_COL)
+          .addByteColumn(CATALOG_COL)
+          .addByteColumn(R_PP_COL)
+          .addToInitialTableList();
+
+  final static String U2R_USER_NAME_COLUMN = "user_name";
+  final static String U2R_ROLE_LIST_COLUMN = "roles_user_is_in";
+  final static PostgresTable USER_TO_ROLE_TABLE =
+      new PostgresTable("MS_USER_TO_ROLE")
+          .addStringKey(U2R_USER_NAME_COLUMN)
+          .addColumn(U2R_ROLE_LIST_COLUMN, "varchar(255) array")
+          .addToInitialTableList();
 
   /*
   final static String DELEGATION_TOKEN_COL = "delegation_token";
@@ -194,11 +198,6 @@ public class PostgresKeyValue implements MetadataStore {
   final static PostgresTable INDEX_TABLE =
       new PostgresTable("MS_INDEX")
         .addStringKey("index_name")
-        .addByteColumn(CATALOG_COL);
-
-  final static PostgresTable USER_TO_ROLE_TABLE =
-      new PostgresTable("MS_USER_TO_ROLE")
-        .addStringKey("user_name")
         .addByteColumn(CATALOG_COL);
 
   final static PostgresTable FILE_METADATA_TABLE =
@@ -508,17 +507,22 @@ public class PostgresKeyValue implements MetadataStore {
    * @param regex Regular expression to use in searching for database names.  It is expected to
    *              be a Java regular expression.  If it is null then all databases will be returned.
    * @return list of databases matching the regular expression.
-   * @throws SQLException
+   * @throws IOException
    */
-  public List<Database> scanDatabases(String regex) throws SQLException {
-    List<byte[]> results = scanOnKeyWithRegex(DB_TABLE, CATALOG_COL, regex);
-    List<Database> dbs = new ArrayList<>();
-    for (byte[] serialized : results) {
-      Database db = new Database();
-      deserialize(db, serialized);
-      dbs.add(db);
+  public List<Database> scanDatabases(String regex) throws IOException {
+    try {
+      List<byte[]> results = scanOnKeyWithRegex(DB_TABLE, CATALOG_COL, regex);
+      List<Database> dbs = new ArrayList<>();
+      for (byte[] serialized : results) {
+        Database db = new Database();
+        deserialize(db, serialized);
+        dbs.add(db);
+      }
+      return dbs;
+    } catch (SQLException e) {
+      LOG.error("Unable to scan databases", e);
+      throw new IOException(e);
     }
-    return dbs;
   }
 
   /**
@@ -530,6 +534,18 @@ public class PostgresKeyValue implements MetadataStore {
     byte[] serialized = serialize(database);
     storeOnKey(DB_TABLE, CATALOG_COL, serialized, database.getName());
     dbCache.put(database.getName(), database);
+  }
+
+  @Override
+  public void writeBackChangedDatabases(List<Database> dbs) throws IOException {
+    try {
+      for (Database db : dbs) {
+        updateOnKey(DB_TABLE, CATALOG_COL, serialize(db), db.getName());
+      }
+    } catch (SQLException e) {
+      LOG.error("Unable to write databases", e);
+      throw new IOException(e);
+    }
   }
 
   /**
@@ -1054,22 +1070,235 @@ public class PostgresKeyValue implements MetadataStore {
    * Get a role.
    * @param roleName name of the role to get
    * @return the role, or null if there is no such role.
-   * @throws SQLException
+   * @throws IOException
    */
-  public Role getRole(String roleName) throws SQLException {
-    byte[] serialized = getBinaryColumnByKey(ROLE_TABLE, CATALOG_COL, roleName);
-    if (serialized == null) return null;
-    Role role = new Role();
-    deserialize(role, serialized);
-    return role;
+  @Override
+  public Role getRole(String roleName) throws IOException {
+    try {
+      byte[] serialized = getBinaryColumnByKey(ROLE_TABLE, CATALOG_COL, roleName);
+      if (serialized == null) return null;
+      Role role = new Role();
+      deserialize(role, serialized);
+      return role;
+    } catch (SQLException e) {
+      LOG.error("Caught exception trying to fetch role", e);
+      throw new IOException(e);
+    }
   }
 
-  public void putRole(Role role) throws SQLException {
-    byte[] serialized = serialize(role);
-    storeOnKey(ROLE_TABLE, CATALOG_COL, serialized, role.getRoleName());
+  @Override
+  public List<Role> getRoles(Collection<String> roleNames) throws IOException {
+    List<Role> roles = new ArrayList<>(roleNames.size());
+    try (Statement stmt = currentConnection.createStatement()) {
+      StringBuilder buf = new StringBuilder("select ")
+          .append(CATALOG_COL)
+          .append(" from ")
+          .append(ROLE_TABLE.getName())
+          .append(" where ")
+          .append(R_NAME_COL)
+          .append(" in (");
+      boolean first = true;
+      for (String roleName : roleNames) {
+        if (first) first = false;
+        else buf.append(", ");
+        buf.append('\'')
+            .append(roleName)
+            .append('\'');
+      }
+      buf.append(')');
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Going to execute query " + buf.toString());
+      }
+      ResultSet rs = stmt.executeQuery(buf.toString());
+      while (rs.next()) {
+        byte[] serialized = rs.getBytes(1);
+        if (serialized != null) {
+          Role role = new Role();
+          deserialize(role, serialized);
+          roles.add(role);
+        }
+      }
+      return roles;
+    } catch (SQLException e) {
+      LOG.error("Unable to fetch roles", e);
+      throw new IOException(e);
+    }
   }
 
-  /**********************************************************************************************
+  public List<Role> scanRoles() throws SQLException {
+    List<byte[]> serializeds = scanOnKeyWithRegex(ROLE_TABLE, CATALOG_COL, null);
+    if (serializeds.size() == 0) return Collections.emptyList();
+    List<Role> roles = new ArrayList<>(serializeds.size());
+    for (byte[] serialized : serializeds) {
+      Role role = new Role();
+      deserialize(role, serialized);
+      roles.add(role);
+    };
+    return roles;
+  }
+
+  @Override
+  public void putRole(Role role) throws IOException {
+    try {
+      byte[] serialized = serialize(role);
+      storeOnKey(ROLE_TABLE, CATALOG_COL, serialized, role.getRoleName());
+    } catch (SQLException e) {
+      LOG.error("Caught exception trying to store role", e);
+      throw new IOException(e);
+    }
+  }
+
+  @Override
+  public void deleteRole(String roleName) throws IOException {
+    try {
+      deleteOnKey(ROLE_TABLE, roleName);
+    } catch (SQLException e) {
+      LOG.error("Unable to delete role", e);
+      throw new IOException(e);
+    }
+  }
+
+  @Override
+  public Set<String> findAllUsersInRole(String roleName) throws IOException {
+    Set<String> users = new HashSet<>();
+
+    try (Statement stmt = currentConnection.createStatement()) {
+      StringBuilder buf = new StringBuilder("select ")
+          .append(U2R_USER_NAME_COLUMN)
+          .append(", ")
+          .append(U2R_ROLE_LIST_COLUMN)
+          .append(" from ")
+          .append(USER_TO_ROLE_TABLE.getName());
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Going to run query " + buf.toString());
+      }
+      ResultSet rs = stmt.executeQuery(buf.toString());
+      while (rs.next()) {
+        Array array = rs.getArray(2);
+        if (!rs.wasNull()) {
+          String[] roles = (String[])array.getArray();
+          for (String role : roles) {
+            if (role.equals(roleName)) {
+              users.add(rs.getString(1));
+              break;
+            }
+          }
+        }
+      }
+      return users;
+    } catch (SQLException e) {
+      LOG.error("Unable to fetch all roles for user", e);
+      throw new IOException(e);
+    }
+  }
+
+  @Override
+  public void writeBackChangedRoles(Map<String, HbaseMetastoreProto.RoleGrantInfoList> changedRoles)
+      throws IOException {
+    try {
+      for (Map.Entry<String, HbaseMetastoreProto.RoleGrantInfoList> e : changedRoles.entrySet()) {
+        updateOnKey(ROLE_TABLE, R_PP_COL, e.getValue().toByteArray(), e.getKey());
+      }
+    } catch (SQLException e) {
+      LOG.error("Unable to write back changed roles", e);
+      throw new IOException(e);
+    }
+  }
+
+  @Override
+  public void storeUserToRollMapping(String userName, Set<String> roles) throws IOException {
+    try {
+      if (recordExists(USER_TO_ROLE_TABLE, userName)) {
+        StringBuilder buf = new StringBuilder("update ")
+            .append(USER_TO_ROLE_TABLE.getName())
+            .append(" set ")
+            .append(U2R_ROLE_LIST_COLUMN)
+            .append(" = ?")
+            .append(" where ")
+            .append(U2R_USER_NAME_COLUMN)
+            .append(" = ?");
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("Going to prepare statement " + buf.toString());
+        }
+        try (PreparedStatement stmt = currentConnection.prepareStatement(buf.toString())) {
+          stmt.setArray(1, currentConnection.createArrayOf("varchar", roles.toArray(new String[roles.size()])));
+          stmt.setString(2, userName);
+
+          int rowsUpdated = stmt.executeUpdate();
+          if (rowsUpdated != 1) {
+            String msg = "Expected to update a row for " + USER_TO_ROLE_TABLE + " " + userName +
+                ", but did not";
+            LOG.error(msg);
+            throw new RuntimeException(msg);
+          }
+        }
+      } else {
+        StringBuilder buf = new StringBuilder("insert into ")
+            .append(USER_TO_ROLE_TABLE.getName())
+            .append(" (")
+            .append(U2R_USER_NAME_COLUMN)
+            .append(", ")
+            .append(U2R_ROLE_LIST_COLUMN)
+            .append(") values (?, ?)");
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("Going to prepare statement " + buf.toString());
+        }
+        try (PreparedStatement stmt = currentConnection.prepareStatement(buf.toString())) {
+          stmt.setString(1, userName);
+          stmt.setArray(2, currentConnection.createArrayOf("varchar", roles.toArray(new String[roles.size()])));
+
+          int rowsInserted = stmt.executeUpdate();
+          if (rowsInserted != 1) {
+            String msg = "Expected to insert a row for " + USER_TO_ROLE_TABLE + " " +  userName +
+                ", but did not";
+            LOG.error(msg);
+            throw new RuntimeException(msg);
+          }
+        }
+      }
+    } catch (SQLException e) {
+      LOG.error("Unable to store user to roll mapping", e);
+      throw new IOException(e);
+    }
+  }
+
+  @Override
+  public void populateRoleCache(Map<String, HbaseMetastoreProto.RoleGrantInfoList> cache) throws IOException {
+    StringBuilder buf = new StringBuilder("select ")
+        .append(R_NAME_COL)
+        .append(", ")
+        .append(R_PP_COL)
+        .append(" from ")
+        .append(ROLE_TABLE.getName());
+    try (Statement stmt = currentConnection.createStatement()) {
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Going to execute query " + buf.toString());
+      }
+      ResultSet rs = stmt.executeQuery(buf.toString());
+      while (rs.next()) {
+        byte[] serializedRgil = rs.getBytes(2);
+        if (serializedRgil != null) {
+          cache.put(rs.getString(1), HbaseMetastoreProto.RoleGrantInfoList.parseFrom(serializedRgil));
+        }
+      }
+    } catch (SQLException e) {
+      LOG.error("Unable to scan user to role table", e);
+      throw new IOException(e);
+    }
+  }
+
+  @Override
+  public HbaseMetastoreProto.RoleGrantInfoList getRolePrincipals(String roleName) throws IOException {
+    try {
+      byte[] serialized = getBinaryColumnByKey(ROLE_TABLE, R_PP_COL, R_NAME_COL);
+      if (serialized == null) return null;
+      return HbaseMetastoreProto.RoleGrantInfoList.parseFrom(serialized);
+    } catch (SQLException e) {
+      LOG.error("Unable to get role principals", e);
+      throw new IOException(e);
+    }
+  }
+/**********************************************************************************************
    * Table related methods
    *********************************************************************************************/
 
@@ -1109,17 +1338,22 @@ public class PostgresKeyValue implements MetadataStore {
    *              be a Java regular expression.  If it is null then all tables in the indicated
    *              database will be returned.
    * @return list of tables matching the regular expression.
-   * @throws SQLException
+   * @throws IOException
    */
-  public List<Table> scanTables(String dbName, String regex) throws SQLException {
-    List<byte[]> results = scanOnKeyWithRegex(TABLE_TABLE, CATALOG_COL, regex, dbName);
-    List<Table> tables = new ArrayList<>();
-    for (byte[] serialized : results) {
-      Table table = new Table();
-      deserialize(table, serialized);
-      tables.add(table);
+  public List<Table> scanTables(String dbName, String regex) throws IOException {
+    try {
+      List<byte[]> results = scanOnKeyWithRegex(TABLE_TABLE, CATALOG_COL, regex, dbName);
+      List<Table> tables = new ArrayList<>();
+      for (byte[] serialized : results) {
+        Table table = new Table();
+        deserialize(table, serialized);
+        tables.add(table);
+      }
+      return tables;
+    } catch (SQLException e) {
+      LOG.error("Unable to scan tables", e);
+      throw new IOException(e);
     }
-    return tables;
   }
 
   /**
@@ -1130,6 +1364,18 @@ public class PostgresKeyValue implements MetadataStore {
   public void putTable(Table table) throws SQLException {
     storeOnKey(TABLE_TABLE, CATALOG_COL, serialize(table), table.getDbName(), table.getTableName());
     tableCache.put(new ObjectPair<>(table.getDbName(), table.getTableName()), table);
+  }
+
+  @Override
+  public void writeBackChangedTables(List<Table> tables) throws IOException {
+    try {
+      for (Table table : tables) {
+        updateOnKey(TABLE_TABLE, CATALOG_COL, serialize(table), table.getDbName(), table.getTableName());
+      }
+    } catch (SQLException e) {
+      LOG.error("Unable to write tables", e);
+      throw new IOException(e);
+    }
   }
 
   /**

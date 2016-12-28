@@ -21,6 +21,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.metastore.FileMetadataHandler;
+import org.apache.hadoop.hive.metastore.HiveMetaStore;
 import org.apache.hadoop.hive.metastore.ObjectStore;
 import org.apache.hadoop.hive.metastore.PartFilterExprUtil;
 import org.apache.hadoop.hive.metastore.PartitionExpressionProxy;
@@ -60,12 +61,14 @@ import org.apache.hadoop.hive.metastore.api.UnknownPartitionException;
 import org.apache.hadoop.hive.metastore.api.UnknownTableException;
 import org.apache.hadoop.hive.metastore.hbase.HBaseStore;
 import org.apache.hadoop.hive.metastore.hbase.PrivilegeHelper;
+import org.apache.hadoop.hive.metastore.hbase.RoleHelper;
 import org.apache.hadoop.hive.metastore.parser.ExpressionTree;
 import org.apache.hadoop.hive.metastore.partition.spec.PartitionSpecProxy;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -80,6 +83,7 @@ public class PostgresStore implements RawStore {
   private PostgresKeyValue pgres; // Do not use this directly, call getPostgres()
   private PartitionExpressionProxy expressionProxy; // Do not use directly, call getExpressionProxy()
   private PrivilegeHelper privilegeHelper;
+  private RoleHelper roleHelper;
 
   @Override
   public void shutdown() {
@@ -469,18 +473,13 @@ public class PostgresStore implements RawStore {
   @Override
   public boolean addRole(String roleName, String ownerName) throws InvalidObjectException,
       MetaException, NoSuchObjectException {
-    int now = (int)(System.currentTimeMillis()/1000);
-    Role role = new Role(roleName, now, ownerName);
     boolean commit = false;
     openTransaction();
     try {
-      if (getPostgres().getRole(roleName) != null) {
-        throw new InvalidObjectException("Role " + roleName + " already exists");
-      }
-      getPostgres().putRole(role);
+      getRoleHelper().addRole(roleName, ownerName);
       commit = true;
       return true;
-    } catch (SQLException e) {
+    } catch (IOException e) {
       LOG.error("Unable to create role ", e);
       throw new MetaException("Unable to read from or write to Postgres " + e.getMessage());
     } finally {
@@ -490,21 +489,63 @@ public class PostgresStore implements RawStore {
 
   @Override
   public boolean removeRole(String roleName) throws MetaException, NoSuchObjectException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      getRoleHelper().removeRole(roleName);
+      commit = true;
+      return true;
+    } catch (IOException e) {
+      LOG.error("Unable to delete role" + e);
+      throw new MetaException("Unable to drop role " + roleName);
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
   public boolean grantRole(Role role, String userName, PrincipalType principalType, String grantor,
                            PrincipalType grantorType, boolean grantOption) throws MetaException,
       NoSuchObjectException, InvalidObjectException {
-    // TODO - cheating here, need to implement this.
-    return true;
+    boolean commit = false;
+    openTransaction();
+    try {
+      getRoleHelper().grantRole(role, userName, principalType, grantor, grantorType, grantOption);
+      commit = true;
+      return true;
+    } catch (IOException e) {
+      LOG.error("Unable to grant role", e);
+      throw new MetaException("Unable to grant role " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
   public boolean revokeRole(Role role, String userName, PrincipalType principalType,
                             boolean grantOption) throws MetaException, NoSuchObjectException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    // This can have a couple of different meanings.  If grantOption is true, then this is only
+    // revoking the grant option, the role itself doesn't need to be removed.  If it is false
+    // then we need to remove the userName from the role altogether.
+    try {
+      getRoleHelper().revokeRole(role, userName, principalType, grantOption);
+      commit = true;
+      return true;
+    } catch (IOException e) {
+      LOG.error("Unable to revoke role " + role.getRoleName() + " from " + userName, e);
+      throw new MetaException("Unable to revoke role " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
+  }
+
+  private RoleHelper getRoleHelper() {
+    if (roleHelper == null) {
+      roleHelper = new RoleHelper(this, getPostgres());
+    }
+    return roleHelper;
   }
 
   @Override
@@ -638,7 +679,7 @@ public class PostgresStore implements RawStore {
       }
       commit = true;
       return role;
-    } catch (SQLException e) {
+    } catch (IOException e) {
       LOG.error("Unable to get role", e);
       throw new NoSuchObjectException("Error reading table " + e.getMessage());
     } finally {
@@ -648,23 +689,70 @@ public class PostgresStore implements RawStore {
 
   @Override
   public List<String> listRoleNames() {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      List<Role> roles = getPostgres().scanRoles();
+      List<String> roleNames = new ArrayList<>(roles.size());
+      for (Role role : roles) roleNames.add(role.getRoleName());
+      commit = true;
+      return roleNames;
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
   public List<Role> listRoles(String principalName, PrincipalType principalType) {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      List<Role> roles = getRoleHelper().getPrincipalDirectRoles(principalName, principalType);
+      // Add the public role if this is a user
+      if (principalType == PrincipalType.USER) {
+        roles.add(new Role(HiveMetaStore.PUBLIC, 0, null));
+      }
+      commit = true;
+      return roles;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
   public List<RolePrincipalGrant> listRolesWithGrants(String principalName,
                                                       PrincipalType principalType) {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      List<RolePrincipalGrant> rpgs =
+          getRoleHelper().listRolesWithGrants(principalName, principalType);
+      commit = true;
+      return rpgs;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
   public List<RolePrincipalGrant> listRoleMembers(String roleName) {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      List<RolePrincipalGrant> roleMaps = getRoleHelper().listRoleMembers(roleName);
+      commit = true;
+      return roleMaps;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
@@ -1063,6 +1151,7 @@ public class PostgresStore implements RawStore {
   @Override
   public void flushCache() {
     getPostgres().flushCatalogCache();
+    getRoleHelper().clearRoleCache();
   }
 
   @Override

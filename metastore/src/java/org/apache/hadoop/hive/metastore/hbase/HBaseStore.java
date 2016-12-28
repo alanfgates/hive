@@ -105,6 +105,7 @@ public class HBaseStore implements RawStore {
   private PartitionExpressionProxy expressionProxy = null;
   private Map<FileMetadataExprType, FileMetadataHandler> fmHandlers;
   private PrivilegeHelper privilegeHelper;
+  private RoleHelper roleHelper;
 
   public HBaseStore() {
   }
@@ -1064,15 +1065,10 @@ public class HBaseStore implements RawStore {
   @Override
   public boolean addRole(String roleName, String ownerName) throws InvalidObjectException,
       MetaException, NoSuchObjectException {
-    int now = (int)(System.currentTimeMillis()/1000);
-    Role role = new Role(roleName, now, ownerName);
     boolean commit = false;
     openTransaction();
     try {
-      if (getHBase().getRole(roleName) != null) {
-        throw new InvalidObjectException("Role " + roleName + " already exists");
-      }
-      getHBase().putRole(role);
+      getRoleHelper().addRole(roleName, ownerName);
       commit = true;
       return true;
     } catch (IOException e) {
@@ -1088,12 +1084,7 @@ public class HBaseStore implements RawStore {
     boolean commit = false;
     openTransaction();
     try {
-      Set<String> usersInRole = getHBase().findAllUsersInRole(roleName);
-      getHBase().deleteRole(roleName);
-      getHBase().removeRoleGrants(roleName);
-      for (String user : usersInRole) {
-        getHBase().buildRoleMapForUser(user);
-      }
+      getRoleHelper().removeRole(roleName);
       commit = true;
       return true;
     } catch (IOException e) {
@@ -1111,24 +1102,7 @@ public class HBaseStore implements RawStore {
     boolean commit = false;
     openTransaction();
     try {
-      Set<String> usersToRemap = findUsersToRemapRolesFor(role, userName, principalType);
-      HbaseMetastoreProto.RoleGrantInfo.Builder builder =
-          HbaseMetastoreProto.RoleGrantInfo.newBuilder();
-      if (userName != null) builder.setPrincipalName(userName);
-      if (principalType != null) {
-        builder.setPrincipalType(HBaseUtils.convertPrincipalTypes(principalType));
-      }
-      builder.setAddTime((int)(System.currentTimeMillis() / 1000));
-      if (grantor != null) builder.setGrantor(grantor);
-      if (grantorType != null) {
-        builder.setGrantorType(HBaseUtils.convertPrincipalTypes(grantorType));
-      }
-      builder.setGrantOption(grantOption);
-
-      getHBase().addPrincipalToRole(role.getRoleName(), builder.build());
-      for (String user : usersToRemap) {
-        getHBase().buildRoleMapForUser(user);
-      }
+      getRoleHelper().grantRole(role, userName, principalType, grantor, grantorType, grantOption);
       commit = true;
       return true;
     } catch (IOException e) {
@@ -1148,16 +1122,7 @@ public class HBaseStore implements RawStore {
     // revoking the grant option, the role itself doesn't need to be removed.  If it is false
     // then we need to remove the userName from the role altogether.
     try {
-      if (grantOption) {
-        // If this is a grant only change, we don't need to rebuild the user mappings.
-        getHBase().dropPrincipalFromRole(role.getRoleName(), userName, principalType, grantOption);
-      } else {
-        Set<String> usersToRemap = findUsersToRemapRolesFor(role, userName, principalType);
-        getHBase().dropPrincipalFromRole(role.getRoleName(), userName, principalType, grantOption);
-        for (String user : usersToRemap) {
-          getHBase().buildRoleMapForUser(user);
-        }
-      }
+      getRoleHelper().revokeRole(role, userName, principalType, grantOption);
       commit = true;
       return true;
     } catch (IOException e) {
@@ -1528,7 +1493,7 @@ public class HBaseStore implements RawStore {
     openTransaction();
     try {
       List<Role> roles = getHBase().scanRoles();
-      List<String> roleNames = new ArrayList<String>(roles.size());
+      List<String> roleNames = new ArrayList<>(roles.size());
       for (Role role : roles) roleNames.add(role.getRoleName());
       commit = true;
       return roleNames;
@@ -1541,21 +1506,18 @@ public class HBaseStore implements RawStore {
 
   @Override
   public List<Role> listRoles(String principalName, PrincipalType principalType) {
-    List<Role> roles = new ArrayList<Role>();
     boolean commit = false;
     openTransaction();
     try {
-      try {
-        roles.addAll(getHBase().getPrincipalDirectRoles(principalName, principalType));
-      } catch (IOException e) {
-        throw new RuntimeException(e);
-      }
+      List<Role> roles = getRoleHelper().getPrincipalDirectRoles(principalName, principalType);
       // Add the public role if this is a user
       if (principalType == PrincipalType.USER) {
         roles.add(new Role(HiveMetaStore.PUBLIC, 0, null));
       }
       commit = true;
       return roles;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
     } finally {
       commitOrRoleBack(commit);
     }
@@ -1567,24 +1529,11 @@ public class HBaseStore implements RawStore {
     boolean commit = false;
     openTransaction();
     try {
-      List<Role> roles = listRoles(principalName, principalType);
-      List<RolePrincipalGrant> rpgs = new ArrayList<RolePrincipalGrant>(roles.size());
-      for (Role role : roles) {
-        HbaseMetastoreProto.RoleGrantInfoList grants = getHBase().getRolePrincipals(role.getRoleName());
-        if (grants != null) {
-          for (HbaseMetastoreProto.RoleGrantInfo grant : grants.getGrantInfoList()) {
-            if (grant.getPrincipalType() == HBaseUtils.convertPrincipalTypes(principalType) &&
-                grant.getPrincipalName().equals(principalName)) {
-              rpgs.add(new RolePrincipalGrant(role.getRoleName(), principalName, principalType,
-                  grant.getGrantOption(), (int) grant.getAddTime(), grant.getGrantor(),
-                  HBaseUtils.convertPrincipalTypes(grant.getGrantorType())));
-            }
-          }
-        }
-      }
+      List<RolePrincipalGrant> rpgs =
+          getRoleHelper().listRolesWithGrants(principalName, principalType);
       commit = true;
       return rpgs;
-    } catch (Exception e) {
+    } catch (IOException e) {
       throw new RuntimeException(e);
     } finally {
       commitOrRoleBack(commit);
@@ -1596,21 +1545,21 @@ public class HBaseStore implements RawStore {
     boolean commit = false;
     openTransaction();
     try {
-      HbaseMetastoreProto.RoleGrantInfoList gil = getHBase().getRolePrincipals(roleName);
-      List<RolePrincipalGrant> roleMaps = new ArrayList<RolePrincipalGrant>(gil.getGrantInfoList().size());
-      for (HbaseMetastoreProto.RoleGrantInfo giw : gil.getGrantInfoList()) {
-        roleMaps.add(new RolePrincipalGrant(roleName, giw.getPrincipalName(),
-            HBaseUtils.convertPrincipalTypes(giw.getPrincipalType()),
-            giw.getGrantOption(), (int)giw.getAddTime(), giw.getGrantor(),
-            HBaseUtils.convertPrincipalTypes(giw.getGrantorType())));
-      }
+      List<RolePrincipalGrant> roleMaps = getRoleHelper().listRoleMembers(roleName);
       commit = true;
       return roleMaps;
-    } catch (Exception e) {
+    } catch (IOException e) {
       throw new RuntimeException(e);
     } finally {
       commitOrRoleBack(commit);
     }
+  }
+
+  private RoleHelper getRoleHelper() {
+    if (roleHelper == null) {
+      roleHelper = new RoleHelper(this, getHBase());
+    }
+    return roleHelper;
   }
 
   @Override
@@ -2341,6 +2290,7 @@ public class HBaseStore implements RawStore {
   @Override
   public void flushCache() {
     getHBase().flushCatalogCache();
+    getRoleHelper().clearRoleCache();
   }
 
   @Override
@@ -2412,29 +2362,6 @@ public class HBaseStore implements RawStore {
   private String buildExternalPartName(String dbName, String tableName, List<String> partVals)
       throws MetaException {
     return buildExternalPartName(getTable(dbName, tableName), partVals);
-  }
-
-  private Set<String> findUsersToRemapRolesFor(Role role, String principalName, PrincipalType type)
-      throws IOException, NoSuchObjectException {
-    Set<String> usersToRemap;
-    switch (type) {
-      case USER:
-        // In this case it's just the user being added to the role that we need to remap for.
-        usersToRemap = new HashSet<String>();
-        usersToRemap.add(principalName);
-        break;
-
-      case ROLE:
-        // In this case we need to remap for all users in the containing role (not the role being
-        // granted into the containing role).
-        usersToRemap = getHBase().findAllUsersInRole(role.getRoleName());
-        break;
-
-      default:
-        throw new RuntimeException("Unknown principal type " + type);
-
-    }
-    return usersToRemap;
   }
 
   /**

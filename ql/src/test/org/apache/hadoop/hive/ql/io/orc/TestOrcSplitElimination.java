@@ -25,12 +25,14 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -39,8 +41,13 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.common.type.HiveDecimal;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
+import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.MetadataPpdResult;
+import org.apache.hadoop.hive.metastore.api.PrincipalPrivilegeSet;
+import org.apache.hadoop.hive.metastore.api.Role;
+import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.filemeta.OrcFileMetadataHandler;
+import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
 import org.apache.hadoop.hive.metastore.hbase.MetadataStore;
 import org.apache.hadoop.hive.ql.exec.SerializationUtilities;
 import org.apache.hadoop.hive.ql.io.orc.ExternalCache.ExternalFooterCachesByConf;
@@ -532,6 +539,83 @@ public class TestOrcSplitElimination {
         mi.extraData = addedVals;
       }
       cache.put(fileId, mi);
+    }
+
+    @Override
+    public List<Database> scanDatabases(String regex) throws IOException {
+      return null;
+    }
+
+    @Override
+    public void writeBackChangedDatabases(List<Database> dbs) throws IOException {
+
+    }
+
+    @Override
+    public PrincipalPrivilegeSet getGlobalPrivs() throws IOException {
+      return null;
+    }
+
+    @Override
+    public void putGlobalPrivs(PrincipalPrivilegeSet privs) throws IOException {
+
+    }
+
+    @Override
+    public Role getRole(String roleName) throws IOException {
+      return null;
+    }
+
+    @Override
+    public List<Role> getRoles(Collection<String> roleNames) throws IOException {
+      return null;
+    }
+
+    @Override
+    public void putRole(Role role) throws IOException {
+
+    }
+
+    @Override
+    public Set<String> findAllUsersInRole(String roleName) throws IOException {
+      return null;
+    }
+
+    @Override
+    public void deleteRole(String roleName) throws IOException {
+
+    }
+
+    @Override
+    public void writeBackChangedRoles(Map<String, HbaseMetastoreProto.RoleGrantInfoList>
+                                              changedRoles) throws IOException {
+
+    }
+
+    @Override
+    public void storeUserToRollMapping(String userName, Set<String> roles) throws IOException {
+
+    }
+
+    @Override
+    public void populateRoleCache(Map<String, HbaseMetastoreProto.RoleGrantInfoList> cache) throws IOException {
+
+    }
+
+    @Override
+    public HbaseMetastoreProto.RoleGrantInfoList getRolePrincipals(String roleName) throws
+        IOException {
+      return null;
+    }
+
+    @Override
+    public List<Table> scanTables(String dbName, String regex) throws IOException {
+      return null;
+    }
+
+    @Override
+    public void writeBackChangedTables(List<Table> tables) throws IOException {
+
     }
   }
 
