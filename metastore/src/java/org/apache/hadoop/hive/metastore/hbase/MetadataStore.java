@@ -179,4 +179,12 @@ public interface MetadataStore {
    */
   void writeBackChangedTables(List<Table> tables) throws IOException;
 
+  /**
+   * Get a list of all roles the user participates in.
+   * @param userName user
+   * @return list of roles the user is a part of
+   * @throws IOException
+   */
+  List<String> getUserRoles(String userName) throws IOException;
+
 }

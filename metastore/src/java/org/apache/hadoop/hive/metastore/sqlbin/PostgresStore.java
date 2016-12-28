@@ -551,21 +551,55 @@ public class PostgresStore implements RawStore {
   @Override
   public PrincipalPrivilegeSet getUserPrivilegeSet(String userName, List<String> groupNames) throws
       InvalidObjectException, MetaException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      PrincipalPrivilegeSet pps = getPrivilegeHelper().getUserPrivilegeSet(userName);
+      commit = true;
+      return pps;
+    } catch (IOException e) {
+      LOG.error("Unable to get db privileges for user", e);
+      throw new MetaException("Unable to get db privileges for user, " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
   public PrincipalPrivilegeSet getDBPrivilegeSet(String dbName, String userName,
                                                  List<String> groupNames) throws
       InvalidObjectException, MetaException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      PrincipalPrivilegeSet pps = getPrivilegeHelper().getDBPrivilegeSet(dbName, userName);
+      commit = true;
+      return pps;
+    } catch (IOException|NoSuchObjectException e) {
+      LOG.error("Unable to get db privileges for user", e);
+      throw new MetaException("Unable to get db privileges for user, " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
   public PrincipalPrivilegeSet getTablePrivilegeSet(String dbName, String tableName,
                                                     String userName, List<String> groupNames) throws
       InvalidObjectException, MetaException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      PrincipalPrivilegeSet pps =
+          getPrivilegeHelper().getTablePrivilegeSet(dbName, tableName, userName);
+      commit = true;
+      return pps;
+    } catch (IOException e) {
+      LOG.error("Unable to get db privileges for user", e);
+      throw new MetaException("Unable to get db privileges for user, " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override

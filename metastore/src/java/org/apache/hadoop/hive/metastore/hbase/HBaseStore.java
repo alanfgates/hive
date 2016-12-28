@@ -1139,6 +1139,7 @@ public class HBaseStore implements RawStore {
     boolean commit = false;
     openTransaction();
     try {
+      /*
       PrincipalPrivilegeSet pps = new PrincipalPrivilegeSet();
       PrincipalPrivilegeSet global = getHBase().getGlobalPrivs();
       if (global == null) return null;
@@ -1161,6 +1162,8 @@ public class HBaseStore implements RawStore {
           }
         }
       }
+      */
+      PrincipalPrivilegeSet pps = getPrivilegeHelper().getUserPrivilegeSet(userName);
       commit = true;
       return pps;
     } catch (IOException e) {
@@ -1178,6 +1181,7 @@ public class HBaseStore implements RawStore {
     boolean commit = false;
     openTransaction();
     try {
+      /*
       PrincipalPrivilegeSet pps = new PrincipalPrivilegeSet();
       Database db = getHBase().getDb(dbName);
       if (db.getPrivileges() != null) {
@@ -1202,9 +1206,11 @@ public class HBaseStore implements RawStore {
           }
         }
       }
+      */
+      PrincipalPrivilegeSet pps = getPrivilegeHelper().getDBPrivilegeSet(dbName, userName);
       commit = true;
       return pps;
-    } catch (IOException e) {
+    } catch (IOException|NoSuchObjectException e) {
       LOG.error("Unable to get db privileges for user", e);
       throw new MetaException("Unable to get db privileges for user, " + e.getMessage());
     } finally {
@@ -1219,6 +1225,7 @@ public class HBaseStore implements RawStore {
     boolean commit = false;
     openTransaction();
     try {
+      /*
       PrincipalPrivilegeSet pps = new PrincipalPrivilegeSet();
       Table table = getHBase().getTable(dbName, tableName);
       List<PrivilegeGrantInfo> pgi;
@@ -1242,6 +1249,9 @@ public class HBaseStore implements RawStore {
           }
         }
       }
+      */
+      PrincipalPrivilegeSet pps =
+          getPrivilegeHelper().getTablePrivilegeSet(dbName, tableName, userName);
       commit = true;
       return pps;
     } catch (IOException e) {

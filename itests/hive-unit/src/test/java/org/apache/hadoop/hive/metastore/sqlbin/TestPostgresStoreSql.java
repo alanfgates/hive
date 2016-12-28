@@ -121,6 +121,83 @@ public class TestPostgresStoreSql {
         "    d_current_year            string\n" +
         ")");
     Assert.assertEquals(response.getErrorMessage(), 0, response.getResponseCode());
+
+    response = driver.run("create table item\n" +
+        "(\n" +
+        "    i_item_sk                 bigint,\n" +
+        "    i_item_id                 string,\n" +
+        "    i_rec_start_date          string,\n" +
+        "    i_rec_end_date            string,\n" +
+        "    i_item_desc               string,\n" +
+        "    i_current_price           double,\n" +
+        "    i_wholesale_cost          double,\n" +
+        "    i_brand_id                int,\n" +
+        "    i_brand                   string,\n" +
+        "    i_class_id                int,\n" +
+        "    i_class                   string,\n" +
+        "    i_category_id             int,\n" +
+        "    i_category                string,\n" +
+        "    i_manufact_id             int,\n" +
+        "    i_manufact                string,\n" +
+        "    i_size                    string,\n" +
+        "    i_formulation             string,\n" +
+        "    i_color                   string,\n" +
+        "    i_units                   string,\n" +
+        "    i_container               string,\n" +
+        "    i_manager_id              int,\n" +
+        "    i_product_name            string\n" +
+        ")");
+    Assert.assertEquals(response.getErrorMessage(), 0, response.getResponseCode());
+
+    response = driver.run("create table store_sales\n" +
+        "(\n" +
+        "    ss_sold_time_sk           bigint,\n" +
+        "    ss_item_sk                bigint,\n" +
+        "    ss_customer_sk            bigint,\n" +
+        "    ss_cdemo_sk               bigint,\n" +
+        "    ss_hdemo_sk               bigint,\n" +
+        "    ss_addr_sk                bigint,\n" +
+        "    ss_store_sk               bigint,\n" +
+        "    ss_promo_sk               bigint,\n" +
+        "    ss_ticket_number          bigint,\n" +
+        "    ss_quantity               int,\n" +
+        "    ss_wholesale_cost         double,\n" +
+        "    ss_list_price             double,\n" +
+        "    ss_sales_price            double,\n" +
+        "    ss_ext_discount_amt       double,\n" +
+        "    ss_ext_sales_price        double,\n" +
+        "    ss_ext_wholesale_cost     double,\n" +
+        "    ss_ext_list_price         double,\n" +
+        "    ss_ext_tax                double,\n" +
+        "    ss_coupon_amt             double,\n" +
+        "    ss_net_paid               double,\n" +
+        "    ss_net_paid_inc_tax       double,\n" +
+        "    ss_net_profit             double\n" +
+        ") partitioned by (ss_sold_date_sk bigint)");
+    Assert.assertEquals(response.getErrorMessage(), 0, response.getResponseCode());
+
+    response = driver.run("analyze table date_dim compute statistics for columns");
+    Assert.assertEquals(response.getErrorMessage(), 0, response.getResponseCode());
+    response = driver.run("analyze table item compute statistics for columns");
+    Assert.assertEquals(response.getErrorMessage(), 0, response.getResponseCode());
+    response = driver.run("analyze table store_sales compute statistics for columns");
+    Assert.assertEquals(response.getErrorMessage(), 0, response.getResponseCode());
+
+    response = driver.run("alter table store_sales add partition (ss_sold_date = 1)");
+    Assert.assertEquals(response.getErrorMessage(), 0, response.getResponseCode());
+
+    response = driver.run("select  i_brand_id brand_id, i_brand brand,\n" +
+        "  sum(ss_ext_sales_price) ext_price\n" +
+        " from date_dim, store_sales, item\n" +
+        " where date_dim.d_date_sk = store_sales.ss_sold_date_sk\n" +
+        "  and store_sales.ss_item_sk = item.i_item_sk\n" +
+        "  and i_manager_id=36\n" +
+        "  and d_moy=12\n" +
+        "  and d_year=2001\n" +
+        " group by i_brand, i_brand_id\n" +
+        " order by ext_price desc, i_brand_id\n" +
+        "limit 100 ");
+    Assert.assertEquals(response.getErrorMessage(), 0, response.getResponseCode());
   }
 
 }

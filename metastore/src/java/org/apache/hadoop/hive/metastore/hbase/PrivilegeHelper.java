@@ -87,6 +87,90 @@ public class PrivilegeHelper {
     }
   }
 
+  public PrincipalPrivilegeSet getUserPrivilegeSet(String userName) throws IOException {
+    PrincipalPrivilegeSet pps = new PrincipalPrivilegeSet();
+    PrincipalPrivilegeSet global = kvs.getGlobalPrivs();
+    if (global == null) return null;
+    List<PrivilegeGrantInfo> pgi;
+    if (global.getUserPrivileges() != null) {
+      pgi = global.getUserPrivileges().get(userName);
+      if (pgi != null) {
+        pps.putToUserPrivileges(userName, pgi);
+      }
+    }
+
+    if (global.getRolePrivileges() != null) {
+      List<String> roles = kvs.getUserRoles(userName);
+      if (roles != null) {
+        for (String role : roles) {
+          pgi = global.getRolePrivileges().get(role);
+          if (pgi != null) {
+            pps.putToRolePrivileges(role, pgi);
+          }
+        }
+      }
+    }
+    return pps;
+  }
+
+  public PrincipalPrivilegeSet getDBPrivilegeSet(String dbName, String userName)
+      throws NoSuchObjectException, IOException {
+    PrincipalPrivilegeSet pps = new PrincipalPrivilegeSet();
+    Database db = store.getDatabase(dbName);
+    if (db.getPrivileges() != null) {
+      List<PrivilegeGrantInfo> pgi;
+      // Find the user privileges for this db
+      if (db.getPrivileges().getUserPrivileges() != null) {
+        pgi = db.getPrivileges().getUserPrivileges().get(userName);
+        if (pgi != null) {
+          pps.putToUserPrivileges(userName, pgi);
+        }
+      }
+
+      if (db.getPrivileges().getRolePrivileges() != null) {
+        List<String> roles = kvs.getUserRoles(userName);
+        if (roles != null) {
+          for (String role : roles) {
+            pgi = db.getPrivileges().getRolePrivileges().get(role);
+            if (pgi != null) {
+              pps.putToRolePrivileges(role, pgi);
+            }
+          }
+        }
+      }
+    }
+    return pps;
+  }
+
+  public PrincipalPrivilegeSet getTablePrivilegeSet(String dbName, String tableName,
+                                                    String userName)
+      throws IOException, MetaException {
+    PrincipalPrivilegeSet pps = new PrincipalPrivilegeSet();
+    Table table = store.getTable(dbName, tableName);
+    List<PrivilegeGrantInfo> pgi;
+    if (table.getPrivileges() != null) {
+      if (table.getPrivileges().getUserPrivileges() != null) {
+        pgi = table.getPrivileges().getUserPrivileges().get(userName);
+        if (pgi != null) {
+          pps.putToUserPrivileges(userName, pgi);
+        }
+      }
+
+      if (table.getPrivileges().getRolePrivileges() != null) {
+        List<String> roles = kvs.getUserRoles(userName);
+        if (roles != null) {
+          for (String role : roles) {
+            pgi = table.getPrivileges().getRolePrivileges().get(role);
+            if (pgi != null) {
+              pps.putToRolePrivileges(role, pgi);
+            }
+          }
+        }
+      }
+    }
+    return pps;
+  }
+
   private PrivilegeInfo findPrivilegeToGrantOrRevoke(HiveObjectPrivilege privilege)
       throws MetaException, NoSuchObjectException, InvalidObjectException {
     PrivilegeInfo result = new PrivilegeInfo();

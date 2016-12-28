@@ -1081,13 +1081,7 @@ public class HBaseReadWrite implements MetadataStore {
    * Role related methods
    *********************************************************************************************/
 
-  /**
-   * Fetch the list of all roles for a user
-   * @param userName name of the user
-   * @return the list of all roles this user participates in
-   * @throws IOException
-   */
-  List<String> getUserRoles(String userName) throws IOException {
+  public List<String> getUserRoles(String userName) throws IOException {
     byte[] key = HBaseUtils.buildKey(userName);
     byte[] serialized = read(USER_TO_ROLE_TABLE, key, CATALOG_CF, CATALOG_COL);
     if (serialized == null) return null;

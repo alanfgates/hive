@@ -1298,7 +1298,37 @@ public class PostgresKeyValue implements MetadataStore {
       throw new IOException(e);
     }
   }
-/**********************************************************************************************
+
+  @Override
+  public List<String> getUserRoles(String userName) throws IOException {
+    try (Statement stmt = currentConnection.createStatement()) {
+      StringBuilder buf = new StringBuilder("select ")
+          .append(U2R_ROLE_LIST_COLUMN)
+          .append(" from ")
+          .append(USER_TO_ROLE_TABLE.getName())
+          .append(" where ")
+          .append(U2R_USER_NAME_COLUMN)
+          .append(" = '")
+          .append(userName)
+          .append('\'');
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Going to run query " + buf.toString());
+      }
+      ResultSet rs = stmt.executeQuery(buf.toString());
+      if (rs.next()) {
+        Array array = rs.getArray(1);
+        if (!rs.wasNull()) {
+          return Arrays.asList((String[])array.getArray());
+        }
+      }
+      return null;
+    } catch (SQLException e) {
+      LOG.error("Unable to get user roles", e);
+      throw new IOException(e);
+    }
+  }
+
+  /**********************************************************************************************
    * Table related methods
    *********************************************************************************************/
 
