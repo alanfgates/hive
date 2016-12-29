@@ -346,6 +346,9 @@ public class PostgresKeyValue implements MetadataStore {
   private void createTablesIfNotExist() throws SQLException {
     assert currentConnection != null;
     if (!tablesCreated) {
+      // TODO - this isn't sufficient.  If two metastore instances are started on separate machines
+      // at the same time they'll be in a race condition.  I need to figure out how to lock
+      // between these.  Maybe a file in HDFS?
       synchronized (PostgresKeyValue.class) {
         if (!tablesCreated) { // check again, someone else might have done it while we waited.
           boolean commit = false;
@@ -425,10 +428,6 @@ public class PostgresKeyValue implements MetadataStore {
       LOG.info("Dropping table with statement <" + buf.toString() + ">");
       stmt.execute(buf.toString());
     }
-  }
-
-  /**
-
   }
 
   /**********************************************************************************************
@@ -992,11 +991,14 @@ public class PostgresKeyValue implements MetadataStore {
         // So we know the table is there, we understand the mapping so we can build the
         // PostgresTable object.
         table = postgresTableFromPartition(dbName, tableName);
-        // Put it in the map.  It's ok if we're in a race condition and someone else already has.
-        partitionTables.put(partTableName, table);
       } else if (buildIfNotExists) {
         // The table isn't there.  We need to lock because we don't want a race condition on
         // creating the table.
+        // TODO - this isn't sufficient.  If two Hive instances on different machines (metastore
+        // or task in the case of MoveFile) try to access the partition at the same time this
+        // won't prevent a race condition.  I suspect the right answer is to have a lock table
+        // in postgres.  For now I've minimized the likelyhood of this by calling this method
+        // from create table when appropriate.  But this won't always solve the problem.
         synchronized (PostgresKeyValue.class) {
           // check again, someone may have built it while we waited for the lock.
           table = partitionTables.get(partTableName);
@@ -1006,6 +1008,8 @@ public class PostgresKeyValue implements MetadataStore {
           }
         }
       }
+      // Put it in the map.  It's ok if we're in a race condition and someone else already has.
+      partitionTables.put(partTableName, table);
     }
     return table;
   }
@@ -1394,6 +1398,11 @@ public class PostgresKeyValue implements MetadataStore {
   public void putTable(Table table) throws SQLException {
     storeOnKey(TABLE_TABLE, CATALOG_COL, serialize(table), table.getDbName(), table.getTableName());
     tableCache.put(new ObjectPair<>(table.getDbName(), table.getTableName()), table);
+    if (table.getPartitionKeysSize() > 0) {
+      // This is a work around for a race condition in creating the partition table.  It isn't
+      // foolproof, but it helps.
+      findPartitionTable(table.getDbName(), table.getTableName());
+    }
   }
 
   @Override
