@@ -1139,30 +1139,6 @@ public class HBaseStore implements RawStore {
     boolean commit = false;
     openTransaction();
     try {
-      /*
-      PrincipalPrivilegeSet pps = new PrincipalPrivilegeSet();
-      PrincipalPrivilegeSet global = getHBase().getGlobalPrivs();
-      if (global == null) return null;
-      List<PrivilegeGrantInfo> pgi;
-      if (global.getUserPrivileges() != null) {
-        pgi = global.getUserPrivileges().get(userName);
-        if (pgi != null) {
-          pps.putToUserPrivileges(userName, pgi);
-        }
-      }
-
-      if (global.getRolePrivileges() != null) {
-        List<String> roles = getHBase().getUserRoles(userName);
-        if (roles != null) {
-          for (String role : roles) {
-            pgi = global.getRolePrivileges().get(role);
-            if (pgi != null) {
-              pps.putToRolePrivileges(role, pgi);
-            }
-          }
-        }
-      }
-      */
       PrincipalPrivilegeSet pps = getPrivilegeHelper().getUserPrivilegeSet(userName);
       commit = true;
       return pps;
@@ -1181,32 +1157,6 @@ public class HBaseStore implements RawStore {
     boolean commit = false;
     openTransaction();
     try {
-      /*
-      PrincipalPrivilegeSet pps = new PrincipalPrivilegeSet();
-      Database db = getHBase().getDb(dbName);
-      if (db.getPrivileges() != null) {
-        List<PrivilegeGrantInfo> pgi;
-        // Find the user privileges for this db
-        if (db.getPrivileges().getUserPrivileges() != null) {
-          pgi = db.getPrivileges().getUserPrivileges().get(userName);
-          if (pgi != null) {
-            pps.putToUserPrivileges(userName, pgi);
-          }
-        }
-
-        if (db.getPrivileges().getRolePrivileges() != null) {
-          List<String> roles = getHBase().getUserRoles(userName);
-          if (roles != null) {
-            for (String role : roles) {
-              pgi = db.getPrivileges().getRolePrivileges().get(role);
-              if (pgi != null) {
-                pps.putToRolePrivileges(role, pgi);
-              }
-            }
-          }
-        }
-      }
-      */
       PrincipalPrivilegeSet pps = getPrivilegeHelper().getDBPrivilegeSet(dbName, userName);
       commit = true;
       return pps;
@@ -1225,31 +1175,6 @@ public class HBaseStore implements RawStore {
     boolean commit = false;
     openTransaction();
     try {
-      /*
-      PrincipalPrivilegeSet pps = new PrincipalPrivilegeSet();
-      Table table = getHBase().getTable(dbName, tableName);
-      List<PrivilegeGrantInfo> pgi;
-      if (table.getPrivileges() != null) {
-        if (table.getPrivileges().getUserPrivileges() != null) {
-          pgi = table.getPrivileges().getUserPrivileges().get(userName);
-          if (pgi != null) {
-            pps.putToUserPrivileges(userName, pgi);
-          }
-        }
-
-        if (table.getPrivileges().getRolePrivileges() != null) {
-          List<String> roles = getHBase().getUserRoles(userName);
-          if (roles != null) {
-            for (String role : roles) {
-              pgi = table.getPrivileges().getRolePrivileges().get(role);
-              if (pgi != null) {
-                pps.putToRolePrivileges(role, pgi);
-              }
-            }
-          }
-        }
-      }
-      */
       PrincipalPrivilegeSet pps =
           getPrivilegeHelper().getTablePrivilegeSet(dbName, tableName, userName);
       commit = true;

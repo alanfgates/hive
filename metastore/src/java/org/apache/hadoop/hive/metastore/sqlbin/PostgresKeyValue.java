@@ -39,14 +39,12 @@ import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.Function;
 import org.apache.hadoop.hive.metastore.api.MetaException;
-import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Partition;
 import org.apache.hadoop.hive.metastore.api.PrincipalPrivilegeSet;
 import org.apache.hadoop.hive.metastore.api.Role;
 import org.apache.hadoop.hive.metastore.api.SQLForeignKey;
 import org.apache.hadoop.hive.metastore.api.SQLPrimaryKey;
 import org.apache.hadoop.hive.metastore.api.Table;
-import org.apache.hadoop.hive.metastore.hbase.HBaseUtils;
 import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
 import org.apache.hadoop.hive.metastore.hbase.MetadataStore;
 import org.apache.hadoop.hive.metastore.hbase.stats.ColumnStatsAggregator;
@@ -62,12 +60,10 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.thrift.TBase;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TProtocol;
-import org.apache.thrift.protocol.TSimpleJSONProtocol;
 import org.apache.thrift.transport.TMemoryBuffer;
 
 import javax.sql.DataSource;
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -104,17 +100,22 @@ public class PostgresKeyValue implements MetadataStore {
   final static String CATALOG_COL = "catalog_object";
   // General column for storing stats
   final static String STATS_COL = "stats";
-  // If this is set in the config, the cache will be set such that it always misses, thus ensuring
-  // we're really reading from and writing to postgres.
+  // Default length for varchar columns
+  final static int VARCHAR_LENGTH = 255;
 
   // These two are used together a lot, so let's store them together and avoid all the object creation.
   private final static List<String> CAT_AND_STATS_COLS = Arrays.asList(CATALOG_COL, STATS_COL);
 
+  // If this is set in the config, the cache will be set such that it always misses, thus ensuring
+  // we're really reading from and writing to postgres.
   @VisibleForTesting
   static final String CACHE_OFF = "hive.metastore.postgres.nocache";
   static final String TEST_POSTGRES_JDBC = "hive.test.postgres.jdbc";
   static final String TEST_POSTGRES_USER = "hive.test.postgres.user";
   static final String TEST_POSTGRES_PASSWD = "hive.test.postgres.password";
+  // WARNING - setting the following will likely make subsequent test runs fail, but it's
+  // useful for debugging at times.
+  static final String KEEP_TABLES_AFTER_TEST = "hive.test.postgres.keeptables";
 
 
   // Define the Database table
@@ -221,6 +222,11 @@ public class PostgresKeyValue implements MetadataStore {
 
   private static DataSource connPool;
   private static boolean tablesCreated = false;
+
+  // Maps between the types, built just once to avoid duplicating code everywhere.  Don't access
+  // these directly, use the get methods for each one, as they may be null the first time.
+  //private static Map<Integer, String> postgresToHiveTypes;
+  private static Map<String, String> hiveToPostgresTypes;
 
   private Configuration conf;
   private Connection currentConnection;
@@ -669,7 +675,7 @@ public class PostgresKeyValue implements MetadataStore {
    * @param tableName table partition is in
    * @param partVals list of values that specify the partition, given in the same order as the
    *                 columns they belong to
-   * @return The partition objec,t or null if there is no such partition
+   * @return The partition object, or null if there is no such partition
    * @throws SQLException
    */
   public Partition getPartition(String dbName, String tableName, List<String> partVals)
@@ -677,7 +683,7 @@ public class PostgresKeyValue implements MetadataStore {
     List<String> partCacheKey = buildPartCacheKey(dbName, tableName, partVals);
     Partition part = partCache.get(partCacheKey);
     if (part == null) {
-      LOG.debug("Partition not found in caching, going to Postgres");
+      LOG.debug("Partition not found in cache, going to Postgres");
       Table hTable = getTable(dbName, tableName);
       PostgresTable pTable = findPartitionTable(dbName, tableName);
       byte[][] serialized =
@@ -696,9 +702,7 @@ public class PostgresKeyValue implements MetadataStore {
   }
 
   /**
-   * Add a partition.  This should only be called for new partitions.  For altering existing
-   * partitions this should not be called as it will blindly increment the ref counter for the
-   * storage descriptor.
+   * Add a partition.
    * @param partition partition object to add
    * @throws SQLException
    */
@@ -726,17 +730,24 @@ public class PostgresKeyValue implements MetadataStore {
    * @param dbName name of the database the table is in
    * @param tableName table name
    * @param maxPartitions max partitions to fetch.  If negative all partitions will be returned.
+   * @param cacheStats whether to fetch and cache the the stats for the partitions.
+   *                   If you are running a query where you are likely to need access to the
+   *                   statistics info, this should be true.  Otherwise it should be false.
    * @return List of partitions that match the criteria.
    * @throws SQLException
    */
-  public List<Partition> scanPartitionsInTable(String dbName, String tableName, int maxPartitions)
-      throws SQLException {
+  public List<Partition> scanPartitionsInTable(String dbName, String tableName, int maxPartitions,
+                                               boolean cacheStats) throws SQLException {
     List<Partition> parts = new ArrayList<>(maxPartitions > 0 ? maxPartitions : 100);
     int maxPartitionsInternal = maxPartitions > 0 ? maxPartitions : Integer.MAX_VALUE;
     PostgresTable pTable = findPartitionTable(dbName, tableName);
     StringBuilder buf = new StringBuilder("select ")
-        .append(CATALOG_COL)
-        .append(" from ")
+        .append(CATALOG_COL);
+    if (cacheStats) {
+      buf.append(", ")
+          .append(STATS_COL);
+    }
+    buf.append(" from ")
         .append(pTable.getName());
     try (Statement stmt = currentConnection.createStatement()) {
       if (LOG.isDebugEnabled()) {
@@ -747,6 +758,14 @@ public class PostgresKeyValue implements MetadataStore {
         Partition part = new Partition();
         deserialize(part, rs.getBytes(1));
         parts.add(part);
+        if (cacheStats) {
+          byte[] serializedStats = rs.getBytes(2);
+          if (serializedStats != null) {
+            ColumnStatistics stats = new ColumnStatistics();
+            deserialize(stats, serializedStats);
+            partStatsCache.put(buildPartCacheKey(dbName, tableName, part.getValues()), stats);
+          }
+        }
       }
     }
     return parts;
@@ -769,7 +788,7 @@ public class PostgresKeyValue implements MetadataStore {
     exprTree.accept(visitor);
     if (visitor.generatedFilter.hasError()) {
       LOG.warn("Failed to push down SQL filter to metastore");
-      result.addAll(scanPartitionsInTable(dbName, tableName, maxPartitions));
+      result.addAll(scanPartitionsInTable(dbName, tableName, maxPartitions, true));
       return true;
     }
 
@@ -814,16 +833,6 @@ public class PostgresKeyValue implements MetadataStore {
     }
   }
 
-
-  public int getPartitionCount() throws SQLException {
-    /*
-    Filter fil = new FirstKeyOnlyFilter();
-    Iterator<Result> iter = scan(PART_TABLE, fil);
-    return Iterators.size(iter);
-    */
-    return 0;
-  }
-
   private void insertPartitionOnKey(PostgresTable pTable, String colName, byte[] serialized,
                                     Partition part, List<Object> translatedKeys) throws SQLException {
     List<String> pkCols = pTable.getPrimaryKeyCols();
@@ -842,7 +851,7 @@ public class PostgresKeyValue implements MetadataStore {
       LOG.debug("Going to prepare statement " + buf.toString());
     }
     try (PreparedStatement stmt = currentConnection.prepareStatement(buf.toString())) {
-      fillInPartitionKeyWithSpecificTypes(pTable, pkCols, stmt, translatedKeys, 1);
+      fillInPartitionKeyWithSpecificTypes(pkCols, stmt, translatedKeys, 1);
       stmt.setBytes(part.getValuesSize() + 1, serialized);
 
       int rowsInserted = stmt.executeUpdate();
@@ -876,7 +885,7 @@ public class PostgresKeyValue implements MetadataStore {
     }
     try (PreparedStatement stmt = currentConnection.prepareStatement(buf.toString())) {
       stmt.setBytes(1, serialized);
-      fillInPartitionKeyWithSpecificTypes(pTable, pkCols, stmt, translatedKeys, 2);
+      fillInPartitionKeyWithSpecificTypes(pkCols, stmt, translatedKeys, 2);
 
       int rowsUpdated = stmt.executeUpdate();
       if (rowsUpdated != 1) {
@@ -888,19 +897,12 @@ public class PostgresKeyValue implements MetadataStore {
     }
   }
 
-  private void fillInPartitionKeyWithSpecificTypes(PostgresTable pTable, List<String> pkCols,
-                                                   PreparedStatement stmt,
+  private void fillInPartitionKeyWithSpecificTypes(List<String> pkCols, PreparedStatement stmt,
                                                    List<Object> translatedKeys, int colOffset)
       throws SQLException {
     for (int i = 0; i < pkCols.size(); i++) {
-      PostgresColumn pCol = pTable.getCol(pkCols.get(i));
-      if (pCol.getType().startsWith("varchar")) {
-        stmt.setString(i + colOffset, (String)translatedKeys.get(i));
-      } else {
-        throw new RuntimeException("Unsupported partition key type " + pCol.getType());
-      }
+      stmt.setObject(i + colOffset, translatedKeys.get(i));
     }
-
   }
 
   private boolean partitionExists(PostgresTable table, List<Object> partVals) throws SQLException {
@@ -1013,7 +1015,7 @@ public class PostgresKeyValue implements MetadataStore {
     PostgresTable pTable = new PostgresTable(buildPartTableName(dbName, tableName));
     Table hTable = getTable(dbName, tableName);
     for (FieldSchema fs : hTable.getPartitionKeys()) {
-      pTable.addColumn(fs.getName(), hiveToPostgresType(fs.getType()), true);
+      pTable.addColumn(fs, true);
     }
     pTable.addByteColumn(CATALOG_COL)
         .addByteColumn(STATS_COL);
@@ -1026,21 +1028,19 @@ public class PostgresKeyValue implements MetadataStore {
     List<FieldSchema> partCols = hTable.getPartitionKeys();
     assert partCols.size() == partVals.size();
     for (int i = 0; i < partVals.size(); i++) {
-      if (partCols.get(i).getType().equals("string")) {
+      String hiveType = partCols.get(i).getType();
+      if (hiveType.equals(serdeConstants.STRING_TYPE_NAME) ||
+          hiveType.equals(serdeConstants.VARCHAR_TYPE_NAME) ||
+          hiveType.equals(serdeConstants.CHAR_TYPE_NAME)) {
         translated.add(partVals.get(i));
+      } else if (hiveType.equals(serdeConstants.BIGINT_TYPE_NAME)) {
+        translated.add(Long.parseLong(partVals.get(i)));
       } else {
-        throw new RuntimeException("Unknown translation " + partCols.get(i).getType());
+        throw new RuntimeException("Haven't yet implemented part vals for " +
+            partCols.get(i).getType());
       }
     }
     return translated;
-  }
-
-  private String hiveToPostgresType(String hiveType) {
-    if (hiveType.equals("string")) {
-      return "varchar(1024)";
-    } else {
-      throw new RuntimeException("Unknown translation " + hiveType);
-    }
   }
 
   @VisibleForTesting
@@ -1425,34 +1425,6 @@ public class PostgresKeyValue implements MetadataStore {
       dropPostgresTable(partitionTable.getName());
     }
   }
-
-  /**
-   * Print out a table.
-   * @param name The name for the table.  This must include dbname.tablename
-   * @return string containing the table
-   * @throws SQLException
-   * @throws TException
-   */
-  public String printTable(String name) throws IOException, TException {
-    // TODO
-    /*
-    byte[] key = HBaseUtils.buildKey(name);
-    @SuppressWarnings("deprecation")
-    HTableInterface htab = conn.getHBaseTable(TABLE_TABLE);
-    Get g = new Get(key);
-    g.addColumn(CATALOG_CF, CATALOG_COL);
-    g.addFamily(STATS_CF);
-    Result result = htab.get(g);
-    if (result.isEmpty()) return noSuch(name, "table");
-    return printOneTable(result);
-    */
-    return null;
-  }
-
-  public int getTableCount() throws SQLException {
-    return (int)getCount(TABLE_TABLE);
-  }
-
 
   /**********************************************************************************************
    * Statistics related methods
@@ -2125,16 +2097,63 @@ public class PostgresKeyValue implements MetadataStore {
     }
   }
 
-  private String dumpThriftObject(TBase obj) throws TException, UnsupportedEncodingException {
-    TMemoryBuffer buf = new TMemoryBuffer(1000);
-    TProtocol protocol = new TSimpleJSONProtocol(buf);
-    obj.write(protocol);
-    return buf.toString("UTF-8");
-  }
-
   /**********************************************************************************************
    * Postgres table representation
    *********************************************************************************************/
+  /*
+  private static Map<Integer, String> getPostgresToHiveTypeMap() {
+    if (postgresToHiveTypes == null) {
+      synchronized (PostgresKeyValue.class) {
+        if (postgresToHiveTypes == null) {
+          postgresToHiveTypes = new HashMap<>();
+          postgresToHiveTypes.put(Types.ARRAY, serdeConstants.LIST_TYPE_NAME);
+          postgresToHiveTypes.put(Types.BIGINT, serdeConstants.BIGINT_TYPE_NAME);
+          postgresToHiveTypes.put(Types.BINARY, serdeConstants.BINARY_TYPE_NAME);
+          postgresToHiveTypes.put(Types.BOOLEAN, serdeConstants.BOOLEAN_TYPE_NAME);
+          postgresToHiveTypes.put(Types.CHAR, serdeConstants.CHAR_TYPE_NAME);
+          postgresToHiveTypes.put(Types.DATE, serdeConstants.DATE_TYPE_NAME);
+          postgresToHiveTypes.put(Types.DECIMAL, serdeConstants.DECIMAL_TYPE_NAME);
+          postgresToHiveTypes.put(Types.DOUBLE, serdeConstants.DOUBLE_TYPE_NAME);
+          postgresToHiveTypes.put(Types.FLOAT, serdeConstants.FLOAT_TYPE_NAME);
+          postgresToHiveTypes.put(Types.INTEGER, serdeConstants.INT_TYPE_NAME);
+          postgresToHiveTypes.put(Types.SMALLINT, serdeConstants.SMALLINT_TYPE_NAME);
+          postgresToHiveTypes.put(Types.TIMESTAMP, serdeConstants.TIMESTAMP_TYPE_NAME);
+          postgresToHiveTypes.put(Types.TINYINT, serdeConstants.TINYINT_TYPE_NAME);
+          postgresToHiveTypes.put(Types.VARCHAR, serdeConstants.VARCHAR_TYPE_NAME);
+        }
+      }
+    }
+    return postgresToHiveTypes;
+  }
+  */
+
+  private static String hiveToPostgresType(String hiveType) {
+    if (hiveToPostgresTypes == null) {
+      synchronized (PostgresKeyValue.class) {
+        if (hiveToPostgresTypes == null) {
+          hiveToPostgresTypes = new HashMap<>();
+          hiveToPostgresTypes.put(serdeConstants.BIGINT_TYPE_NAME, "bigint");
+          hiveToPostgresTypes.put(serdeConstants.BINARY_TYPE_NAME, "bytea");
+          hiveToPostgresTypes.put(serdeConstants.BOOLEAN_TYPE_NAME, "boolean");
+          hiveToPostgresTypes.put(serdeConstants.CHAR_TYPE_NAME, "char(255)"); // TODO not sure what to do on length
+          hiveToPostgresTypes.put(serdeConstants.DATE_TYPE_NAME, "date");
+          hiveToPostgresTypes.put(serdeConstants.DECIMAL_TYPE_NAME, "decimal(10,2)"); // TODO not sure what to do on length
+          hiveToPostgresTypes.put(serdeConstants.DOUBLE_TYPE_NAME, "double");
+          hiveToPostgresTypes.put(serdeConstants.FLOAT_TYPE_NAME, "float");
+          hiveToPostgresTypes.put(serdeConstants.INT_TYPE_NAME, "integer");
+          hiveToPostgresTypes.put(serdeConstants.SMALLINT_TYPE_NAME, "smallint");
+          hiveToPostgresTypes.put(serdeConstants.TIMESTAMP_TYPE_NAME, "timestamp");
+          hiveToPostgresTypes.put(serdeConstants.TINYINT_TYPE_NAME, "tinyint");
+          hiveToPostgresTypes.put(serdeConstants.VARCHAR_TYPE_NAME, "varchar(255)"); // TODO not sure what to do on length
+          hiveToPostgresTypes.put(serdeConstants.STRING_TYPE_NAME, "varchar(255)"); // TODO not sure what to do on length
+        }
+      }
+    }
+    String pType = hiveToPostgresTypes.get(hiveType);
+    if (pType == null) throw new RuntimeException("Unknown translation " + hiveType);
+    else return pType;
+  }
+
   static class PostgresColumn {
     private final String name;
     private final String type;
@@ -2168,6 +2187,10 @@ public class PostgresKeyValue implements MetadataStore {
       this.name = name;
       colsByName = new HashMap<>();
       pkCols = new ArrayList<>();
+    }
+
+    PostgresTable addColumn(FieldSchema fs, boolean isPrimaryKey) {
+      return addColumn(fs.getName(), hiveToPostgresType(fs.getType()), isPrimaryKey);
     }
 
     PostgresTable addColumn(String name, String type, boolean isPrimaryKey) {
@@ -2327,7 +2350,8 @@ public class PostgresKeyValue implements MetadataStore {
 
   static void cleanupAfterTest(PostgresStore store, List<String> tablesToDrop) throws SQLException {
     String jdbc = System.getProperty(TEST_POSTGRES_JDBC);
-    if (jdbc != null) {
+    String keepThem = System.getProperty(KEEP_TABLES_AFTER_TEST);
+    if (jdbc != null && keepThem == null) {
       PostgresKeyValue psql = store.connectionForTest();
       try {
         psql.begin();

@@ -171,6 +171,9 @@ public class TestPostgresStore {
     Assert.assertEquals(dbName, part.getDbName());
     Assert.assertEquals(tableName, part.getTableName());
     Assert.assertEquals(pVals.get(0), part.getValues().get(0));
+
+    List<Partition> parts = store.getPartitions(dbName, tableName, -1);
+    Assert.assertEquals(1, parts.size());
   }
 
   @Test

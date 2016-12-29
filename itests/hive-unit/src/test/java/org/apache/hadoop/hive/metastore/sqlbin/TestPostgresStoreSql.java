@@ -65,6 +65,12 @@ public class TestPostgresStoreSql {
     conf.setBoolVar(HiveConf.ConfVars.HIVE_AUTHORIZATION_ENABLED, true);
     conf.setVar(HiveConf.ConfVars.USERS_IN_ADMIN_ROLE, System.getProperty("user.name"));
     conf.setVar(HiveConf.ConfVars.HIVEMAPREDMODE,"nonstrict");
+    conf.set("hive.map.aggr", "true");
+    conf.set("mapreduce.reduce.speculative", "false");
+    conf.set("hive.auto.convert.join", "true");
+    conf.set("hive.optimize.reducededuplication.min.reducer", "1");
+    conf.set("hive.optimize.mapjoin.mapreduce", "true");
+    conf.set("hive.stats.autogather", "true");
     store = PostgresKeyValue.connectForTest(conf, tablesToDrop);
   }
 
@@ -175,15 +181,22 @@ public class TestPostgresStoreSql {
         "    ss_net_profit             double\n" +
         ") partitioned by (ss_sold_date_sk bigint)");
     Assert.assertEquals(response.getErrorMessage(), 0, response.getResponseCode());
+    tablesToDrop.add(PostgresKeyValue.buildPartTableName(dbName, "store_sales"));
+
+    /*
+    response = driver.run("alter table store_sales add partition (ss_sold_date_sk = 1)");
+    Assert.assertEquals(response.getErrorMessage(), 0, response.getResponseCode());
+    */
+    response = driver.run("insert into store_sales partition(ss_sold_date_sk = 1) values(" +
+        "1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, " +
+        "1.0, 1.0)");
+    Assert.assertEquals(response.getErrorMessage(), 0, response.getResponseCode());
 
     response = driver.run("analyze table date_dim compute statistics for columns");
     Assert.assertEquals(response.getErrorMessage(), 0, response.getResponseCode());
     response = driver.run("analyze table item compute statistics for columns");
     Assert.assertEquals(response.getErrorMessage(), 0, response.getResponseCode());
     response = driver.run("analyze table store_sales compute statistics for columns");
-    Assert.assertEquals(response.getErrorMessage(), 0, response.getResponseCode());
-
-    response = driver.run("alter table store_sales add partition (ss_sold_date = 1)");
     Assert.assertEquals(response.getErrorMessage(), 0, response.getResponseCode());
 
     response = driver.run("select  i_brand_id brand_id, i_brand brand,\n" +

@@ -252,7 +252,18 @@ public class PostgresStore implements RawStore {
   @Override
   public boolean addPartitions(String dbName, String tblName, List<Partition> parts) throws
       InvalidObjectException, MetaException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      for (Partition part : parts) getPostgres().putPartition(part);
+      commit = true;
+      return true;
+    } catch (SQLException e) {
+      LOG.error("Unable to add partition", e);
+      throw new MetaException("Unable to read from or write to Postgres " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
@@ -264,14 +275,29 @@ public class PostgresStore implements RawStore {
   @Override
   public Partition getPartition(String dbName, String tableName, List<String> part_vals) throws
       MetaException, NoSuchObjectException {
+    Partition part = getPartitionInternal(dbName, tableName, part_vals);
+    if (part == null) {
+      throw new NoSuchObjectException("Unable to find partition " +
+          HBaseStore.partNameForErrorMsg(dbName, tableName, part_vals));
+    }
+    return part;
+  }
+
+  @Override
+  public boolean doesPartitionExist(String dbName, String tableName, List<String> part_vals) throws
+      MetaException, NoSuchObjectException {
+    // Use the regular getPartition for this.  It will be slightly less efficient, but I'm
+    // guessing that 9 times out of 10 if it exists they'll want to fetch it, and this call
+    // will pull it into the cache.
+    return getPartitionInternal(dbName, tableName, part_vals) != null;
+  }
+
+  private Partition getPartitionInternal(String dbName, String tableName, List<String> partVals)
+      throws MetaException {
     boolean commit = false;
     openTransaction();
     try {
-      Partition part = getPostgres().getPartition(dbName, tableName, part_vals);
-      if (part == null) {
-        throw new NoSuchObjectException("Unable to find partition " +
-            HBaseStore.partNameForErrorMsg(dbName, tableName, part_vals));
-      }
+      Partition part = getPostgres().getPartition(dbName, tableName, partVals);
       commit = true;
       return part;
     } catch (SQLException e) {
@@ -283,12 +309,6 @@ public class PostgresStore implements RawStore {
   }
 
   @Override
-  public boolean doesPartitionExist(String dbName, String tableName, List<String> part_vals) throws
-      MetaException, NoSuchObjectException {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
   public boolean dropPartition(String dbName, String tableName, List<String> part_vals) throws
       MetaException, NoSuchObjectException, InvalidObjectException, InvalidInputException {
     throw new UnsupportedOperationException();
@@ -297,7 +317,19 @@ public class PostgresStore implements RawStore {
   @Override
   public List<Partition> getPartitions(String dbName, String tableName, int max) throws
       MetaException, NoSuchObjectException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      List<Partition> parts =
+          getPostgres().scanPartitionsInTable(dbName, tableName, max, false);
+      commit = true;
+      return parts;
+    } catch (SQLException e) {
+      LOG.error("Unable to get partitions", e);
+      throw new MetaException("Error scanning partitions");
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
@@ -421,7 +453,7 @@ public class PostgresStore implements RawStore {
       if (exprTree == null) {
         LOG.warn("Failed to unparse expression tree, falling back to client side partition selection");
 
-        result.addAll(getPostgres().scanPartitionsInTable(dbName, tblName, maxParts));
+        result.addAll(getPostgres().scanPartitionsInTable(dbName, tblName, maxParts, true));
         return true;
       }
       boolean rc = getPostgres().scanPartitionsByExpr(dbName, tblName, exprTree, maxParts, result);
@@ -793,14 +825,14 @@ public class PostgresStore implements RawStore {
   public Partition getPartitionWithAuth(String dbName, String tblName, List<String> partVals,
                                         String user_name, List<String> group_names) throws
       MetaException, NoSuchObjectException, InvalidObjectException {
-    throw new UnsupportedOperationException();
+    return getPartition(dbName, tblName, partVals);
   }
 
   @Override
   public List<Partition> getPartitionsWithAuth(String dbName, String tblName, short maxParts,
                                                String userName, List<String> groupNames) throws
       MetaException, NoSuchObjectException, InvalidObjectException {
-    throw new UnsupportedOperationException();
+    return getPartitions(dbName, tblName, maxParts);
   }
 
   @Override
@@ -815,7 +847,18 @@ public class PostgresStore implements RawStore {
                                                   List<String> part_vals, short max_parts,
                                                   String userName, List<String> groupNames) throws
       MetaException, InvalidObjectException, NoSuchObjectException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      List<Partition> parts = getPostgres().scanPartitionsInTable(db_name, tbl_name, part_vals, max_parts);
+      commit = true;
+      return parts;
+    } catch (IOException e) {
+      LOG.error("Unable to list partition names", e);
+      throw new MetaException("Failed to list part names, " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
