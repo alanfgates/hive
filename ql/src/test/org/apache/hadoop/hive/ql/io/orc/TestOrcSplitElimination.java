@@ -617,6 +617,11 @@ public class TestOrcSplitElimination {
     public void writeBackChangedTables(List<Table> tables) throws IOException {
 
     }
+
+    @Override
+    public List<String> getUserRoles(String userName) throws IOException {
+      return null;
+    }
   }
 
   private static final Logger LOG = LoggerFactory.getLogger(TestOrcSplitElimination.class);
