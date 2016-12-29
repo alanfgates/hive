@@ -847,18 +847,7 @@ public class PostgresStore implements RawStore {
                                                   List<String> part_vals, short max_parts,
                                                   String userName, List<String> groupNames) throws
       MetaException, InvalidObjectException, NoSuchObjectException {
-    boolean commit = false;
-    openTransaction();
-    try {
-      List<Partition> parts = getPostgres().scanPartitionsInTable(db_name, tbl_name, part_vals, max_parts);
-      commit = true;
-      return parts;
-    } catch (IOException e) {
-      LOG.error("Unable to list partition names", e);
-      throw new MetaException("Failed to list part names, " + e.getMessage());
-    } finally {
-      commitOrRoleBack(commit);
-    }
+    throw new UnsupportedOperationException();
   }
 
   @Override
