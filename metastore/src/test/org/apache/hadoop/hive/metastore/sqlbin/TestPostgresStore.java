@@ -97,8 +97,13 @@ public class TestPostgresStore {
 
   @Test
   public void tables() throws InvalidObjectException, MetaException {
-    String dbName = "default";
+    String dbName = "tbltest_db";
     String tableName = "tbl1";
+    String tableName2 = "xxx_tbl2";
+
+    Database db = new Database(dbName, "description", "file:/somewhere",
+        Collections.<String, String>emptyMap());
+    store.createDatabase(db);
 
     List<FieldSchema> cols = Collections.singletonList(
         new FieldSchema("a", "varchar(32)", "")
@@ -110,7 +115,7 @@ public class TestPostgresStore {
         Collections.<String, String>emptyMap(), null, null, TableType.MANAGED_TABLE.name());
     store.createTable(table);
 
-    table = store.getTable("default", "tbl1");
+    table = store.getTable(dbName, "tbl1");
 
     // I assume thrift de/serialization works, so I'm not going to check every field.
     Assert.assertEquals(tableName, table.getTableName());
@@ -120,6 +125,19 @@ public class TestPostgresStore {
     Assert.assertEquals(1, cols.size());
     Assert.assertEquals("a", cols.get(0).getName());
 
+    table = new Table(tableName2, dbName, "me", 1, 2, 3, sd, null,
+        Collections.<String, String>emptyMap(), null, null, TableType.MANAGED_TABLE.name());
+    store.createTable(table);
+    List<String> names = store.getTables(dbName, null);
+    Assert.assertEquals(2, names.size());
+    String[] namesArray = names.toArray(new String[names.size()]);
+    Arrays.sort(namesArray);
+    Assert.assertEquals(tableName, namesArray[0]);
+    Assert.assertEquals(tableName2, namesArray[1]);
+
+    names = store.getTables(dbName, "xxx.*");
+    Assert.assertEquals(1, names.size());
+    Assert.assertEquals(tableName2, names.get(0));
   }
 
   @Test

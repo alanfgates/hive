@@ -39,7 +39,7 @@
   </property>
   <property>
     <name>hive.metastore.rawstore.impl</name>
-    <value>org.apache.hadoop.hive.metastore.sqlbin.PostresStore</value>
+    <value>org.apache.hadoop.hive.metastore.sqlbin.PostgresStore</value>
   </property>
   <property>
     <name>javax.jdo.option.ConnectionURL</name>
@@ -51,6 +51,6 @@
   </property>
   <property>
     <name>javax.jdo.option.ConnectionPassword</name>
-    <value>hive</value>
+    <value></value>
   </property>
 </configuration>

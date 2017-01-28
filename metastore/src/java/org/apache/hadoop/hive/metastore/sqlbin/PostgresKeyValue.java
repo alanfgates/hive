@@ -208,12 +208,12 @@ public class PostgresKeyValue implements MetadataStore {
         .addByteColumn(STATS_COL);
         */
 
-  // False positives are very bad here because they cause us to invalidate entries we shouldn't.
-  // Space used and # of hash functions grows in proportion to ln of num bits so a 10x increase
-  // in accuracy doubles the required space and number of hash functions.
-  //private final static double STATS_BF_ERROR_RATE = 0.001;
-
   static final private Logger LOG = LoggerFactory.getLogger(PostgresKeyValue.class.getName());
+
+  // Hive has a default partition name it uses in dynamic partitioning when it doesn't yet know
+  // the name of the partition.  Since it is a string it plays poorly with non-string types.  We
+  // translate it to the following values for each type
+  static final private Long DEFAULT_PARTITION_LONG = Long.MIN_VALUE + 1;
 
   // This is implemented by a ConcurrentHashMap so it can be simultaneously accessed by multiple
   // threads.  The key is expected to be the partition table name, that is
@@ -352,25 +352,28 @@ public class PostgresKeyValue implements MetadataStore {
       synchronized (PostgresKeyValue.class) {
         if (!tablesCreated) { // check again, someone else might have done it while we waited.
           boolean commit = false;
-          try {
-            // First, figure out if they are already there
-            DatabaseMetaData dmd = currentConnection.getMetaData();
-            ResultSet rs =
-                dmd.getTables(currentConnection.getCatalog(), currentConnection.getSchema(),
-                    TABLE_TABLE.getName().toLowerCase(), null);
-            if (rs.next()) {
-              LOG.debug("Tables have already been created, not creating.");
-              commit = true;
-              return; // We've already created the tables.
-            }
-            LOG.info("Tables not found in catalog " + currentConnection.getCatalog() + ", schema " +
-                currentConnection.getSchema() + ", creating them...");
+          // First, figure out if they are already there.  Just select from one of the tables
+          // and see if it returns.  Some older versions of Postgres' JDBC driver don't support
+          // DatabaseMetaData.getTables.
+          try (Statement stmt = currentConnection.createStatement()) {
+            stmt.executeQuery("select 1 from " + TABLE_TABLE.getName() + " where table_name = " +
+                "'there_better_never_be_a_table_named_this'");
+            // If we're still here, that means the query didn't error out, so do nothing...
+            LOG.debug("Tables have already been created, not creating.");
+            commit = true;
+          } catch (SQLException e) {
+            LOG.info("Caught SQL exception", e);
+            currentConnection.rollback(); // Rollback the failed query transaction so we can
+            // start another
+            LOG.info("Tables not found in catalog " + currentConnection.getCatalog() +
+                ", creating them...");
             for (PostgresTable table : initialPostgresTables) {
               createTableInPostgres(table);
             }
             LOG.info("Done creating tables");
             tablesCreated = true;
             commit = true;
+
           } finally {
             if (commit) {
               commit();
@@ -984,9 +987,9 @@ public class PostgresKeyValue implements MetadataStore {
       // Check to see if the table exists but we don't have it in the cache.  I don't put this
       // part in the synchronized section because it's ok if two threads do this at the same time,
       // if a bit wasteful.
+      // Try to select from the table and see if it
       DatabaseMetaData dmd = currentConnection.getMetaData();
-      ResultSet rs = dmd.getTables(currentConnection.getCatalog(), currentConnection.getSchema(),
-          partTableName, null);
+      ResultSet rs = dmd.getTables(currentConnection.getCatalog(), null, partTableName, null);
       if (rs.next()) {
         // So we know the table is there, we understand the mapping so we can build the
         // PostgresTable object.
@@ -1038,7 +1041,12 @@ public class PostgresKeyValue implements MetadataStore {
           hiveType.equals(serdeConstants.CHAR_TYPE_NAME)) {
         translated.add(partVals.get(i));
       } else if (hiveType.equals(serdeConstants.BIGINT_TYPE_NAME)) {
-        translated.add(Long.parseLong(partVals.get(i)));
+        // Special case, if it's the default partition value translate that to a predefined default
+        if (partVals.get(i).equals(HiveConf.getVar(conf, HiveConf.ConfVars.DEFAULTPARTITIONNAME))) {
+          translated.add(DEFAULT_PARTITION_LONG);
+        } else {
+          translated.add(Long.parseLong(partVals.get(i)));
+        }
       } else {
         throw new RuntimeException("Haven't yet implemented part vals for " +
             partCols.get(i).getType());
@@ -2345,7 +2353,7 @@ public class PostgresKeyValue implements MetadataStore {
       if (user == null) user = "hive";
       conf.setVar(HiveConf.ConfVars.METASTORE_CONNECTION_USER_NAME, user);
       String passwd = System.getProperty(TEST_POSTGRES_PASSWD);
-      if (passwd == null) passwd = "hive";
+      if (passwd == null) passwd = "";
       conf.setVar(HiveConf.ConfVars.METASTOREPWD, passwd);
       conf.set(PostgresKeyValue.CACHE_OFF, "true");
 

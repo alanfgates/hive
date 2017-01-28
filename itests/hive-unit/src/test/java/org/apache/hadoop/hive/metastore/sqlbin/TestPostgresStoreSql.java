@@ -95,6 +95,7 @@ public class TestPostgresStoreSql {
     Assert.assertEquals(response.getErrorMessage(), 0, response.getResponseCode());
     response = driver.run("use " + dbName);
     Assert.assertEquals(response.getErrorMessage(), 0, response.getResponseCode());
+    /*
     response = driver.run("create table date_dim\n" +
         "(\n" +
         "    d_date_sk                 bigint,\n" +
@@ -154,6 +155,7 @@ public class TestPostgresStoreSql {
         "    i_product_name            string\n" +
         ")");
     Assert.assertEquals(response.getErrorMessage(), 0, response.getResponseCode());
+    */
 
     response = driver.run("create table store_sales\n" +
         "(\n" +
@@ -186,7 +188,6 @@ public class TestPostgresStoreSql {
     /*
     response = driver.run("alter table store_sales add partition (ss_sold_date_sk = 1)");
     Assert.assertEquals(response.getErrorMessage(), 0, response.getResponseCode());
-    */
     response = driver.run("insert into store_sales partition(ss_sold_date_sk = 1) values(" +
         "1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, " +
         "1.0, 1.0)");
@@ -211,6 +212,7 @@ public class TestPostgresStoreSql {
         " order by ext_price desc, i_brand_id\n" +
         "limit 100 ");
     Assert.assertEquals(response.getErrorMessage(), 0, response.getResponseCode());
+    */
   }
 
 }

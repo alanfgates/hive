@@ -72,6 +72,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -341,7 +342,20 @@ public class PostgresStore implements RawStore {
 
   @Override
   public List<String> getTables(String dbName, String pattern) throws MetaException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      List<Table> tables = getPostgres().scanTables(dbName, pattern);
+      commit = true;
+      List<String> names = new ArrayList<>(tables.size());
+      for (Table table : tables) names.add(table.getTableName());
+      return names;
+    } catch (IOException e) {
+      LOG.error("Unable to get tables", e);
+      throw new MetaException("Error scanning tables");
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
@@ -400,6 +414,10 @@ public class PostgresStore implements RawStore {
 
   }
 
+  // Indices in Hive are useless and rarely used.  For now ignore them.  We will throw
+  // unsupported on addIndex in case someone really tries to use them.  But for all other cases
+  // we'll just ignore the calls.
+
   @Override
   public boolean addIndex(Index index) throws InvalidObjectException, MetaException {
     throw new UnsupportedOperationException();
@@ -408,24 +426,24 @@ public class PostgresStore implements RawStore {
   @Override
   public Index getIndex(String dbName, String origTableName, String indexName) throws
       MetaException {
-    throw new UnsupportedOperationException();
+    return null;
   }
 
   @Override
   public boolean dropIndex(String dbName, String origTableName, String indexName) throws
       MetaException {
-    throw new UnsupportedOperationException();
+    return true;
   }
 
   @Override
   public List<Index> getIndexes(String dbName, String origTableName, int max) throws MetaException {
-    throw new UnsupportedOperationException();
+    return Collections.emptyList();
   }
 
   @Override
   public List<String> listIndexNames(String dbName, String origTableName, short max) throws
       MetaException {
-    throw new UnsupportedOperationException();
+    return Collections.emptyList();
   }
 
   @Override
