@@ -45,6 +45,8 @@ import org.apache.hadoop.hive.metastore.api.Role;
 import org.apache.hadoop.hive.metastore.api.SQLForeignKey;
 import org.apache.hadoop.hive.metastore.api.SQLPrimaryKey;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.hbase.HBaseSchemaTool;
+import org.apache.hadoop.hive.metastore.hbase.HBaseStore;
 import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
 import org.apache.hadoop.hive.metastore.hbase.MetadataStore;
 import org.apache.hadoop.hive.metastore.hbase.stats.ColumnStatsAggregator;
@@ -832,6 +834,69 @@ public class PostgresKeyValue implements MetadataStore {
         }
       }
       return false;
+    }
+  }
+
+  public boolean dropPartition(String dbName, String tableName, List<String> partVals)
+      throws SQLException {
+    // We need to figure out which table we're going to write this too.
+    PostgresTable pTable = findPartitionTable(dbName, tableName);
+    // We will need the Hive table to properly translate the partition values.
+    Table hTable = getTable(dbName, tableName);
+    List<Object> translated = translatePartVals(hTable, partVals);
+
+    int rowsDeleted = dropPartitions(dbName, tableName, Collections.singletonList(partVals));
+    if (rowsDeleted == 0) {
+      LOG.debug("No partition " + HBaseStore.partNameForErrorMsg(dbName, tableName, partVals) +
+          " found to drop");
+      return false;
+    } else if (rowsDeleted == 1) {
+      return true;
+    } else {
+      String msg = "Dropping single partition " +
+          HBaseStore.partNameForErrorMsg(dbName, tableName, partVals) + " resulted in dropping " +
+          "more than one row from the table.  Way bad!";
+      LOG.error(msg);
+      throw new RuntimeException(msg);
+    }
+  }
+
+  public int dropPartitions(String dbName, String tableName, List<List<String>> partVals)
+      throws SQLException {
+    List<List<Object>> allTranslated = new ArrayList<>();
+    // We need to figure out which table we're going to write this too.
+    PostgresTable pTable = findPartitionTable(dbName, tableName);
+    // We will need the Hive table to properly translate the partition values.
+    Table hTable = getTable(dbName, tableName);
+
+    StringBuilder buf = new StringBuilder("delete from ")
+        .append(pTable.getName())
+        .append(" where ");
+    boolean first = true;
+    for (List<String> pVals : partVals) {
+      if (first) first = false;
+      else buf.append(" or ");
+      buf.append('(');
+      List<Object> translated = translatePartVals(hTable, pVals);
+      allTranslated.add(translated);
+      assert translated.size() == pTable.getPrimaryKeyCols().size();
+      for (int i = 0; i < translated.size(); i++) {
+        if (i != 0) buf.append(" and ");
+        buf.append(pTable.getPrimaryKeyCols().get(i))
+            .append(" = ?");
+      }
+      buf.append(')');
+    }
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Going to prepare statement " + buf.toString());
+    }
+    try (PreparedStatement stmt = currentConnection.prepareStatement(buf.toString())) {
+      int offset = 1;
+      for (List<Object> translated : allTranslated) {
+        fillInPartitionKeyWithSpecificTypes(pTable.getPrimaryKeyCols(), stmt, translated, offset);
+        offset += translated.size();
+      }
+      return stmt.executeUpdate();
     }
   }
 

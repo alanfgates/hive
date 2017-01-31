@@ -173,7 +173,7 @@ public class TestPostgresStore {
   }
 
   @Test
-  public void partitions() throws InvalidObjectException, MetaException, NoSuchObjectException {
+  public void partitions() throws InvalidObjectException, MetaException, NoSuchObjectException, InvalidInputException {
     String dbName = "default";
     String tableName = "ptbl1";
     List<String> pVals = Collections.singletonList("a");
@@ -188,7 +188,7 @@ public class TestPostgresStore {
         new FieldSchema("pcol", "string", "")
     );
     // We need to create a real table because all of the partition calls reference the table table
-    Table table = new Table("ptbl1", "default", "me", 1, 2, 3, sd, pcols,
+    Table table = new Table(tableName, dbName, "me", 1, 2, 3, sd, pcols,
         Collections.<String, String>emptyMap(), null, null, TableType.MANAGED_TABLE.name());
     store.createTable(table);
     tablesToDrop.add(PostgresKeyValue.buildPartTableName(dbName, tableName));
@@ -205,6 +205,50 @@ public class TestPostgresStore {
 
     List<Partition> parts = store.getPartitions(dbName, tableName, -1);
     Assert.assertEquals(1, parts.size());
+
+    // Add some more partitions so that we can drop them
+    part = new Partition(Collections.singletonList("b"), dbName, tableName, 1, 2, sd,
+        Collections.<String, String>emptyMap());
+    store.addPartition(part);
+    part = new Partition(Collections.singletonList("c"), dbName, tableName, 1, 2, sd,
+        Collections.<String, String>emptyMap());
+    store.addPartition(part);
+
+    parts = store.getPartitions(dbName, tableName, -1);
+    Assert.assertEquals(3, parts.size());
+
+    store.dropPartition(dbName, tableName, pVals);
+    parts = store.getPartitions(dbName, tableName, -1);
+    Assert.assertEquals(2, parts.size());
+    Assert.assertNotEquals("a", parts.get(0).getValues().get(0));
+    Assert.assertNotEquals("a", parts.get(1).getValues().get(0));
+
+    store.dropPartitions(dbName, tableName, Arrays.asList("pcol=b", "pcol=c"));
+    parts = store.getPartitions(dbName, tableName, -1);
+    Assert.assertEquals(0, parts.size());
+  }
+
+  @Test(expected = NoSuchObjectException.class)
+  public void nonExistentPartition() throws InvalidObjectException, MetaException, NoSuchObjectException, InvalidInputException {
+    String dbName = "default";
+    String tableName = "pdtbl1";
+
+    List<FieldSchema> cols = Collections.singletonList(
+        new FieldSchema("a", "varchar(32)", "")
+    );
+    SerDeInfo serde = new SerDeInfo("serde", "serde", Collections.<String, String>emptyMap());
+    StorageDescriptor sd = new StorageDescriptor(cols, "file:/tmp/tbl1", "inputformat",
+        "outputformat", false, 0, serde, null, null, Collections.<String, String>emptyMap());
+    List<FieldSchema> pcols = Collections.singletonList(
+        new FieldSchema("pcol", "string", "")
+    );
+    // We need to create a real table because all of the partition calls reference the table table
+    Table table = new Table(tableName, dbName, "me", 1, 2, 3, sd, pcols,
+        Collections.<String, String>emptyMap(), null, null, TableType.MANAGED_TABLE.name());
+    store.createTable(table);
+    tablesToDrop.add(PostgresKeyValue.buildPartTableName(dbName, tableName));
+
+    store.dropPartition(dbName, tableName, Collections.singletonList("nosuchpart"));
   }
 
   @Test

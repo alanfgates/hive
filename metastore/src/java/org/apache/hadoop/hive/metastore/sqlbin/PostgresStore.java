@@ -328,7 +328,23 @@ public class PostgresStore implements RawStore {
   @Override
   public boolean dropPartition(String dbName, String tableName, List<String> part_vals) throws
       MetaException, NoSuchObjectException, InvalidObjectException, InvalidInputException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      if (getPostgres().dropPartition(dbName, tableName, part_vals)) {
+        commit = true;
+        return true;
+      } else {
+        throw new NoSuchObjectException("Unable to find partition " +
+            HBaseStore.partNameForErrorMsg(dbName, tableName, part_vals));
+      }
+    } catch (SQLException e) {
+      LOG.error("Unable to delete db" + e);
+      throw new MetaException("Unable to drop partition " +
+          HBaseStore.partNameForErrorMsg(dbName, tableName, part_vals));
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
@@ -1069,7 +1085,17 @@ public class PostgresStore implements RawStore {
   @Override
   public void dropPartitions(String dbName, String tblName, List<String> partNames) throws
       MetaException, NoSuchObjectException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      getPostgres().dropPartitions(dbName, tblName, HBaseStore.partNameListToValsList(partNames));
+      commit = true;
+    } catch (SQLException e) {
+      LOG.error("Unable to drop partitions", e);
+      throw new NoSuchObjectException("Failure dropping partitions, " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
 
   }
 
