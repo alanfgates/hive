@@ -561,9 +561,9 @@ public class PostgresKeyValue implements MetadataStore {
    * @param name name of db to drop
    * @throws SQLException
    */
-  public void deleteDb(String name) throws SQLException {
-    deleteOnKey(DB_TABLE, name);
+  public boolean deleteDb(String name) throws SQLException {
     dbCache.remove(name);
+    return deleteOnKey(DB_TABLE, name);
   }
 
   public int getDatabaseCount() throws SQLException {
@@ -1011,8 +1011,9 @@ public class PostgresKeyValue implements MetadataStore {
           }
         }
       }
-      // Put it in the map.  It's ok if we're in a race condition and someone else already has.
-      partitionTables.put(partTableName, table);
+      // Put it in the map, but only if we were supposed to build it.  It's ok if we're in a race
+      // condition and someone else already has.
+      if (buildIfNotExists) partitionTables.put(partTableName, table);
     }
     return table;
   }
@@ -1161,9 +1162,9 @@ public class PostgresKeyValue implements MetadataStore {
   }
 
   @Override
-  public void deleteRole(String roleName) throws IOException {
+  public boolean deleteRole(String roleName) throws IOException {
     try {
-      deleteOnKey(ROLE_TABLE, roleName);
+      return deleteOnKey(ROLE_TABLE, roleName);
     } catch (SQLException e) {
       LOG.error("Unable to delete role", e);
       throw new IOException(e);
@@ -1431,8 +1432,8 @@ public class PostgresKeyValue implements MetadataStore {
    * @param tableName table to drop
    * @throws SQLException
    */
-  public void deleteTable(String dbName, String tableName) throws SQLException {
-    deleteOnKey(TABLE_TABLE, dbName, tableName);
+  public boolean deleteTable(String dbName, String tableName) throws SQLException {
+    boolean rc = deleteOnKey(TABLE_TABLE, dbName, tableName);
     ObjectPair<String, String> cacheKey = new ObjectPair<>(dbName, tableName);
     tableCache.remove(cacheKey);
     tableStatsCache.remove(cacheKey);
@@ -1441,6 +1442,7 @@ public class PostgresKeyValue implements MetadataStore {
     if (partitionTable != null) {
       dropPostgresTable(partitionTable.getName());
     }
+    return rc;
   }
 
   /**********************************************************************************************
@@ -1543,6 +1545,14 @@ public class PostgresKeyValue implements MetadataStore {
     Table hTable = getTable(dbName, tblName);
     for (List<String> partVals : partValLists) {
       PostgresTable pTable = findPartitionTable(dbName, tblName, false);
+      if (pTable == null) {
+        // This means we couldn't find the partition table, which is obviously a problem.
+        String msg = "Attempt to get statistics for table " +
+            PostgresStore.tableNameForErrorMsg(dbName, tblName) +
+            " because partition table does not exist for this table.";
+        LOG.error(msg);
+        throw new SQLException(msg);
+      }
       List<Object> translatedPartVals = translatePartVals(hTable, partVals);
       statsList.add(getSinglePartitionStatistics(dbName, tblName, pTable, partVals, translatedPartVals));
     }
@@ -2039,7 +2049,7 @@ public class PostgresKeyValue implements MetadataStore {
     }
   }
 
-  private void deleteOnKey(PostgresTable table, String... keyVals) throws SQLException {
+  private boolean deleteOnKey(PostgresTable table, String... keyVals) throws SQLException {
     List<String> pkCols = table.getPrimaryKeyCols();
     assert pkCols.size() == keyVals.length;
     StringBuilder buf = new StringBuilder("delete from ")
@@ -2047,15 +2057,24 @@ public class PostgresKeyValue implements MetadataStore {
         .append(" where ");
     for (int i = 0; i < keyVals.length; i++) {
       if (i != 0) buf.append(" and ");
-      buf.append(pkCols.get(0))
+      buf.append(pkCols.get(i))
           .append(" = '")
           .append(keyVals[i])
           .append('\'');
     }
     try (Statement stmt = currentConnection.createStatement()) {
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Going to run statement " + buf.toString());
+      }
       int rowsDeleted = stmt.executeUpdate(buf.toString());
-      if (rowsDeleted != 1) {
-        String msg = "Expected to delete a row for " + serializeKey(table, keyVals) + ", but did not";
+      if (rowsDeleted == 0) {
+        LOG.info("Unable to find table to drop matching " + serializeKey(table, keyVals));
+        return false;
+      } else if (rowsDeleted == 1) {
+        return true;
+      } else {
+        String msg = "Deleted " + rowsDeleted + " for " + serializeKey(table, keyVals) +
+            ", way bad!";
         LOG.error(msg);
         throw new RuntimeException(msg);
       }

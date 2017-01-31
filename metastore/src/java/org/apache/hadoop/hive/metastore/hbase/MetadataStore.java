@@ -127,9 +127,10 @@ public interface MetadataStore {
   /**
    * Delete a role.
    * @param roleName role to delete
+   * @return true if a role was deleted, false if not
    * @throws IOException
    */
-  void deleteRole(String roleName) throws IOException;
+  boolean deleteRole(String roleName) throws IOException;
 
   /**
    * Write back a set of changed roles.

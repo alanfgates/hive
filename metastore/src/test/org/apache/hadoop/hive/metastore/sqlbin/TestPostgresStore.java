@@ -96,7 +96,7 @@ public class TestPostgresStore {
   }
 
   @Test
-  public void tables() throws InvalidObjectException, MetaException {
+  public void tables() throws InvalidObjectException, MetaException, NoSuchObjectException, InvalidInputException {
     String dbName = "tbltest_db";
     String tableName = "tbl1";
     String tableName2 = "xxx_tbl2";
@@ -138,6 +138,19 @@ public class TestPostgresStore {
     names = store.getTables(dbName, "xxx.*");
     Assert.assertEquals(1, names.size());
     Assert.assertEquals(tableName2, names.get(0));
+
+    store.dropTable(dbName, tableName2);
+    names = store.getTables(dbName, null);
+    Assert.assertEquals(1, names.size());
+    Assert.assertEquals(tableName, names.get(0));
+  }
+
+  @Test(expected = NoSuchObjectException.class)
+  public void nonExistentTable() throws MetaException, InvalidInputException, NoSuchObjectException, InvalidObjectException {
+    Table table = store.getTable("default", "nosuchtable");
+    Assert.assertNull(table);
+
+    store.dropTable("default", "nosuchtable");
   }
 
   @Test

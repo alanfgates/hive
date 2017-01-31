@@ -582,7 +582,8 @@ public class TestOrcSplitElimination {
     }
 
     @Override
-    public void deleteRole(String roleName) throws IOException {
+    public boolean deleteRole(String roleName) throws IOException {
+      return false;
 
     }
 

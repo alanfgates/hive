@@ -212,7 +212,23 @@ public class PostgresStore implements RawStore {
   @Override
   public boolean dropTable(String dbName, String tableName) throws MetaException,
       NoSuchObjectException, InvalidObjectException, InvalidInputException {
-    throw new UnsupportedOperationException();
+    // No need to find and drop privileges or stats as in the ObjectStore, since they are all
+    // stored together in one row in this case.
+    boolean commit = false;
+    openTransaction();
+    try {
+      if (!getPostgres().deleteTable(dbName, tableName)) {
+        throw new NoSuchObjectException("Unable to find table " +
+            tableNameForErrorMsg(dbName, tableName));
+      }
+      commit = true;
+      return true;
+    } catch (SQLException e) {
+      LOG.error("Unable to delete db", e);
+      throw new MetaException("Unable to drop table " + tableNameForErrorMsg(dbName, tableName));
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
@@ -1363,7 +1379,7 @@ public class PostgresStore implements RawStore {
     }
   }
 
-  private String tableNameForErrorMsg(String dbName, String tableName) {
+  static String tableNameForErrorMsg(String dbName, String tableName) {
     return dbName + "." + tableName;
   }
 

@@ -1200,9 +1200,10 @@ public class HBaseReadWrite implements MetadataStore {
    * @param roleName name of role to drop
    * @throws IOException
    */
-  public void deleteRole(String roleName) throws IOException {
+  public boolean deleteRole(String roleName) throws IOException {
     byte[] key = HBaseUtils.buildKey(roleName);
     delete(ROLE_TABLE, key, null, null);
+    return true; // TODO - should check that we really deleted something.
     //roleCache.remove(roleName);
   }
 
