@@ -45,7 +45,6 @@ import org.apache.hadoop.hive.metastore.api.Role;
 import org.apache.hadoop.hive.metastore.api.SQLForeignKey;
 import org.apache.hadoop.hive.metastore.api.SQLPrimaryKey;
 import org.apache.hadoop.hive.metastore.api.Table;
-import org.apache.hadoop.hive.metastore.hbase.HBaseSchemaTool;
 import org.apache.hadoop.hive.metastore.hbase.HBaseStore;
 import org.apache.hadoop.hive.metastore.hbase.HbaseMetastoreProto;
 import org.apache.hadoop.hive.metastore.hbase.MetadataStore;
@@ -315,7 +314,7 @@ public class PostgresKeyValue implements MetadataStore {
         //better raise an error than hang forever
         config.setConnectionTimeoutInMs(60000);
         config.setMaxConnectionsPerPartition(10);
-        config.setPartitionCount(1);
+        config.setPartitionCount(5);
         config.setUser(user);
         config.setPassword(passwd)
         ;
@@ -689,7 +688,7 @@ public class PostgresKeyValue implements MetadataStore {
     if (part == null) {
       LOG.debug("Partition not found in cache, going to Postgres");
       Table hTable = getTable(dbName, tableName);
-      PostgresTable pTable = findPartitionTable(dbName, tableName);
+      PostgresTable pTable = findPartitionTable(dbName, tableName, false);
       byte[][] serialized =
           getPartitionByKey(pTable, CAT_AND_STATS_COLS, translatePartVals(hTable, partVals));
       if (serialized == null) return null;
@@ -712,7 +711,8 @@ public class PostgresKeyValue implements MetadataStore {
    */
   public void putPartition(Partition partition) throws SQLException {
     // We need to figure out which table we're going to write this too.
-    PostgresTable pTable = findPartitionTable(partition.getDbName(), partition.getTableName());
+    PostgresTable pTable = findPartitionTable(partition.getDbName(), partition.getTableName(),
+        false);
     // We will need the Hive table to properly translate the partition values.
     Table hTable = getTable(partition.getDbName(), partition.getTableName());
     List<Object> translated = translatePartVals(hTable, partition.getValues());
@@ -744,7 +744,7 @@ public class PostgresKeyValue implements MetadataStore {
                                                boolean cacheStats) throws SQLException {
     List<Partition> parts = new ArrayList<>(maxPartitions > 0 ? maxPartitions : 100);
     int maxPartitionsInternal = maxPartitions > 0 ? maxPartitions : Integer.MAX_VALUE;
-    PostgresTable pTable = findPartitionTable(dbName, tableName);
+    PostgresTable pTable = findPartitionTable(dbName, tableName, false);
     StringBuilder buf = new StringBuilder("select ")
         .append(CATALOG_COL);
     if (cacheStats) {
@@ -786,7 +786,7 @@ public class PostgresKeyValue implements MetadataStore {
   public boolean scanPartitionsByExpr(String dbName, String tableName, ExpressionTree exprTree,
                                       int maxPartitions, List<Partition> result)
       throws SQLException, MetaException {
-    PostgresTable pTable = findPartitionTable(dbName, tableName);
+    PostgresTable pTable = findPartitionTable(dbName, tableName, false);
     Table hTable = getTable(dbName, tableName);
     PartitionFilterBuilder visitor = new PartitionFilterBuilder(pTable, hTable);
     exprTree.accept(visitor);
@@ -840,7 +840,7 @@ public class PostgresKeyValue implements MetadataStore {
   public boolean dropPartition(String dbName, String tableName, List<String> partVals)
       throws SQLException {
     // We need to figure out which table we're going to write this too.
-    PostgresTable pTable = findPartitionTable(dbName, tableName);
+    PostgresTable pTable = findPartitionTable(dbName, tableName, false);
     // We will need the Hive table to properly translate the partition values.
     Table hTable = getTable(dbName, tableName);
     List<Object> translated = translatePartVals(hTable, partVals);
@@ -865,7 +865,7 @@ public class PostgresKeyValue implements MetadataStore {
       throws SQLException {
     List<List<Object>> allTranslated = new ArrayList<>();
     // We need to figure out which table we're going to write this too.
-    PostgresTable pTable = findPartitionTable(dbName, tableName);
+    PostgresTable pTable = findPartitionTable(dbName, tableName, false);
     // We will need the Hive table to properly translate the partition values.
     Table hTable = getTable(dbName, tableName);
 
@@ -1038,17 +1038,12 @@ public class PostgresKeyValue implements MetadataStore {
     }
   }
 
-  // Figure out if we already have a table for this partition.  If so, return it.  Otherwise
-  // create one.
-  private PostgresTable findPartitionTable(String dbName, String tableName) throws SQLException {
-    return findPartitionTable(dbName, tableName, true);
-  }
-
   private PostgresTable findPartitionTable(String dbName, String tableName,
                                            boolean buildIfNotExists) throws SQLException {
     String partTableName = buildPartTableName(dbName, tableName);
     PostgresTable table = partitionTables.get(partTableName);
     if (table == null) {
+      LOG.debug("Couldn't find table in memory, looking to see if it's in the db " + tableName);
       // Check to see if the table exists but we don't have it in the cache.  I don't put this
       // part in the synchronized section because it's ok if two threads do this at the same time,
       // if a bit wasteful.
@@ -1060,6 +1055,7 @@ public class PostgresKeyValue implements MetadataStore {
         // PostgresTable object.
         table = postgresTableFromPartition(dbName, tableName);
       } else if (buildIfNotExists) {
+        LOG.info("Unable to find table " + tableName + " in Postgres, creating it");
         // The table isn't there.  We need to lock because we don't want a race condition on
         // creating the table.
         // TODO - this isn't sufficient.  If two Hive instances on different machines (metastore
@@ -1475,7 +1471,7 @@ public class PostgresKeyValue implements MetadataStore {
     if (table.getPartitionKeysSize() > 0) {
       // This is a work around for a race condition in creating the partition table.  It isn't
       // foolproof, but it helps.
-      findPartitionTable(table.getDbName(), table.getTableName());
+      findPartitionTable(table.getDbName(), table.getTableName(), true);
     }
   }
 
@@ -1498,15 +1494,16 @@ public class PostgresKeyValue implements MetadataStore {
    * @throws SQLException
    */
   public boolean deleteTable(String dbName, String tableName) throws SQLException {
+    // If we've built a special partition table for this table drop it first.
+    PostgresTable partitionTable = findPartitionTable(dbName, tableName, false);
+    if (partitionTable != null) {
+      dropPostgresTable(partitionTable.getName());
+      partitionTables.remove(partitionTable.getName());
+    }
     boolean rc = deleteOnKey(TABLE_TABLE, dbName, tableName);
     ObjectPair<String, String> cacheKey = new ObjectPair<>(dbName, tableName);
     tableCache.remove(cacheKey);
     tableStatsCache.remove(cacheKey);
-    // If we've built a special partition table for this table drop it too.
-    PostgresTable partitionTable = findPartitionTable(dbName, tableName, false);
-    if (partitionTable != null) {
-      dropPostgresTable(partitionTable.getName());
-    }
     return rc;
   }
 
@@ -1575,7 +1572,7 @@ public class PostgresKeyValue implements MetadataStore {
   public void updatePartitionStatistics(String dbName, String tableName, List<String> partVals,
                                         ColumnStatistics stats) throws SQLException {
     List<String> cacheKey = buildPartCacheKey(dbName, tableName, partVals);
-    PostgresTable pTable = findPartitionTable(dbName, tableName);
+    PostgresTable pTable = findPartitionTable(dbName, tableName, false);
     Table hTable = getTable(dbName, tableName);
     Partition partition = getPartition(dbName, tableName, partVals);
     List<Object> translatedPartVals = translatePartVals(hTable, partVals);
