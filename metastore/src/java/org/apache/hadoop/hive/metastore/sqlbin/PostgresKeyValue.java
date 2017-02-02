@@ -748,6 +748,7 @@ public class PostgresKeyValue implements MetadataStore {
     StringBuilder buf = new StringBuilder("select ")
         .append(CATALOG_COL);
     if (cacheStats) {
+      LOG.debug("Fetching stats along with partition info");
       buf.append(", ")
           .append(STATS_COL);
     }
@@ -1996,12 +1997,12 @@ public class PostgresKeyValue implements MetadataStore {
           .append(colName)
           .append(" from ")
           .append(table.getName());
-      if (regex != null || keyVals != null) {
+      if (regex != null || (keyVals != null && keyVals.length > 0)) {
         buf.append(" where ");
         boolean first = true;
         int keyColNum = 0;
         List<String> keyCols = table.getPrimaryKeyCols();
-        if (keyVals != null) {
+        if (keyVals != null && keyVals.length > 0) {
           for (String keyVal : keyVals) {
             if (first) first = false;
             else buf.append(" and ");

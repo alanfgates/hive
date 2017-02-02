@@ -170,12 +170,25 @@ public class PostgresStore implements RawStore {
 
   @Override
   public List<String> getDatabases(String pattern) throws MetaException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      List<Database> dbs = getPostgres().scanDatabases(pattern);
+      List<String> dbNames = new ArrayList<>(dbs.size());
+      for (Database db : dbs) dbNames.add(db.getName());
+      commit = true;
+      return dbNames;
+    } catch (IOException e) {
+      LOG.error("Unable to get databases ", e);
+      throw new MetaException("Unable to get databases, " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
   public List<String> getAllDatabases() throws MetaException {
-    throw new UnsupportedOperationException();
+    return getDatabases(null);
   }
 
   @Override

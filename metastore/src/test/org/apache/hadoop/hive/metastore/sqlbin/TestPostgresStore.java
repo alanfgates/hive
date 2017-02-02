@@ -93,6 +93,19 @@ public class TestPostgresStore {
     Assert.assertEquals("description", db.getDescription());
     Assert.assertEquals("file:/somewhere", db.getLocationUri());
     Assert.assertEquals(0, db.getParametersSize());
+
+    List<String> dbNames = store.getAllDatabases();
+    // Depending on the order the tests are run in, there may be more than just two.
+    Assert.assertTrue(dbNames.size() >= 1);
+    boolean sawDbtest1 = false;
+    for (String dbName : dbNames) {
+      if (dbName.equals("dbtest1")) sawDbtest1 = true;
+    }
+    Assert.assertTrue(sawDbtest1);
+
+    dbNames = store.getDatabases("dbtest.*");
+    Assert.assertEquals(1, dbNames.size());
+    Assert.assertEquals("dbtest1", dbNames.get(0));
   }
 
   @Test
