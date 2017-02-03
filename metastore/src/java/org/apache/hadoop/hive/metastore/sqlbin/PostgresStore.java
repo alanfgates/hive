@@ -127,7 +127,7 @@ public class PostgresStore implements RawStore {
     openTransaction();
     try {
       // HiveMetaStore already checks for existence of the database, don't recheck
-      getPostgres().putDb(db);
+      getPostgres().insertDb(db);
       commit = true;
     } catch (SQLException e) {
       LOG.error("Unable to create database ", e);
@@ -135,7 +135,6 @@ public class PostgresStore implements RawStore {
     } finally {
       commitOrRoleBack(commit);
     }
-
   }
 
   @Override
@@ -159,13 +158,35 @@ public class PostgresStore implements RawStore {
 
   @Override
   public boolean dropDatabase(String dbname) throws NoSuchObjectException, MetaException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      boolean rc = getPostgres().deleteDb(dbname);
+      commit = true;
+      return rc;
+    } catch (SQLException e) {
+      LOG.error("Unable to drop database ", e);
+      throw new MetaException("Unable to read from or write to postgres " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
   public boolean alterDatabase(String dbname, Database db) throws NoSuchObjectException,
       MetaException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      getPostgres().updateDb(db);
+      commit = true;
+      return true;
+    } catch (SQLException e) {
+      LOG.error("Unable to create database ", e);
+      throw new MetaException("Unable to read from or write to postgres " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
@@ -191,6 +212,8 @@ public class PostgresStore implements RawStore {
     return getDatabases(null);
   }
 
+  // AFAIK no one uses types.
+
   @Override
   public boolean createType(Type type) {
     throw new UnsupportedOperationException();
@@ -198,12 +221,12 @@ public class PostgresStore implements RawStore {
 
   @Override
   public Type getType(String typeName) {
-    throw new UnsupportedOperationException();
+    return null;
   }
 
   @Override
   public boolean dropType(String typeName) {
-    throw new UnsupportedOperationException();
+    return false;
   }
 
   @Override
@@ -212,7 +235,7 @@ public class PostgresStore implements RawStore {
     openTransaction();
     // HiveMetaStore above us checks if the table already exists, so we can blindly store it here.
     try {
-      getPostgres().putTable(tbl);
+      getPostgres().insertTable(tbl);
       commit = true;
     } catch (SQLException e) {
       LOG.error("Unable to create table ", e);
@@ -381,7 +404,18 @@ public class PostgresStore implements RawStore {
   @Override
   public void alterTable(String dbname, String name, Table newTable) throws InvalidObjectException,
       MetaException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    // HiveMetaStore above us checks if the table already exists, so we can blindly store it here.
+    try {
+      getPostgres().updateTable(newTable);
+      commit = true;
+    } catch (SQLException e) {
+      LOG.error("Unable to alter table ", e);
+      throw new MetaException("Unable to read from or write to postgres " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
 
   }
 
@@ -423,7 +457,7 @@ public class PostgresStore implements RawStore {
 
   @Override
   public List<String> getAllTables(String dbName) throws MetaException {
-    throw new UnsupportedOperationException();
+    return getTables(dbName, null);
   }
 
   @Override
@@ -435,7 +469,19 @@ public class PostgresStore implements RawStore {
   @Override
   public List<String> listPartitionNames(String db_name, String tbl_name, short max_parts) throws
       MetaException {
-    throw new UnsupportedOperationException();
+    try {
+      Table table = getTable(db_name, tbl_name);
+      List<Partition> parts = getPartitions(db_name, tbl_name, max_parts);
+      if (parts == null) return null;
+      List<String> names = new ArrayList<>(parts.size());
+      for (Partition part : parts) {
+        names.add(HBaseStore.buildExternalPartName(table, part.getValues()));
+      }
+      return names;
+    } catch (NoSuchObjectException e) {
+      LOG.error("Unable to get partitions", e);
+      throw new MetaException("Unable to get partitions: " + e.getMessage());
+    }
   }
 
   @Override
@@ -447,16 +493,36 @@ public class PostgresStore implements RawStore {
   @Override
   public void alterPartition(String db_name, String tbl_name, List<String> part_vals,
                              Partition new_part) throws InvalidObjectException, MetaException {
-    throw new UnsupportedOperationException();
-
+    boolean commit = false;
+    openTransaction();
+    try {
+      getPostgres().putPartition(new_part);
+      commit = true;
+    } catch (SQLException e) {
+      LOG.error("Unable to add partition", e);
+      throw new MetaException("Unable to read from or write to hbase " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override
   public void alterPartitions(String db_name, String tbl_name, List<List<String>> part_vals_list,
                               List<Partition> new_parts) throws InvalidObjectException,
       MetaException {
-    throw new UnsupportedOperationException();
-
+    boolean commit = false;
+    openTransaction();
+    try {
+      for (Partition new_part : new_parts) {
+        getPostgres().putPartition(new_part);
+      }
+      commit = true;
+    } catch (SQLException e) {
+      LOG.error("Unable to add partition", e);
+      throw new MetaException("Unable to read from or write to hbase " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   // Indices in Hive are useless and rarely used.  For now ignore them.  We will throw
@@ -519,6 +585,8 @@ public class PostgresStore implements RawStore {
         result.addAll(getPostgres().scanPartitionsInTable(dbName, tblName, maxParts, true));
         return true;
       }
+      // TODO - This is broken, it should work like HBaseStore where we apply the filter on this
+      // side
       boolean rc = getPostgres().scanPartitionsByExpr(dbName, tblName, exprTree, maxParts, result);
       commit = true;
       return rc;
@@ -930,7 +998,7 @@ public class PostgresStore implements RawStore {
       Table newTable = getTable(dbName, tableName);
       Table newTableCopy = newTable.deepCopy();
       StatsSetupConst.setColumnStatsState(newTableCopy.getParameters(), colNames);
-      getPostgres().putTable(newTableCopy);
+      getPostgres().updateTable(newTableCopy);
 
       getPostgres().updateTableStatistics(colStats.getStatsDesc().getDbName(),
           colStats.getStatsDesc().getTableName(), colStats);
@@ -1181,10 +1249,45 @@ public class PostgresStore implements RawStore {
     boolean commit = false;
     openTransaction();
     try {
-      getPostgres().putFunction(func);
+      getPostgres().insertFunction(func);
       commit = true;
     } catch (SQLException e) {
       LOG.error("Unable to create function", e);
+      throw new MetaException("Unable to read from or write to postgres " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
+  }
+
+  @Override
+  public void alterFunction(String dbName, String funcName, Function newFunction) throws
+      InvalidObjectException, MetaException {
+    boolean commit = false;
+    openTransaction();
+    try {
+      getPostgres().updateFunction(newFunction);
+      commit = true;
+    } catch (SQLException e) {
+      LOG.error("Unable to create function", e);
+      throw new MetaException("Unable to read from or write to postgres " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
+  }
+
+  @Override
+  public void dropFunction(String dbName, String funcName) throws MetaException,
+      NoSuchObjectException, InvalidObjectException, InvalidInputException {
+    boolean commit = false;
+    openTransaction();
+    try {
+      if (!getPostgres().deleteFunction(dbName, funcName)) {
+        throw new NoSuchObjectException("Unable to find function " +
+            HBaseStore.tableNameForErrorMsg(dbName, funcName));
+      }
+      commit = true;
+    } catch (SQLException e) {
+      LOG.error("Unable to drop function ", e);
       throw new MetaException("Unable to read from or write to postgres " + e.getMessage());
     } finally {
       commitOrRoleBack(commit);
@@ -1193,22 +1296,19 @@ public class PostgresStore implements RawStore {
   }
 
   @Override
-  public void alterFunction(String dbName, String funcName, Function newFunction) throws
-      InvalidObjectException, MetaException {
-    throw new UnsupportedOperationException();
-
-  }
-
-  @Override
-  public void dropFunction(String dbName, String funcName) throws MetaException,
-      NoSuchObjectException, InvalidObjectException, InvalidInputException {
-    throw new UnsupportedOperationException();
-
-  }
-
-  @Override
   public Function getFunction(String dbName, String funcName) throws MetaException {
-    throw new UnsupportedOperationException();
+    boolean commit = false;
+    openTransaction();
+    try {
+      Function func = getPostgres().getFunction(dbName, funcName);
+      commit = true;
+      return func;
+    } catch (SQLException e) {
+      LOG.error("Unable to create function", e);
+      throw new MetaException("Unable to read from or write to postgres " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
+    }
   }
 
   @Override

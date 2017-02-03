@@ -51,6 +51,7 @@ import org.apache.hadoop.hive.metastore.hbase.MetadataStore;
 import org.apache.hadoop.hive.metastore.hbase.stats.ColumnStatsAggregator;
 import org.apache.hadoop.hive.metastore.hbase.stats.ColumnStatsAggregatorFactory;
 import org.apache.hadoop.hive.metastore.parser.ExpressionTree;
+import org.apache.hadoop.hive.ql.log.PerfLogger;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.thrift.protocol.TCompactProtocol;
@@ -535,13 +536,24 @@ public class PostgresKeyValue implements MetadataStore {
   }
 
   /**
-   * Store a database object
+   * Create a new database object
    * @param database database object to store
    * @throws SQLException
    */
-  public void putDb(Database database) throws SQLException {
+  public void insertDb(Database database) throws SQLException {
     byte[] serialized = serialize(database);
-    storeOnKey(DB_TABLE, CATALOG_COL, serialized, database.getName());
+    insertOnKey(DB_TABLE, CATALOG_COL, serialized, database.getName());
+    dbCache.put(database.getName(), database);
+  }
+
+  /**
+   * Update an existing database object
+   * @param database database object to update
+   * @throws SQLException if something goes wrong
+   */
+  public void updateDb(Database database) throws SQLException {
+    byte[] serialized = serialize(database);
+    updateOnKey(DB_TABLE, CATALOG_COL, serialized, database.getName());
     dbCache.put(database.getName(), database);
   }
 
@@ -595,14 +607,40 @@ public class PostgresKeyValue implements MetadataStore {
    *********************************************************************************************/
 
   /**
-   * Store a function object
+   * Create a function object
    * @param function function object to store
    * @throws SQLException
    */
-  void putFunction(Function function) throws SQLException {
+  void insertFunction(Function function) throws SQLException {
     byte[] serialized = serialize(function);
-    storeOnKey(FUNC_TABLE, CATALOG_COL, serialized, function.getDbName(),
+    insertOnKey(FUNC_TABLE, CATALOG_COL, serialized, function.getDbName(),
         function.getFunctionName());
+  }
+
+  /**
+   * Update a function object
+   * @param function function object to store
+   * @throws SQLException
+   */
+  void updateFunction(Function function) throws SQLException {
+    byte[] serialized = serialize(function);
+    updateOnKey(FUNC_TABLE, CATALOG_COL, serialized, function.getDbName(),
+        function.getFunctionName());
+  }
+
+  /**
+   * Get a function
+   * @param dbName database the function lives in
+   * @param funcName function name
+   * @return function object, or null if no such function
+   * @throws SQLException
+   */
+  Function getFunction(String dbName, String funcName) throws SQLException {
+    byte[] serialized = getBinaryColumnByKey(FUNC_TABLE, CATALOG_COL, dbName, funcName);
+    if (serialized == null) return null;
+    Function func = new Function();
+    deserialize(func, serialized);
+    return func;
   }
 
   /**
@@ -623,6 +661,17 @@ public class PostgresKeyValue implements MetadataStore {
       funcs.add(func);
     }
     return funcs;
+  }
+
+  /**
+   *
+   * @param dbName database the function is in
+   * @param funcName function name
+   * @return true if the function was dropped
+   * @throws SQLException
+   */
+  public boolean deleteFunction(String dbName, String funcName) throws SQLException {
+    return deleteOnKey(FUNC_TABLE, dbName, funcName);
   }
 
   /**********************************************************************************************
@@ -1466,14 +1515,19 @@ public class PostgresKeyValue implements MetadataStore {
    * @param table table object
    * @throws SQLException
    */
-  public void putTable(Table table) throws SQLException {
-    storeOnKey(TABLE_TABLE, CATALOG_COL, serialize(table), table.getDbName(), table.getTableName());
+  public void insertTable(Table table) throws SQLException {
+    insertOnKey(TABLE_TABLE, CATALOG_COL, serialize(table), table.getDbName(), table.getTableName());
     tableCache.put(new ObjectPair<>(table.getDbName(), table.getTableName()), table);
     if (table.getPartitionKeysSize() > 0) {
       // This is a work around for a race condition in creating the partition table.  It isn't
       // foolproof, but it helps.
       findPartitionTable(table.getDbName(), table.getTableName(), true);
     }
+  }
+
+  public void updateTable(Table table) throws SQLException {
+    updateOnKey(TABLE_TABLE, CATALOG_COL, serialize(table), table.getDbName(), table.getTableName());
+    tableCache.put(new ObjectPair<>(table.getDbName(), table.getTableName()), table);
   }
 
   @Override
@@ -1604,30 +1658,37 @@ public class PostgresKeyValue implements MetadataStore {
                                                        List<List<String>> partValLists,
                                                        List<String> colNames)
       throws SQLException {
-    List<ColumnStatistics> statsList = new ArrayList<>(partValLists.size());
-    Table hTable = getTable(dbName, tblName);
-    for (List<String> partVals : partValLists) {
-      PostgresTable pTable = findPartitionTable(dbName, tblName, false);
-      if (pTable == null) {
-        // This means we couldn't find the partition table, which is obviously a problem.
-        String msg = "Attempt to get statistics for table " +
-            PostgresStore.tableNameForErrorMsg(dbName, tblName) +
-            " because partition table does not exist for this table.";
-        LOG.error(msg);
-        throw new SQLException(msg);
+    PerfLogger perfLogger = PerfLogger.getPerfLogger((HiveConf)conf, false);
+    perfLogger.PerfLogBegin(PostgresKeyValue.class.getName(), "getPartitionStatistics");
+    try {
+      List<ColumnStatistics> statsList = new ArrayList<>(partValLists.size());
+      Table hTable = getTable(dbName, tblName);
+      for (List<String> partVals : partValLists) {
+        PostgresTable pTable = findPartitionTable(dbName, tblName, false);
+        if (pTable == null) {
+          // This means we couldn't find the partition table, which is obviously a problem.
+          String msg = "Attempt to get statistics for table " +
+              PostgresStore.tableNameForErrorMsg(dbName, tblName) +
+              " because partition table does not exist for this table.";
+          LOG.error(msg);
+          throw new SQLException(msg);
+        }
+        List<Object> translatedPartVals = translatePartVals(hTable, partVals);
+        statsList.add(getSinglePartitionStatistics(dbName, tblName, pTable, partVals, translatedPartVals));
+
       }
-      List<Object> translatedPartVals = translatePartVals(hTable, partVals);
-      statsList.add(getSinglePartitionStatistics(dbName, tblName, pTable, partVals, translatedPartVals));
-    }
-    // If the caller has asked for only some columns, return just the columns requested
-    if (colNames != null) {
-      List<ColumnStatistics> trimmedStatsList = new ArrayList<>(statsList.size());
-      for (ColumnStatistics stats : statsList) {
-        if (stats != null) trimmedStatsList.add(trimStats(stats, colNames));
+      // If the caller has asked for only some columns, return just the columns requested
+      if (colNames != null) {
+        List<ColumnStatistics> trimmedStatsList = new ArrayList<>(statsList.size());
+        for (ColumnStatistics stats : statsList) {
+          if (stats != null) trimmedStatsList.add(trimStats(stats, colNames));
+        }
+        return trimmedStatsList;
+      } else {
+        return statsList;
       }
-      return trimmedStatsList;
-    } else {
-      return statsList;
+    } finally {
+      perfLogger.PerfLogEnd(PostgresKeyValue.class.getName(), "getPartitionStatistics");
     }
   }
 
@@ -1687,6 +1748,8 @@ public class PostgresKeyValue implements MetadataStore {
   public AggrStats getAggregatedStats(String dbName, String tableName, List<String> partNames,
                                       List<List<String>> partValList, List<String> colNames)
       throws SQLException {
+    PerfLogger perfLogger = PerfLogger.getPerfLogger((HiveConf)conf, false);
+    perfLogger.PerfLogBegin(PostgresKeyValue.class.getName(), "getAggregatedStats");
     // - look to see if we already have it in our local cache
     byte[] cacheKey = getAggrStatsKey(dbName, tableName, partNames, colNames);
     AggrStats aggrStats = aggrStatsCache.get(cacheKey);
@@ -1748,6 +1811,7 @@ public class PostgresKeyValue implements MetadataStore {
         }
       }
     }
+    perfLogger.PerfLogEnd(PostgresKeyValue.class.getName(), "getAggregatedStats");
     return aggrStats;
   }
 
@@ -2034,7 +2098,7 @@ public class PostgresKeyValue implements MetadataStore {
 
   /**
    * Store a record with one column using the primary key.  This can be used to do both insert
-   * and update.
+   * and update.  Whenever possible insert/update should be used.
    * @param table table to store record in
    * @param colName column name to store into
    * @param colVal value to set the column to

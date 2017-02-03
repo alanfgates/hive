@@ -94,6 +94,12 @@ public class TestPostgresStore {
     Assert.assertEquals("file:/somewhere", db.getLocationUri());
     Assert.assertEquals(0, db.getParametersSize());
 
+    db.setDescription("different description");
+    store.alterDatabase(db.getName(), db);
+
+    db = store.getDatabase("dbtest1");
+    Assert.assertEquals("different description", db.getDescription());
+
     List<String> dbNames = store.getAllDatabases();
     // Depending on the order the tests are run in, there may be more than just two.
     Assert.assertTrue(dbNames.size() >= 1);
@@ -106,6 +112,14 @@ public class TestPostgresStore {
     dbNames = store.getDatabases("dbtest.*");
     Assert.assertEquals(1, dbNames.size());
     Assert.assertEquals("dbtest1", dbNames.get(0));
+
+    store.dropDatabase("dbtest1");
+    try {
+      db = store.getDatabase("dbtest1");
+      Assert.fail();
+    } catch (NoSuchObjectException e) {
+      // NOP
+    }
   }
 
   @Test
@@ -148,6 +162,12 @@ public class TestPostgresStore {
     Assert.assertEquals(tableName, namesArray[0]);
     Assert.assertEquals(tableName2, namesArray[1]);
 
+    table = store.getTable(dbName, tableName);
+    table.setCreateTime(5);
+    store.alterTable(dbName, tableName, table);
+    table = store.getTable(dbName, tableName);
+    Assert.assertEquals(5, table.getCreateTime());
+
     names = store.getTables(dbName, "xxx.*");
     Assert.assertEquals(1, names.size());
     Assert.assertEquals(tableName2, names.get(0));
@@ -167,7 +187,7 @@ public class TestPostgresStore {
   }
 
   @Test
-  public void functions() throws InvalidObjectException, MetaException {
+  public void functions() throws InvalidObjectException, MetaException, NoSuchObjectException, InvalidInputException {
     String dbName = "default";
     Function count = new Function("count", dbName, "o.a.h.count", "me", PrincipalType.ROLE, 1,
         FunctionType.JAVA, Collections.<ResourceUri>emptyList());
@@ -183,6 +203,16 @@ public class TestPostgresStore {
             funcs.get(1).getFunctionName().equals("sum")) ||
         (funcs.get(0).getFunctionName().equals("sum") &&
             funcs.get(1).getFunctionName().equals("count")));
+
+    count = store.getFunction(dbName, "count");
+    count.setCreateTime(5);
+    store.alterFunction(count.getDbName(), count.getFunctionName(), count);
+    count = store.getFunction(dbName, "count");
+    Assert.assertEquals(5, count.getCreateTime());
+
+    store.dropFunction(dbName, "count");
+    count = store.getFunction(dbName, "count");
+    Assert.assertNull(count);
   }
 
   @Test
@@ -218,6 +248,12 @@ public class TestPostgresStore {
 
     List<Partition> parts = store.getPartitions(dbName, tableName, -1);
     Assert.assertEquals(1, parts.size());
+
+    part.setCreateTime(5);
+    store.alterPartition(dbName, tableName, pVals, part);
+
+    part = store.getPartition(dbName, tableName, pVals);
+    Assert.assertEquals(5, part.getCreateTime());
 
     // Add some more partitions so that we can drop them
     part = new Partition(Collections.singletonList("b"), dbName, tableName, 1, 2, sd,
