@@ -812,17 +812,41 @@ public class PostgresKeyValue implements MetadataStore {
         Partition part = new Partition();
         deserialize(part, rs.getBytes(1));
         parts.add(part);
+        List<String> partCacheKey = buildPartCacheKey(dbName, tableName, part.getValues());
+        partCache.put(partCacheKey, part);
         if (cacheStats) {
           byte[] serializedStats = rs.getBytes(2);
           if (serializedStats != null) {
             ColumnStatistics stats = new ColumnStatistics();
             deserialize(stats, serializedStats);
-            partStatsCache.put(buildPartCacheKey(dbName, tableName, part.getValues()), stats);
+            partStatsCache.put(partCacheKey, stats);
           }
         }
       }
     }
     return parts;
+  }
+
+  /**
+   * Get a list of partitions, assuming they are in the cache.  An exception will be thrown if
+   * any indicated partition cannot be found in the cache.
+   * @param dbName database table is in
+   * @param tableName table partitions are in
+   * @param partVals partVal lists that desribe partitions to fetch.
+   * @return list of partitions
+   */
+  public List<Partition> fetchPartitionsFromCache(String dbName, String tableName,
+                                                  List<List<String>> partVals) {
+    List<Partition> result = new ArrayList<>(partVals.size());
+    for (List<String> pVals : partVals) {
+      Partition p = partCache.get(buildPartCacheKey(dbName, tableName, pVals));
+      if (p == null) {
+        throw new RuntimeException("Unable to find partition in cache " +
+            HBaseStore.partNameForErrorMsg(dbName, tableName, pVals));
+      }
+      result.add(p);
+    }
+    return result;
   }
 
   /**
@@ -889,12 +913,6 @@ public class PostgresKeyValue implements MetadataStore {
 
   public boolean dropPartition(String dbName, String tableName, List<String> partVals)
       throws SQLException {
-    // We need to figure out which table we're going to write this too.
-    PostgresTable pTable = findPartitionTable(dbName, tableName, false);
-    // We will need the Hive table to properly translate the partition values.
-    Table hTable = getTable(dbName, tableName);
-    List<Object> translated = translatePartVals(hTable, partVals);
-
     int rowsDeleted = dropPartitions(dbName, tableName, Collections.singletonList(partVals));
     if (rowsDeleted == 0) {
       LOG.debug("No partition " + HBaseStore.partNameForErrorMsg(dbName, tableName, partVals) +
@@ -1172,11 +1190,6 @@ public class PostgresKeyValue implements MetadataStore {
     return "parttable_" + dbName + "_" + tableName;
   }
 
-  @VisibleForTesting
-  static String buildPartStatsTableName(String dbName, String tableName) {
-    return "partstatstable_" + dbName + "_" + tableName;
-  }
-
   private List<String> buildPartCacheKey(String dbName, String tableName, List<String> partVals) {
     List<String> key = new ArrayList<>(2 + partVals.size());
     key.add(dbName);
@@ -1257,7 +1270,7 @@ public class PostgresKeyValue implements MetadataStore {
       Role role = new Role();
       deserialize(role, serialized);
       roles.add(role);
-    };
+    }
     return roles;
   }
 
@@ -1662,20 +1675,17 @@ public class PostgresKeyValue implements MetadataStore {
     perfLogger.PerfLogBegin(PostgresKeyValue.class.getName(), "getPartitionStatistics");
     try {
       List<ColumnStatistics> statsList = new ArrayList<>(partValLists.size());
-      Table hTable = getTable(dbName, tblName);
+      PostgresTable pTable = findPartitionTable(dbName, tblName, false);
+      if (pTable == null) {
+        // This means we couldn't find the partition table, which is obviously a problem.
+        String msg = "Attempt to get statistics for table " +
+            PostgresStore.tableNameForErrorMsg(dbName, tblName) +
+            " because partition table does not exist for this table.";
+        LOG.error(msg);
+        throw new SQLException(msg);
+      }
       for (List<String> partVals : partValLists) {
-        PostgresTable pTable = findPartitionTable(dbName, tblName, false);
-        if (pTable == null) {
-          // This means we couldn't find the partition table, which is obviously a problem.
-          String msg = "Attempt to get statistics for table " +
-              PostgresStore.tableNameForErrorMsg(dbName, tblName) +
-              " because partition table does not exist for this table.";
-          LOG.error(msg);
-          throw new SQLException(msg);
-        }
-        List<Object> translatedPartVals = translatePartVals(hTable, partVals);
-        statsList.add(getSinglePartitionStatistics(dbName, tblName, pTable, partVals, translatedPartVals));
-
+        statsList.add(getSinglePartitionStatistics(dbName, tblName, pTable, partVals, null));
       }
       // If the caller has asked for only some columns, return just the columns requested
       if (colNames != null) {
@@ -1692,6 +1702,17 @@ public class PostgresKeyValue implements MetadataStore {
     }
   }
 
+  /**
+   * Get stats for a single partition.  This will pull from the cache if it can.
+   * @param dbName
+   * @param tableName
+   * @param pTable
+   * @param partVals
+   * @param translatedPartVals these can be null, in which case they'll be generated here.  They
+   *                           are passed in here in case the caller has already calculated them.
+   * @return
+   * @throws SQLException
+   */
   private ColumnStatistics getSinglePartitionStatistics(String dbName, String tableName,
                                                         PostgresTable pTable, List<String> partVals,
                                                         List<Object> translatedPartVals)
@@ -1699,6 +1720,10 @@ public class PostgresKeyValue implements MetadataStore {
     List<String> partCacheKey = buildPartCacheKey(dbName, tableName, partVals);
     ColumnStatistics stats = partStatsCache.get(partCacheKey);
     if (stats == null) {
+      if (translatedPartVals == null) {
+        Table hTable = getTable(dbName, tableName);
+        translatedPartVals = translatePartVals(hTable, partVals);
+      }
       byte[] serialized = getPartitionByKey(pTable, STATS_COL, translatedPartVals);
       if (serialized != null) {
         LOG.warn("Partition stats in database but not in cache, not sure why they weren't prefetched");
@@ -1748,6 +1773,7 @@ public class PostgresKeyValue implements MetadataStore {
   public AggrStats getAggregatedStats(String dbName, String tableName, List<String> partNames,
                                       List<List<String>> partValList, List<String> colNames)
       throws SQLException {
+    LOG.info("Aggregating stats for " + colNames.size() + " columns for table " + tableName);
     PerfLogger perfLogger = PerfLogger.getPerfLogger((HiveConf)conf, false);
     perfLogger.PerfLogBegin(PostgresKeyValue.class.getName(), "getAggregatedStats");
     // - look to see if we already have it in our local cache

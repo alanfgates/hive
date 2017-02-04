@@ -20,6 +20,7 @@ package org.apache.hadoop.hive.metastore.sqlbin;
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.StatsSetupConst;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.FileMetadataHandler;
 import org.apache.hadoop.hive.metastore.HiveMetaStore;
 import org.apache.hadoop.hive.metastore.ObjectStore;
@@ -27,11 +28,13 @@ import org.apache.hadoop.hive.metastore.PartFilterExprUtil;
 import org.apache.hadoop.hive.metastore.PartitionExpressionProxy;
 import org.apache.hadoop.hive.metastore.RawStore;
 import org.apache.hadoop.hive.metastore.TableType;
+import org.apache.hadoop.hive.metastore.Warehouse;
 import org.apache.hadoop.hive.metastore.api.AggrStats;
 import org.apache.hadoop.hive.metastore.api.ColumnStatistics;
 import org.apache.hadoop.hive.metastore.api.ColumnStatisticsObj;
 import org.apache.hadoop.hive.metastore.api.CurrentNotificationEventId;
 import org.apache.hadoop.hive.metastore.api.Database;
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.FileMetadataExprType;
 import org.apache.hadoop.hive.metastore.api.Function;
 import org.apache.hadoop.hive.metastore.api.HiveObjectPrivilege;
@@ -64,6 +67,8 @@ import org.apache.hadoop.hive.metastore.hbase.PrivilegeHelper;
 import org.apache.hadoop.hive.metastore.hbase.RoleHelper;
 import org.apache.hadoop.hive.metastore.parser.ExpressionTree;
 import org.apache.hadoop.hive.metastore.partition.spec.PartitionSpecProxy;
+import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,6 +78,7 @@ import java.nio.ByteBuffer;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -389,8 +395,7 @@ public class PostgresStore implements RawStore {
     boolean commit = false;
     openTransaction();
     try {
-      List<Partition> parts =
-          getPostgres().scanPartitionsInTable(dbName, tableName, max, false);
+      List<Partition> parts = getPartitionsInternal(dbName, tableName, max, false);
       commit = true;
       return parts;
     } catch (SQLException e) {
@@ -399,6 +404,11 @@ public class PostgresStore implements RawStore {
     } finally {
       commitOrRoleBack(commit);
     }
+  }
+
+  private List<Partition> getPartitionsInternal(String dbName, String tableName, int max,
+                                                boolean cacheStats) throws SQLException {
+    return getPostgres().scanPartitionsInTable(dbName, tableName, max, cacheStats);
   }
 
   @Override
@@ -471,14 +481,14 @@ public class PostgresStore implements RawStore {
       MetaException {
     try {
       Table table = getTable(db_name, tbl_name);
-      List<Partition> parts = getPartitions(db_name, tbl_name, max_parts);
+      List<Partition> parts = getPartitionsInternal(db_name, tbl_name, max_parts, false);
       if (parts == null) return null;
       List<String> names = new ArrayList<>(parts.size());
       for (Partition part : parts) {
         names.add(HBaseStore.buildExternalPartName(table, part.getValues()));
       }
       return names;
-    } catch (NoSuchObjectException e) {
+    } catch (SQLException e) {
       LOG.error("Unable to get partitions", e);
       throw new MetaException("Unable to get partitions: " + e.getMessage());
     }
@@ -582,11 +592,16 @@ public class PostgresStore implements RawStore {
       if (exprTree == null) {
         LOG.warn("Failed to unparse expression tree, falling back to client side partition selection");
 
-        result.addAll(getPostgres().scanPartitionsInTable(dbName, tblName, maxParts, true));
-        return true;
+        List<String> partNames = new LinkedList<>();
+        Table table = getPostgres().getTable(dbName, tblName);
+        boolean hasUnknownPartitions = getPartitionNamesPrunedByExprNoTxn(
+            table, expr, defaultPartitionName, maxParts, partNames);
+        // The above loads all partitions from the table, so they should all be cached now.  Make
+        // sure we fetch them from the cache.
+        result.addAll(getPostgres().fetchPartitionsFromCache(dbName, tblName,
+            HBaseStore.partNameListToValsList(partNames)));
+        return hasUnknownPartitions;
       }
-      // TODO - This is broken, it should work like HBaseStore where we apply the filter on this
-      // side
       boolean rc = getPostgres().scanPartitionsByExpr(dbName, tblName, exprTree, maxParts, result);
       commit = true;
       return rc;
@@ -598,6 +613,40 @@ public class PostgresStore implements RawStore {
       commitOrRoleBack(commit);
     }
   }
+
+  // TODO Stolen straight from HBaseStore (which I think stole it from ObjectStore), we should
+  // factor this all out somewhere.
+  /**
+   * Gets the partition names from a table, pruned using an expression.
+   * @param table Table.
+   * @param expr Expression.
+   * @param defaultPartName Default partition name from job config, if any.
+   * @param maxParts Maximum number of partition names to return.
+   * @param result The resulting names.
+   * @return Whether the result contains any unknown partitions.
+   */
+  private boolean getPartitionNamesPrunedByExprNoTxn(Table table, byte[] expr,
+                                                     String defaultPartName, short maxParts,
+                                                     List<String> result)
+      throws MetaException, SQLException {
+    List<Partition> parts =
+        getPartitionsInternal(table.getDbName(), table.getTableName(), maxParts, true);
+    for (Partition part : parts) {
+      result.add(Warehouse.makePartName(table.getPartitionKeys(), part.getValues()));
+    }
+    List<String> columnNames = new ArrayList<>();
+    List<PrimitiveTypeInfo> typeInfos = new ArrayList<>();
+    for (FieldSchema fs : table.getPartitionKeys()) {
+      columnNames.add(fs.getName());
+      typeInfos.add(TypeInfoFactory.getPrimitiveTypeInfo(fs.getType()));
+    }
+    if (defaultPartName == null || defaultPartName.isEmpty()) {
+      defaultPartName = HiveConf.getVar(getConf(), HiveConf.ConfVars.DEFAULTPARTITIONNAME);
+    }
+    return expressionProxy.filterPartitionsByExpr(
+        columnNames, typeInfos, expr, defaultPartName, result);
+  }
+
 
   @Override
   public int getNumPartitionsByFilter(String dbName, String tblName, String filter) throws
@@ -612,9 +661,8 @@ public class PostgresStore implements RawStore {
   }
 
   @Override
-  public List<Partition> getPartitionsByNames(String dbName, String tblName,
-                                              List<String> partNames) throws MetaException,
-      NoSuchObjectException {
+  public List<Partition> getPartitionsByNames(String dbName, String tblName, List<String> partNames)
+      throws MetaException, NoSuchObjectException {
     throw new UnsupportedOperationException();
   }
 
