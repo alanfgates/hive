@@ -65,6 +65,12 @@ import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TMemoryBuffer;
 
 import javax.sql.DataSource;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInput;
+import java.io.DataInputStream;
+import java.io.DataOutput;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
@@ -235,9 +241,9 @@ public class PostgresKeyValue implements MetadataStore {
 
   private Map<String, Database> dbCache;
   private Map<ObjectPair<String, String>, Table> tableCache;
-  private Map<ObjectPair<String, String>, ColumnStatistics> tableStatsCache;
+  private Map<ObjectPair<String, String>, SeparableColumnStatistics> tableStatsCache;
   private Map<List<String>, Partition> partCache;
-  private Map<List<String>, ColumnStatistics> partStatsCache;
+  private Map<List<String>, SeparableColumnStatistics> partStatsCache;
   private Map<byte[], AggrStats> aggrStatsCache;
   private int clearCnt;
   private MessageDigest md;
@@ -745,7 +751,7 @@ public class PostgresKeyValue implements MetadataStore {
       deserialize(part, serialized[0]);
       partCache.put(partCacheKey, part);
       if (serialized[1] != null) {
-        ColumnStatistics stats = new ColumnStatistics();
+        SeparableColumnStatistics stats = new SeparableColumnStatistics();
         deserialize(stats, serialized[1]);
         partStatsCache.put(partCacheKey, stats);
       }
@@ -769,7 +775,7 @@ public class PostgresKeyValue implements MetadataStore {
     // We need to determine if this partition is already in store.  If so, we need to update
     // instead of insert.
     if (partitionExists(pTable, translated)) {
-      updatePartitionOnKey(pTable, CATALOG_COL, serialized, partition, translated);
+      updatePartitionOnKey(pTable, CATALOG_COL, serialized, translated);
     } else {
       insertPartitionOnKey(pTable, CATALOG_COL, serialized, partition, translated);
     }
@@ -817,7 +823,7 @@ public class PostgresKeyValue implements MetadataStore {
         if (cacheStats) {
           byte[] serializedStats = rs.getBytes(2);
           if (serializedStats != null) {
-            ColumnStatistics stats = new ColumnStatistics();
+            SeparableColumnStatistics stats = new SeparableColumnStatistics();
             deserialize(stats, serializedStats);
             partStatsCache.put(partCacheKey, stats);
           }
@@ -902,7 +908,7 @@ public class PostgresKeyValue implements MetadataStore {
         result.add(part);
         byte[] serializedStats = rs.getBytes(2);
         if (serializedStats != null) {
-          ColumnStatistics stats = new ColumnStatistics();
+          SeparableColumnStatistics stats = new SeparableColumnStatistics();
           deserialize(stats, serializedStats);
           partStatsCache.put(buildPartCacheKey(dbName, tableName, part.getValues()), stats);
         }
@@ -1000,7 +1006,7 @@ public class PostgresKeyValue implements MetadataStore {
   }
 
   private void updatePartitionOnKey(PostgresTable pTable, String colName, byte[] serialized,
-                                    Partition part, List<Object> translatedKeys) throws SQLException {
+                                    List<Object> translatedKeys) throws SQLException {
     List<String> pkCols = pTable.getPrimaryKeyCols();
     StringBuilder buf = new StringBuilder("update ")
         .append(pTable.getName())
@@ -1025,7 +1031,7 @@ public class PostgresKeyValue implements MetadataStore {
       int rowsUpdated = stmt.executeUpdate();
       if (rowsUpdated != 1) {
         String msg = "Expected to update a row in " + pTable.getName() + " with key " +
-            StringUtils.join(part.getValues(), ':') + ", but did not";
+            StringUtils.join(untranslatePartVals(translatedKeys), ':') + ", but did not";
         LOG.error(msg);
         throw new RuntimeException(msg);
       }
@@ -1183,6 +1189,12 @@ public class PostgresKeyValue implements MetadataStore {
       }
     }
     return translated;
+  }
+
+  private List<String> untranslatePartVals(List<Object> partVals) {
+    List<String> untranslated = new ArrayList<>(partVals.size());
+    for (Object partVal : partVals) untranslated.add(partVal.toString());
+    return untranslated;
   }
 
   @VisibleForTesting
@@ -1488,7 +1500,7 @@ public class PostgresKeyValue implements MetadataStore {
       deserialize(table, serialized[0]);
       tableCache.put(cacheKey, table);
       if (serialized[1] != null) {
-        ColumnStatistics tableStats = new ColumnStatistics();
+        SeparableColumnStatistics tableStats = new SeparableColumnStatistics();
         deserialize(tableStats, serialized[1]);
         tableStatsCache.put(cacheKey, tableStats);
       }
@@ -1592,11 +1604,11 @@ public class PostgresKeyValue implements MetadataStore {
     // It's possible that this is for a different set of columns.  So we need to union any existing
     // stats for different columns
     ObjectPair<String, String> cacheKey = new ObjectPair<>(dbName, tableName);
-    ColumnStatistics currentStats = getTableStatistics(dbName, tableName, null);
-    ColumnStatistics unionedStats =
-        (currentStats == null) ? stats : unionStatistics(currentStats, stats);
+    SeparableColumnStatistics currentStats = getTableStatisticsInternal(dbName, tableName, null);
+    SeparableColumnStatistics unionedStats =
+        (currentStats == null) ? new SeparableColumnStatistics(stats) : currentStats.union(stats);
     updateOnKey(TABLE_TABLE, STATS_COL, serialize(unionedStats), dbName, tableName);
-    tableStatsCache.put(cacheKey, stats);
+    tableStatsCache.put(cacheKey, unionedStats);
   }
 
   /**
@@ -1611,20 +1623,27 @@ public class PostgresKeyValue implements MetadataStore {
    */
   public ColumnStatistics getTableStatistics(String dbName, String tblName, List<String> colNames)
       throws SQLException {
+    SeparableColumnStatistics separable = getTableStatisticsInternal(dbName, tblName, colNames);
+    return (separable == null) ? null : separable.asColumnStatistics();
+  }
+
+  private SeparableColumnStatistics getTableStatisticsInternal(String dbName, String tblName,
+                                                               List<String> colNames)
+      throws SQLException {
     ObjectPair<String, String> cacheKey = new ObjectPair<>(dbName, tblName);
-    ColumnStatistics stats = tableStatsCache.get(cacheKey);
+    SeparableColumnStatistics stats = tableStatsCache.get(cacheKey);
     if (stats == null) {
       byte[] serialized = getBinaryColumnByKey(TABLE_TABLE, STATS_COL, dbName, tblName);
       if (serialized != null) {
         LOG.warn("Table stats were in database but not in cache, not sure why they weren't prefetched");
-        stats = new ColumnStatistics();
+        stats = new SeparableColumnStatistics();
         deserialize(stats, serialized);
         tableStatsCache.put(cacheKey, stats);
       }
     }
 
     // If the caller has asked for only some columns, return just the columns requested
-    if (stats != null && colNames != null) return trimStats(stats, colNames);
+    if (stats != null && colNames != null) return stats.trim(colNames);
     else return stats;
   }
 
@@ -1642,14 +1661,13 @@ public class PostgresKeyValue implements MetadataStore {
     List<String> cacheKey = buildPartCacheKey(dbName, tableName, partVals);
     PostgresTable pTable = findPartitionTable(dbName, tableName, false);
     Table hTable = getTable(dbName, tableName);
-    Partition partition = getPartition(dbName, tableName, partVals);
     List<Object> translatedPartVals = translatePartVals(hTable, partVals);
-    ColumnStatistics currentStats =
+    SeparableColumnStatistics currentStats =
         getSinglePartitionStatistics(dbName, tableName, pTable, partVals, translatedPartVals);
-    ColumnStatistics unionedStats =
-        (currentStats == null) ? stats : unionStatistics(currentStats, stats);
-    updatePartitionOnKey(pTable, STATS_COL, serialize(unionedStats), partition, translatedPartVals);
-    partStatsCache.put(cacheKey, stats);
+    SeparableColumnStatistics unionedStats =
+        (currentStats == null) ? new SeparableColumnStatistics(stats) : currentStats.union(stats);
+    updatePartitionOnKey(pTable, STATS_COL, serialize(unionedStats), translatedPartVals);
+    partStatsCache.put(cacheKey, unionedStats);
   }
 
   /**
@@ -1669,12 +1687,21 @@ public class PostgresKeyValue implements MetadataStore {
    */
   public List<ColumnStatistics> getPartitionStatistics(String dbName, String tblName,
                                                        List<List<String>> partValLists,
-                                                       List<String> colNames)
-      throws SQLException {
+                                                       List<String> colNames) throws SQLException {
+    List<SeparableColumnStatistics> separables =
+        getPartitionStatisticsInternal(dbName, tblName, partValLists, colNames);
+    List<ColumnStatistics> css = new ArrayList<>(separables.size());
+    for (SeparableColumnStatistics separable : separables) css.add(separable.asColumnStatistics());
+    return css;
+  }
+
+  private List<SeparableColumnStatistics>
+  getPartitionStatisticsInternal(String dbName, String tblName, List<List<String>> partValLists,
+                                 List<String> colNames) throws SQLException {
     PerfLogger perfLogger = PerfLogger.getPerfLogger((HiveConf)conf, false);
     perfLogger.PerfLogBegin(PostgresKeyValue.class.getName(), "getPartitionStatistics");
     try {
-      List<ColumnStatistics> statsList = new ArrayList<>(partValLists.size());
+      List<SeparableColumnStatistics> statsList = new ArrayList<>(partValLists.size());
       PostgresTable pTable = findPartitionTable(dbName, tblName, false);
       if (pTable == null) {
         // This means we couldn't find the partition table, which is obviously a problem.
@@ -1685,18 +1712,14 @@ public class PostgresKeyValue implements MetadataStore {
         throw new SQLException(msg);
       }
       for (List<String> partVals : partValLists) {
-        statsList.add(getSinglePartitionStatistics(dbName, tblName, pTable, partVals, null));
-      }
-      // If the caller has asked for only some columns, return just the columns requested
-      if (colNames != null) {
-        List<ColumnStatistics> trimmedStatsList = new ArrayList<>(statsList.size());
-        for (ColumnStatistics stats : statsList) {
-          if (stats != null) trimmedStatsList.add(trimStats(stats, colNames));
+        SeparableColumnStatistics separable =
+            getSinglePartitionStatistics(dbName, tblName, pTable, partVals, null);
+        if (separable != null) {
+          if (colNames != null) separable = separable.trim(colNames);
+          statsList.add(separable);
         }
-        return trimmedStatsList;
-      } else {
-        return statsList;
       }
+      return statsList;
     } finally {
       perfLogger.PerfLogEnd(PostgresKeyValue.class.getName(), "getPartitionStatistics");
     }
@@ -1713,12 +1736,13 @@ public class PostgresKeyValue implements MetadataStore {
    * @return
    * @throws SQLException
    */
-  private ColumnStatistics getSinglePartitionStatistics(String dbName, String tableName,
-                                                        PostgresTable pTable, List<String> partVals,
-                                                        List<Object> translatedPartVals)
+  private SeparableColumnStatistics getSinglePartitionStatistics(String dbName, String tableName,
+                                                                 PostgresTable pTable,
+                                                                 List<String> partVals,
+                                                                 List<Object> translatedPartVals)
       throws SQLException {
     List<String> partCacheKey = buildPartCacheKey(dbName, tableName, partVals);
-    ColumnStatistics stats = partStatsCache.get(partCacheKey);
+    SeparableColumnStatistics stats = partStatsCache.get(partCacheKey);
     if (stats == null) {
       if (translatedPartVals == null) {
         Table hTable = getTable(dbName, tableName);
@@ -1727,36 +1751,12 @@ public class PostgresKeyValue implements MetadataStore {
       byte[] serialized = getPartitionByKey(pTable, STATS_COL, translatedPartVals);
       if (serialized != null) {
         LOG.warn("Partition stats in database but not in cache, not sure why they weren't prefetched");
-        stats = new ColumnStatistics();
+        stats = new SeparableColumnStatistics();
         deserialize(stats, serialized);
         partStatsCache.put(partCacheKey, stats);
       }
     }
     return stats;
-  }
-
-  // Assumes allStats has already been checked for null
-  private ColumnStatistics trimStats(ColumnStatistics allStats, List<String> colNames) {
-    Set<String> cols = new HashSet<>(colNames);
-    // It's possible we're lucky and the columns requested and available match
-    if (cols.size() == allStats.getStatsObjSize()) {
-      boolean sawMismatch = false;
-      for (ColumnStatisticsObj cso : allStats.getStatsObj()) {
-        if (!cols.contains(cso.getColName())) {
-          sawMismatch = true;
-          break;
-        }
-      }
-      if (!sawMismatch) return allStats;
-    }
-    ColumnStatistics trimmedStats = new ColumnStatistics();
-    trimmedStats.setStatsDesc(allStats.getStatsDesc());
-    for (ColumnStatisticsObj cso : allStats.getStatsObj()) {
-      if (cols.contains(cso.getColName())) {
-        trimmedStats.addToStatsObj(cso);
-      }
-    }
-    return trimmedStats;
   }
 
   /**
@@ -1782,10 +1782,46 @@ public class PostgresKeyValue implements MetadataStore {
     if (aggrStats == null) {
       LOG.debug("Aggregated stats not found in the cache, aggregating stats");
       // Ok, no dice.  Fetch the requested stats and aggregate them ourselves
-      List<ColumnStatistics> partStats =
-          getPartitionStatistics(dbName, tableName, partValList, colNames);
+      List<SeparableColumnStatistics> partStats =
+          getPartitionStatisticsInternal(dbName, tableName, partValList, colNames);
       if (partStats != null && partStats.size() > 0) {
-        Set<String> cols = new HashSet<>(colNames);
+        // What we have now is a set of partition column statistics, each of which have entries
+        // for (some) of the columns we're interested in.  (We are guaranteed that none of them
+        // have columns we aren't interested in.)  We need to pivot this so that we have
+        // ColumnStatistics instances of each column, which we can then feed to an aggregator for
+        // that column.
+        try {
+          aggrStats = new AggrStats();
+          int numBitVectors = HiveStatsUtils.getNumBitVectorsForNDVEstimation(conf);
+          boolean useDensityFunctionForNDVEstimation =
+              HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_METASTORE_STATS_NDV_DENSITY_FUNCTION);
+
+          for (String colName : colNames) {
+            List<ColumnStatistics> colStatsForCol = new ArrayList<>(partStats.size());
+            List<String> partNamesList = new ArrayList<>(partStats.size());
+            for (SeparableColumnStatistics separable : partStats) {
+              ColumnStatisticsObj cso = separable.getStatsForCol(colName);
+              if (cso != null) {
+                ColumnStatistics cs = new ColumnStatistics();
+                partNamesList.add(separable.getStatsDesc().getPartName());
+                cs.setStatsDesc(separable.getStatsDesc());
+                cs.addToStatsObj(cso);
+                colStatsForCol.add(cs);
+              }
+            }
+            ColumnStatsAggregator aggregator = ColumnStatsAggregatorFactory.getColumnStatsAggregator(
+                colStatsForCol.get(0).getStatsObj().get(0).getStatsData().getSetField(),
+                numBitVectors,
+                useDensityFunctionForNDVEstimation);
+            ColumnStatisticsObj cso = aggregator.aggregate(colName, partNamesList, colStatsForCol);
+            aggrStats.setPartsFound(Math.max(aggrStats.getPartsFound(), colStatsForCol.size()));
+            aggrStats.addToColStats(cso);
+          }
+          aggrStatsCache.put(cacheKey, aggrStats);
+        } catch (Exception e) {
+          throw new SQLException(e);
+        }
+        /*
         // For each column, we need to build a stats aggregator.  This aggregator takes the column
         // name, a list of part names, and a list of ColumnStatistics.
         // So build a map of columns to ColumnStatistics then build an aggregator
@@ -1835,29 +1871,11 @@ public class PostgresKeyValue implements MetadataStore {
             throw new SQLException(e);
           }
         }
+        */
       }
     }
     perfLogger.PerfLogEnd(PostgresKeyValue.class.getName(), "getAggregatedStats");
     return aggrStats;
-  }
-
-  private ColumnStatistics unionStatistics(final ColumnStatistics currentStats,
-                                           final ColumnStatistics newStats) {
-    ColumnStatistics unionedStats = new ColumnStatistics(newStats);
-    // Build a probe on the new side so this isn't an n^2 operation
-    Set<String> probe = new HashSet<>();
-    for (ColumnStatisticsObj newCso : newStats.getStatsObj()) {
-      probe.add(newCso.getColName());
-    }
-    // Now, walk through the old side and see if it contains anything that is not in the new set.
-    // If so, put it in the new set.
-    for (ColumnStatisticsObj currentCso : currentStats.getStatsObj()) {
-      if (!probe.contains(currentCso.getColName())) {
-        unionedStats.addToStatsObj(currentCso);
-      }
-    }
-
-    return unionedStats;
   }
 
   private byte[] getAggrStatsKey(String dbName, String tableName, List<String> partNames,
@@ -2261,7 +2279,7 @@ public class PostgresKeyValue implements MetadataStore {
     return buf.toString();
   }
 
-  private byte[] serialize(TBase obj) {
+  static byte[] serialize(TBase obj) {
     try {
       TMemoryBuffer buf = new TMemoryBuffer(1000);
       TProtocol protocol = new TCompactProtocol(buf);
@@ -2275,7 +2293,18 @@ public class PostgresKeyValue implements MetadataStore {
     }
   }
 
-  private void deserialize(TBase obj, byte[] serialized) {
+  static byte[] serialize(SeparableColumnStatistics separable) throws SQLException {
+    try {
+      ByteArrayOutputStream baos = new ByteArrayOutputStream();
+      DataOutput out = new DataOutputStream(baos);
+      separable.write(out);
+      return baos.toByteArray();
+    } catch (IOException e) {
+      throw new SQLException(e);
+    }
+  }
+
+  static void deserialize(TBase obj, byte[] serialized) {
     try {
       TMemoryBuffer buf = new TMemoryBuffer(serialized.length);
       buf.write(serialized, 0, serialized.length);
@@ -2283,6 +2312,23 @@ public class PostgresKeyValue implements MetadataStore {
       obj.read(protocol);
     } catch (TException e) {
       throw new RuntimeException(e);
+    }
+  }
+
+  /**
+   * Deserialize the statistics.  This needs a separate method since it is not a thrift based
+   * object.
+   * @param separable
+   * @param serialized
+   * @throws SQLException turns any IOException into a SQLException for easier consumption above
+   */
+  static void deserialize(SeparableColumnStatistics separable, byte[] serialized)
+      throws SQLException {
+    DataInput in = new DataInputStream(new ByteArrayInputStream(serialized));
+    try {
+      separable.readFields(in);
+    } catch (IOException e) {
+      throw new SQLException(e);
     }
   }
 
