@@ -23,8 +23,12 @@ import org.apache.hadoop.hive.metastore.api.ColumnStatisticsDesc;
 import org.apache.hadoop.hive.metastore.api.ColumnStatisticsObj;
 import org.apache.hadoop.io.Writable;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.DataInput;
+import java.io.DataInputStream;
 import java.io.DataOutput;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
@@ -38,34 +42,22 @@ import java.util.Map;
  * deserialized.  Instead each column is deserialized on demand.  Once the deserialization is
  * done it will be kept in case it is asked for again.
  */
-class SeparableColumnStatistics implements Writable {
+class SeparableColumnStatistics {
 
   private ColumnStatisticsDesc statsDesc;
   private Map<String, ColStatsObjContainer> statsObjs;
   byte[] serialized;
 
-  /*
-   * When Data is read in it is initially stored only in the serialized byte[].  The first time
-   * any data is access the statsDesc and the map of names to offsets will be deserialized.
-   * The layout is:
-   * int statsDesc len
-   * byte[] statsDesc
-   * int number of statsObjs
-   * for each statsObj {
-   *   int len of name
-   *   String name
-   *   int offset to statsObj
-   * }
-   * for each statsObj {
-   *   int len
-   *   statsObj
-   * }
-   */
+  // For internal use only
+  private SeparableColumnStatistics() {
+
+  }
 
   /**
    * For use when deserializing.
    */
-  SeparableColumnStatistics() {
+  SeparableColumnStatistics(byte[] serialized) {
+    this.serialized = serialized;
   }
 
   /**
@@ -80,7 +72,8 @@ class SeparableColumnStatistics implements Writable {
     }
   }
 
-  ColumnStatisticsDesc getStatsDesc() {
+  ColumnStatisticsDesc getStatsDesc() throws IOException {
+    if (statsDesc == null) deserialize();
     return statsDesc;
   }
 
@@ -90,7 +83,8 @@ class SeparableColumnStatistics implements Writable {
    * @param colName column to get stats for
    * @return stats object, or null if stats for that column are not present.
    */
-  ColumnStatisticsObj getStatsForCol(String colName) {
+  ColumnStatisticsObj getStatsForCol(String colName) throws IOException {
+    if (statsDesc == null) deserialize();
     ColStatsObjContainer container = statsObjs.get(colName);
     return (container == null) ? null : container.getColStatsObj();
   }
@@ -103,7 +97,8 @@ class SeparableColumnStatistics implements Writable {
    * @param colNames columns to include in the trimmed object.
    * @return possibly trimmed object
    */
-  SeparableColumnStatistics trim(List<String> colNames) {
+  SeparableColumnStatistics trim(List<String> colNames) throws IOException {
+    if (statsDesc == null) deserialize();
     if (colNames.size() == statsObjs.size()) {
       // Check to see if they've asked for everything we already have
       boolean sawMismatch = false;
@@ -136,7 +131,8 @@ class SeparableColumnStatistics implements Writable {
    * @param cs statistics to merge in
    * @return unioned statistics
    */
-  SeparableColumnStatistics union(ColumnStatistics cs) {
+  SeparableColumnStatistics union(ColumnStatistics cs) throws IOException {
+    if (statsDesc == null) deserialize();
     assert this.statsDesc.equals(cs.getStatsDesc());
 
     SeparableColumnStatistics unioned = new SeparableColumnStatistics();
@@ -154,7 +150,8 @@ class SeparableColumnStatistics implements Writable {
    * should only be used if we have to return the entire thrift object to the upper layers.
    * @return ColumnStatistics
    */
-  ColumnStatistics asColumnStatistics() {
+  ColumnStatistics asColumnStatistics() throws IOException {
+    if (statsDesc == null) deserialize();
     ColumnStatistics cs = new ColumnStatistics();
     cs.setStatsDesc(this.statsDesc);
     for (ColStatsObjContainer container : this.statsObjs.values()) {
@@ -164,12 +161,17 @@ class SeparableColumnStatistics implements Writable {
   }
 
   @VisibleForTesting
-  boolean isSerialized(String colName) {
+  boolean isSerialized(String colName) throws IOException {
+    if (statsDesc == null) deserialize();
     return statsObjs.get(colName).isSerialized();
   }
 
-  @Override
-  public void write(DataOutput dataOutput) throws IOException {
+  byte[] serialize() throws IOException {
+    // Object is immutable, so if we've already serialized we can just return it that way.
+    if (serialized != null) return serialized;
+
+    ByteArrayOutputStream byteBuf = new ByteArrayOutputStream(1024 * statsObjs.size() + 1024);
+    DataOutput dataOutput = new DataOutputStream(byteBuf);
     byte[] buf = PostgresKeyValue.serialize(statsDesc);
     dataOutput.writeInt(buf.length);
     dataOutput.write(buf);
@@ -181,10 +183,11 @@ class SeparableColumnStatistics implements Writable {
       dataOutput.writeBytes(entry.getKey());
       entry.getValue().write(dataOutput);
     }
+    return byteBuf.toByteArray();
   }
 
-  @Override
-  public void readFields(DataInput dataInput) throws IOException {
+  private void deserialize() throws IOException {
+    DataInput dataInput = new DataInputStream(new ByteArrayInputStream(serialized));
     int len = dataInput.readInt();
     byte[] buf = new byte[len];
     dataInput.readFully(buf);
@@ -204,12 +207,12 @@ class SeparableColumnStatistics implements Writable {
     }
   }
 
-  private class ColStatsObjContainer implements Writable {
+  private static class ColStatsObjContainer implements Writable {
 
     // Don't access this directly, it is not guaranteed to be valid.
     private ColumnStatisticsObj statsObj;
     // Don't access this directly, it is not guaranteed to be valid.
-    private int offset;
+    private byte[] serialized;
 
     ColStatsObjContainer() {
 

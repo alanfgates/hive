@@ -27,6 +27,7 @@ import org.apache.hadoop.hive.metastore.ObjectStore;
 import org.apache.hadoop.hive.metastore.PartFilterExprUtil;
 import org.apache.hadoop.hive.metastore.PartitionExpressionProxy;
 import org.apache.hadoop.hive.metastore.RawStore;
+import org.apache.hadoop.hive.metastore.RetryingHMSHandler;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.Warehouse;
 import org.apache.hadoop.hive.metastore.api.AggrStats;
@@ -67,6 +68,7 @@ import org.apache.hadoop.hive.metastore.hbase.PrivilegeHelper;
 import org.apache.hadoop.hive.metastore.hbase.RoleHelper;
 import org.apache.hadoop.hive.metastore.parser.ExpressionTree;
 import org.apache.hadoop.hive.metastore.partition.spec.PartitionSpecProxy;
+import org.apache.hadoop.hive.ql.log.PerfLogger;
 import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.thrift.TException;
@@ -629,6 +631,8 @@ public class PostgresStore implements RawStore {
                                                      String defaultPartName, short maxParts,
                                                      List<String> result)
       throws MetaException, SQLException {
+    PerfLogger perfLogger = PerfLogger.getPerfLogger((HiveConf)conf, false);
+    perfLogger.PerfLogBegin(RetryingHMSHandler.class.getName(), "getPartitionNamesPrunedByExprNoTxn");
     List<Partition> parts =
         getPartitionsInternal(table.getDbName(), table.getTableName(), maxParts, true);
     for (Partition part : parts) {
@@ -643,8 +647,10 @@ public class PostgresStore implements RawStore {
     if (defaultPartName == null || defaultPartName.isEmpty()) {
       defaultPartName = HiveConf.getVar(getConf(), HiveConf.ConfVars.DEFAULTPARTITIONNAME);
     }
-    return expressionProxy.filterPartitionsByExpr(
+    boolean rc = expressionProxy.filterPartitionsByExpr(
         columnNames, typeInfos, expr, defaultPartName, result);
+    perfLogger.PerfLogEnd(RetryingHMSHandler.class.getName(), "getPartitionNamesPrunedByExprNoTxn");
+    return rc;
   }
 
 
@@ -1053,7 +1059,7 @@ public class PostgresStore implements RawStore {
 
       commit = true;
       return true;
-    } catch (SQLException e) {
+    } catch (SQLException|IOException e) {
       LOG.error("Unable to update column statistics", e);
       throw new MetaException("Failed to update column statistics, " + e.getMessage());
     } finally {
@@ -1086,7 +1092,7 @@ public class PostgresStore implements RawStore {
 
       commit = true;
       return true;
-    } catch (SQLException e) {
+    } catch (SQLException|IOException e) {
       LOG.error("Unable to update column statistics", e);
       throw new MetaException("Failed to update column statistics, " + e.getMessage());
     } finally {
@@ -1104,7 +1110,7 @@ public class PostgresStore implements RawStore {
       ColumnStatistics cs = getPostgres().getTableStatistics(dbName, tableName, colName);
       commit = true;
       return cs;
-    } catch (SQLException e) {
+    } catch (SQLException|IOException e) {
       LOG.error("Unable to fetch column statistics", e);
       throw new MetaException("Failed to fetch column statistics, " + e.getMessage());
     } finally {
@@ -1128,7 +1134,7 @@ public class PostgresStore implements RawStore {
           getPostgres().getPartitionStatistics(dbName, tblName, partVals, colNames);
       commit = true;
       return css;
-    } catch (SQLException e) {
+    } catch (SQLException|IOException e) {
       LOG.error("Unable to fetch column statistics", e);
       throw new MetaException("Failed fetching column statistics, " + e.getMessage());
     } finally {
@@ -1404,7 +1410,7 @@ public class PostgresStore implements RawStore {
       AggrStats aggrStats = getPostgres().getAggregatedStats(dbName, tblName, partNames, partVals, colNames);
       commit = true;
       return aggrStats;
-    } catch (SQLException e) {
+    } catch (SQLException|IOException e) {
       LOG.error("Unable to get aggregated stats", e);
       throw new MetaException("Unable to read from or write to postgres " + e.getMessage());
     } finally {

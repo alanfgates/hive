@@ -26,12 +26,6 @@ import org.apache.hadoop.hive.metastore.api.StringColumnStatsData;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.DataInput;
-import java.io.DataInputStream;
-import java.io.DataOutput;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.Arrays;
@@ -69,19 +63,9 @@ public class TestSeparableColumnStatistics {
     Assert.assertFalse(separable.isSerialized(col1));
     Assert.assertFalse(separable.isSerialized(col2));
 
-    byte[] buf = PostgresKeyValue.serialize(separable);
-    /*
-    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    DataOutput out = new DataOutputStream(baos);
-    separable.write(out);
-    */
+    byte[] buf = separable.serialize();
 
-    separable = new SeparableColumnStatistics();
-    PostgresKeyValue.deserialize(separable, buf);
-    /*
-    DataInput in = new DataInputStream(new ByteArrayInputStream(baos.toByteArray()));
-    separable.readFields(in);
-    */
+    separable = new SeparableColumnStatistics(buf);
 
     Assert.assertEquals(dbName, separable.getStatsDesc().getDbName());
 
