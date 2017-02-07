@@ -2306,7 +2306,7 @@ public class HBaseStore implements RawStore {
    * @param partVals partition values.
    * @return
    */
-  public static String buildExternalPartName(Table table, List<String> partVals) {
+  static String buildExternalPartName(Table table, List<String> partVals) {
     List<String> partCols = new ArrayList<String>();
     for (FieldSchema pc : table.getPartitionKeys()) partCols.add(pc.getName());
     return FileUtils.makePartName(partCols, partVals);

@@ -19,6 +19,7 @@ package org.apache.hadoop.hive.metastore.sqlbin;
 
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.TableType;
+import org.apache.hadoop.hive.metastore.Warehouse;
 import org.apache.hadoop.hive.metastore.api.AggrStats;
 import org.apache.hadoop.hive.metastore.api.ColumnStatistics;
 import org.apache.hadoop.hive.metastore.api.ColumnStatisticsData;
@@ -424,7 +425,7 @@ public class TestPostgresStore {
     ColumnStatisticsData csd_b = ColumnStatisticsData.longStats(ldata);
 
     ColumnStatisticsDesc statsDec = new ColumnStatisticsDesc(false, dbName, tableName);
-    String partName = HBaseStore.buildExternalPartName(table, pVals);
+    String partName = Warehouse.makePartName(table.getPartitionKeys(), pVals);
     statsDec.setPartName(partName);
     List<ColumnStatisticsObj> statsObjs = Arrays.asList(
         new ColumnStatisticsObj("a", "varchar(32)", csd_a),
@@ -522,7 +523,7 @@ public class TestPostgresStore {
       Partition part = new Partition(pVals, dbName, tableName, 1, 2, sd,
           Collections.<String, String>emptyMap());
       store.addPartition(part);
-      partNames.add(HBaseStore.buildExternalPartName(table, pVals));
+      partNames.add(Warehouse.makePartName(table.getPartitionKeys(), pVals));
 
       ColumnStatisticsData csd_a = ColumnStatisticsData.stringStats(
           new StringColumnStatsData(maxColLen, avgColLen, numNulls, numDVs)
@@ -532,7 +533,7 @@ public class TestPostgresStore {
       numNulls *= 2;
       numDVs *= 2;
       ColumnStatisticsDesc statsDec = new ColumnStatisticsDesc(false, dbName, tableName);
-      statsDec.setPartName(HBaseStore.buildExternalPartName(table, pVals));
+      statsDec.setPartName(Warehouse.makePartName(table.getPartitionKeys(), pVals));
       List<ColumnStatisticsObj> statsObjs =
           Collections.singletonList(new ColumnStatisticsObj("a", "varchar(32)", csd_a));
       ColumnStatistics cs = new ColumnStatistics(statsDec, statsObjs);

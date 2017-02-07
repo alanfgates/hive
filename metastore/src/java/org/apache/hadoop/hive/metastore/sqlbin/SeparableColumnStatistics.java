@@ -45,7 +45,7 @@ import java.util.Map;
 class SeparableColumnStatistics {
 
   private ColumnStatisticsDesc statsDesc;
-  private Map<String, ColStatsObjContainer> statsObjs;
+  private Map<String, MaybeSerialized<ColumnStatisticsObj>> statsObjs;
   byte[] serialized;
 
   // For internal use only
@@ -68,7 +68,7 @@ class SeparableColumnStatistics {
     statsDesc = colStats.getStatsDesc();
     statsObjs = new HashMap<>(colStats.getStatsObjSize());
     for (ColumnStatisticsObj statsObj : colStats.getStatsObj()) {
-      statsObjs.put(statsObj.getColName(), new ColStatsObjContainer(statsObj));
+      statsObjs.put(statsObj.getColName(), new MaybeSerialized<>(statsObj));
     }
   }
 
@@ -85,8 +85,8 @@ class SeparableColumnStatistics {
    */
   ColumnStatisticsObj getStatsForCol(String colName) throws IOException {
     if (statsDesc == null) deserialize();
-    ColStatsObjContainer container = statsObjs.get(colName);
-    return (container == null) ? null : container.getColStatsObj();
+    MaybeSerialized<ColumnStatisticsObj> container = statsObjs.get(colName);
+    return (container == null) ? null : container.get();
   }
 
   /**
@@ -139,7 +139,7 @@ class SeparableColumnStatistics {
     unioned.statsDesc = this.statsDesc;
     unioned.statsObjs = new HashMap<>(this.statsObjs);
     for (ColumnStatisticsObj cso : cs.getStatsObj()) {
-      unioned.statsObjs.put(cso.getColName(), new ColStatsObjContainer(cso));
+      unioned.statsObjs.put(cso.getColName(), new MaybeSerialized<>(cso));
     }
 
     return unioned;
@@ -154,8 +154,8 @@ class SeparableColumnStatistics {
     if (statsDesc == null) deserialize();
     ColumnStatistics cs = new ColumnStatistics();
     cs.setStatsDesc(this.statsDesc);
-    for (ColStatsObjContainer container : this.statsObjs.values()) {
-      cs.addToStatsObj(container.getColStatsObj());
+    for (MaybeSerialized<ColumnStatisticsObj> container : this.statsObjs.values()) {
+      cs.addToStatsObj(container.get());
     }
     return cs;
   }
@@ -176,12 +176,14 @@ class SeparableColumnStatistics {
     dataOutput.writeInt(buf.length);
     dataOutput.write(buf);
     dataOutput.writeInt(statsObjs.size());
-    for (Map.Entry<String, ColStatsObjContainer> entry : statsObjs.entrySet()) {
+    for (Map.Entry<String, MaybeSerialized<ColumnStatisticsObj>> entry : statsObjs.entrySet()) {
       // We write the name (even though it's in the ColumnStatisticsObj) so we don't have to
       // deserialize the whole thing when we read it back.
       dataOutput.writeInt(entry.getKey().length());
       dataOutput.writeBytes(entry.getKey());
-      entry.getValue().write(dataOutput);
+      buf = entry.getValue().serialize();
+      dataOutput.writeInt(buf.length);
+      dataOutput.write(buf);
     }
     return byteBuf.toByteArray();
   }
@@ -201,60 +203,13 @@ class SeparableColumnStatistics {
       buf = new byte[len];
       dataInput.readFully(buf);
       String name = new String(buf);
-      ColStatsObjContainer container = new ColStatsObjContainer();
-      container.readFields(dataInput);
+      len = dataInput.readInt();
+      buf = new byte[len];
+      dataInput.readFully(buf);
+      MaybeSerialized<ColumnStatisticsObj> container =
+          new MaybeSerialized<>(ColumnStatisticsObj.class, buf);
       statsObjs.put(name, container);
     }
   }
-
-  private static class ColStatsObjContainer implements Writable {
-
-    // Don't access this directly, it is not guaranteed to be valid.
-    private ColumnStatisticsObj statsObj;
-    // Don't access this directly, it is not guaranteed to be valid.
-    private byte[] serialized;
-
-    ColStatsObjContainer() {
-
-    }
-
-    ColStatsObjContainer(ColumnStatisticsObj statsObj) {
-      this.statsObj = statsObj;
-    }
-
-    ColumnStatisticsObj getColStatsObj() {
-      if (statsObj == null) {
-        assert serialized != null;
-        statsObj = new ColumnStatisticsObj();
-        PostgresKeyValue.deserialize(statsObj, serialized);
-        serialized = null;
-      }
-      return statsObj;
-    }
-
-    private boolean isSerialized() {
-      return statsObj == null;
-    }
-
-    @Override
-    public void write(DataOutput dataOutput) throws IOException {
-      if (serialized == null) {
-        assert statsObj != null;
-        serialized = PostgresKeyValue.serialize(statsObj);
-      }
-      dataOutput.writeInt(serialized.length);
-      dataOutput.write(serialized);
-    }
-
-    @Override
-    public void readFields(DataInput dataInput) throws IOException {
-      int len = dataInput.readInt();
-      assert len > 0;
-      serialized = new byte[len];
-      dataInput.readFully(serialized);
-    }
-  }
-
-
 
 }

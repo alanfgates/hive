@@ -487,7 +487,7 @@ public class PostgresStore implements RawStore {
       if (parts == null) return null;
       List<String> names = new ArrayList<>(parts.size());
       for (Partition part : parts) {
-        names.add(HBaseStore.buildExternalPartName(table, part.getValues()));
+        names.add(Warehouse.makePartName(table.getPartitionKeys(), part.getValues()));
       }
       return names;
     } catch (SQLException e) {
@@ -633,11 +633,14 @@ public class PostgresStore implements RawStore {
       throws MetaException, SQLException {
     PerfLogger perfLogger = PerfLogger.getPerfLogger((HiveConf)conf, false);
     perfLogger.PerfLogBegin(RetryingHMSHandler.class.getName(), "getPartitionNamesPrunedByExprNoTxn");
+    /*
     List<Partition> parts =
         getPartitionsInternal(table.getDbName(), table.getTableName(), maxParts, true);
     for (Partition part : parts) {
       result.add(Warehouse.makePartName(table.getPartitionKeys(), part.getValues()));
     }
+    */
+    result.addAll(getPostgres().scanPartitionNames(table.getDbName(), table.getTableName()));
     List<String> columnNames = new ArrayList<>();
     List<PrimitiveTypeInfo> typeInfos = new ArrayList<>();
     for (FieldSchema fs : table.getPartitionKeys()) {

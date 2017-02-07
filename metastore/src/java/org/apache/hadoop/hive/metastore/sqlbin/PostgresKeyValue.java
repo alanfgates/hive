@@ -30,9 +30,11 @@ import org.apache.commons.dbcp.PoolingDataSource;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.pool.ObjectPool;
 import org.apache.commons.pool.impl.GenericObjectPool;
+import org.apache.hadoop.hive.common.FileUtils;
 import org.apache.hadoop.hive.common.HiveStatsUtils;
 import org.apache.hadoop.hive.common.ObjectPair;
 import org.apache.hadoop.hive.metastore.RetryingHMSHandler;
+import org.apache.hadoop.hive.metastore.Warehouse;
 import org.apache.hadoop.hive.metastore.api.AggrStats;
 import org.apache.hadoop.hive.metastore.api.ColumnStatistics;
 import org.apache.hadoop.hive.metastore.api.ColumnStatisticsObj;
@@ -237,7 +239,7 @@ public class PostgresKeyValue implements MetadataStore {
   private Map<String, Database> dbCache;
   private Map<ObjectPair<String, String>, Table> tableCache;
   private Map<ObjectPair<String, String>, SeparableColumnStatistics> tableStatsCache;
-  private Map<List<String>, Partition> partCache;
+  private Map<List<String>, MaybeSerialized<Partition>> partCache;
   private Map<List<String>, SeparableColumnStatistics> partStatsCache;
   private Map<byte[], AggrStats> aggrStatsCache;
   private int clearCnt;
@@ -734,23 +736,25 @@ public class PostgresKeyValue implements MetadataStore {
   public Partition getPartition(String dbName, String tableName, List<String> partVals)
       throws SQLException {
     List<String> partCacheKey = buildPartCacheKey(dbName, tableName, partVals);
-    Partition part = partCache.get(partCacheKey);
-    if (part == null) {
+    MaybeSerialized<Partition> container = partCache.get(partCacheKey);
+    if (container == null) {
       LOG.debug("Partition not found in cache, going to Postgres");
       Table hTable = getTable(dbName, tableName);
       PostgresTable pTable = findPartitionTable(dbName, tableName, false);
       byte[][] serialized =
           getPartitionByKey(pTable, CAT_AND_STATS_COLS, translatePartVals(hTable, partVals));
       if (serialized == null) return null;
-      part = new Partition();
+      Partition part = new Partition();
       deserialize(part, serialized[0]);
-      partCache.put(partCacheKey, part);
+      partCache.put(partCacheKey, new MaybeSerialized<>(part));
       if (serialized[1] != null) {
         SeparableColumnStatistics stats = new SeparableColumnStatistics(serialized[1]);
         partStatsCache.put(partCacheKey, stats);
       }
+      return part;
+    } else {
+      return container.get();
     }
-    return part;
   }
 
   /**
@@ -775,7 +779,7 @@ public class PostgresKeyValue implements MetadataStore {
     }
     List<String> partCacheKey =
         buildPartCacheKey(partition.getDbName(), partition.getTableName(), partition.getValues());
-    partCache.put(partCacheKey, partition);
+    partCache.put(partCacheKey, new MaybeSerialized<>(partition));
   }
 
   /**
@@ -815,7 +819,7 @@ public class PostgresKeyValue implements MetadataStore {
         deserialize(part, rs.getBytes(1));
         parts.add(part);
         List<String> partCacheKey = buildPartCacheKey(dbName, tableName, part.getValues());
-        partCache.put(partCacheKey, part);
+        partCache.put(partCacheKey, new MaybeSerialized<>(part));
         if (cacheStats) {
           byte[] serializedStats = rs.getBytes(2);
           if (serializedStats != null) {
@@ -827,6 +831,60 @@ public class PostgresKeyValue implements MetadataStore {
     }
     perfLogger.PerfLogEnd(RetryingHMSHandler.class.getName(), "scanPartitionsInTable");
     return parts;
+  }
+
+  /**
+   * Get the partition names of all partitions in a table.  The partitions and stats will be
+   * cached but not deserialized.
+   * @param dbName database table is in
+   * @param tableName table name
+   * @return list of names of all partitions in the cluster
+   * @throws SQLException
+   */
+  public List<String> scanPartitionNames(String dbName, String tableName)
+      throws SQLException {
+    PerfLogger perfLogger = PerfLogger.getPerfLogger((HiveConf)conf, false);
+    perfLogger.PerfLogBegin(RetryingHMSHandler.class.getName(), "scanPartitionNames");
+    List<String> partNames = new ArrayList<>();
+    PostgresTable pTable = findPartitionTable(dbName, tableName, false);
+    StringBuilder buf = new StringBuilder("select ");
+    for (String key : pTable.getPrimaryKeyCols()) {
+      buf.append(key)
+          .append(", ");
+    }
+    buf.append(CATALOG_COL)
+        .append(", ")
+        .append(STATS_COL)
+        .append(" from ")
+        .append(pTable.getName());
+    try (Statement stmt = currentConnection.createStatement()) {
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Going to execute query " + buf.toString());
+      }
+      ResultSet rs = stmt.executeQuery(buf.toString());
+      List<PostgresColumn> pkCols = pTable.getPKColsAsPostgresColumns();
+      while (rs.next()) {
+        int pos = 1;
+        List<Object> pVals = new ArrayList<>(pkCols.size());
+        for (; pos <= pkCols.size(); pos++) {
+          pVals.add(pkCols.get(pos - 1).getFromResultSet(rs, pos));
+        }
+        MaybeSerialized<Partition> container =
+            new MaybeSerialized<>(Partition.class, rs.getBytes(pos++));
+        List<String> untranslatedPartVals = untranslatePartVals(pVals);
+        partNames.add(FileUtils.makePartName(pTable.getPrimaryKeyCols(), untranslatedPartVals));
+        List<String> partCacheKey = buildPartCacheKey(dbName, tableName, untranslatedPartVals);
+        partCache.put(partCacheKey, container);
+        byte[] serializedStats = rs.getBytes(pos);
+        if (serializedStats != null) {
+          SeparableColumnStatistics stats = new SeparableColumnStatistics(serializedStats);
+          partStatsCache.put(partCacheKey, stats);
+        }
+      }
+    }
+    perfLogger.PerfLogEnd(RetryingHMSHandler.class.getName(), "scanPartitionNames");
+    return partNames;
+
   }
 
   /**
@@ -843,12 +901,12 @@ public class PostgresKeyValue implements MetadataStore {
     perfLogger.PerfLogBegin(RetryingHMSHandler.class.getName(), "fetchPartitionsFromCache");
     List<Partition> result = new ArrayList<>(partVals.size());
     for (List<String> pVals : partVals) {
-      Partition p = partCache.get(buildPartCacheKey(dbName, tableName, pVals));
+      MaybeSerialized<Partition> p = partCache.get(buildPartCacheKey(dbName, tableName, pVals));
       if (p == null) {
         throw new RuntimeException("Unable to find partition in cache " +
             HBaseStore.partNameForErrorMsg(dbName, tableName, pVals));
       }
-      result.add(p);
+      result.add(p.get());
     }
     perfLogger.PerfLogEnd(RetryingHMSHandler.class.getName(), "fetchPartitionsFromCache");
     return result;
@@ -2322,6 +2380,16 @@ public class PostgresKeyValue implements MetadataStore {
     String getType() {
       return type;
     }
+
+    Object getFromResultSet(ResultSet rs, int pos) throws SQLException {
+      if (type.startsWith("varchar") || type.startsWith("char")) {
+        return rs.getString(pos);
+      } else if (type.equals("bigint")) {
+        return rs.getLong(pos);
+      } else {
+        throw new RuntimeException("Unhandled type " + type);
+      }
+    }
   }
 
   static class PostgresTable {
@@ -2365,6 +2433,14 @@ public class PostgresKeyValue implements MetadataStore {
 
     List<String> getPrimaryKeyCols() {
       return pkCols;
+    }
+
+    List<PostgresColumn> getPKColsAsPostgresColumns() {
+      List<PostgresColumn> cols = new ArrayList<>();
+      for (String pkCol : pkCols) {
+        cols.add(colsByName.get(pkCol));
+      }
+      return cols;
     }
 
     Collection<PostgresColumn> getCols() {
