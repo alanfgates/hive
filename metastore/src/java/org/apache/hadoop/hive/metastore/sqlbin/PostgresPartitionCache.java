@@ -58,6 +58,11 @@ import java.util.concurrent.ExecutionException;
  * This cache also contains any stats that have been aggregated over these sets of partitions.
  * It is convenient to keep them here because they can be dropped along with cached partition
  * values anytime the table changes.
+ *
+ * Thoughts on improving this:
+ * 1) We could just pull the names into the cache initially, and then only fetch partitions when
+ * they are actually needed.  As long as the later partition fetch was done in one pass on an
+ * index it should still be efficient.
  */
 class PostgresPartitionCache {
   private static final Logger LOG = LoggerFactory.getLogger(PostgresPartitionCache.class.getName());

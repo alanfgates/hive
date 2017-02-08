@@ -83,14 +83,38 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 
 /**
  * Class to manage storing object in and reading them from HBase.
+ *
+ * Currently all classes are serialized directly as thrift objects and stored as is.  This has
+ * the advantage that the code doesn't need to spend any time translating object to relational.
+ * Most objects are stored in an object specific table (i.e., one for databases, one for tables,
+ * etc.).  Partitions are stored in a table specific to their Hive table (ie, there's a 1-1
+ * mapping between partitioned Hive tables and Postgres tables).  This allows to use the
+ * partition keys as a primary key.  It also keeps from generating one enormous partition table.
+ *
+ * Currently the implementation is Postgres specific.  However, 90% of this should work
+ * regardless of the database.  If the inner classes for PostgresTable and PostgresColumn are
+ * abstracted out, with an implementation for each database type, I believe the rest of this could
+ * be shared.
+ *
+ * A couple of thoughts on possible improvements:
+ *
+ * 1) Right now the code doesn't pull the storage descriptors out of partitions.  This will badly
+ * bloat both the database and memory.  If we do pull them out there's no need to reference count
+ * in the db, we can just run a background process every hour or so that does a join on the keys
+ * and finds any abandoned storage descriptors.
+ *
+ * 2) The column stats are kept as one big serialized blob.  Since there is a partition table per
+ * Hive table we could instead create columns for every stat.  I'm not sure how well this would
+ * work since it would create a table with roughly 5x columns of the number of Hive columns.  And
+ * I don't know if the NDV calculations can be done in the database.  But the up side of this
+ * would be most of the stats aggregation could be done by a single SQL query.  It's not clear
+ * this is worth it.
  */
 public class PostgresKeyValue implements MetadataStore {
   private final static List<PostgresTable> initialPostgresTables = new ArrayList<>();

@@ -280,7 +280,7 @@ public class PostgresStore implements RawStore {
     boolean commit = false;
     openTransaction();
     try {
-      Table table = getPostgres().getTable(dbName, tableName);
+      Table table = getTableInternal(dbName, tableName);
       if (table == null) {
         LOG.debug("Unable to find table " + tableNameForErrorMsg(dbName, tableName));
       }
@@ -292,6 +292,10 @@ public class PostgresStore implements RawStore {
     } finally {
       commitOrRoleBack(commit);
     }
+  }
+
+  private Table getTableInternal(String dbName, String tableName) throws SQLException {
+    return getPostgres().getTable(dbName, tableName);
   }
 
   @Override
@@ -410,6 +414,11 @@ public class PostgresStore implements RawStore {
 
   private List<Partition> getPartitionsInternal(String dbName, String tableName, int max)
       throws SQLException {
+    // Hive blindly calls getPartitions on drop.  We need to catch that here and stop it,
+    // otherwise the stuff underneath us (which assumes getPartitions is only called when the
+    // table is partitioned) will fall over.
+    Table t = getTableInternal(dbName, tableName);
+    if (t.getPartitionKeysSize() == 0) return null;
     return getPostgres().scanPartitionsInTable(dbName, tableName, max);
   }
 
@@ -481,18 +490,23 @@ public class PostgresStore implements RawStore {
   @Override
   public List<String> listPartitionNames(String db_name, String tbl_name, short max_parts) throws
       MetaException {
+    boolean commit = false;
+    openTransaction();
     try {
-      Table table = getTable(db_name, tbl_name);
+      Table table = getTableInternal(db_name, tbl_name);
       List<Partition> parts = getPartitionsInternal(db_name, tbl_name, max_parts);
       if (parts == null) return null;
       List<String> names = new ArrayList<>(parts.size());
       for (Partition part : parts) {
         names.add(Warehouse.makePartName(table.getPartitionKeys(), part.getValues()));
       }
+      commit = true;
       return names;
     } catch (SQLException e) {
       LOG.error("Unable to get partitions", e);
       throw new MetaException("Unable to get partitions: " + e.getMessage());
+    } finally {
+      commitOrRoleBack(commit);
     }
   }
 
@@ -632,13 +646,6 @@ public class PostgresStore implements RawStore {
       throws MetaException, SQLException {
     PerfLogger perfLogger = PerfLogger.getPerfLogger((HiveConf)conf, false);
     perfLogger.PerfLogBegin(RetryingHMSHandler.class.getName(), "getPartitionNamesPrunedByExprNoTxn");
-    /*
-    List<Partition> parts =
-        getPartitionsInternal(table.getDbName(), table.getTableName(), maxParts, true);
-    for (Partition part : parts) {
-      result.add(Warehouse.makePartName(table.getPartitionKeys(), part.getValues()));
-    }
-    */
     result.addAll(getPostgres().scanPartitionNames(table.getDbName(), table.getTableName()));
     List<String> columnNames = new ArrayList<>();
     List<PrimitiveTypeInfo> typeInfos = new ArrayList<>();
@@ -1051,7 +1058,7 @@ public class PostgresStore implements RawStore {
       }
       String dbName = colStats.getStatsDesc().getDbName();
       String tableName = colStats.getStatsDesc().getTableName();
-      Table newTable = getTable(dbName, tableName);
+      Table newTable = getTableInternal(dbName, tableName);
       Table newTableCopy = newTable.deepCopy();
       StatsSetupConst.setColumnStatsState(newTableCopy.getParameters(), colNames);
       getPostgres().updateTable(newTableCopy);
