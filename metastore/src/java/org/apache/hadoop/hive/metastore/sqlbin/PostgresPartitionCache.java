@@ -44,7 +44,6 @@ import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 
 /**
  * A cache shared across all threads that caches partitions.  Table entries come with a hash so
@@ -68,9 +67,13 @@ class PostgresPartitionCache {
 
   PostgresPartitionCache(Configuration conf) {
     cache = CacheBuilder.<CacheKey, CacheValue>newBuilder()
-        .weigher(new PartitionCounter())
+        .weigher(new Weigher<CacheKey, CacheValue>() {
+          @Override
+          public int weigh(CacheKey key, CacheValue cacheValue) {
+            return cacheValue.partMap.size() + cacheValue.aggregatedStats.size();
+          }
+        })
         .maximumWeight(1000000) // TODO make configurable
-        .expireAfterAccess(3600, TimeUnit.SECONDS) // TODO make configurable
         .build();
     try {
       md = MessageDigest.getInstance("MD5");
@@ -130,6 +133,7 @@ class PostgresPartitionCache {
 
   AggrStats getAggregatedStats(PostgresKeyValue postgres, String dbName, String tableName,
                                List<String> partNames, List<String> colNames) throws SQLException {
+    LOG.debug("Fetching aggregate stats for " + partNames.size() + " partitions");
     CacheValue cached = getLatest(postgres, dbName, tableName);
     byte[] cacheKey = getAggrStatsKey(partNames, colNames);
     AggrStats aggrStats = cached.aggregatedStats.get(cacheKey);
@@ -213,13 +217,6 @@ class PostgresPartitionCache {
     sorted = new TreeSet<>(colNames);
     for (String partName : sorted) md.update(partName.getBytes());
     return md.digest();
-  }
-
-  private static class PartitionCounter implements Weigher<CacheKey, CacheValue> {
-    @Override
-    public int weigh(CacheKey cacheKey, CacheValue cacheValue) {
-      return cacheValue.partMap.size();
-    }
   }
 
   private static class CacheKey {
