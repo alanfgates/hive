@@ -115,7 +115,7 @@ import java.util.regex.Pattern;
  */
 @InterfaceAudience.Private
 @InterfaceStability.Evolving
-abstract class TxnHandler implements TxnStore, TxnStore.MutexAPI {
+public abstract class TxnHandler implements TxnStore, TxnStore.MutexAPI {
 
   static final protected char INITIATED_STATE = 'i';
   static final protected char WORKING_STATE = 'w';
@@ -3666,7 +3666,7 @@ abstract class TxnHandler implements TxnStore, TxnStore.MutexAPI {
     }
   }
 
-  private static class NoPoolConnectionPool implements DataSource {
+  public static class NoPoolConnectionPool implements DataSource {
     // Note that this depends on the fact that no-one in this class calls anything but
     // getConnection.  If you want to use any of the Logger or wrap calls you'll have to
     // implement them.

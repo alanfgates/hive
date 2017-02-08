@@ -397,7 +397,7 @@ public class PostgresStore implements RawStore {
     boolean commit = false;
     openTransaction();
     try {
-      List<Partition> parts = getPartitionsInternal(dbName, tableName, max, false);
+      List<Partition> parts = getPartitionsInternal(dbName, tableName, max);
       commit = true;
       return parts;
     } catch (SQLException e) {
@@ -408,9 +408,9 @@ public class PostgresStore implements RawStore {
     }
   }
 
-  private List<Partition> getPartitionsInternal(String dbName, String tableName, int max,
-                                                boolean cacheStats) throws SQLException {
-    return getPostgres().scanPartitionsInTable(dbName, tableName, max, cacheStats);
+  private List<Partition> getPartitionsInternal(String dbName, String tableName, int max)
+      throws SQLException {
+    return getPostgres().scanPartitionsInTable(dbName, tableName, max);
   }
 
   @Override
@@ -483,7 +483,7 @@ public class PostgresStore implements RawStore {
       MetaException {
     try {
       Table table = getTable(db_name, tbl_name);
-      List<Partition> parts = getPartitionsInternal(db_name, tbl_name, max_parts, false);
+      List<Partition> parts = getPartitionsInternal(db_name, tbl_name, max_parts);
       if (parts == null) return null;
       List<String> names = new ArrayList<>(parts.size());
       for (Partition part : parts) {
@@ -600,8 +600,7 @@ public class PostgresStore implements RawStore {
             table, expr, defaultPartitionName, maxParts, partNames);
         // The above loads all partitions from the table, so they should all be cached now.  Make
         // sure we fetch them from the cache.
-        result.addAll(getPostgres().fetchPartitionsFromCache(dbName, tblName,
-            HBaseStore.partNameListToValsList(partNames)));
+        result.addAll(getPostgres().fetchPartitionsByName(dbName, tblName, partNames));
         return hasUnknownPartitions;
       }
       boolean rc = getPostgres().scanPartitionsByExpr(dbName, tblName, exprTree, maxParts, result);
@@ -1134,7 +1133,7 @@ public class PostgresStore implements RawStore {
     openTransaction();
     try {
       List<ColumnStatistics> css =
-          getPostgres().getPartitionStatistics(dbName, tblName, partVals, colNames);
+          getPostgres().getPartitionStatistics(dbName, tblName, partNames, partVals, colNames);
       commit = true;
       return css;
     } catch (SQLException|IOException e) {
@@ -1406,11 +1405,10 @@ public class PostgresStore implements RawStore {
   public AggrStats get_aggr_stats_for(String dbName, String tblName, List<String> partNames,
                                       List<String> colNames) throws MetaException,
       NoSuchObjectException {
-    List<List<String>> partVals = HBaseStore.partNameListToValsList(partNames);
     boolean commit = false;
     openTransaction();
     try {
-      AggrStats aggrStats = getPostgres().getAggregatedStats(dbName, tblName, partNames, partVals, colNames);
+      AggrStats aggrStats = getPostgres().getAggregatedStats(dbName, tblName, partNames, colNames);
       commit = true;
       return aggrStats;
     } catch (SQLException|IOException e) {
