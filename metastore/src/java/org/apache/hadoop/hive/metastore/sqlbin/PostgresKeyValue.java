@@ -1842,7 +1842,8 @@ public class PostgresKeyValue implements MetadataStore {
   public AggrStats getAggregatedStats(String dbName, String tableName, List<String> partNames,
                                       List<String> colNames)
       throws SQLException, IOException {
-    LOG.info("Aggregating stats for " + colNames.size() + " columns for table " + tableName);
+    LOG.info("Aggregating stats for " + colNames.size() + " columns for table " + tableName +
+        " for " + partNames.size() + " partitions");
     PerfLogger perfLogger = PerfLogger.getPerfLogger((HiveConf)conf, false);
     perfLogger.PerfLogBegin(RetryingHMSHandler.class.getName(), "getAggregatedStats");
     AggrStats aggrStats = partCache.getAggregatedStats(this, dbName, tableName, partNames, colNames);

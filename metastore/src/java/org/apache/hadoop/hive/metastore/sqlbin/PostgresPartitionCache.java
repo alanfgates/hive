@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hive.metastore.sqlbin;
 
+import com.google.common.base.Stopwatch;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.Cache;
 import com.google.common.cache.Weigher;
@@ -143,6 +144,8 @@ class PostgresPartitionCache {
       for (String partName : partNames) {
         CacheValueElement cve = cached.partMap.get(partName);
         if (cve != null) partStats.add(cve.stats);
+      }
+      if (partStats.size() > 0) {
         try {
           aggrStats = new AggrStats();
           int numBitVectors = HiveStatsUtils.getNumBitVectorsForNDVEstimation(conf);
@@ -175,7 +178,6 @@ class PostgresPartitionCache {
           throw new SQLException(e);
         }
       }
-
     }
     return aggrStats;
   }
@@ -226,6 +228,17 @@ class PostgresPartitionCache {
     public CacheKey(String dbName, String tableName) {
       this.dbName = dbName;
       this.tableName = tableName;
+    }
+
+    @Override
+    public int hashCode() {
+      return dbName.hashCode() * 31 + tableName.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      if (other == null || !(other instanceof CacheKey)) return false;
+      return tableName.equals(((CacheKey)other).tableName) && dbName.equals(((CacheKey)other).dbName);
     }
   }
 
