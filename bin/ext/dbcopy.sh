@@ -17,7 +17,7 @@ THISSERVICE=hbaseimport
 export SERVICE_LIST="${SERVICE_LIST}${THISSERVICE} "
 
 hbaseimport () {
-  CLASS=org.apache.hadoop.hive.metastore.hbase.HBaseImport
+  CLASS=org.apache.hadoop.hive.metastore.DBCopy
   HIVE_OPTS=''
   execHiveCmd $CLASS "$@"
 }

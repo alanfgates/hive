@@ -16,15 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.hadoop.hive.metastore.hbase;
+package org.apache.hadoop.hive.metastore;
 
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.SQLForeignKey;
 import org.apache.hadoop.hive.metastore.api.SQLPrimaryKey;
+import org.apache.hadoop.hive.metastore.hbase.HBaseIntegrationTests;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.hadoop.hive.metastore.ObjectStore;
-import org.apache.hadoop.hive.metastore.RawStore;
-import org.apache.hadoop.hive.metastore.TestObjectStore;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.Function;
@@ -60,9 +59,9 @@ import java.util.Set;
 /**
  * Test that import from an RDBMS based metastore works
  */
-public class TestHBaseImport extends HBaseIntegrationTests {
+public class TestDBCopy extends HBaseIntegrationTests {
 
-  private static final Logger LOG = LoggerFactory.getLogger(TestHBaseImport.class.getName());
+  private static final Logger LOG = LoggerFactory.getLogger(TestDBCopy.class.getName());
 
   private static final String[] tableNames = new String[] {"allnonparttable", "allparttable"};
   private static final String[] partVals = new String[] {"na", "emea", "latam", "apac"};
@@ -80,6 +79,8 @@ public class TestHBaseImport extends HBaseIntegrationTests {
     HBaseIntegrationTests.startMiniCluster();
     RawStore rdbms;
     rdbms = new ObjectStore();
+    conf.setBoolVar(HiveConf.ConfVars.METASTORE_AUTO_CREATE_ALL, true);
+    conf.setBoolVar(HiveConf.ConfVars.METASTORE_SCHEMA_VERIFICATION, false);
     rdbms.setConf(conf);
     TestObjectStore.dropAllStoreObjects(rdbms);
   }
@@ -120,7 +121,7 @@ public class TestHBaseImport extends HBaseIntegrationTests {
     int baseNumRoles = store.listRoleNames() == null ? 0 : store.listRoleNames().size();
     int baseNumDbs = store.getAllDatabases() == null ? 0 : store.getAllDatabases().size();
 
-    HBaseImport importer = new HBaseImport("-a");
+    DBCopy importer = new DBCopy("-a");
     importer.setConnections(rdbms, store);
     importer.run();
 
@@ -202,7 +203,7 @@ public class TestHBaseImport extends HBaseIntegrationTests {
         store.getAllTokenIdentifiers().size();
     int baseNumKeys =  store.getMasterKeys() == null ? 0 : store.getMasterKeys().length;
 
-    HBaseImport importer = new HBaseImport("-d", dbNames[0]);
+    DBCopy importer = new DBCopy("-d", dbNames[0]);
     importer.setConnections(rdbms, store);
     importer.run();
 
@@ -276,7 +277,7 @@ public class TestHBaseImport extends HBaseIntegrationTests {
     store.createDatabase(
         new Database(dbNames[0], "no description", "file:/tmp", emptyParameters));
 
-    HBaseImport importer = new HBaseImport("-f", dbNames[0] + "." + funcNames[0]);
+    DBCopy importer = new DBCopy("-f", dbNames[0] + "." + funcNames[0]);
     importer.setConnections(rdbms, store);
     importer.run();
 
@@ -323,7 +324,7 @@ public class TestHBaseImport extends HBaseIntegrationTests {
     store.createDatabase(
         new Database(dbNames[0], "no description", "file:/tmp", emptyParameters));
 
-    HBaseImport importer = new HBaseImport("-t", dbNames[0] + "." + tableNames[0]);
+    DBCopy importer = new DBCopy("-t", dbNames[0] + "." + tableNames[0]);
     importer.setConnections(rdbms, store);
     importer.run();
 
@@ -364,7 +365,7 @@ public class TestHBaseImport extends HBaseIntegrationTests {
     store.createDatabase(
         new Database(dbNames[0], "no description", "file:/tmp", emptyParameters));
 
-    HBaseImport importer = new HBaseImport("-d", dbNames[0]);
+    DBCopy importer = new DBCopy("-d", dbNames[0]);
     importer.setConnections(rdbms, store);
     importer.run();
 
@@ -432,7 +433,7 @@ public class TestHBaseImport extends HBaseIntegrationTests {
     store.createDatabase(
         new Database(dbNames[0], "no description", "file:/tmp", emptyParameters));
 
-    HBaseImport importer = new HBaseImport("-t", dbNames[0] + "." + tableNames[1]);
+    DBCopy importer = new DBCopy("-t", dbNames[0] + "." + tableNames[1]);
     importer.setConnections(rdbms, store);
     importer.run();
 
@@ -484,7 +485,7 @@ public class TestHBaseImport extends HBaseIntegrationTests {
     int baseNumRoles = store.listRoleNames() == null ? 0 : store.listRoleNames().size();
     int baseNumDbs = store.getAllDatabases() == null ? 0 : store.getAllDatabases().size();
 
-    HBaseImport importer = new HBaseImport("-k");
+    DBCopy importer = new DBCopy("-k");
     importer.setConnections(rdbms, store);
     importer.run();
 
@@ -531,7 +532,7 @@ public class TestHBaseImport extends HBaseIntegrationTests {
         store.getAllTokenIdentifiers().size();
     int baseNumKeys =  store.getMasterKeys() == null ? 0 : store.getMasterKeys().length;
 
-    HBaseImport importer = new HBaseImport("-r", roles[0]);
+    DBCopy importer = new DBCopy("-r", roles[0]);
     importer.setConnections(rdbms, store);
     importer.run();
 
@@ -678,7 +679,7 @@ public class TestHBaseImport extends HBaseIntegrationTests {
       }
     }
 
-    HBaseImport importer = new HBaseImport("-p", "2", "-b", "2", "-d", dbNames[0]);
+    DBCopy importer = new DBCopy("-p", "2", "-b", "2", "-d", dbNames[0]);
     importer.setConnections(rdbms, store);
     importer.run();
 
@@ -745,7 +746,7 @@ public class TestHBaseImport extends HBaseIntegrationTests {
       }
     }
 
-    HBaseImport importer = new HBaseImport("-p", "2", "-b", "2", "-d", dbNames[0]);
+    DBCopy importer = new DBCopy("-p", "2", "-b", "2", "-d", dbNames[0]);
     importer.setConnections(rdbms, store);
     importer.run();
 

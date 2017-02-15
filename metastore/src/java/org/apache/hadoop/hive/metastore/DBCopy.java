@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.hadoop.hive.metastore.hbase;
+package org.apache.hadoop.hive.metastore;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -29,13 +29,11 @@ import org.apache.commons.cli.ParseException;
 import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.hive.metastore.api.SQLForeignKey;
 import org.apache.hadoop.hive.metastore.api.SQLPrimaryKey;
+import org.apache.hadoop.hive.metastore.hbase.HBaseStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.metastore.Deadline;
-import org.apache.hadoop.hive.metastore.ObjectStore;
-import org.apache.hadoop.hive.metastore.RawStore;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.Function;
 import org.apache.hadoop.hive.metastore.api.Index;
@@ -55,13 +53,10 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 /**
- * A tool to take the contents of an RDBMS based Hive metastore and import it into an HBase based
- * one.  To use this the config files for Hive configured to work with the RDBMS (that is,
- * including the JDBC string, etc.) as well as HBase configuration files must be in the path.
- * There should not be a hive-site.xml that specifies HBaseStore in the path.  This tool will then
- * handle connecting to the RDBMS via the {@link org.apache.hadoop.hive.metastore.ObjectStore}
- * and HBase via {@link org.apache.hadoop.hive.metastore.hbase.HBaseStore} and transferring the
- * data.
+ * A tool to take the contents of a Hive metastore and import it into an another one.  The target
+ * is copying from ObjectStore based to HBaseStore or to PostgresStore based, though nothing in
+ * the implementation depends on the two being of different types.  To use this the config files
+ * for the source and destination stores must be in different directories.
  *
  * This tool can import an entire metastore or only selected objects.  When selecting objects it
  * is necessary to fully specify the object's name.  For example, if you want to import the table
@@ -73,15 +68,16 @@ import java.util.concurrent.TimeUnit;
  * At this point only tables and partitions are handled in parallel as it is assumed there are
  * relatively few of everything else.
  *
- * Note that HBaseSchemaTool must have already been used to create the appropriate tables in HBase.
+ * Note that whatever installation is required on the target must have already been done.  This
+ * tool does not manage installation.
  */
-public class HBaseImport {
+public class DBCopy {
 
-  static final private Logger LOG = LoggerFactory.getLogger(HBaseImport.class.getName());
+  static final private Logger LOG = LoggerFactory.getLogger(DBCopy.class.getName());
 
   public static int main(String[] args) {
     try {
-      HBaseImport tool = new HBaseImport();
+      DBCopy tool = new DBCopy();
       int rv = tool.init(args);
       if (rv != 0) return rv;
       tool.run();
@@ -130,10 +126,10 @@ public class HBaseImport {
   private int parallel;
   private int batchSize;
 
-  private HBaseImport() {}
+  private DBCopy() {}
 
   @VisibleForTesting
-  public HBaseImport(String... args) throws ParseException {
+  public DBCopy(String... args) throws ParseException {
     init(args);
   }
 
