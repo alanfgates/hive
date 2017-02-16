@@ -13,15 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-THISSERVICE=hbaseimport
+THISSERVICE=dbcopy
 export SERVICE_LIST="${SERVICE_LIST}${THISSERVICE} "
 
-hbaseimport () {
+dbcopy () {
   CLASS=org.apache.hadoop.hive.metastore.DBCopy
   HIVE_OPTS=''
   execHiveCmd $CLASS "$@"
 }
 
-hbaseimport_help () {
-  echo "usage ./hive hbaseimport"
+dbcopy_help () {
+  echo "usage ./hive --service dbcopy"
 } 

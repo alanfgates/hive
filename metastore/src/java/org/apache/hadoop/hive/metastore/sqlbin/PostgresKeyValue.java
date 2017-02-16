@@ -264,16 +264,14 @@ public class PostgresKeyValue implements MetadataStore {
   private static Map<String, String> hiveToPostgresTypes;
 
   private Configuration conf;
+  // A HiveConf built from our conf.  A few calls we make need a HiveConf, and we don't want to
+  // depend on the caller
+  private static HiveConf hiveConf;
   private Connection currentConnection;
 
   private Map<String, Database> dbCache;
   private Map<ObjectPair<String, String>, Table> tableCache;
   private Map<ObjectPair<String, String>, SeparableColumnStatistics> tableStatsCache;
-  /*
-  private Map<List<String>, MaybeSerialized<Partition>> partCache;
-  private Map<List<String>, SeparableColumnStatistics> partStatsCache;
-  private Map<byte[], AggrStats> aggrStatsCache;
-  */
   private int clearCnt;
 
   /**

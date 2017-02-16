@@ -30,9 +30,9 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.hive.metastore.api.SQLForeignKey;
 import org.apache.hadoop.hive.metastore.api.SQLPrimaryKey;
 import org.apache.hadoop.hive.metastore.hbase.HBaseStore;
+import org.apache.hadoop.hive.metastore.sqlbin.PostgresStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.Function;
@@ -44,6 +44,8 @@ import org.apache.hadoop.hive.metastore.api.Partition;
 import org.apache.hadoop.hive.metastore.api.Role;
 import org.apache.hadoop.hive.metastore.api.Table;
 
+import java.io.File;
+import java.net.MalformedURLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -89,32 +91,42 @@ public class DBCopy {
     return 0;
   }
 
-  private ThreadLocal<RawStore> rdbmsStore = new ThreadLocal<RawStore>() {
-    @Override
-    protected RawStore initialValue() {
-      if (rdbmsConf == null) {
-        throw new RuntimeException("order violation, need to set rdbms conf first");
-      }
-      RawStore os = new ObjectStore();
-      os.setConf(rdbmsConf);
-      return os;
-    }
-  };
+  private ThreadLocal<RawStore> srcStore;
+  private ThreadLocal<RawStore> targetStore;
 
-  private ThreadLocal<RawStore> hbaseStore = new ThreadLocal<RawStore>() {
-    @Override
-    protected RawStore initialValue() {
-      if (hbaseConf == null) {
-        throw new RuntimeException("order violation, need to set hbase conf first");
+  private ThreadLocal<RawStore> getObjectStore(final HiveConf conf) {
+    return new ThreadLocal<RawStore>() {
+      @Override
+      protected RawStore initialValue() {
+        RawStore os = new ObjectStore();
+        os.setConf(conf);
+        return os;
       }
-      RawStore hs = new HBaseStore();
-      hs.setConf(hbaseConf);
-      return hs;
-    }
-  };
+    };
+  }
 
-  private Configuration rdbmsConf;
-  private Configuration hbaseConf;
+  private ThreadLocal<RawStore> getHBaseStore(final HiveConf conf) {
+    return new ThreadLocal<RawStore>() {
+      @Override
+      protected RawStore initialValue() {
+        RawStore hs = new HBaseStore();
+        hs.setConf(conf);
+        return hs;
+      }
+    };
+  }
+
+  private ThreadLocal<RawStore> getPostgresStore(final HiveConf conf) {
+    return new ThreadLocal<RawStore>() {
+      @Override
+      protected RawStore initialValue() {
+        RawStore hs = new PostgresStore();
+        hs.setConf(conf);
+        return hs;
+      }
+    };
+  }
+
   private List<Database> dbs;
   private BlockingQueue<Table> partitionedTables;
   private BlockingQueue<String[]> tableNameQueue;
@@ -125,15 +137,17 @@ public class DBCopy {
   private List<String> rolesToImport, dbsToImport, tablesToImport, functionsToImport;
   private int parallel;
   private int batchSize;
+  private boolean testing = false;
 
   private DBCopy() {}
 
   @VisibleForTesting
-  public DBCopy(String... args) throws ParseException {
+  public DBCopy(String... args) throws ParseException, MalformedURLException {
+    testing = true;
     init(args);
   }
 
-  private int init(String... args) throws ParseException {
+  private int init(String... args) throws ParseException, MalformedURLException {
     Options options = new Options();
 
     doAll = doKerberos = false;
@@ -150,6 +164,18 @@ public class DBCopy {
         .withDescription("Number of partitions to read and write in a batch, defaults to 1000")
             .hasArg()
             .create('b'));
+
+    options.addOption(OptionBuilder
+        .withLongOpt("source-config")
+        .withDescription("Config file for source.")
+        .hasArg()
+        .create('c'));
+
+    options.addOption(OptionBuilder
+        .withLongOpt("target-config")
+        .withDescription("Config file for target.")
+        .hasArg()
+        .create('C'));
 
     options.addOption(OptionBuilder
         .withLongOpt("database")
@@ -186,13 +212,32 @@ public class DBCopy {
         .hasArgs()
         .create('r'));
 
+    options.addOption(OptionBuilder
+        .withLongOpt("source-type")
+        .withDescription("Type of the source database, valid options: object, hbase, postgres")
+        .hasArg()
+        .create('s'));
+
    options.addOption(OptionBuilder
         .withLongOpt("tables")
         .withDescription("Import a single tables")
         .hasArgs()
         .create('t'));
 
+    options.addOption(OptionBuilder
+        .withLongOpt("target-type")
+        .withDescription("Type of the target database, valid options: object, hbase, postgres")
+        .hasArg()
+        .create('T'));
+
     CommandLine cli = new GnuParser().parse(options, args);
+
+    // Make sure we have a source and target
+    if (!testing &&
+        (!cli.hasOption('c') || !cli.hasOption('C') || !cli.hasOption('s') || !cli.hasOption('T'))) {
+      printHelp(options);
+      return 1;
+    }
 
     // Process help, if it was asked for, this must be done first
     if (cli.hasOption('h')) {
@@ -236,6 +281,11 @@ public class DBCopy {
       return 1;
     }
 
+    if (!testing) {
+      srcStore = setupConnection(cli.getOptionValue('c'), cli.getOptionValue('s'));
+      targetStore = setupConnection(cli.getOptionValue('C'), cli.getOptionValue('T'));
+    }
+
     dbs = new ArrayList<>();
     // We don't want to bound the size of the table queue because we keep it all in memory
     partitionedTables = new LinkedBlockingQueue<>();
@@ -248,14 +298,33 @@ public class DBCopy {
   }
 
   private void printHelp(Options options) {
-    (new HelpFormatter()).printHelp("hbaseschematool", options);
+    (new HelpFormatter()).printHelp("hbaseschematool", "", options,
+        "Note that ANY values in your source and target configuration files that differ from " +
+        "values in the hive-site.xml in your classpath MUST be explicitly specified.  Do not " +
+        "count on default values as they will not override values from your classpath.");
+  }
+
+  private ThreadLocal<RawStore> setupConnection(String cfgFile, String storeType)
+      throws MalformedURLException {
+    LOG.info("Setting up connection for storeType " + storeType + " with conf " + cfgFile);
+    File f = new File(cfgFile);
+    HiveConf conf = new HiveConf();
+    conf.addResource(f.toURI().toURL());
+    if (storeType.equalsIgnoreCase("object")) {
+      return getObjectStore(conf);
+    } else if (storeType.equalsIgnoreCase("hbase")) {
+      return getHBaseStore(conf);
+    } else if (storeType.equalsIgnoreCase("postgres")) {
+      return getPostgresStore(conf);
+    } else {
+      throw new RuntimeException("Unknown store type: " + storeType);
+    }
   }
 
   @VisibleForTesting
   void run() throws MetaException, InstantiationException, IllegalAccessException,
       NoSuchObjectException, InvalidObjectException, InterruptedException {
     // Order here is crucial, as you can't add tables until you've added databases, etc.
-    init();
     if (doAll || rolesToImport != null) {
       copyRoles();
     }
@@ -275,43 +344,24 @@ public class DBCopy {
     }
   }
 
-  private void init() throws MetaException, IllegalAccessException, InstantiationException {
-    if (rdbmsConf != null) {
-      // We've been configured for testing, so don't do anything here.
-      return;
-    }
-    // We're depending on having everything properly in the path
-    rdbmsConf = new HiveConf();
-    hbaseConf = new HiveConf();//
-    HiveConf.setVar(hbaseConf, HiveConf.ConfVars.METASTORE_RAW_STORE_IMPL,
-        HBaseStore.class.getName());
-    HiveConf.setBoolVar(hbaseConf, HiveConf.ConfVars.METASTORE_FASTPATH, true);
-
-    // First get a connection to the RDBMS based store
-    rdbmsStore.get().setConf(rdbmsConf);
-
-    // Get a connection to the HBase based store
-    hbaseStore.get().setConf(hbaseConf);
-  }
-
   private void copyRoles() throws NoSuchObjectException, InvalidObjectException, MetaException {
     screen("Copying roles");
-    List<String> toCopy = doAll ? rdbmsStore.get().listRoleNames() : rolesToImport;
+    List<String> toCopy = doAll ? srcStore.get().listRoleNames() : rolesToImport;
     for (String roleName : toCopy) {
-      Role role = rdbmsStore.get().getRole(roleName);
+      Role role = srcStore.get().getRole(roleName);
       screen("Copying role " + roleName);
-      hbaseStore.get().addRole(roleName, role.getOwnerName());
+      targetStore.get().addRole(roleName, role.getOwnerName());
     }
   }
 
   private void copyDbs() throws MetaException, NoSuchObjectException, InvalidObjectException {
     screen("Copying databases");
-    List<String> toCopy = doAll ? rdbmsStore.get().getAllDatabases() : dbsToImport;
+    List<String> toCopy = doAll ? srcStore.get().getAllDatabases() : dbsToImport;
     for (String dbName : toCopy) {
-      Database db = rdbmsStore.get().getDatabase(dbName);
+      Database db = srcStore.get().getDatabase(dbName);
       dbs.add(db);
       screen("Copying database " + dbName);
-      hbaseStore.get().createDatabase(db);
+      targetStore.get().createDatabase(db);
     }
   }
 
@@ -329,7 +379,7 @@ public class DBCopy {
     // Put tables from the databases we copied into the queue
     for (Database db : dbs) {
       screen("Coyping tables in database " + db.getName());
-      for (String tableName : rdbmsStore.get().getAllTables(db.getName())) {
+      for (String tableName : srcStore.get().getAllTables(db.getName())) {
         tableNameQueue.put(new String[]{db.getName(), tableName});
       }
     }
@@ -359,29 +409,29 @@ public class DBCopy {
         try {
           String[] name = tableNameQueue.poll(1, TimeUnit.SECONDS);
           if (name != null) {
-            Table table = rdbmsStore.get().getTable(name[0], name[1]);
+            Table table = srcStore.get().getTable(name[0], name[1]);
             // If this has partitions, put it in the list to fetch partions for
             if (table.getPartitionKeys() != null && table.getPartitionKeys().size() > 0) {
               partitionedTables.put(table);
             }
             screen("Copying table " + name[0] + "." + name[1]);
-            hbaseStore.get().createTable(table);
+            targetStore.get().createTable(table);
 
             // See if the table has any constraints, and if so copy those as well
             List<SQLPrimaryKey> pk =
-                rdbmsStore.get().getPrimaryKeys(table.getDbName(), table.getTableName());
+                srcStore.get().getPrimaryKeys(table.getDbName(), table.getTableName());
             if (pk != null && pk.size() > 0) {
               LOG.debug("Found primary keys, adding them");
-              hbaseStore.get().addPrimaryKeys(pk);
+              targetStore.get().addPrimaryKeys(pk);
             }
 
             // Passing null as the target table name results in all of the foreign keys being
             // retrieved.
             List<SQLForeignKey> fks =
-                rdbmsStore.get().getForeignKeys(null, null, table.getDbName(), table.getTableName());
+                srcStore.get().getForeignKeys(null, null, table.getDbName(), table.getTableName());
             if (fks != null && fks.size() > 0) {
               LOG.debug("Found foreign keys, adding them");
-              hbaseStore.get().addForeignKeys(fks);
+              targetStore.get().addForeignKeys(fks);
             }
           }
         } catch (InterruptedException | MetaException | InvalidObjectException e) {
@@ -405,8 +455,8 @@ public class DBCopy {
     // Put indexes from the databases we copied into the queue
     for (Database db : dbs) {
       screen("Coyping indexes in database " + db.getName());
-      for (String tableName : rdbmsStore.get().getAllTables(db.getName())) {
-        for (Index index : rdbmsStore.get().getIndexes(db.getName(), tableName, -1)) {
+      for (String tableName : srcStore.get().getAllTables(db.getName())) {
+        for (Index index : srcStore.get().getIndexes(db.getName(), tableName, -1)) {
           indexNameQueue.put(new String[]{db.getName(), tableName, index.getIndexName()});
         }
       }
@@ -420,7 +470,7 @@ public class DBCopy {
           error(compoundTableName + " not in proper form.  Must be in form dbname.tablename.  " +
               "Ignoring this table and continuing.");
         } else {
-          for (Index index : rdbmsStore.get().getIndexes(tn[0], tn[1], -1)) {
+          for (Index index : srcStore.get().getIndexes(tn[0], tn[1], -1)) {
             indexNameQueue.put(new String[]{tn[0], tn[1], index.getIndexName()});
           }
         }
@@ -440,9 +490,9 @@ public class DBCopy {
         try {
           String[] name = indexNameQueue.poll(1, TimeUnit.SECONDS);
           if (name != null) {
-            Index index = rdbmsStore.get().getIndex(name[0], name[1], name[2]);
+            Index index = srcStore.get().getIndex(name[0], name[1], name[2]);
             screen("Copying index " + name[0] + "." + name[1] + "." + name[2]);
-            hbaseStore.get().addIndex(index);
+            targetStore.get().addIndex(index);
           }
         } catch (InterruptedException | MetaException | InvalidObjectException e) {
           throw new RuntimeException(e);
@@ -488,7 +538,7 @@ public class DBCopy {
             screen("Fetching partitions for table " + table.getDbName() + "." +
                 table.getTableName());
             List<String> partNames =
-                rdbmsStore.get().listPartitionNames(table.getDbName(), table.getTableName(),
+                srcStore.get().listPartitionNames(table.getDbName(), table.getTableName(),
                     (short) -1);
             if (partNames.size() <= batchSize) {
               LOG.debug("Adding all partition names to queue for " + table.getDbName() + "." +
@@ -528,9 +578,9 @@ public class DBCopy {
             // Fetch these partitions and write them to HBase
             Deadline.startTimer("hbaseimport");
             List<Partition> parts =
-                rdbmsStore.get().getPartitionsByNames(entry.dbName, entry.tableName,
+                srcStore.get().getPartitionsByNames(entry.dbName, entry.tableName,
                     entry.partNames);
-            hbaseStore.get().addPartitions(entry.dbName, entry.tableName, parts);
+            targetStore.get().addPartitions(entry.dbName, entry.tableName, parts);
             Deadline.stopTimer();
           }
         } catch (InterruptedException | MetaException | InvalidObjectException |
@@ -546,7 +596,7 @@ public class DBCopy {
     // Copy any functions from databases we copied.
     for (Database db : dbs) {
       screen("Copying functions in database " + db.getName());
-      for (String funcName : rdbmsStore.get().getFunctions(db.getName(), "*")) {
+      for (String funcName : srcStore.get().getFunctions(db.getName(), "*")) {
         copyOneFunction(db.getName(), funcName);
       }
     }
@@ -566,19 +616,19 @@ public class DBCopy {
 
   private void copyOneFunction(String dbName, String funcName) throws MetaException,
       InvalidObjectException {
-    Function func = rdbmsStore.get().getFunction(dbName, funcName);
+    Function func = srcStore.get().getFunction(dbName, funcName);
     screen("Copying function " + dbName + "." + funcName);
-    hbaseStore.get().createFunction(func);
+    targetStore.get().createFunction(func);
   }
 
   private void copyKerberos() throws MetaException {
     screen("Copying kerberos related items");
-    for (String tokenId : rdbmsStore.get().getAllTokenIdentifiers()) {
-      String token = rdbmsStore.get().getToken(tokenId);
-      hbaseStore.get().addToken(tokenId, token);
+    for (String tokenId : srcStore.get().getAllTokenIdentifiers()) {
+      String token = srcStore.get().getToken(tokenId);
+      targetStore.get().addToken(tokenId, token);
     }
-    for (String masterKey : rdbmsStore.get().getMasterKeys()) {
-      hbaseStore.get().addMasterKey(masterKey);
+    for (String masterKey : srcStore.get().getMasterKeys()) {
+      targetStore.get().addMasterKey(masterKey);
     }
   }
 
@@ -593,11 +643,30 @@ public class DBCopy {
   }
 
   @VisibleForTesting
-  void setConnections(RawStore rdbms, RawStore hbase) {
-    rdbmsStore.set(rdbms);
-    hbaseStore.set(hbase);
-    rdbmsConf = rdbms.getConf();
-    hbaseConf = hbase.getConf();
+  void setConnections(final RawStore src, final RawStore target) {
+    if (!testing) throw new RuntimeException("Not valid to call this outside of a unit test");
+    srcStore = getCopyingRawStore(src);
+    targetStore = getCopyingRawStore(target);
+  }
+
+  private ThreadLocal<RawStore> getCopyingRawStore(final RawStore base) {
+    return new ThreadLocal<RawStore>() {
+      @Override
+      protected RawStore initialValue() {
+        RawStore rs;
+        if (base instanceof ObjectStore) {
+          rs = new ObjectStore();
+        } else if (base instanceof HBaseStore) {
+          rs = new HBaseStore();
+        } else if (base instanceof PostgresStore) {
+          rs = new PostgresStore();
+        } else {
+          throw new RuntimeException("Uknown base type " + base.getClass().getName());
+        }
+        rs.setConf(base.getConf());
+        return rs;
+      }
+    };
   }
 
   private static class PartQueueEntry {
