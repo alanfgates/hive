@@ -105,6 +105,61 @@ public class TestPostgresSchemaTool extends TestPostgresStoreSql {
   @Test
   public void listDatabases() throws TException, UnsupportedEncodingException {
     tool.run(tool.parse("-d"));
-    Assert.assertEquals("", baos.toString());
+    Assert.assertEquals("mydb1\nmydb2\n", baos.toString());
+  }
+
+  @Test
+  public void showDatabase() throws TException, UnsupportedEncodingException {
+    tool.run(tool.parse("-D", "mydb1"));
+    Assert.assertEquals("{\"name\":\"mydb1\",\"description\":\"no description\"," +
+        "\"locationUri\":\"file:///tmp\",\"parameters\":{}}\n", baos.toString());
+  }
+
+  @Test
+  public void listFunctions() throws TException, UnsupportedEncodingException {
+    tool.run(tool.parse("-f", "mydb1"));
+    Assert.assertEquals("myfunc1\nmyfunc2\n", baos.toString());
+  }
+
+  @Test
+  public void showFunction() throws TException, UnsupportedEncodingException {
+    tool.run(tool.parse("-F", "mydb1.myfunc1"));
+    Assert.assertEquals("{\"functionName\":\"myfunc1\",\"dbName\":\"mydb1\"," +
+        "\"className\":\"Function\",\"ownerName\":\"me\",\"ownerType\":1,\"createTime\":0," +
+        "\"functionType\":1}\n", baos.toString());
+  }
+
+  @Test
+  public void listTables() throws TException, UnsupportedEncodingException {
+    tool.run(tool.parse("-t", "mydb1"));
+    Assert.assertEquals("mytable1\nmytable2\n", baos.toString());
+  }
+
+  @Test
+  public void showTable() throws TException, UnsupportedEncodingException {
+    tool.run(tool.parse("-T", "mydb1.mytable1"));
+    Assert.assertEquals("{\"tableName\":\"mytable1\",\"dbName\":\"mydb1\",\"owner\":\"me\"," +
+        "\"createTime\":0,\"lastAccessTime\":0,\"retention\":0," +
+        "\"sd\":{\"cols\":[{\"name\":\"col1\",\"type\":\"int\",\"comment\":\"\"}," +
+        "{\"name\":\"col2\",\"type\":\"varchar(32)\",\"comment\":\"\"}],\"location\":\"/tmp\"," +
+        "\"compressed\":0,\"numBuckets\":0,\"parameters\":{}}," +
+        "\"partitionKeys\":[{\"name\":\"pcol1\",\"type\":\"string\",\"comment\":\"\"}]," +
+        "\"parameters\":{}}\n", baos.toString());
+  }
+
+  @Test
+  public void listPartitions() throws TException, UnsupportedEncodingException {
+    tool.run(tool.parse("-p", "mydb1.mytable1"));
+    Assert.assertEquals("pcol1=pval1\npcol1=pval2\n", baos.toString());
+  }
+
+  @Test
+  public void showPartition() throws TException, UnsupportedEncodingException {
+    tool.run(tool.parse("-P", "mydb1.mytable1.pcol1=pval1"));
+    Assert.assertEquals("{\"values\":[\"pval1\"],\"dbName\":\"mydb1\",\"tableName\":\"mytable1\"," +
+        "\"createTime\":0,\"lastAccessTime\":0,\"sd\":{\"cols\":[{\"name\":\"col1\"," +
+        "\"type\":\"int\",\"comment\":\"\"},{\"name\":\"col2\",\"type\":\"varchar(32)\"," +
+        "\"comment\":\"\"}],\"location\":\"/tmp\",\"compressed\":0,\"numBuckets\":0," +
+        "\"parameters\":{}},\"parameters\":{}}\n", baos.toString());
   }
 }
