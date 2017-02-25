@@ -17,6 +17,8 @@
  */
 package org.apache.hadoop.hive.metastore.txn.inmem;
 
+import org.apache.hadoop.hive.metastore.api.TxnState;
+
 class CommittedTransaction extends HiveTransaction {
 
   private final long commitId;

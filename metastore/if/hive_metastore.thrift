@@ -116,12 +116,15 @@ enum LockState {
     WAITING = 2,        // requester is waiting for the lock and should call checklock at a later point to see if the lock has been obtained.
     ABORT = 3,          // the lock has been aborted, most likely due to timeout
     NOT_ACQUIRED = 4,   // returned only with lockNoWait, indicates the lock was not available and was not acquired
+    TXN_ABORTED = 5,    // released due to transaction abort
+    RELEASED = 6,       // released due to transaction commit
 }
 
 enum LockType {
     SHARED_READ = 1,
     SHARED_WRITE = 2,
     EXCLUSIVE = 3,
+    INTENTION = 4,
 }
 
 enum CompactionType {

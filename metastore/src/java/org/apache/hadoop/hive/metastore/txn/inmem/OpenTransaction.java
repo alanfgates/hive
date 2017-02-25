@@ -17,6 +17,8 @@
  */
 package org.apache.hadoop.hive.metastore.txn.inmem;
 
+import org.apache.hadoop.hive.metastore.api.TxnState;
+
 import java.util.Arrays;
 
 class OpenTransaction extends HiveTransaction {

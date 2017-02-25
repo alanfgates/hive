@@ -26,7 +26,7 @@ import java.util.concurrent.Future;
 
 interface WriteAheadLog {
 
-  enum EntryType { INCR_TXN_ID, OPEN_TXN }
+  enum EntryType { INCR_TXN_ID, OPEN_TXN, COMMIT_TXN, REQUEST_LOCKS, ACQUIRE_LOCKS }
 
   Future<WriteAheadLog> queueOpenTxn(long txnId, OpenTxnRequest rqst);
 

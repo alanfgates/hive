@@ -25,6 +25,8 @@ import org.apache.hadoop.hive.metastore.api.HeartbeatRequest;
 import org.apache.hadoop.hive.metastore.api.LockComponent;
 import org.apache.hadoop.hive.metastore.api.LockRequest;
 import org.apache.hadoop.hive.metastore.api.LockResponse;
+import org.apache.hadoop.hive.metastore.api.LockState;
+import org.apache.hadoop.hive.metastore.api.LockType;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.NoSuchLockException;
 import org.apache.hadoop.hive.metastore.api.NoSuchTxnException;
@@ -109,6 +111,7 @@ public class TransactionManager extends CompactionTxnHandler {
 
   private HiveConf conf;
   private WriteAheadLog wal;
+  private long lockPollTimeout;
 
   public void setConf(HiveConf configuration) {
     conf = configuration;
@@ -116,6 +119,7 @@ public class TransactionManager extends CompactionTxnHandler {
     staticInit();
     LOG.info("Initializing the TransactionManager...");
     wal = new NoopWal(); // TODO - make this configurable
+    lockPollTimeout = 1000; // TODO - make this configurable
 
     LOG.info("TransactionManager initialization compelte");
   }
@@ -463,8 +467,7 @@ public class TransactionManager extends CompactionTxnHandler {
     LockResponse rsp;
     try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
       try {
-        // TODO make configurable
-        lockCheckerRun.get(1000, TimeUnit.MILLISECONDS);
+        lockCheckerRun.get(lockPollTimeout, TimeUnit.MILLISECONDS);
       } catch (TimeoutException e) {
         // Fall through to wait case.
       }
@@ -517,6 +520,7 @@ public class TransactionManager extends CompactionTxnHandler {
     } catch (IOException e) {
       // This is only here because LockKeeper.close has to throw an IOException because Closeable
       // .close does.  But in reality it never will, so this should never happen.
+      throw new RuntimeException("This should never happen", e);
     }
   }
 

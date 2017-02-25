@@ -17,6 +17,9 @@
  */
 package org.apache.hadoop.hive.metastore.txn.inmem;
 
+import org.apache.hadoop.hive.metastore.api.LockState;
+import org.apache.hadoop.hive.metastore.api.LockType;
+
 class HiveLock {
   private final long txnId;
   private final long lockId;
