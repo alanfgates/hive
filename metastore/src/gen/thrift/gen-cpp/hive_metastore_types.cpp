@@ -77,27 +77,33 @@ int _kLockStateValues[] = {
   LockState::ACQUIRED,
   LockState::WAITING,
   LockState::ABORT,
-  LockState::NOT_ACQUIRED
+  LockState::NOT_ACQUIRED,
+  LockState::TXN_ABORTED,
+  LockState::RELEASED
 };
 const char* _kLockStateNames[] = {
   "ACQUIRED",
   "WAITING",
   "ABORT",
-  "NOT_ACQUIRED"
+  "NOT_ACQUIRED",
+  "TXN_ABORTED",
+  "RELEASED"
 };
-const std::map<int, const char*> _LockState_VALUES_TO_NAMES(::apache::thrift::TEnumIterator(4, _kLockStateValues, _kLockStateNames), ::apache::thrift::TEnumIterator(-1, NULL, NULL));
+const std::map<int, const char*> _LockState_VALUES_TO_NAMES(::apache::thrift::TEnumIterator(6, _kLockStateValues, _kLockStateNames), ::apache::thrift::TEnumIterator(-1, NULL, NULL));
 
 int _kLockTypeValues[] = {
   LockType::SHARED_READ,
   LockType::SHARED_WRITE,
-  LockType::EXCLUSIVE
+  LockType::EXCLUSIVE,
+  LockType::INTENTION
 };
 const char* _kLockTypeNames[] = {
   "SHARED_READ",
   "SHARED_WRITE",
-  "EXCLUSIVE"
+  "EXCLUSIVE",
+  "INTENTION"
 };
-const std::map<int, const char*> _LockType_VALUES_TO_NAMES(::apache::thrift::TEnumIterator(3, _kLockTypeValues, _kLockTypeNames), ::apache::thrift::TEnumIterator(-1, NULL, NULL));
+const std::map<int, const char*> _LockType_VALUES_TO_NAMES(::apache::thrift::TEnumIterator(4, _kLockTypeValues, _kLockTypeNames), ::apache::thrift::TEnumIterator(-1, NULL, NULL));
 
 int _kCompactionTypeValues[] = {
   CompactionType::MINOR,

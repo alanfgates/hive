@@ -77,11 +77,15 @@ final class LockState {
   const WAITING = 2;
   const ABORT = 3;
   const NOT_ACQUIRED = 4;
+  const TXN_ABORTED = 5;
+  const RELEASED = 6;
   static public $__names = array(
     1 => 'ACQUIRED',
     2 => 'WAITING',
     3 => 'ABORT',
     4 => 'NOT_ACQUIRED',
+    5 => 'TXN_ABORTED',
+    6 => 'RELEASED',
   );
 }
 
@@ -89,10 +93,12 @@ final class LockType {
   const SHARED_READ = 1;
   const SHARED_WRITE = 2;
   const EXCLUSIVE = 3;
+  const INTENTION = 4;
   static public $__names = array(
     1 => 'SHARED_READ',
     2 => 'SHARED_WRITE',
     3 => 'EXCLUSIVE',
+    4 => 'INTENTION',
   );
 }
 

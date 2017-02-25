@@ -75,7 +75,9 @@ struct LockState {
     ACQUIRED = 1,
     WAITING = 2,
     ABORT = 3,
-    NOT_ACQUIRED = 4
+    NOT_ACQUIRED = 4,
+    TXN_ABORTED = 5,
+    RELEASED = 6
   };
 };
 
@@ -85,7 +87,8 @@ struct LockType {
   enum type {
     SHARED_READ = 1,
     SHARED_WRITE = 2,
-    EXCLUSIVE = 3
+    EXCLUSIVE = 3,
+    INTENTION = 4
   };
 };
 

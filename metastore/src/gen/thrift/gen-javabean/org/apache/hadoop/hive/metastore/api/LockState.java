@@ -15,7 +15,9 @@ public enum LockState implements org.apache.thrift.TEnum {
   ACQUIRED(1),
   WAITING(2),
   ABORT(3),
-  NOT_ACQUIRED(4);
+  NOT_ACQUIRED(4),
+  TXN_ABORTED(5),
+  RELEASED(6);
 
   private final int value;
 
@@ -44,6 +46,10 @@ public enum LockState implements org.apache.thrift.TEnum {
         return ABORT;
       case 4:
         return NOT_ACQUIRED;
+      case 5:
+        return TXN_ABORTED;
+      case 6:
+        return RELEASED;
       default:
         return null;
     }

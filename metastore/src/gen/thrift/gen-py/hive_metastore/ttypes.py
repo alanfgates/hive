@@ -108,12 +108,16 @@ class LockState:
   WAITING = 2
   ABORT = 3
   NOT_ACQUIRED = 4
+  TXN_ABORTED = 5
+  RELEASED = 6
 
   _VALUES_TO_NAMES = {
     1: "ACQUIRED",
     2: "WAITING",
     3: "ABORT",
     4: "NOT_ACQUIRED",
+    5: "TXN_ABORTED",
+    6: "RELEASED",
   }
 
   _NAMES_TO_VALUES = {
@@ -121,23 +125,28 @@ class LockState:
     "WAITING": 2,
     "ABORT": 3,
     "NOT_ACQUIRED": 4,
+    "TXN_ABORTED": 5,
+    "RELEASED": 6,
   }
 
 class LockType:
   SHARED_READ = 1
   SHARED_WRITE = 2
   EXCLUSIVE = 3
+  INTENTION = 4
 
   _VALUES_TO_NAMES = {
     1: "SHARED_READ",
     2: "SHARED_WRITE",
     3: "EXCLUSIVE",
+    4: "INTENTION",
   }
 
   _NAMES_TO_VALUES = {
     "SHARED_READ": 1,
     "SHARED_WRITE": 2,
     "EXCLUSIVE": 3,
+    "INTENTION": 4,
   }
 
 class CompactionType:
