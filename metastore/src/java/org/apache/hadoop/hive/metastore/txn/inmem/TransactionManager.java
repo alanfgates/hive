@@ -152,6 +152,18 @@ public class TransactionManager extends CompactionTxnHandler {
     wal = new NoopWal(); // TODO - make this configurable
     lockPollTimeout = 1000; // TODO - make this configurable
 
+    // This avoids a deadlock since the setConf below will end up back in this method.
+    if (internalInstance == null) {
+      synchronized (TransactionManager.class) {
+        if (internalInstance == null) {
+          // Get an instance of ourselves that is only for the internal threads.  Call this before we
+          // start the background threads as they'll need it to be non-null.
+          internalInstance = new TransactionManager();
+          internalInstance.setConf(conf);
+        }
+      }
+    }
+
     LOG.info("TransactionManager initialization compelte");
   }
 
@@ -233,11 +245,6 @@ public class TransactionManager extends CompactionTxnHandler {
       lockCompatibilityTable[LockType.INTENTION.ordinal()][LockType.INTENTION.ordinal()] = true;
 
       // TODO write the recovery logic
-
-      // Get an instance of ourselves that is only for the internal threads.  Call this before we
-      // start the background threads as they'll need it to be non-null.
-      internalInstance = new TransactionManager();
-      internalInstance.setConf(conf);
 
       // TODO make base size of thread pool execute configurable
       threadPool = new ScheduledThreadPoolExecutor(10);
