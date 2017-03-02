@@ -570,7 +570,7 @@ public class TransactionManager extends CompactionTxnHandler {
       lockCheckerRun = threadPool.submit(lockChecker);
       txn.addLocks(hiveLocks);
 
-      waitForWal = wal.queueLockRequest(rqst);
+      waitForWal = wal.queueLockRequest(rqst, Arrays.asList(hiveLocks));
     } catch (IOException e) {
       // This is only here because LockKeeper.close has to throw an IOException because Closeable
       // .close does.  But in reality it never will, so this should never happen.
@@ -662,8 +662,22 @@ public class TransactionManager extends CompactionTxnHandler {
   @Override
   public LockResponse checkLock(CheckLockRequest rqst) throws NoSuchTxnException,
       NoSuchLockException, TxnAbortedException, MetaException {
-    // TODO
-    throw new UnsupportedOperationException();
+    // Locks must now be associated with a transaction
+    if (!rqst.isSetTxnid()) {
+      throw new NoSuchLockException("Locks must now be associated with a transaction");
+    }
+    // Find the locks associated with this transaction, so we know what to check
+    HiveLock[] locks = null;
+    try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
+      OpenTransaction txn = openTxns.get(rqst.getTxnid());
+      if (txn == null) throwAbortedOrNonExistent(rqst.getTxnid(), "check locks");
+      locks = txn.getHiveLocks();
+    } catch (IOException e) {
+      // This is only here because LockKeeper.close has to throw an IOException because Closeable
+      // .close does.  But in reality it never will, so this should never happen.
+      throw new RuntimeException("This should never happen", e);
+    }
+    return waitForLocks(locks);
   }
 
   @Override
@@ -671,7 +685,7 @@ public class TransactionManager extends CompactionTxnHandler {
       MetaException {
     // This is no longer supported, because all locks should now be released by abort transaction
     // or commit transaction
-    throw new UnsupportedOperationException("Locks must now be part of a transaction.  Unlocking " +
+    throw new NoSuchLockException("Locks must now be part of a transaction.  Unlocking " +
         "should only be done as part of a commit or abort transaction");
   }
 
@@ -962,8 +976,6 @@ public class TransactionManager extends CompactionTxnHandler {
     }
   };
 
-  // TODO WAL -> DB thread
-
   // Detect deadlocks in the lock graph
   static private Runnable deadlockDetector = new Runnable() {
     // Rather than follow the general pattern of go through all the entries and find potentials
@@ -1084,6 +1096,7 @@ public class TransactionManager extends CompactionTxnHandler {
 
   // This looks through the list of committed transactions and figures out what can be
   // forgotten.
+  // TODO clean the removed txns from the database as well
   static private Runnable committedTxnCleaner = new Runnable() {
     @Override
     public void run() {
@@ -1192,6 +1205,7 @@ public class TransactionManager extends CompactionTxnHandler {
 
   // A thread that checks for aborted transactions with no more aborted locks to track and
   // removes them.
+  // TODO clean the removed txns from the database as well
   static private Runnable abortedTxnForgetter = new Runnable() {
     @Override
     public void run() {

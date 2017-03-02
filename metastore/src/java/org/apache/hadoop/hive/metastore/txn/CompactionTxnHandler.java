@@ -397,12 +397,12 @@ public class CompactionTxnHandler extends TxnHandler {
 
           //because 1 txn may include different partitions/tables even in auto commit mode
           suffix.append(" and tc_database = ");
-          suffix.append(quoteString(info.dbname));
+          suffix.append(SQLGenerator.quoteString(info.dbname));
           suffix.append(" and tc_table = ");
-          suffix.append(quoteString(info.tableName));
+          suffix.append(SQLGenerator.quoteString(info.tableName));
           if (info.partName != null) {
             suffix.append(" and tc_partition = ");
-            suffix.append(quoteString(info.partName));
+            suffix.append(SQLGenerator.quoteString(info.partName));
           }
 
           // Populate the complete query with provided prefix and suffix
@@ -819,10 +819,10 @@ public class CompactionTxnHandler extends TxnHandler {
         dbConn = getDbConn(Connection.TRANSACTION_READ_COMMITTED);
         stmt = dbConn.createStatement();
         rs = stmt.executeQuery("select CC_STATE from COMPLETED_COMPACTIONS where " +
-          "CC_DATABASE = " + quoteString(ci.dbname) + " and " +
-          "CC_TABLE = " + quoteString(ci.tableName) +
-          (ci.partName != null ? "and CC_PARTITION = " + quoteString(ci.partName) : "") +
-          " and CC_STATE != " + quoteChar(ATTEMPTED_STATE) + " order by CC_ID desc");
+          "CC_DATABASE = " + SQLGenerator.quoteString(ci.dbname) + " and " +
+          "CC_TABLE = " + SQLGenerator.quoteString(ci.tableName) +
+          (ci.partName != null ? "and CC_PARTITION = " + SQLGenerator.quoteString(ci.partName) : "") +
+          " and CC_STATE != " + SQLGenerator.quoteChar(ATTEMPTED_STATE) + " order by CC_ID desc");
         int numFailed = 0;
         int numTotal = 0;
         int failedThreshold = conf.getIntVar(HiveConf.ConfVars.COMPACTOR_INITIATOR_FAILED_THRESHOLD);
@@ -931,7 +931,7 @@ public class CompactionTxnHandler extends TxnHandler {
       try {
         dbConn = getDbConn(Connection.TRANSACTION_READ_COMMITTED);
         stmt = dbConn.createStatement();
-        String s = "update COMPACTION_QUEUE set CQ_HADOOP_JOB_ID = " + quoteString(hadoopJobId) + " WHERE CQ_ID = " + id;
+        String s = "update COMPACTION_QUEUE set CQ_HADOOP_JOB_ID = " + SQLGenerator.quoteString(hadoopJobId) + " WHERE CQ_ID = " + id;
         LOG.debug("Going to execute <" + s + ">");
         int updateCount = stmt.executeUpdate(s);
         LOG.debug("Going to commit");

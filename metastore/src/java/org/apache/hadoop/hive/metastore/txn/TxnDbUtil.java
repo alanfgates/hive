@@ -164,6 +164,16 @@ public final class TxnDbUtil {
         " WS_COMMIT_ID bigint NOT NULL," +
         " WS_OPERATION_TYPE char(1) NOT NULL)"
       );
+
+      stmt.execute("CREATE TABLE TXN_WAL (" +
+        " TW_ID bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY," +
+        " TW_TYPE integer NOT NULL," +
+        " TW_TXN_ID bigint," +
+        " TW_REQUEST varchar(1024) for bit data," + // serialized request
+        " TW_LOCKS varchar(1024) for bit data," + // serialized locks
+        " TW_RECORDED_AT bigint)"
+      );
+
     } catch (SQLException e) {
       try {
         conn.rollback();

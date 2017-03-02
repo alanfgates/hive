@@ -19,6 +19,7 @@ package org.apache.hadoop.hive.metastore.txn.inmem;
 
 import org.apache.hadoop.hive.metastore.api.LockRequest;
 import org.apache.hadoop.hive.metastore.api.OpenTxnRequest;
+import org.apache.hadoop.hive.metastore.api.OpenTxnsResponse;
 
 import java.sql.SQLException;
 import java.util.List;
@@ -26,15 +27,30 @@ import java.util.concurrent.Future;
 
 interface WriteAheadLog {
 
-  enum EntryType { INCR_TXN_ID, OPEN_TXN, COMMIT_TXN, REQUEST_LOCKS, ACQUIRE_LOCKS }
+  enum EntryType {
+    // DON'T EVER REARRANGE THESE!  WE'RE STORING THE ORDINAL VALUES IN THE DATABASE.
+    OPEN_TXN, ABORT_TXN, COMMIT_TXN, REQUEST_LOCKS, ACQUIRE_LOCKS;
 
-  Future<WriteAheadLog> queueOpenTxn(long txnId, OpenTxnRequest rqst);
+    private static EntryType[] vals = values();
+
+    public static EntryType fromInteger(int val) {
+      return vals[val];
+    }
+  }
+
+  /**
+   * Queue a WAL write for opening a transaction.
+   * @param rqst Request we received from client
+   * @param txnId transaction id that was assigned to this transaction
+   * @return future with a reference to this write ahead log
+   */
+  Future<WriteAheadLog> queueOpenTxn(long txnId ,OpenTxnRequest rqst);
 
   Future<WriteAheadLog> queueAbortTxn(OpenTransaction openTxn);
 
   Future<WriteAheadLog> queueCommitTxn(OpenTransaction openTxn);
 
-  Future<WriteAheadLog> queueLockRequest(LockRequest rqst);
+  Future<WriteAheadLog> queueLockRequest(LockRequest rqst, List<HiveLock> newLocks);
 
   Future<WriteAheadLog> queueLockAcquisition(List<HiveLock> acquiredLocks);
 }

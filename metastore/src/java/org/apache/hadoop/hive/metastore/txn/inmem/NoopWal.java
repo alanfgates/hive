@@ -43,7 +43,7 @@ public class NoopWal implements WriteAheadLog {
   }
 
   @Override
-  public Future<WriteAheadLog> queueLockRequest(LockRequest rqst) {
+  public Future<WriteAheadLog> queueLockRequest(LockRequest rqst, List<HiveLock> newLocks) {
     return null;
   }
 

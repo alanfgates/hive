@@ -19,13 +19,29 @@ package org.apache.hadoop.hive.metastore.txn.inmem;
 
 import org.apache.hadoop.hive.metastore.api.LockState;
 import org.apache.hadoop.hive.metastore.api.LockType;
+import org.apache.hadoop.io.Writable;
+import org.apache.hadoop.io.WritableUtils;
 
-class HiveLock {
-  private final long txnId;
-  private final long lockId;
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+
+class HiveLock implements Writable {
+  private long txnId;  // Can't be final due to Writable, but don't ever change this
+  private long lockId;  // Can't be final due to Writable, but don't ever change this
   private final EntityKey entityLocked;
   private final LockType type;
   private LockState state;
+
+  /**
+   * Only intended for use by the WAL when deserializing lock information, do not ever call this
+   * directly.  The locks it creates lack most necessary information.
+   */
+  HiveLock() {
+    entityLocked = null;
+    type = null;
+    state = null;
+  }
 
   /**
    * Used to create a new lock.  The lock will be placed in the WAITING state.
@@ -79,5 +95,20 @@ class HiveLock {
   @Override
   public int hashCode() {
     return (int)(txnId * 31 + lockId);
+  }
+
+  // This only serializes the transaction id and the lock id.  This means locks deserialized via
+  // readFields will not be valid for general use.  All this is only intended for WAL, which
+  // doesn't need any information beyond the txn id and lock id.
+  @Override
+  public void write(DataOutput dataOutput) throws IOException {
+    WritableUtils.writeVLong(dataOutput, txnId);
+    WritableUtils.writeVLong(dataOutput, lockId);
+  }
+
+  @Override
+  public void readFields(DataInput dataInput) throws IOException {
+    txnId = WritableUtils.readVLong(dataInput);
+    lockId = WritableUtils.readVLong(dataInput);
   }
 }
