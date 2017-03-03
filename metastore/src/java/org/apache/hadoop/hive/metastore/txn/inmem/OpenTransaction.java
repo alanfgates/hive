@@ -30,8 +30,8 @@ class OpenTransaction extends HiveTransaction {
   // capacity, but when it grows you loose control of how.
   private HiveLock[] hiveLocks;
 
-  OpenTransaction(IdGenerator txnIdGen) {
-    super(txnIdGen.next());
+  OpenTransaction(long txnId) {
+    super(txnId);
     lastHeartbeat = System.currentTimeMillis();
   }
 
@@ -61,6 +61,7 @@ class OpenTransaction extends HiveTransaction {
    *                 array, so don't plan to do anything else with it.  All your locks are belong to
    *                 us.
    */
+  @Override
   void addLocks(HiveLock[] newLocks) {
     if (hiveLocks == null) {
       hiveLocks = newLocks;

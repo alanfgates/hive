@@ -20,6 +20,7 @@ package org.apache.hadoop.hive.metastore.txn.inmem;
 import org.apache.hadoop.hive.metastore.api.LockRequest;
 import org.apache.hadoop.hive.metastore.api.OpenTxnRequest;
 
+import java.sql.SQLException;
 import java.util.List;
 import java.util.concurrent.Future;
 
@@ -28,27 +29,42 @@ import java.util.concurrent.Future;
  */
 public class NoopWal implements WriteAheadLog {
   @Override
-  public Future<WriteAheadLog> queueOpenTxn(long txnId, OpenTxnRequest rqst) {
+  public Future<Integer> queueOpenTxn(long txnId, OpenTxnRequest rqst) {
     return null;
   }
 
   @Override
-  public Future<WriteAheadLog> queueAbortTxn(OpenTransaction openTxn) {
+  public Future<Integer> queueAbortTxn(OpenTransaction openTxn) {
     return null;
   }
 
   @Override
-  public Future<WriteAheadLog> queueCommitTxn(OpenTransaction openTxn) {
+  public Future<Integer> queueCommitTxn(CommittedTransaction commitedTxn) {
     return null;
   }
 
   @Override
-  public Future<WriteAheadLog> queueLockRequest(LockRequest rqst, List<HiveLock> newLocks) {
+  public Future<Integer> queueLockRequest(LockRequest rqst, List<HiveLock> newLocks) {
     return null;
   }
 
   @Override
-  public Future<WriteAheadLog> queueLockAcquisition(List<HiveLock> acquiredLocks) {
+  public Future<Integer> queueLockAcquisition(List<HiveLock> acquiredLocks) {
     return null;
+  }
+
+  @Override
+  public Future<Integer> queueForgetLocks(List<HiveLock> locksToForget) {
+    return null;
+  }
+
+  @Override
+  public Future<Integer> queueForgetTransactions(List<? extends HiveTransaction> txns) {
+    return null;
+  }
+
+  @Override
+  public void start() throws SQLException {
+
   }
 }

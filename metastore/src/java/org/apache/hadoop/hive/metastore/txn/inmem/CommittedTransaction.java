@@ -23,12 +23,25 @@ class CommittedTransaction extends HiveTransaction {
 
   private final long commitId;
 
-  CommittedTransaction(OpenTransaction openTxn, IdGenerator txnIdGen) {
+  /**
+   * For use when an open transaction is committed.
+   * @param openTxn open transaction being committed
+   * @param commitId commit id for this transaction
+   */
+  CommittedTransaction(OpenTransaction openTxn, long commitId) {
     super(openTxn.getTxnId());
-    commitId = txnIdGen.current();
+    this.commitId = commitId;
   }
 
-  // TODO constructor for recovery from database
+  /**
+   * For use when recovering a committed transaction.
+   * @param txnId transaction id
+   * @param commitId commit id
+   */
+  CommittedTransaction(long txnId, long commitId) {
+    super(txnId);
+    this.commitId = commitId;
+  }
 
 
   @Override
@@ -38,5 +51,10 @@ class CommittedTransaction extends HiveTransaction {
 
   long getCommitId() {
     return commitId;
+  }
+
+  @Override
+  void addLocks(HiveLock[] locks) {
+    throw new UnsupportedOperationException("You can't add locks to a committed transaction!");
   }
 }

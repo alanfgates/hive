@@ -28,6 +28,8 @@ abstract class HiveTransaction {
 
   abstract TxnState getState();
 
+  abstract void addLocks(HiveLock[] locks);
+
   long getTxnId() {
     return txnId;
   }

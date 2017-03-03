@@ -45,21 +45,18 @@ class HiveLock implements Writable {
 
   /**
    * Used to create a new lock.  The lock will be placed in the WAITING state.
-   * @param lockIdGen the generator for lock ids
+   * @param lockId id of this lock
    * @param txnId transaction this  lock is part of
    * @param entityLocked the object that is locked
    * @param type type of lock
    */
-  HiveLock(IdGenerator lockIdGen, long txnId, EntityKey entityLocked, LockType type) {
+  HiveLock(long lockId, long txnId, EntityKey entityLocked, LockType type) {
     this.txnId = txnId;
-    lockId = lockIdGen.next();
+    this.lockId = lockId;
     this.entityLocked = entityLocked;
     this.type = type;
     state = LockState.WAITING;
   }
-
-  // TODO constructor for recovery
-
 
   public long getTxnId() {
     return txnId;

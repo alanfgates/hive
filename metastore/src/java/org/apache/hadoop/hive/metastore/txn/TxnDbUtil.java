@@ -78,7 +78,8 @@ public final class TxnDbUtil {
           "  TXN_STARTED bigint NOT NULL," +
           "  TXN_LAST_HEARTBEAT bigint NOT NULL," +
           "  TXN_USER varchar(128) NOT NULL," +
-          "  TXN_HOST varchar(128) NOT NULL)");
+          "  TXN_HOST varchar(128) NOT NULL," +
+          "  TXN_COMMITTED_ID bigint)"); // TODO added this column, add to SQL scripts
 
       stmt.execute("CREATE TABLE TXN_COMPONENTS (" +
           "  TC_TXNID bigint REFERENCES TXNS (TXN_ID)," +
@@ -165,13 +166,15 @@ public final class TxnDbUtil {
         " WS_OPERATION_TYPE char(1) NOT NULL)"
       );
 
-      stmt.execute("CREATE TABLE TXN_WAL (" +
+      stmt.execute("CREATE TABLE TXN_WAL (" +  // TODO added this table, add to SQL scripts
         " TW_ID bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY," +
         " TW_TYPE integer NOT NULL," +
-        " TW_TXN_ID bigint," +
-        " TW_REQUEST varchar(1024) for bit data," + // serialized request
-        " TW_LOCKS varchar(1024) for bit data," + // serialized locks
-        " TW_RECORDED_AT bigint)"
+        " TW_RECORDED_AT bigint," +
+        " TW_TXNID bigint," +
+        " TW_COMMIT_ID bigint," +
+        " TW_OPEN_TXN_RQST varchar(1024) for bit data," +
+        " TW_LOCK_RQST varchar(1024) for bit data," +
+        " TW_LOCKS varchar(1024) for bit data)"
       );
 
     } catch (SQLException e) {

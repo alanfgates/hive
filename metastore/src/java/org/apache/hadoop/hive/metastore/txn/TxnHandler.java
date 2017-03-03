@@ -145,11 +145,12 @@ public abstract class TxnHandler implements TxnStore, TxnStore.MutexAPI {
   static final public char LOCK_EXCLUSIVE = 'e';
   static final public char LOCK_SHARED = 'r';
   static final public char LOCK_SEMI_SHARED = 'w';
+  static final public char LOCK_INTENTION = 'i';
 
   static final private int ALLOWED_REPEATED_DEADLOCKS = 10;
   static final private Logger LOG = LoggerFactory.getLogger(TxnHandler.class.getName());
 
-  static private DataSource connPool;
+  static protected DataSource connPool;
   static private boolean doRetryOnConnPool = false;
   
   public enum OpertaionType {

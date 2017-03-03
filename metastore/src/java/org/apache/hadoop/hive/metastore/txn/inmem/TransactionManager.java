@@ -46,10 +46,15 @@ import org.apache.hadoop.hive.metastore.api.TxnOpenException;
 import org.apache.hadoop.hive.metastore.api.UnlockRequest;
 import org.apache.hadoop.hive.metastore.txn.CompactionInfo;
 import org.apache.hadoop.hive.metastore.txn.CompactionTxnHandler;
+import org.apache.hadoop.hive.metastore.txn.TxnHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -94,8 +99,22 @@ public class TransactionManager extends CompactionTxnHandler {
 
   static final private Logger LOG = LoggerFactory.getLogger(TransactionManager.class.getName());
 
+  static private TransactionManager self = null;
+
+  static public TransactionManager get(HiveConf conf) {
+    if (self == null) {
+      synchronized (TransactionManager.class) {
+        if (self == null) {
+          self = new TransactionManager(conf);
+        }
+      }
+    }
+    return self;
+  }
+
   /**
-   * When this is set the background threads will not be run automatically.
+   * When this is set the background threads will not be run automatically.  This must be set
+   * before you call {@link #get(HiveConf)}.  After that it won't have any affect.
    */
   @VisibleForTesting static boolean unitTesting = false;
 
@@ -103,190 +122,158 @@ public class TransactionManager extends CompactionTxnHandler {
   // locks and transactions (e.g. opening, aborting, committing txns, adding locks).  To modify
   // locks or transactions (e.g. heartbeat) it is only needed in the read mode.  Anything looking
   // at locks or transactions should acquire it in the read mode.
-  static private ReadWriteLock masterLock;
+  private ReadWriteLock masterLock;
 
   // BEGIN THINGS PROTECTED BY masterLock
   // A list of all active transactions.
-  static private Map<Long, OpenTransaction> openTxns;
+  private Map<Long, OpenTransaction> openTxns;
 
   // List of aborted transactions, kept in memory for efficient reading when readers need a valid
   // transaction list.
-  static private Map<Long, AbortedTransaction> abortedTxns;
+  private Map<Long, AbortedTransaction> abortedTxns;
 
   // A set of all committed transactions.
-  static private Set<CommittedTransaction> committedTxns;
+  private Set<CommittedTransaction> committedTxns;
 
   // A structure to store the locks according to which database/table/partition they lock.
-  static private Map<EntityKey, LockQueue> lockQueues;
+  private Map<EntityKey, LockQueue> lockQueues;
 
   // Lock queues that should be checked for whether a lock can be acquired.
-  static private List<EntityKey> lockQueuesToCheck;
+  private List<EntityKey> lockQueuesToCheck;
 
   // Map of objects that have (possibly) been written to by aborted transactions.  This helps us
   // know where to look after a compaction to see which aborted transactions we can forget.
-  static private Map<EntityKey, List<AbortedTransaction>> abortedWrites;
+  private Map<EntityKey, List<AbortedTransaction>> abortedWrites;
 
-  static private IdGenerator txnIdGenerator;
-  static private IdGenerator lockIdGenerator;
+  private IdGenerator txnIdGenerator;
+  private IdGenerator lockIdGenerator;
 
   // END THINGS PROTECTED BY masterLock
 
-  // Ok, this is funky, but some of the background threads need an instance to abort
-  // transactions, etc.
-  static private TransactionManager internalInstance;
-
-  static private ScheduledThreadPoolExecutor threadPool;
+  private ScheduledThreadPoolExecutor threadPool;
 
   // Track what locks types are compatible.  First array is holder, second is requester
   static private boolean[][] lockCompatibilityTable;
 
-  static private HiveConf conf;
+  private HiveConf conf;
 
   private WriteAheadLog wal;
   private long lockPollTimeout;
 
-  public void setConf(HiveConf configuration) {
-    // Initialization done here, since it's where we have the opportunity
-    staticInit(configuration);
+  private TransactionManager(HiveConf conf) {
     LOG.info("Initializing the TransactionManager...");
-    wal = new NoopWal(); // TODO - make this configurable
+    this.conf = conf;
+    masterLock = new ReentrantReadWriteLock();
+    openTxns = new HashMap<>();
+    abortedTxns = new HashMap<>();
+    committedTxns = new HashSet<>();
+    abortedWrites = new HashMap<>();
+    lockQueues = new HashMap<>();
+    lockQueuesToCheck = new ArrayList<>();
+
+    // TODO make base size of thread pool execute configurable
+    threadPool = new ScheduledThreadPoolExecutor(10);
+    // TODO make maximum size of thread pool execute configurable
+    threadPool.setMaximumPoolSize(20);
+    wal = new DbWal(connPool, threadPool, conf);
+    recover();
+
     lockPollTimeout = 1000; // TODO - make this configurable
 
-    // This avoids a deadlock since the setConf below will end up back in this method.
-    if (internalInstance == null) {
-      synchronized (TransactionManager.class) {
-        if (internalInstance == null) {
-          // Get an instance of ourselves that is only for the internal threads.  Call this before we
-          // start the background threads as they'll need it to be non-null.
-          internalInstance = new TransactionManager();
-          internalInstance.setConf(conf);
-        }
+    // TODO Handle reading initial nextTxnId from the database
+    final long initialNextTxn = 1;
+    txnIdGenerator = new IdGenerator() {
+      long nextVal = initialNextTxn;
+
+      @Override
+      public long next() {
+        return nextVal++;
       }
+
+      @Override
+      public long[] next(int num) {
+        long[] ids = new long[num];
+        for (int i = 0; i < num; i++) ids[i] = nextVal++;
+        return ids;
+      }
+
+      @Override
+      public long current() {
+        return nextVal;
+      }
+    };
+
+    // TODO Handle reading initial nextLockId from the database
+    final long initialNextLock = 1;
+    lockIdGenerator = new IdGenerator() {
+      long nextVal = initialNextLock;
+
+      @Override
+      public long next() {
+        return nextVal++;
+      }
+
+      @Override
+      public long[] next(int num) {
+        long[] ids = new long[num];
+        for (int i = 0; i < num; i++) ids[i] = nextVal++;
+        return ids;
+      }
+
+      @Override
+      public long current() {
+        return nextVal;
+      }
+    };
+
+    // TODO not at all sure I have intention locks correct in this table
+    lockCompatibilityTable = new boolean[LockType.values().length][LockType.values().length];
+    Arrays.fill(lockCompatibilityTable[LockType.EXCLUSIVE.ordinal()], false);
+    lockCompatibilityTable[LockType.SHARED_WRITE.ordinal()][LockType.EXCLUSIVE.ordinal()] = false;
+    lockCompatibilityTable[LockType.SHARED_WRITE.ordinal()][LockType.SHARED_WRITE.ordinal()] = false;
+    lockCompatibilityTable[LockType.SHARED_WRITE.ordinal()][LockType.SHARED_READ.ordinal()] = true;
+    lockCompatibilityTable[LockType.SHARED_WRITE.ordinal()][LockType.INTENTION.ordinal()] = true;
+    lockCompatibilityTable[LockType.SHARED_READ.ordinal()][LockType.EXCLUSIVE.ordinal()] = false;
+    lockCompatibilityTable[LockType.SHARED_READ.ordinal()][LockType.SHARED_WRITE.ordinal()] = true;
+    lockCompatibilityTable[LockType.SHARED_READ.ordinal()][LockType.SHARED_READ.ordinal()] = true;
+    lockCompatibilityTable[LockType.SHARED_READ.ordinal()][LockType.INTENTION.ordinal()] = true;
+    lockCompatibilityTable[LockType.INTENTION.ordinal()][LockType.EXCLUSIVE.ordinal()] = false;
+    lockCompatibilityTable[LockType.INTENTION.ordinal()][LockType.SHARED_WRITE.ordinal()] = true;
+    lockCompatibilityTable[LockType.INTENTION.ordinal()][LockType.SHARED_READ.ordinal()] = true;
+    lockCompatibilityTable[LockType.INTENTION.ordinal()][LockType.INTENTION.ordinal()] = true;
+
+    if (!unitTesting) {
+      // Randomizes initial delay of threads so we don't accidentally get them all starting
+      // together.
+      Random rand = new Random();
+      // TODO make period configurable.
+      long period = 30;
+      threadPool.scheduleAtFixedRate(abortedTxnForgetter, period + rand.nextInt((int)period),
+          period, TimeUnit.SECONDS);
+
+      // TODO make period configurable.
+      period = 60;
+      threadPool.scheduleAtFixedRate(queueShrinker, period + rand.nextInt((int)period), period,
+          TimeUnit.SECONDS);
+
+      // TODO make period configurable.
+      period = 5000;
+      threadPool.scheduleAtFixedRate(committedTxnCleaner, period + rand.nextInt((int)period),
+          period, TimeUnit.MILLISECONDS);
+
+      // TODO make period configurable.
+      period = 1000;
+      threadPool.scheduleAtFixedRate(timedOutCleaner, period + rand.nextInt((int)period),
+          period, TimeUnit.MILLISECONDS);
+
+      // TODO make period configurable.
+      period = 1000;
+      threadPool.scheduleAtFixedRate(deadlockDetector, period + rand.nextInt((int)period),
+          period, TimeUnit.MILLISECONDS);
     }
 
+    // TODO write the recovery logic
     LOG.info("TransactionManager initialization compelte");
-  }
-
-  public HiveConf getConf() {
-    return conf;
-  }
-
-  private static synchronized void staticInit(HiveConf configuration) {
-    if (conf == null) {
-      LOG.info("Doing static initialization");
-      conf = configuration;
-      masterLock = new ReentrantReadWriteLock();
-      openTxns = new HashMap<>();
-      abortedTxns = new HashMap<>();
-      committedTxns = new HashSet<>();
-      abortedWrites = new HashMap<>();
-      lockQueues = new HashMap<>();
-      lockQueuesToCheck = new ArrayList<>();
-
-      // TODO Handle reading initial nextTxnId from the database
-      final long initialNextTxn = 1;
-      txnIdGenerator = new IdGenerator() {
-        long nextVal = initialNextTxn;
-
-        @Override
-        public long next() {
-          return nextVal++;
-        }
-
-        @Override
-        public long[] next(int num) {
-          long[] ids = new long[num];
-          for (int i = 0; i < num; i++) ids[i] = nextVal++;
-          return ids;
-        }
-
-        @Override
-        public long current() {
-          return nextVal;
-        }
-      };
-
-      // This can always start new.  Locks don't have any relationship across transactions
-      lockIdGenerator = new IdGenerator() {
-        long nextVal = 1;
-
-        @Override
-        public long next() {
-          return nextVal++;
-        }
-
-        @Override
-        public long[] next(int num) {
-          long[] ids = new long[num];
-          for (int i = 0; i < num; i++) ids[i] = nextVal++;
-          return ids;
-        }
-
-        @Override
-        public long current() {
-          return nextVal;
-        }
-      };
-
-      // TODO not at all sure I have intention locks correct in this table
-      lockCompatibilityTable = new boolean[LockType.values().length][LockType.values().length];
-      Arrays.fill(lockCompatibilityTable[LockType.EXCLUSIVE.ordinal()], false);
-      lockCompatibilityTable[LockType.SHARED_WRITE.ordinal()][LockType.EXCLUSIVE.ordinal()] = false;
-      lockCompatibilityTable[LockType.SHARED_WRITE.ordinal()][LockType.SHARED_WRITE.ordinal()] = false;
-      lockCompatibilityTable[LockType.SHARED_WRITE.ordinal()][LockType.SHARED_READ.ordinal()] = true;
-      lockCompatibilityTable[LockType.SHARED_WRITE.ordinal()][LockType.INTENTION.ordinal()] = true;
-      lockCompatibilityTable[LockType.SHARED_READ.ordinal()][LockType.EXCLUSIVE.ordinal()] = false;
-      lockCompatibilityTable[LockType.SHARED_READ.ordinal()][LockType.SHARED_WRITE.ordinal()] = true;
-      lockCompatibilityTable[LockType.SHARED_READ.ordinal()][LockType.SHARED_READ.ordinal()] = true;
-      lockCompatibilityTable[LockType.SHARED_READ.ordinal()][LockType.INTENTION.ordinal()] = true;
-      lockCompatibilityTable[LockType.INTENTION.ordinal()][LockType.EXCLUSIVE.ordinal()] = false;
-      lockCompatibilityTable[LockType.INTENTION.ordinal()][LockType.SHARED_WRITE.ordinal()] = true;
-      lockCompatibilityTable[LockType.INTENTION.ordinal()][LockType.SHARED_READ.ordinal()] = true;
-      lockCompatibilityTable[LockType.INTENTION.ordinal()][LockType.INTENTION.ordinal()] = true;
-
-      // TODO write the recovery logic
-
-      // TODO make base size of thread pool execute configurable
-      threadPool = new ScheduledThreadPoolExecutor(10);
-      // TODO make maximum size of thread pool execute configurable
-      threadPool.setMaximumPoolSize(20);
-      if (!unitTesting) {
-        // Randomizes initial delay of threads so we don't accidentally get them all starting
-        // together.
-        Random rand = new Random();
-        // TODO make period configurable.
-        long period = 30;
-        threadPool.scheduleAtFixedRate(abortedTxnForgetter, period + rand.nextInt((int)period),
-            period, TimeUnit.SECONDS);
-
-        // TODO make period configurable.
-        period = 60;
-        threadPool.scheduleAtFixedRate(queueShrinker, period + rand.nextInt((int)period), period,
-            TimeUnit.SECONDS);
-
-        // TODO make period configurable.
-        period = 5000;
-        threadPool.scheduleAtFixedRate(committedTxnCleaner, period + rand.nextInt((int)period),
-            period, TimeUnit.MILLISECONDS);
-
-        // TODO make period configurable.
-        period = 1000;
-        threadPool.scheduleAtFixedRate(timedOutCleaner, period + rand.nextInt((int)period),
-            period, TimeUnit.MILLISECONDS);
-
-        // TODO make period configurable.
-        period = 1000;
-        threadPool.scheduleAtFixedRate(deadlockDetector, period + rand.nextInt((int)period),
-            period, TimeUnit.MILLISECONDS);
-      }
-
-
-      LOG.info("Static initialization complete");
-    }
-  }
-
-  public TransactionManager() {
-
   }
 
   /**
@@ -309,10 +296,10 @@ public class TransactionManager extends CompactionTxnHandler {
     if (rqst.getNum_txns() > 1) return openMultipleTxns(rqst);
     LOG.debug("Opening a transaction");
 
-    Future<WriteAheadLog> waitForWal;
+    Future<Integer> waitForWal;
     OpenTransaction txn;
     try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
-      txn = new OpenTransaction(txnIdGenerator);
+      txn = new OpenTransaction(txnIdGenerator.next());
       openTxns.put(txn.getTxnId(), txn);
 
       waitForWal = wal.queueOpenTxn(txn.getTxnId(), rqst);
@@ -385,7 +372,7 @@ public class TransactionManager extends CompactionTxnHandler {
   private void abortTxnInternal(OpenTransaction openTxn) {
     HiveLock[] locks = openTxn.getHiveLocks();
     AbortedTransaction abortedTxn = new AbortedTransaction(openTxn);
-    Future<WriteAheadLog> waitForWal;
+    Future<Integer> waitForWal;
     try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
       openTxns.remove(openTxn.getTxnId());
       // Don't need to track potential compactions, existing CompactionTxnHandler will do that
@@ -441,7 +428,7 @@ public class TransactionManager extends CompactionTxnHandler {
     if (LOG.isDebugEnabled()) {
       LOG.debug("Committing txn " + rqst.getTxnid());
     }
-    Future<WriteAheadLog> waitForWal;
+    Future<Integer> waitForWal;
     try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
       OpenTransaction txn = openTxns.get(rqst.getTxnid());
       if (txn == null) throwAbortedOrNonExistent(rqst.getTxnid(), "commit");
@@ -460,12 +447,12 @@ public class TransactionManager extends CompactionTxnHandler {
       }
 
       openTxns.remove(txn.getTxnId());
-      waitForWal = wal.queueCommitTxn(txn);
       // We only need to remember the transaction if it had write locks.  If it's read only or
       // DDL we can forget it.
       if (sawWriteLock) {
         // There's no need to move the transaction counter ahead
-        CommittedTransaction committedTxn = new CommittedTransaction(txn, txnIdGenerator);
+        CommittedTransaction committedTxn = new CommittedTransaction(txn, txnIdGenerator.current());
+        waitForWal = wal.queueCommitTxn(committedTxn);
 
         if (LOG.isDebugEnabled()) {
           LOG.debug("Created new committed transaction with txn id " + committedTxn.getTxnId() +
@@ -490,6 +477,7 @@ public class TransactionManager extends CompactionTxnHandler {
         }
 
       } else {
+        waitForWal = wal.queueForgetTransactions(Collections.singletonList(txn));
         if (LOG.isDebugEnabled()) {
           LOG.debug("Forgetting transaction " + txn.getTxnId() +
               " as it is committed and held no write locks");
@@ -551,7 +539,7 @@ public class TransactionManager extends CompactionTxnHandler {
     HiveLock[] hiveLocks = new HiveLock[components.size()];
     OpenTransaction txn;
     Future<?> lockCheckerRun;
-    Future<WriteAheadLog> waitForWal;
+    Future<Integer> waitForWal;
     try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
       txn = openTxns.get(rqst.getTxnid());
       if (txn == null) throwAbortedOrNonExistent(rqst.getTxnid(), "obtain lock in");
@@ -559,7 +547,7 @@ public class TransactionManager extends CompactionTxnHandler {
       for (int i = 0; i < components.size(); i++) {
         EntityKey key = new EntityKey(components.get(i));
         hiveLocks[i] =
-            new HiveLock(lockIdGenerator, rqst.getTxnid(), key, components.get(i).getType());
+            new HiveLock(lockIdGenerator.next(), rqst.getTxnid(), key, components.get(i).getType());
         // Add to the appropriate DTP queue
         assureQueueExists(key);
         lockQueues.get(hiveLocks[i].getEntityLocked()).queue.put(hiveLocks[i].getLockId(),
@@ -721,7 +709,7 @@ public class TransactionManager extends CompactionTxnHandler {
     // transaction structures themselves.  It will just add locks to an existing transaction.  If
     // another thread tries to abort or commit that same transaction, those do acquire the write
     // lock and thus won't clash with this.
-    Future<WriteAheadLog> waitForWal;
+    Future<Integer> waitForWal;
     try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
       // Add the locks to the appropriate transaction so that we know what things to compact and
       // so we know what partitions were touched by this change.  Don't put the locks in the dtps
@@ -734,7 +722,7 @@ public class TransactionManager extends CompactionTxnHandler {
       List<String> partitionNames = rqst.getPartitionnames();
       HiveLock[] partitionsWrittenTo = new HiveLock[partitionNames.size()];
       for (int i = 0; i < partitionNames.size(); i++) {
-        partitionsWrittenTo[i] = new HiveLock(lockIdGenerator, rqst.getTxnid(),
+        partitionsWrittenTo[i] = new HiveLock(lockIdGenerator.next(), rqst.getTxnid(),
             new EntityKey(rqst.getDbname(), rqst.getTablename(), partitionNames.get(i)),
             LockType.SHARED_WRITE);
         partitionsWrittenTo[i].setState(LockState.ACQUIRED);
@@ -769,9 +757,11 @@ public class TransactionManager extends CompactionTxnHandler {
       // Find any aborted locks that can now be forgotten, since we have compacted the
       // associated entity.
       EntityKey compacted = new EntityKey(info.dbname, info.tableName, info.partName);
+      Future<Integer> waitForWal = null;
       try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
         List<AbortedTransaction> abortedTxns = abortedWrites.get(compacted);
         if (abortedTxns != null && abortedTxns.size() > 0) {
+          List<HiveLock> toBeForgotten = new ArrayList<>();
           for (AbortedTransaction abortedTxn : abortedTxns) {
             // Find any locks that match this
             Map<EntityKey, HiveLock> compactableLocks = abortedTxn.getCompactableLocks();
@@ -780,15 +770,24 @@ public class TransactionManager extends CompactionTxnHandler {
                 LOG.debug("Fogetting aborted lock for txn " + abortedTxn.getTxnId() + " on entity "
                     + compacted.toString());
               }
+              toBeForgotten.add(compactableLocks.get(compacted));
               compactableLocks.remove(compacted);
             }
           }
-
+          waitForWal = wal.queueForgetLocks(toBeForgotten);
         }
       } catch (IOException e) {
         // This is only here because LockKeeper.close has to throw an IOException because Closeable
         // .close does.  But in reality it never will, so this should never happen.
         throw new RuntimeException("This should never happen", e);
+      }
+      try {
+        if (waitForWal != null) waitForWal.get();
+      } catch (InterruptedException|ExecutionException e) {
+        // This means we failed to record it in the WAL.  We could try to nicely unwind everything.
+        //  But more realistically this likely means we're screwed and should just die.
+        LOG.error("Unable to record forgetting locks in the WAL", e);
+        throw new RuntimeException(e);
       }
     }
 
@@ -836,7 +835,7 @@ public class TransactionManager extends CompactionTxnHandler {
   }
 
   // This method assumes you are holding the read lock.
-  static private long findMinOpenTxn() {
+  private long findMinOpenTxn() {
     long minOpenTxn = txnIdGenerator.current();
     for (Long txnId : openTxns.keySet()) {
       minOpenTxn = Math.min(txnId, minOpenTxn);
@@ -850,6 +849,171 @@ public class TransactionManager extends CompactionTxnHandler {
   // You MUST hold the write lock to call this method
   private void assureQueueExists(EntityKey key) {
     if (!lockQueues.containsKey(key)) lockQueues.put(key, new LockQueue());
+  }
+
+  private static class RecoveryResults {
+    long nextTxnId;
+    long nextLockId;
+  }
+
+  // This assumes that no one else is running when it is, thus it doesn't grab locks.
+  private RecoveryResults recover() {
+    // First recover the WAL, so that all records are in the DB proper
+    try {
+      wal.start();
+
+      RecoveryResults results = new RecoveryResults();
+      try (Connection conn = getDbConn(Connection.TRANSACTION_READ_COMMITTED)) {
+        try (Statement stmt = conn.createStatement()) {
+          // Figure out the next transaction id we should be using.
+          String sql = "select MAX(txn_id) from TXNS";
+          LOG.debug("Going to execute query " + sql);
+          ResultSet rs = stmt.executeQuery(sql);
+          if (rs.next()) {
+            results.nextTxnId = rs.getLong(1) + 1;
+          } else {
+            results.nextTxnId = 1;
+          }
+
+          // Figure out the next lock id we should use
+          sql = "select MAX(HL_LOCK_EXT_ID) from HIVE_LOCKS";
+          LOG.debug("Going to execute query " + sql);
+          rs = stmt.executeQuery(sql);
+          if (rs.next()) {
+            results.nextLockId = rs.getLong(1) + 1;
+          } else {
+            results.nextLockId = 1;
+          }
+
+          if (LOG.isDebugEnabled()) {
+            LOG.debug("Found next transaction id of " + results.nextTxnId +
+                " and next lock id of " + results.nextLockId);
+          }
+
+          // Read all of the transactions into memory and place them in the appropriate queues.
+          // Don't worry if we could forget them.  The cleaner threads will handle that.
+          sql = "select txn_id, txn_state, txn_committed_id from TXNS order by txn_id";
+          LOG.debug("Going to execute query " + sql);
+          rs = stmt.executeQuery(sql);
+          while (rs.next()) {
+            long txnId = rs.getLong(1);
+            switch (rs.getString(2).charAt(0)) {
+              case TxnHandler.TXN_OPEN:
+                if (LOG.isDebugEnabled()) LOG.debug("Recovering open transaction " + txnId);
+                openTxns.put(txnId, new OpenTransaction(txnId));
+                break;
+
+              case TxnHandler.TXN_ABORTED:
+                if (LOG.isDebugEnabled()) LOG.debug("Recovering aborted transaction " + txnId);
+                abortedTxns.put(txnId, new AbortedTransaction(txnId));
+                break;
+
+              case TxnHandler.TXN_COMMITTED:
+                if (LOG.isDebugEnabled()) LOG.debug("Recovering committed transaction " + txnId);
+                committedTxns.add(new CommittedTransaction(txnId, rs.getLong(3)));
+                break;
+
+              default:
+                throw new RuntimeException("Unknown transaction state " + rs.getString(2));
+            }
+          }
+
+          // Read all of the locks and associate them with the appropriate transactions.
+          // Forgetting of locks is done by the WAL so no need to worry about them here.
+          // Ordering by lock id to make sure we get locks back in the queues in the right order
+          sql = "select hl_txnid, hl_lock_ext_id, hl_db, hl_table, hl_partition, hl_lock_state, " +
+              "hl_lock_type from HIVE_LOCKS order by hl_lock_ext_id";
+          LOG.debug("Going to execute query " + sql);
+          rs = stmt.executeQuery(sql);
+          Map<Long, List<HiveLock>> openTxnLocks = new HashMap<>();
+          Map<Long, List<HiveLock>> abortedTxnLocks = new HashMap<>();
+          while (rs.next()) {
+            long txnId = rs.getLong(1);
+            long lockId = rs.getLong(2);
+            EntityKey entityKey = new EntityKey(rs.getString(3), rs.getString(4), rs.getString(5));
+            LockType lockType;
+            switch (rs.getString(6).charAt(0)) {
+              case TxnHandler.LOCK_SEMI_SHARED:
+                lockType = LockType.SHARED_WRITE;
+                break;
+              case TxnHandler.LOCK_EXCLUSIVE:
+                lockType = LockType.EXCLUSIVE;
+                break;
+              case TxnHandler.LOCK_INTENTION:
+                lockType = LockType.INTENTION;
+                break;
+              case TxnHandler.LOCK_SHARED:
+                lockType = LockType.SHARED_READ;
+                break;
+              default: throw new RuntimeException("Unknown lock type " + rs.getString(6));
+            }
+
+            HiveLock hiveLock = new HiveLock(lockId, txnId, entityKey, lockType);
+            switch (rs.getString(5).charAt(0)) {
+              case TxnHandler.LOCK_ABORTED:
+                getLockList(abortedTxnLocks, txnId).add(hiveLock);
+                break;
+
+              case TxnHandler.LOCK_RELEASED:
+                break;
+
+              case TxnHandler.LOCK_WAITING:
+              case TxnHandler.LOCK_ACQUIRED:
+                getLockList(openTxnLocks, txnId).add(hiveLock);
+                break;
+
+              default:
+                throw new RuntimeException("Unknown lock state " + rs.getString(5));
+            }
+            assureQueueExists(entityKey);
+            lockQueues.get(entityKey).queue.put(hiveLock.getLockId(), hiveLock);
+          }
+
+          // Put each of the locks into their transactions
+          addLocksToTransactions(openTxnLocks, openTxns, "acquired and/or waiting", "open");
+          addLocksToTransactions(abortedTxnLocks, abortedTxns, "aborted", "aborted");
+
+          // force the queue checker to check all the queues
+          lockQueuesToCheck.addAll(lockQueues.keySet());
+          lockChecker.run();
+        }
+      }
+
+      return results;
+    } catch (SQLException e) {
+      LOG.error("Failed to recover, dying", e);
+      throw new RuntimeException(e);
+    }
+  }
+
+  private List<HiveLock> getLockList(Map<Long, List<HiveLock>> map, long txnId) {
+    List<HiveLock> lockList = map.get(txnId);
+    if (lockList == null) {
+      lockList = new ArrayList<>();
+      map.put(txnId, lockList);
+    }
+    return lockList;
+  }
+
+  private void addLocksToTransactions(Map<Long, List<HiveLock>> txnLockList,
+                                      Map<Long, ? extends HiveTransaction> transactionMap,
+                                      String lockStates, String txnState) {
+    for (Map.Entry<Long, List<HiveLock>> entry : txnLockList.entrySet()) {
+      HiveTransaction txn = transactionMap.get(entry.getKey());
+      if (txn == null) {
+        StringBuilder msg = new StringBuilder("Found ")
+            .append(lockStates)
+            .append(" locks with no associated ")
+            .append(txnState)
+            .append(" transaction, we are in trouble!  Transaction id ")
+            .append(entry.getKey())
+            .append(" lock ids ");
+        for (HiveLock hiveLock : entry.getValue()) msg.append(hiveLock.getLockId());
+        LOG.error(msg.toString());
+        throw new RuntimeException(msg.toString());
+      }
+      txn.addLocks(entry.getValue().toArray(new HiveLock[entry.getValue().size()]));
+    }
   }
 
   private static class LockQueue {
@@ -882,7 +1046,7 @@ public class TransactionManager extends CompactionTxnHandler {
       if (keys != null) {
         List<HiveLock> toAcquire = new ArrayList<>();
         final Set<Long> writeConflicts = new HashSet<>();
-        Future<WriteAheadLog> waitForWal;
+        Future<Integer> waitForWal;
         try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
           // Many keys may have been added to the queue, grab them all so we can do this just
           // once.
@@ -977,7 +1141,7 @@ public class TransactionManager extends CompactionTxnHandler {
   };
 
   // Detect deadlocks in the lock graph
-  static private Runnable deadlockDetector = new Runnable() {
+  private Runnable deadlockDetector = new Runnable() {
     // Rather than follow the general pattern of go through all the entries and find potentials
     // and then remove all potentials this thread kills a deadlock as soon as it sees it.
     // Otherwise we'd likely be too aggressive and kill all participants in the deadlock.  If a
@@ -989,7 +1153,7 @@ public class TransactionManager extends CompactionTxnHandler {
 
       OpenTransaction deadlocked = lookForCycles();
       if (deadlocked != null) {
-        internalInstance.abortTxnInternal(openTxns.get(deadlocked.getTxnId()));
+        abortTxnInternal(openTxns.get(deadlocked.getTxnId()));
         threadPool.submit(this);
       }
     }
@@ -1055,7 +1219,7 @@ public class TransactionManager extends CompactionTxnHandler {
   };
 
   // Look for any transactions that have timed out.
-  static private Runnable timedOutCleaner = new Runnable() {
+  private Runnable timedOutCleaner = new Runnable() {
     @Override
     public void run() {
       LOG.debug("Running timeout cleaner");
@@ -1085,7 +1249,7 @@ public class TransactionManager extends CompactionTxnHandler {
         for (OpenTransaction txn : potentials) {
           if (txn.getLastHeartbeat() + txnTimeout < now) {
             LOG.info("Aborting transaction " + txn.getTxnId() + " due to heartbeat timeout");
-            internalInstance.abortTxnInternal(txn);
+            abortTxnInternal(txn);
           }
         }
       } catch (IOException e) {
@@ -1096,8 +1260,7 @@ public class TransactionManager extends CompactionTxnHandler {
 
   // This looks through the list of committed transactions and figures out what can be
   // forgotten.
-  // TODO clean the removed txns from the database as well
-  static private Runnable committedTxnCleaner = new Runnable() {
+  private Runnable committedTxnCleaner = new Runnable() {
     @Override
     public void run() {
       try {
@@ -1134,6 +1297,7 @@ public class TransactionManager extends CompactionTxnHandler {
         if (forgetableTxns.size() > 0) {
           try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
             committedTxns.removeAll(forgetableTxns);
+            wal.queueForgetTransactions(forgetableTxns);
             for (Map.Entry<LockQueue, Long> entry : forgetableDtps.entrySet()) {
               // Make sure no one else has changed the value in the meantime
               if (entry.getKey().maxCommitId == entry.getValue()) {
@@ -1152,7 +1316,7 @@ public class TransactionManager extends CompactionTxnHandler {
 
   // Keep the lockQueues and abortedWrites maps from growing indefinitely by removing any entries
   // with empty lists.
-  static private Runnable queueShrinker = new Runnable() {
+  private Runnable queueShrinker = new Runnable() {
     @Override
     public void run() {
       // Rather than hold the write lock while we walk the entire set of queues we walk the
@@ -1205,8 +1369,7 @@ public class TransactionManager extends CompactionTxnHandler {
 
   // A thread that checks for aborted transactions with no more aborted locks to track and
   // removes them.
-  // TODO clean the removed txns from the database as well
-  static private Runnable abortedTxnForgetter = new Runnable() {
+  private Runnable abortedTxnForgetter = new Runnable() {
     @Override
     public void run() {
       List<AbortedTransaction> forgettable = new ArrayList<>();
@@ -1228,6 +1391,7 @@ public class TransactionManager extends CompactionTxnHandler {
             }
             abortedTxns.remove(aborted.getTxnId());
           }
+          wal.queueForgetTransactions(forgettable);
         } catch (IOException e) {
           // This is only here because LockKeeper.close has to throw an IOException because Closeable
           // .close does.  But in reality it never will, so this should never happen.

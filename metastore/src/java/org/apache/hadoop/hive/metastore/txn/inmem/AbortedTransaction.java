@@ -27,24 +27,32 @@ class AbortedTransaction extends HiveTransaction {
 
   private Map<EntityKey, HiveLock> compactableLocks;
 
+  /**
+   * Constructor for normal operations where an open transaction is being aborted.
+   * @param openTxn transaction to abort.
+   */
   AbortedTransaction(OpenTransaction openTxn) {
     super(openTxn.getTxnId());
-    compactableLocks = new HashMap<>();
-    if (openTxn.getHiveLocks() != null) {
-      for (HiveLock lock : openTxn.getHiveLocks()) {
-        if (lock.getType() == LockType.SHARED_WRITE) {
-          compactableLocks.put(lock.getEntityLocked(), lock);
-        }
-      }
-    }
+    compactLockArray(openTxn.getHiveLocks());
   }
 
-  // TODO constructor for recovery
-
+  AbortedTransaction(long txnId) {
+    super(txnId);
+  }
 
   @Override
   TxnState getState() {
     return TxnState.ABORTED;
+  }
+
+  /**
+   * This should only ever be called when recovering an aborted transaction.  In general you
+   * can't add new locks to an aborted transaction.
+   * @param locks locks to put in the transaction.
+   */
+  @Override
+  void addLocks(HiveLock[] locks) {
+    compactLockArray(locks);
   }
 
   /**
@@ -65,5 +73,16 @@ class AbortedTransaction extends HiveTransaction {
 
   Map<EntityKey, HiveLock> getCompactableLocks() {
     return compactableLocks;
+  }
+
+  private void compactLockArray(HiveLock[] locks) {
+    compactableLocks = new HashMap<>();
+    if (locks != null) {
+      for (HiveLock lock : locks) {
+        if (lock.getType() == LockType.SHARED_WRITE) {
+          compactableLocks.put(lock.getEntityLocked(), lock);
+        }
+      }
+    }
   }
 }
