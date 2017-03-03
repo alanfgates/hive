@@ -567,6 +567,18 @@ public class DbWal implements WriteAheadLog {
             .append(SQLGenerator.quoteChar(TxnHandler.LOCK_SEMI_SHARED));
         if (LOG.isDebugEnabled()) LOG.debug("Going to execute statement " + buf.toString());
         stmt.executeUpdate(buf.toString());
+
+        // Move TXN_COMPONENTS entries to COMPLETED_TXN_COMPONENTS
+        String s = "insert into COMPLETED_TXN_COMPONENTS select tc_txnid, tc_database, tc_table, " +
+            "tc_partition from TXN_COMPONENTS where tc_txnid = " + txnId;
+        LOG.debug("Going to execute insert <" + s + ">");
+        stmt.executeUpdate(s);
+        s = "delete from TXN_COMPONENTS where tc_txnid = " + txnId;
+        LOG.debug("Going to execute delete <" + s + ">");
+        stmt.executeUpdate(s);
+
+        // I don't put entries in the WRITE_SET table because we don't need that table anymore.
+        // That is answered from memory by tracking the committed transactions.
       }
     }
 
@@ -717,11 +729,16 @@ public class DbWal implements WriteAheadLog {
     private void moveForgetTxn(Connection conn, ResultSet rs) throws SQLException {
       long txnId = rs.getLong(TW_TXNID_POS);
       try (Statement stmt = conn.createStatement()) {
+        // Forget the transaction
         String sql = "delete from TXNS where txn_id = " + txnId;
         LOG.debug("Going to execute delete <" + sql + ">");
         stmt.execute(sql);
-      }
 
+        // Forget any associated locks
+        sql = "delete from HIVE_LOCKS where hl_txnid = " + txnId;
+        LOG.debug("Going to execute delete <" + sql + ">");
+        stmt.execute(sql);
+      }
     }
   };
 
