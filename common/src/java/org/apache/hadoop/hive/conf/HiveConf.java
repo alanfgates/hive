@@ -1917,6 +1917,45 @@ public class HiveConf extends Configuration {
     WRITE_SET_REAPER_INTERVAL("hive.writeset.reaper.interval", "60s",
       new TimeValidator(TimeUnit.MILLISECONDS), "Frequency of WriteSet reaper runs"),
 
+    TXNMGR_INMEM_THREADPOOL_CORE_THREADS("hive.txnmgr.inmem.threadpool.core.threads", 10,
+        "Number of core threads in the in memory transaction manager's threadpool"),
+    TXNMGR_INMEM_THREADPOOL_MAX_THREADS("hive.txnmgr.inmem.threadpool.max.threads", 50,
+        "Maximum number of threads in the in memory transaction manager's threadpool"),
+    TXNMGR_INMEM_TXN_FORGETTER_THREAD_PERIOD("hive.txnmgr.inmem.txnforgetter.period", "30s",
+        new TimeValidator(TimeUnit.SECONDS),
+        "How often to run the transaction forgetter thread (finds transactions that can be " +
+        "forgotten and forgets them)"),
+    TXNMGR_INMEM_LOCK_QUEUE_SHRINKER_THREAD_PERIOD("hive.txnmgr.inmem.lockqueueshrinker.period",
+        "60s", new TimeValidator(TimeUnit.SECONDS),
+        "How often to run the lock queue shrinker thread (finds lock queues that are empty and " +
+        "removes them)"),
+    TXNMGR_INMEM_COMMITTED_TXN_CLEANER_THREAD_PERIOD("hive.txnmgr.inmem.committedtxncleaner.period",
+        "5s", new TimeValidator(TimeUnit.SECONDS),
+        "How often to run the committed transaction cleaner thread (finds committed transactions " +
+        "that we no longer need to keep in memory)"),
+    TXNMGR_INMEM_TXN_TIMEOUT_THREAD_PERIOD("hive.txnmgr.inmem.txntimeout.period",
+        "1s", new TimeValidator(TimeUnit.SECONDS),
+        "How often to run the transaction timeout thread (finds transactions that have timed out" +
+        "due to lack of heartbeat and aborts them)"),
+    TXNMGR_INMEM_DEADLOCK_DETECTOR_THREAD_PERIOD("hive.txnmgr.inmem.deadlockdetector.period",
+        "1s", new TimeValidator(TimeUnit.SECONDS),
+        "How often to run the deadlock detector thread (finds transactions that have deadlocked" +
+        "and aborts ones of them)"),
+    TXNMGR_INMEM_WAL_MOVER_THREAD_PERIOD("hive.txnmgr.inmem.walmover.period",
+        "250ms", new TimeValidator(TimeUnit.MILLISECONDS),
+        "How often to run the WAL mover thread (finds entries in the WAL and moves them to the " +
+        "standard tables)"),
+    TXNMGR_INMEM_LOCK_POLL_TIMEOUT("hive.txnmgr.inmem.lock.poll.timeout", "1s",
+        new TimeValidator(TimeUnit.SECONDS),
+        "Time to wait for locks to acquire during rqstLock or checkLock calls"),
+    TXNMGR_INMEM_WAL_CHECKPOINT_TIMEOUT("hive.txnmgr.inmem.wal.checkpoint.timeout", "5s",
+        new TimeValidator(TimeUnit.SECONDS),
+        "Time to wait for records to move from the WAL to the standard tables for show commands"),
+    TXNMGR_INMEM_WAL_TXN_SIZE("hive.txnmgr.inmem.wal.txn.size", 100,
+        "Number of records to move from the WAL to tables in a single transaction"),
+    TXNMGR_INMEM_WAL_RECOVERY_TXN_SIZE("hive.txnmgr.inmem.wal.recovery.txn.size", 10000,
+        "Number of records to move from the WAL to tables in a single transaction during recovery"),
+
     MERGE_CARDINALITY_VIOLATION_CHECK("hive.merge.cardinality.check", true,
       "Set to true to ensure that each SQL Merge statement ensures that for each row in the target\n" +
         "table there is at most 1 matching row in the source table per SQL Specification."),

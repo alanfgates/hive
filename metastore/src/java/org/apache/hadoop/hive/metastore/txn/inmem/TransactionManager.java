@@ -54,6 +54,7 @@ import org.apache.hadoop.hive.metastore.txn.TxnHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.sql.DataSource;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -185,6 +186,7 @@ public class TransactionManager extends CompactionTxnHandler {
   private long lockPollTimeout;
   private long walWaitForCheckpointTimeout;
   private boolean hesDeadJim;
+  private int maxOpenTxns;
 
   private TransactionManager() {
     LOG.info("Initializing the TransactionManager...");
@@ -197,15 +199,19 @@ public class TransactionManager extends CompactionTxnHandler {
     lockQueues = new HashMap<>();
     lockQueuesToCheck = new ArrayList<>();
 
-    // TODO make base size of thread pool execute configurable
-    threadPool = new ScheduledThreadPoolExecutor(10);
-    // TODO make maximum size of thread pool execute configurable
-    threadPool.setMaximumPoolSize(20);
-    wal = new DbWal(connPool, threadPool, conf);
+    maxOpenTxns = conf.getIntVar(HiveConf.ConfVars.HIVE_MAX_OPEN_TXNS);
+
+    threadPool = new ScheduledThreadPoolExecutor(conf.getIntVar(
+        HiveConf.ConfVars.TXNMGR_INMEM_THREADPOOL_CORE_THREADS));
+    threadPool.setMaximumPoolSize(conf.getIntVar(
+        HiveConf.ConfVars.TXNMGR_INMEM_THREADPOOL_MAX_THREADS));
+    wal = new DbWal(this);
     final RecoveryResults recovered = recover();
 
-    lockPollTimeout = 1000; // TODO - make this configurable
-    walWaitForCheckpointTimeout = 5000; // TODO - make configurable
+    lockPollTimeout = conf.getTimeVar(HiveConf.ConfVars.TXNMGR_INMEM_LOCK_POLL_TIMEOUT,
+        TimeUnit.MILLISECONDS);
+    walWaitForCheckpointTimeout = conf.getTimeVar(
+        HiveConf.ConfVars.TXNMGR_INMEM_WAL_CHECKPOINT_TIMEOUT, TimeUnit.MILLISECONDS);
 
     txnIdGenerator = new IdGenerator() {
       long nextVal = recovered.nextTxnId;
@@ -269,28 +275,28 @@ public class TransactionManager extends CompactionTxnHandler {
       // Randomizes initial delay of threads so we don't accidentally get them all starting
       // together.
       Random rand = new Random();
-      // TODO make period configurable.
-      long period = 30;
+      long period = conf.getTimeVar(HiveConf.ConfVars.TXNMGR_INMEM_TXN_FORGETTER_THREAD_PERIOD,
+          TimeUnit.MILLISECONDS);
       threadPool.scheduleAtFixedRate(abortedTxnForgetter, period + rand.nextInt((int)period),
-          period, TimeUnit.SECONDS);
+          period, TimeUnit.MILLISECONDS);
 
-      // TODO make period configurable.
-      period = 60;
+      period = conf.getTimeVar(HiveConf.ConfVars.TXNMGR_INMEM_LOCK_QUEUE_SHRINKER_THREAD_PERIOD,
+          TimeUnit.MILLISECONDS);
       threadPool.scheduleAtFixedRate(queueShrinker, period + rand.nextInt((int)period), period,
-          TimeUnit.SECONDS);
+          TimeUnit.MILLISECONDS);
 
-      // TODO make period configurable.
-      period = 5000;
+      period = conf.getTimeVar(HiveConf.ConfVars.TXNMGR_INMEM_COMMITTED_TXN_CLEANER_THREAD_PERIOD,
+          TimeUnit.MILLISECONDS);
       threadPool.scheduleAtFixedRate(committedTxnCleaner, period + rand.nextInt((int)period),
           period, TimeUnit.MILLISECONDS);
 
-      // TODO make period configurable.
-      period = 1000;
+      period = conf.getTimeVar(HiveConf.ConfVars.TXNMGR_INMEM_TXN_TIMEOUT_THREAD_PERIOD,
+          TimeUnit.MILLISECONDS);
       threadPool.scheduleAtFixedRate(timedOutCleaner, period + rand.nextInt((int)period),
           period, TimeUnit.MILLISECONDS);
 
-      // TODO make period configurable.
-      period = 1000;
+      period = conf.getTimeVar(HiveConf.ConfVars.TXNMGR_INMEM_DEADLOCK_DETECTOR_THREAD_PERIOD,
+          TimeUnit.MILLISECONDS);
       threadPool.scheduleAtFixedRate(deadlockDetector, period + rand.nextInt((int)period),
           period, TimeUnit.MILLISECONDS);
     }
@@ -309,7 +315,10 @@ public class TransactionManager extends CompactionTxnHandler {
     LOG.info("TransactionManager shutdown complete");
   }
 
-  private void selfDestruct() {
+  /**
+   * Shutdown the transaction manager hard.  This is only intended for use in error conditions.
+   */
+  void selfDestruct() {
     hesDeadJim = true;
     LOG.error("Memory and db got out of sync!  Dying now so we can recover and move on.");
     threadPool.shutdownNow(); // This will terminate the threads in the WAL as well.
@@ -319,10 +328,27 @@ public class TransactionManager extends CompactionTxnHandler {
     throw new RuntimeException("Transaction manager self destructing");
   }
 
+  DataSource getConnectionPool() {
+    return connPool;
+  }
+
+  ScheduledThreadPoolExecutor getThreadPool() {
+    return threadPool;
+  }
+
+  HiveConf getConf() {
+    return conf;
+  }
+
   @Override
   public OpenTxnsResponse openTxns(OpenTxnRequest rqst) throws MetaException {
     checkAlive();
-    // TODO check for maximum simultaneous open transactions
+    if (openTxns.size() + rqst.getNum_txns() > maxOpenTxns) {
+      LOG.warn("Maximum allowed number of open transactions (" + maxOpenTxns + ") has been " +
+          "reached. Current number of open transactions: " + openTxns.size());
+      throw new MetaException("Maximum allowed number of open transactions has been reached. " +
+          "See hive.max.open.txns.");
+    }
 
     // 99.9% of the time we're only opening one txn.  Special case it to avoid needing to create
     // extra arrays, lists, etc.

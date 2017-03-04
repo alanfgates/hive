@@ -83,16 +83,18 @@ public class DbWal implements WriteAheadLog {
   private final DataSource connPool;
   private final ScheduledThreadPoolExecutor threadPool;
   private final HiveConf conf;
+  private final TransactionManager txnMgr;
   private SQLGenerator sqlGenerator;
   private BlockingQueue<FutureTask<?>> writeQueue;
   private int numRecordsFromWalToDb;
   private long nextWalId; // Don't need a lock on this since writing is single threaded
   private long lastWalIdMovedToDb; // Don't need a lock on this since writing is single threaded
 
-  public DbWal(DataSource connPool, ScheduledThreadPoolExecutor threadPool, HiveConf conf) {
-    this.connPool = connPool;
-    this.threadPool = threadPool;
-    this.conf = conf;
+  public DbWal(TransactionManager txnMgr) {
+    this.txnMgr = txnMgr;
+    this.connPool = txnMgr.getConnectionPool();
+    this.threadPool = txnMgr.getThreadPool();
+    this.conf = txnMgr.getConf();
     writeQueue = new LinkedBlockingQueue<>();
   }
 
@@ -333,7 +335,7 @@ public class DbWal implements WriteAheadLog {
     // First, call the walToTableMover to move any existing records.  We'll move way more records
     // at a time, but still keep it bound to avoid situations where the WAL gets so big that we
     // can't move it over in a single transaction and we're completely wedged.
-    numRecordsFromWalToDb = 10000; // TODO -make configurable
+    numRecordsFromWalToDb = conf.getIntVar(HiveConf.ConfVars.TXNMGR_INMEM_WAL_RECOVERY_TXN_SIZE);
     LOG.info("Moving any records from the WAL into the DB");
     do {
       walToTableMover.run();
@@ -341,10 +343,11 @@ public class DbWal implements WriteAheadLog {
 
     // Now set up for regular running
     nextWalId = 1; // These have no meaning across runs.
-    numRecordsFromWalToDb = 100; // TODO -make configurable
-    int period = 500; // TODO - make configurable
+    numRecordsFromWalToDb = conf.getIntVar(HiveConf.ConfVars.TXNMGR_INMEM_WAL_TXN_SIZE);
+    long period = conf.getTimeVar(HiveConf.ConfVars.TXNMGR_INMEM_WAL_MOVER_THREAD_PERIOD,
+        TimeUnit.MILLISECONDS);
     Random rand = new Random();
-    threadPool.scheduleAtFixedRate(walToTableMover, period + rand.nextInt(period), period,
+    threadPool.scheduleAtFixedRate(walToTableMover, period + rand.nextInt((int)period), period,
         TimeUnit.MILLISECONDS);
     threadPool.execute(walWriter);
     LOG.info("WAL started");
@@ -512,9 +515,8 @@ public class DbWal implements WriteAheadLog {
           }
         }
       } catch (Throwable t) {
-        LOG.error("Caught exception in wal to table mover thread, thread dying, this will be " +
-            "bad!", t);
-        // TODO put in marker showing this is dead so we can take down the whole txn service
+        LOG.error("Caught exception in wal to table mover thread", t);
+        txnMgr.selfDestruct();
       }
       LOG.debug("walToTableMover run completed");
     }
