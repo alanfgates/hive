@@ -46,11 +46,14 @@ import org.apache.hadoop.hive.metastore.api.ShowLocksRequest;
 import org.apache.hadoop.hive.metastore.api.ShowLocksResponse;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.TxnAbortedException;
+import org.apache.hadoop.hive.metastore.api.TxnInfo;
 import org.apache.hadoop.hive.metastore.api.TxnOpenException;
+import org.apache.hadoop.hive.metastore.api.TxnState;
 import org.apache.hadoop.hive.metastore.api.UnlockRequest;
 import org.apache.hadoop.hive.metastore.txn.CompactionInfo;
 import org.apache.hadoop.hive.metastore.txn.CompactionTxnHandler;
 import org.apache.hadoop.hive.metastore.txn.TxnHandler;
+import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -164,6 +167,12 @@ public class TransactionManager extends CompactionTxnHandler {
 
   private WriteAheadLog wal;
   private long lockPollTimeout;
+  private long walWaitForCheckpointTimeout;
+
+  // TODO handle error recovery on WAL write failure.  For abortTxn and commitTxn we can't
+  // recover once we've released the lock, so don't come out of the lock until the WAL write has
+  // completed.  For other operations we should be able to undo the action, so it's ok to wait
+  // for the WAL write outside the lock.
 
   private TransactionManager(HiveConf conf) {
     LOG.info("Initializing the TransactionManager...");
@@ -184,6 +193,7 @@ public class TransactionManager extends CompactionTxnHandler {
     final RecoveryResults recovered = recover();
 
     lockPollTimeout = 1000; // TODO - make this configurable
+    walWaitForCheckpointTimeout = 5000; // TODO - make configurable
 
     txnIdGenerator = new IdGenerator() {
       long nextVal = recovered.nextTxnId;
@@ -341,9 +351,22 @@ public class TransactionManager extends CompactionTxnHandler {
 
   @Override
   public GetOpenTxnsInfoResponse getOpenTxnsInfo() throws MetaException {
-    // TODO - This will be challenging.  We don't keep all the necessary info in memory because
-    // it's too expensive.  So we'll have to look at the DB plus the WAL to figure it out.
-    throw new UnsupportedOperationException();
+    // Put a checkpoint on the WAL so that everything in there get's moved before we go look in
+    // the database.  This is slower (since we're waiting for the WAL to clear) but
+    // much easier than combining data from the database tables and the WAL.  Since this method
+    // is used to satisfy 'show transactions' (not an operation that needs to perform in under a
+    // second) this should be fine.
+    try {
+      wal.waitForCheckpoint(walWaitForCheckpointTimeout);
+    } catch (InterruptedException e) {
+      // This likely means that we're being shutdown anyway, so just return nothing
+      LOG.warn("Received interrupt exception while waiting for checkpoint");
+      return new GetOpenTxnsInfoResponse();
+    } catch (TimeoutException e) {
+      LOG.warn("Timed out waiting for WAL checkpoint");
+      throw new MetaException("Timed out waiting for the WAL checkpoint");
+    }
+    return super.getOpenTxnsInfo();
   }
 
   @Override
@@ -679,15 +702,40 @@ public class TransactionManager extends CompactionTxnHandler {
 
   @Override
   public ShowLocksResponse showLocks(ShowLocksRequest rqst) throws MetaException {
-    // TODO - this will be tricky as we don't keep all of the lock info in memory.  We'll need to
-    // read the database plus the WAL.
-    throw new UnsupportedOperationException();
+    // Put a checkpoint on the WAL so that everything in there get's moved before we go look in
+    // the database.  This is slower (since we're waiting for the WAL to clear) but
+    // much easier than combining data from the database tables and the WAL.  Since this method
+    // is used to satisfy 'show locks' (not an operation that needs to perform in under a second)
+    // this should be fine.
+    try {
+      wal.waitForCheckpoint(walWaitForCheckpointTimeout);
+    } catch (InterruptedException e) {
+      // This likely means that we're being shutdown anyway, so just return nothing
+      LOG.warn("Received interrupt exception while waiting for checkpoint");
+      return new ShowLocksResponse();
+    } catch (TimeoutException e) {
+      LOG.warn("Timed out waiting for WAL checkpoint");
+      throw new MetaException("Timed out waiting for the WAL checkpoint");
+    }
+    return super.showLocks(rqst);
   }
 
   @Override
   public int numLocksInLockTable() throws SQLException, MetaException {
-    // TODO - need to add in locks from the WAL.  Or maybe we just answer this out of memory
-    // instead.
+    // Put a checkpoint on the WAL so that everything in there get's moved before we go look in
+    // the database.  This is slower (since we're waiting for the WAL to clear) but
+    // much easier than combining data from the database tables and the WAL.  Since this method
+    // is used in testing this should be fine.
+    try {
+      wal.waitForCheckpoint(walWaitForCheckpointTimeout);
+    } catch (InterruptedException e) {
+      // This likely means that we're being shutdown anyway, so just return nothing
+      LOG.warn("Received interrupt exception while waiting for checkpoint");
+      return 0;
+    } catch (TimeoutException e) {
+      LOG.warn("Timed out waiting for WAL checkpoint");
+      throw new MetaException("Timed out waiting for the WAL checkpoint");
+    }
     return super.numLocksInLockTable();
   }
 
@@ -875,6 +923,7 @@ public class TransactionManager extends CompactionTxnHandler {
 
   // This assumes that no one else is running when it is, thus it doesn't grab locks.
   private RecoveryResults recover() {
+    LOG.info("Beginning recovery...");
     // First recover the WAL, so that all records are in the DB proper
     try {
       wal.start();
@@ -975,7 +1024,8 @@ public class TransactionManager extends CompactionTxnHandler {
               case TxnHandler.LOCK_RELEASED:
                 // Don't have to queue this lock, but we do have to set the current max commit id
                 // for the appropriate queue.
-                lockQueues.get(entityKey).maybeSetMaxCommitId(committedTxns.get(txnId).getCommitId());
+                lockQueues.get(entityKey).maybeSetMaxCommitId(committedTxns.get(txnId)
+                    .getCommitId());
                 break;
 
               case TxnHandler.LOCK_WAITING:
@@ -995,6 +1045,7 @@ public class TransactionManager extends CompactionTxnHandler {
         }
       }
 
+      LOG.info("Recovery completed.");
       return results;
     } catch (SQLException e) {
       LOG.error("Failed to recover, dying", e);

@@ -23,6 +23,7 @@ import org.apache.hadoop.hive.metastore.api.OpenTxnRequest;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
 
 /**
  * A WAL that ignores everything you pass it.  Think of it as a tape backup system.
@@ -61,6 +62,11 @@ public class NoopWal implements WriteAheadLog {
   @Override
   public Future<Integer> queueForgetTransactions(List<? extends HiveTransaction> txns) {
     return null;
+  }
+
+  @Override
+  public void waitForCheckpoint(long maxWait) throws InterruptedException, TimeoutException {
+
   }
 
   @Override

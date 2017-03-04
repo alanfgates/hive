@@ -167,7 +167,7 @@ public final class TxnDbUtil {
       );
 
       stmt.execute("CREATE TABLE TXN_WAL (" +  // TODO added this table, add to SQL scripts
-        " TW_ID bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY," +
+        " TW_ID bigint PRIMARY KEY," +
         " TW_TYPE integer NOT NULL," +
         " TW_RECORDED_AT bigint," +
         " TW_TXNID bigint," +

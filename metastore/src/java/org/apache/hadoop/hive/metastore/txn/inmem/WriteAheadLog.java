@@ -17,12 +17,19 @@
  */
 package org.apache.hadoop.hive.metastore.txn.inmem;
 
+import org.apache.hadoop.hive.common.ObjectPair;
+import org.apache.hadoop.hive.metastore.api.LockComponent;
 import org.apache.hadoop.hive.metastore.api.LockRequest;
 import org.apache.hadoop.hive.metastore.api.OpenTxnRequest;
+import org.apache.thrift.TException;
 
+import java.io.IOException;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
 
 interface WriteAheadLog {
 
@@ -94,6 +101,17 @@ interface WriteAheadLog {
    * the WAL until the future.get() returns.
    */
   Future<Integer> queueForgetTransactions(List<? extends HiveTransaction> txns);
+
+  /**
+   * This will return when all records in the WAL have been written to the database tables.  It
+   * is useful for holding on things like showLocks that need all the information in the database.
+   * Note, it does NOT force a checkpoint, it merely waits until the state in the database
+   * reflects the state in the WAL as of the point in time that this method was called.
+   * @param maxWait maximum number of milliseconds to wait for the checkpoint.
+   * @throws InterruptedException if Thread.sleep is interrupted
+   * @throws TimeoutException if it takes more than maxWait milliseconds for the records to move.
+   */
+  void waitForCheckpoint(long maxWait) throws InterruptedException, TimeoutException;
 
   /**
    * Start up the WAL writer.  This will first move all records from the WAL to the database (to

@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hive.metastore.txn.inmem;
 
+import org.apache.hadoop.hive.common.ObjectPair;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.DataOperationType;
 import org.apache.hadoop.hive.metastore.api.LockComponent;
@@ -51,9 +52,13 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
@@ -61,6 +66,7 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 
 // TODO we should try an implementation of this that writes directly to the DB tables instead of
@@ -86,6 +92,8 @@ public class DbWal implements WriteAheadLog {
   private SQLGenerator sqlGenerator;
   private BlockingQueue<FutureTask<?>> writeQueue;
   private int numRecordsFromWalToDb;
+  private long nextWalId; // Don't need a lock on this since writing is single threaded
+  private long lastWalIdMovedToDb; // Don't need a lock on this since writing is single threaded
 
   public DbWal(DataSource connPool, ScheduledThreadPoolExecutor threadPool, HiveConf conf) {
     this.connPool = connPool;
@@ -104,16 +112,17 @@ public class DbWal implements WriteAheadLog {
           conn.setAutoCommit(true);
           conn.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
 
-          String sql = "insert into TXN_WAL (TW_TYPE, TW_RECORDED_AT, TW_TXNID, TW_OPEN_TXN_RQST)" +
-              " values (?, ?, ?, ?)";
+          String sql = "insert into TXN_WAL (TW_ID, TW_TYPE, TW_RECORDED_AT, TW_TXNID, " +
+              "TW_OPEN_TXN_RQST) values (?, ?, ?, ?, ?)";
 
           if (LOG.isDebugEnabled()) LOG.debug("Going to prepare statement " + sql);
 
           try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, EntryType.OPEN_TXN.ordinal());
-            stmt.setLong(2, sqlGenerator.getDbTime(conn));
-            stmt.setLong(3, txnId);
-            stmt.setBytes(3, serialize(rqst));
+            stmt.setLong(1, nextWalId++);
+            stmt.setInt(2, EntryType.OPEN_TXN.ordinal());
+            stmt.setLong(3, sqlGenerator.getDbTime(conn));
+            stmt.setLong(4, txnId);
+            stmt.setBytes(5, serialize(rqst));
             return stmt.executeUpdate();
           }
         }
@@ -133,15 +142,16 @@ public class DbWal implements WriteAheadLog {
           conn.setAutoCommit(true);
           conn.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
 
-          String sql = "insert into TXN_WAL (TW_TYPE, TW_RECORDED_AT, TW_TXNID)" +
-              " values (?, ?, ?)";
+          String sql = "insert into TXN_WAL (TW_ID, TW_TYPE, TW_RECORDED_AT, TW_TXNID)" +
+              " values (?, ?, ?, ?)";
 
           if (LOG.isDebugEnabled()) LOG.debug("Going to prepare statement " + sql);
 
           try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, EntryType.ABORT_TXN.ordinal());
-            stmt.setLong(2, sqlGenerator.getDbTime(conn));
-            stmt.setLong(3, openTxn.getTxnId());
+            stmt.setLong(1, nextWalId++);
+            stmt.setInt(2, EntryType.ABORT_TXN.ordinal());
+            stmt.setLong(3, sqlGenerator.getDbTime(conn));
+            stmt.setLong(4, openTxn.getTxnId());
             return stmt.executeUpdate();
           }
         }
@@ -161,16 +171,17 @@ public class DbWal implements WriteAheadLog {
           conn.setAutoCommit(true);
           conn.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
 
-          String sql = "insert into TXN_WAL (TW_TYPE, TW_RECORDED_AT, TW_TXNID, TW_COMMIT_ID)" +
-              " values (?, ?, ?, ?)";
+          String sql = "insert into TXN_WAL (TW_ID, TW_TYPE, TW_RECORDED_AT, TW_TXNID, " +
+              "TW_COMMIT_ID) values (?, ?, ?, ?, ?)";
 
           if (LOG.isDebugEnabled()) LOG.debug("Going to prepare statement " + sql);
 
           try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, EntryType.COMMIT_TXN.ordinal());
-            stmt.setLong(2, sqlGenerator.getDbTime(conn));
-            stmt.setLong(3, committedTxn.getTxnId());
-            stmt.setLong(4, committedTxn.getCommitId());
+            stmt.setLong(1, nextWalId++);
+            stmt.setInt(2, EntryType.COMMIT_TXN.ordinal());
+            stmt.setLong(3, sqlGenerator.getDbTime(conn));
+            stmt.setLong(4, committedTxn.getTxnId());
+            stmt.setLong(5, committedTxn.getCommitId());
             return stmt.executeUpdate();
           }
         }
@@ -191,16 +202,17 @@ public class DbWal implements WriteAheadLog {
           conn.setAutoCommit(true);
           conn.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
 
-          String sql = "insert into TXN_WAL (TW_TYPE, TW_RECORDED_AT, TW_LOCK_RQST, TW_LOCKS)" +
-              " values (?, ?, ?, ?)";
+          String sql = "insert into TXN_WAL (TW_ID, TW_TYPE, TW_RECORDED_AT, TW_LOCK_RQST, " +
+              "TW_LOCKS) values (?, ?, ?, ?, ?)";
 
           if (LOG.isDebugEnabled()) LOG.debug("Going to prepare statement " + sql);
 
           try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, EntryType.REQUEST_LOCKS.ordinal());
-            stmt.setLong(2, sqlGenerator.getDbTime(conn));
-            stmt.setBytes(3, serialize(rqst));
-            stmt.setBytes(4, serialize(newLocks));
+            stmt.setLong(1, nextWalId++);
+            stmt.setInt(2, EntryType.REQUEST_LOCKS.ordinal());
+            stmt.setLong(3, sqlGenerator.getDbTime(conn));
+            stmt.setBytes(4, serialize(rqst));
+            stmt.setBytes(5, serialize(newLocks));
             return stmt.executeUpdate();
           }
         }
@@ -220,15 +232,16 @@ public class DbWal implements WriteAheadLog {
           conn.setAutoCommit(true);
           conn.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
 
-          String sql = "insert into TXN_WAL (TW_TYPE, TW_RECORDED_AT, TW_LOCKS)" +
-              " values (?, ?, ?)";
+          String sql = "insert into TXN_WAL (TW_ID, TW_TYPE, TW_RECORDED_AT, TW_LOCKS)" +
+              " values (?, ?, ?, ?)";
 
           if (LOG.isDebugEnabled()) LOG.debug("Going to prepare statement " + sql);
 
           try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, EntryType.ACQUIRE_LOCKS.ordinal());
-            stmt.setLong(2, sqlGenerator.getDbTime(conn));
-            stmt.setBytes(3, serialize(acquiredLocks));
+            stmt.setLong(1, nextWalId++);
+            stmt.setInt(2, EntryType.ACQUIRE_LOCKS.ordinal());
+            stmt.setLong(3, sqlGenerator.getDbTime(conn));
+            stmt.setBytes(4, serialize(acquiredLocks));
             return stmt.executeUpdate();
           }
         }
@@ -248,15 +261,16 @@ public class DbWal implements WriteAheadLog {
           conn.setAutoCommit(true);
           conn.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
 
-          String sql = "insert into TXN_WAL (TW_TYPE, TW_RECORDED_AT, TW_LOCKS)" +
-              " values (?, ?, ?)";
+          String sql = "insert into TXN_WAL (TW_ID, TW_TYPE, TW_RECORDED_AT, TW_LOCKS)" +
+              " values (?, ?, ?, ?)";
 
           if (LOG.isDebugEnabled()) LOG.debug("Going to prepare statement " + sql);
 
           try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setInt(1, EntryType.FORGET_LOCKS.ordinal());
-            stmt.setLong(2, sqlGenerator.getDbTime(conn));
-            stmt.setBytes(3, serialize(locksToForget));
+            stmt.setLong(1, nextWalId++);
+            stmt.setInt(2, EntryType.FORGET_LOCKS.ordinal());
+            stmt.setLong(3, sqlGenerator.getDbTime(conn));
+            stmt.setBytes(4, serialize(locksToForget));
             return stmt.executeUpdate();
           }
         }
@@ -277,8 +291,8 @@ public class DbWal implements WriteAheadLog {
           conn.setAutoCommit(false); // no auto commit on this one as we'll insert multiple records
           conn.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
 
-          String sql = "insert into TXN_WAL (TW_TYPE, TW_RECORDED_AT, TW_TXNID)" +
-              " values (?, ?, ?)";
+          String sql = "insert into TXN_WAL (TW_ID, TW_TYPE, TW_RECORDED_AT, TW_TXNID)" +
+              " values (?, ?, ?, ?)";
 
           long now = sqlGenerator.getDbTime(conn);
 
@@ -287,9 +301,10 @@ public class DbWal implements WriteAheadLog {
           try (PreparedStatement stmt = conn.prepareStatement(sql)) {
             int rc = 0;
             for (HiveTransaction txn : txns) {
-              stmt.setInt(1, EntryType.FORGET_TXN.ordinal());
-              stmt.setLong(2, now);
-              stmt.setLong(3, txn.getTxnId());
+              stmt.setLong(1, nextWalId++);
+              stmt.setInt(2, EntryType.FORGET_TXN.ordinal());
+              stmt.setLong(3, now);
+              stmt.setLong(4, txn.getTxnId());
               rc += stmt.executeUpdate();
             }
             conn.commit();
@@ -303,7 +318,18 @@ public class DbWal implements WriteAheadLog {
   }
 
   @Override
+  public void waitForCheckpoint(long maxWait) throws InterruptedException, TimeoutException {
+    long startWalId = nextWalId - 1;
+    long startTime = System.currentTimeMillis();
+    while (startWalId > lastWalIdMovedToDb && startTime + maxWait > System.currentTimeMillis()) {
+      Thread.sleep(100);
+    }
+    if (startTime + maxWait <= System.currentTimeMillis()) throw new TimeoutException();
+  }
+
+  @Override
   public void start() throws SQLException {
+    LOG.info("Starting the WAL...");
     try (Connection conn = connPool.getConnection()) {
       sqlGenerator = new SQLGenerator(SQLGenerator.determineDatabaseProduct(conn), conf);
     }
@@ -312,17 +338,20 @@ public class DbWal implements WriteAheadLog {
     // at a time, but still keep it bound to avoid situations where the WAL gets so big that we
     // can't move it over in a single transaction and we're completely wedged.
     numRecordsFromWalToDb = 10000; // TODO -make configurable
+    LOG.info("Moving any records from the WAL into the DB");
     do {
       walToTableMover.run();
     } while (walCount() > 0);
 
     // Now set up for regular running
+    nextWalId = 1; // These have no meaning across runs.
     numRecordsFromWalToDb = 100; // TODO -make configurable
     int period = 500; // TODO - make configurable
     Random rand = new Random();
     threadPool.scheduleAtFixedRate(walToTableMover, period + rand.nextInt(period), period,
         TimeUnit.MILLISECONDS);
     threadPool.execute(walWriter);
+    LOG.info("WAL started");
   }
 
   private byte[] serialize(TBase obj) throws TException {
@@ -375,12 +404,16 @@ public class DbWal implements WriteAheadLog {
   private Runnable walWriter = new Runnable() {
     @Override
     public void run() {
+      LOG.info("Starting walWriter");
+      // When TransactionManager.shutdown() is called it will call shutdownNow() on the thread
+      // pool, which will interrupt this thread, so there's no need to check for a shutdown
+      // condition.
       while (true) {
         try {
           FutureTask<?> nextWrite = writeQueue.take();
           nextWrite.run();
         } catch (InterruptedException e) {
-          LOG.error("Received interuption waiting for next write to WAL, dying");
+          LOG.info("Received interuption waiting for next write to WAL, dying");
         }
       }
     }
@@ -398,6 +431,10 @@ public class DbWal implements WriteAheadLog {
   private Runnable walToTableMover = new Runnable() {
     @Override
     public void run() {
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Running walToTableMover, will attempt to move " + numRecordsFromWalToDb +
+            " records");
+      }
       try {
         try (Connection conn = connPool.getConnection()) {
           // Turn auto-commit off because we have to make sure we move the record from the WAL to
@@ -406,6 +443,7 @@ public class DbWal implements WriteAheadLog {
           // READ_COMMITTED should be fine as no one should ever be updating WAL records
           conn.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
 
+          long lastEntryMoved = 0;
           // Don't use select for update since there's no need, no one will be updating these
           // rows, and no one better be deleting them but this thread.
           // Select everything in one pass.  This is clunky because each move method is now
@@ -423,7 +461,9 @@ public class DbWal implements WriteAheadLog {
               ResultSet rs = stmt.executeQuery(sql);
 
               while (rs.next()) {
-                entriesToRemove.add(rs.getLong(TW_ID_POS));
+                long twid = rs.getLong(TW_ID_POS);
+                entriesToRemove.add(twid);
+                lastEntryMoved = twid;
                 EntryType entryType = EntryType.fromInteger(rs.getInt(TW_TYPE_POS));
                 long recordedAt = rs.getLong(TW_RECORDED_AT_POS);
                 switch (entryType) {
@@ -468,6 +508,7 @@ public class DbWal implements WriteAheadLog {
             }
 
             conn.commit();
+            if (lastEntryMoved > 0) lastWalIdMovedToDb = lastEntryMoved;
           } catch (SQLException e) {
             LOG.error("Caught SQL exception when moving records from the WAL to tables", e);
             conn.rollback();
@@ -479,10 +520,12 @@ public class DbWal implements WriteAheadLog {
             "bad!", t);
         // TODO put in marker showing this is dead so we can take down the whole txn service
       }
+      LOG.debug("walToTableMover run completed");
     }
 
     private void moveOpenTxn(Connection conn, long recordedAt, ResultSet rs)
         throws SQLException, TException {
+      LOG.debug("Moving open transaction request");
       try (Statement stmt = conn.createStatement()) {
 
         long txnId = rs.getLong(TW_TXNID_POS);
@@ -502,6 +545,7 @@ public class DbWal implements WriteAheadLog {
     }
 
     private void moveAbortTxn(Connection conn, ResultSet rs) throws SQLException {
+      LOG.debug("Moving abort transaction request");
       long txnId = rs.getLong(TW_TXNID_POS);
 
       // Set the transaction to aborted/committed
@@ -535,6 +579,7 @@ public class DbWal implements WriteAheadLog {
     }
 
     private void moveCommitTxn(Connection conn, ResultSet rs) throws SQLException {
+      LOG.debug("Moving commit transaction request");
       long txnId = rs.getLong(TW_TXNID_POS);
       long commitId = rs.getLong(TW_COMMIT_ID_POS);
 
@@ -584,6 +629,7 @@ public class DbWal implements WriteAheadLog {
 
     private void moveRequestLocks(Connection conn, long recordedAt, ResultSet rs) throws
         SQLException, TException, IllegalAccessException, IOException, InstantiationException {
+      LOG.debug("Moving request locks");
       LockRequest rqst = new LockRequest();
       deserialize(rqst, rs.getBytes(TW_LOCK_RQST_POS));
       List<HiveLock> newLocks = deserialize(HiveLock.class, rs.getBytes(TW_LOCKS_POS));
@@ -688,6 +734,7 @@ public class DbWal implements WriteAheadLog {
 
     private void moveAcquireLocks(Connection conn, long recordedAt, ResultSet rs)
         throws SQLException, IllegalAccessException, IOException, InstantiationException {
+      LOG.debug("Moving acquire locks");
       List<HiveLock> acquiredLocks = deserialize(HiveLock.class, rs.getBytes(TW_LOCKS_POS));
       try (Statement stmt = conn.createStatement()) {
         StringBuilder buf = new StringBuilder("update HIVE_LOCKS set hl_lock_state = '")
@@ -710,6 +757,7 @@ public class DbWal implements WriteAheadLog {
 
     private void moveForgetLocks(Connection conn, ResultSet rs) throws SQLException,
         IllegalAccessException, IOException, InstantiationException {
+      LOG.debug("Moving forget locks");
       List<HiveLock> toBeForgotten = deserialize(HiveLock.class, rs.getBytes(TW_LOCKS_POS));
       try (Statement stmt = conn.createStatement()) {
         StringBuilder buf = new StringBuilder("delete from HIVE_LOCKS where hl_lock_ext_id in (");
@@ -727,6 +775,7 @@ public class DbWal implements WriteAheadLog {
     }
 
     private void moveForgetTxn(Connection conn, ResultSet rs) throws SQLException {
+      LOG.debug("Moving forget transaction");
       long txnId = rs.getLong(TW_TXNID_POS);
       try (Statement stmt = conn.createStatement()) {
         // Forget the transaction
