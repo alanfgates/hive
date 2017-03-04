@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 interface WriteAheadLog {
@@ -107,11 +108,12 @@ interface WriteAheadLog {
    * is useful for holding on things like showLocks that need all the information in the database.
    * Note, it does NOT force a checkpoint, it merely waits until the state in the database
    * reflects the state in the WAL as of the point in time that this method was called.
-   * @param maxWait maximum number of milliseconds to wait for the checkpoint.
+   * @param maxWait maximum units to wait
+   * @param unit Time unit to measure wait in
    * @throws InterruptedException if Thread.sleep is interrupted
    * @throws TimeoutException if it takes more than maxWait milliseconds for the records to move.
    */
-  void waitForCheckpoint(long maxWait) throws InterruptedException, TimeoutException;
+  void waitForCheckpoint(long maxWait, TimeUnit unit) throws InterruptedException, TimeoutException;
 
   /**
    * Start up the WAL writer.  This will first move all records from the WAL to the database (to

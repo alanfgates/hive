@@ -17,13 +17,11 @@
  */
 package org.apache.hadoop.hive.metastore.txn.inmem;
 
-import org.apache.hadoop.hive.common.ObjectPair;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.DataOperationType;
 import org.apache.hadoop.hive.metastore.api.LockComponent;
 import org.apache.hadoop.hive.metastore.api.LockRequest;
 import org.apache.hadoop.hive.metastore.api.LockType;
-import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.OpenTxnRequest;
 import org.apache.hadoop.hive.metastore.txn.SQLGenerator;
 import org.apache.hadoop.hive.metastore.txn.TxnHandler;
@@ -52,13 +50,9 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
-import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
@@ -318,13 +312,15 @@ public class DbWal implements WriteAheadLog {
   }
 
   @Override
-  public void waitForCheckpoint(long maxWait) throws InterruptedException, TimeoutException {
+  public void waitForCheckpoint(long maxWait, TimeUnit unit)
+      throws InterruptedException, TimeoutException {
     long startWalId = nextWalId - 1;
     long startTime = System.currentTimeMillis();
-    while (startWalId > lastWalIdMovedToDb && startTime + maxWait > System.currentTimeMillis()) {
+    long maxWaitMillis = unit.toMillis(maxWait);
+    while (startWalId > lastWalIdMovedToDb && startTime + maxWaitMillis > System.currentTimeMillis()) {
       Thread.sleep(100);
     }
-    if (startTime + maxWait <= System.currentTimeMillis()) throw new TimeoutException();
+    if (startTime + maxWaitMillis <= System.currentTimeMillis()) throw new TimeoutException();
   }
 
   @Override

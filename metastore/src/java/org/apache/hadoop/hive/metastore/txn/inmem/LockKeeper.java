@@ -44,5 +44,6 @@ public class LockKeeper implements Closeable {
   public void close() throws IOException {
     lock.unlock();
     if (LOG.isDebugEnabled()) LOG.debug("Released lock " + lock.getClass().getName());
+    // Note that this will never really throw, but I can't make Java not think it might.
   }
 }

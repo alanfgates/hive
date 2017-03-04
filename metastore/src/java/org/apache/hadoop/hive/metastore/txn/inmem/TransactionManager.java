@@ -46,14 +46,11 @@ import org.apache.hadoop.hive.metastore.api.ShowLocksRequest;
 import org.apache.hadoop.hive.metastore.api.ShowLocksResponse;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.TxnAbortedException;
-import org.apache.hadoop.hive.metastore.api.TxnInfo;
 import org.apache.hadoop.hive.metastore.api.TxnOpenException;
-import org.apache.hadoop.hive.metastore.api.TxnState;
 import org.apache.hadoop.hive.metastore.api.UnlockRequest;
 import org.apache.hadoop.hive.metastore.txn.CompactionInfo;
 import org.apache.hadoop.hive.metastore.txn.CompactionTxnHandler;
 import org.apache.hadoop.hive.metastore.txn.TxnHandler;
-import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -74,8 +71,10 @@ import java.util.Random;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -102,18 +101,37 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * massaging is necessary to deal with the fact that some information is only in the WAL and not
  * yet distributed to the appropriate database tables.  Also, some compactor operations modify
  * our in memory structures.
+ *
+ * The error handling approach is fast fail.  If an exception happens when writing to the WAL the
+ * transaction manager promptly self destructs and trusts that a new instance of itself recovered
+ * from the DB should be able to do better.
  */
 public class TransactionManager extends CompactionTxnHandler {
 
   static final private Logger LOG = LoggerFactory.getLogger(TransactionManager.class.getName());
 
   static private TransactionManager self = null;
+  static private HiveConf conf;
 
-  static public TransactionManager get(HiveConf conf) {
+  /**
+   * This must be called before {@link #get()}.
+   * @param configuration HiveConf to use.
+   */
+  static public void setHiveConf(HiveConf configuration) {
+    conf = configuration;
+  }
+
+  /**
+   * Get the transaction manager instance.  In the case where the transaction manager runs into
+   * an error and dies this will generate a new one.  So it is best to call this each time rather
+   * than keeping a reference.
+   * @return
+   */
+  static public TransactionManager get() {
     if (self == null) {
       synchronized (TransactionManager.class) {
         if (self == null) {
-          self = new TransactionManager(conf);
+          self = new TransactionManager();
         }
       }
     }
@@ -122,7 +140,7 @@ public class TransactionManager extends CompactionTxnHandler {
 
   /**
    * When this is set the background threads will not be run automatically.  This must be set
-   * before you call {@link #get(HiveConf)}.  After that it won't have any affect.
+   * before you call {@link #get()}.  After that it won't have any affect.
    */
   @VisibleForTesting static boolean unitTesting = false;
 
@@ -163,20 +181,14 @@ public class TransactionManager extends CompactionTxnHandler {
   // Track what locks types are compatible.  First array is holder, second is requester
   static private boolean[][] lockCompatibilityTable;
 
-  private HiveConf conf;
-
   private WriteAheadLog wal;
   private long lockPollTimeout;
   private long walWaitForCheckpointTimeout;
+  private boolean hesDeadJim;
 
-  // TODO handle error recovery on WAL write failure.  For abortTxn and commitTxn we can't
-  // recover once we've released the lock, so don't come out of the lock until the WAL write has
-  // completed.  For other operations we should be able to undo the action, so it's ok to wait
-  // for the WAL write outside the lock.
-
-  private TransactionManager(HiveConf conf) {
+  private TransactionManager() {
     LOG.info("Initializing the TransactionManager...");
-    this.conf = conf;
+    hesDeadJim = false;
     masterLock = new ReentrantReadWriteLock();
     openTxns = new HashMap<>();
     abortedTxns = new HashMap<>();
@@ -297,8 +309,19 @@ public class TransactionManager extends CompactionTxnHandler {
     LOG.info("TransactionManager shutdown complete");
   }
 
+  private void selfDestruct() {
+    hesDeadJim = true;
+    LOG.error("Memory and db got out of sync!  Dying now so we can recover and move on.");
+    threadPool.shutdownNow(); // This will terminate the threads in the WAL as well.
+    synchronized (TransactionManager.class) {
+      self = null;
+    }
+    throw new RuntimeException("Transaction manager self destructing");
+  }
+
   @Override
   public OpenTxnsResponse openTxns(OpenTxnRequest rqst) throws MetaException {
+    checkAlive();
     // TODO check for maximum simultaneous open transactions
 
     // 99.9% of the time we're only opening one txn.  Special case it to avoid needing to create
@@ -314,28 +337,26 @@ public class TransactionManager extends CompactionTxnHandler {
 
       waitForWal = wal.queueOpenTxn(txn.getTxnId(), rqst);
     } catch (IOException e) {
-      // This is only here because LockKeeper.close has to throw an IOException because Closeable
-      // .close does.  But in reality it never will, so this should never happen.
-      throw new RuntimeException("This should never happen", e);
+      throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
     }
 
     try {
       waitForWal.get();
     } catch (InterruptedException|ExecutionException e) {
-      // This means we failed to record it in the WAL.  We could try to nicely unwind everything.
-      //  But more realistically this likely means we're screwed and should just die.
       LOG.error("Unable to record transaction open in the WAL", e);
-      throw new RuntimeException(e);
+      selfDestruct();
     }
     return new OpenTxnsResponse(Collections.singletonList(txn.getTxnId()));
   }
 
   private OpenTxnsResponse openMultipleTxns(OpenTxnRequest rqst) throws MetaException {
+    checkAlive();
     throw new UnsupportedOperationException();
   }
 
   @Override
   public GetOpenTxnsResponse getOpenTxns() throws MetaException {
+    checkAlive();
     LOG.debug("Getting open transactions");
     try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
       GetOpenTxnsResponse rsp =
@@ -343,21 +364,20 @@ public class TransactionManager extends CompactionTxnHandler {
       rsp.getOpen_txns().addAll(abortedTxns.keySet());
       return rsp;
     } catch (IOException e) {
-      // This is only here because LockKeeper.close has to throw an IOException because Closeable
-      // .close does.  But in reality it never will, so this should never happen.
-      throw new RuntimeException("This should never happen", e);
+      throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
     }
   }
 
   @Override
   public GetOpenTxnsInfoResponse getOpenTxnsInfo() throws MetaException {
+    checkAlive();
     // Put a checkpoint on the WAL so that everything in there get's moved before we go look in
     // the database.  This is slower (since we're waiting for the WAL to clear) but
     // much easier than combining data from the database tables and the WAL.  Since this method
     // is used to satisfy 'show transactions' (not an operation that needs to perform in under a
     // second) this should be fine.
     try {
-      wal.waitForCheckpoint(walWaitForCheckpointTimeout);
+      wal.waitForCheckpoint(walWaitForCheckpointTimeout, TimeUnit.MILLISECONDS);
     } catch (InterruptedException e) {
       // This likely means that we're being shutdown anyway, so just return nothing
       LOG.warn("Received interrupt exception while waiting for checkpoint");
@@ -378,15 +398,14 @@ public class TransactionManager extends CompactionTxnHandler {
   @Override
   public void abortTxn(AbortTxnRequest rqst) throws NoSuchTxnException, MetaException,
       TxnAbortedException {
+    checkAlive();
     if (LOG.isDebugEnabled()) LOG.debug("Aborting transaction " + rqst.getTxnid());
     OpenTransaction txn;
     try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
       txn = openTxns.get(rqst.getTxnid());
       if (txn == null) throwAbortedOrNonExistent(rqst.getTxnid(), "abort");
     } catch (IOException e) {
-      // This is only here because LockKeeper.close has to throw an IOException because Closeable
-      // .close does.  But in reality it never will, so this should never happen.
-      throw new RuntimeException("This should never happen", e);
+      throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
     }
     abortTxnInternal(txn);
   }
@@ -419,9 +438,7 @@ public class TransactionManager extends CompactionTxnHandler {
         }
       }
     } catch (IOException e) {
-      // This is only here because LockKeeper.close has to throw an IOException because Closeable
-      // .close does.  But in reality it never will, so this should never happen.
-      throw new RuntimeException("This should never happen", e);
+      throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
     }
 
     if (locks != null && locks.length > 0) {
@@ -432,15 +449,14 @@ public class TransactionManager extends CompactionTxnHandler {
     try {
       waitForWal.get();
     } catch (InterruptedException|ExecutionException e) {
-      // This means we failed to record it in the WAL.  We could try to nicely unwind everything.
-      //  But more realistically this likely means we're screwed and should just die.
       LOG.error("Unable to record transaction abort in the WAL", e);
-      throw new RuntimeException(e);
+      selfDestruct();
     }
   }
 
   @Override
   public void abortTxns(AbortTxnsRequest rqst) throws NoSuchTxnException, MetaException {
+    checkAlive();
     // TODO
     throw new UnsupportedOperationException();
   }
@@ -448,6 +464,7 @@ public class TransactionManager extends CompactionTxnHandler {
   @Override
   public void commitTxn(CommitTxnRequest rqst) throws NoSuchTxnException, TxnAbortedException,
       MetaException {
+    checkAlive();
     if (LOG.isDebugEnabled()) {
       LOG.debug("Committing txn " + rqst.getTxnid());
     }
@@ -507,17 +524,13 @@ public class TransactionManager extends CompactionTxnHandler {
         }
       }
     } catch (IOException e) {
-      // This is only here because LockKeeper.close has to throw an IOException because Closeable
-      // .close does.  But in reality it never will, so this should never happen.
-      throw new RuntimeException("This should never happen", e);
+      throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
     }
     try {
       waitForWal.get();
     } catch (InterruptedException|ExecutionException e) {
-      // This means we failed to record it in the WAL.  We could try to nicely unwind everything.
-      //  But more realistically this likely means we're screwed and should just die.
-      LOG.error("Unable to record transaction abort in the WAL", e);
-      throw new RuntimeException(e);
+      LOG.error("Unable to record transaction commit in the WAL", e);
+      selfDestruct();
     }
   }
 
@@ -525,6 +538,7 @@ public class TransactionManager extends CompactionTxnHandler {
   public void heartbeat(HeartbeatRequest ids) throws NoSuchTxnException, NoSuchLockException,
       TxnAbortedException, MetaException {
     assert !ids.isSetLockid() : "Fail, we don't heartbeat locks anymore!";
+    checkAlive();
 
     if (LOG.isDebugEnabled()) LOG.debug("Heartbeating txn " + ids.getTxnid());
     try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
@@ -533,15 +547,14 @@ public class TransactionManager extends CompactionTxnHandler {
       txn.setLastHeartbeat(System.currentTimeMillis());
       // Don't write this down to the database.  There's no value.
     } catch (IOException e) {
-      // This is only here because LockKeeper.close has to throw an IOException because Closeable
-      // .close does.  But in reality it never will, so this should never happen.
-      throw new RuntimeException("This should never happen", e);
+      throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
     }
   }
 
   @Override
   public HeartbeatTxnRangeResponse heartbeatTxnRange(HeartbeatTxnRangeRequest rqst) throws
       MetaException {
+    checkAlive();
     // TODO
     throw new UnsupportedOperationException();
   }
@@ -550,6 +563,7 @@ public class TransactionManager extends CompactionTxnHandler {
   public LockResponse lock(LockRequest rqst) throws NoSuchTxnException, TxnAbortedException,
       MetaException {
     assert rqst.isSetTxnid() : "All locks must be associated with a transaction now";
+    checkAlive();
     if (LOG.isDebugEnabled()) {
       LOG.debug("Requesting locks for transaction " + rqst.getTxnid());
       for (LockComponent component : rqst.getComponent()) {
@@ -583,14 +597,12 @@ public class TransactionManager extends CompactionTxnHandler {
 
       waitForWal = wal.queueLockRequest(rqst, Arrays.asList(hiveLocks));
     } catch (IOException e) {
-      // This is only here because LockKeeper.close has to throw an IOException because Closeable
-      // .close does.  But in reality it never will, so this should never happen.
-      throw new RuntimeException("This should never happen", e);
+      throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
     }
 
     // First, see if our locks acquired immediately using the return from our submission to the
     // thread queue.
-    LockResponse rsp;
+    LockResponse rsp = null;
     try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
       try {
         lockCheckerRun.get(lockPollTimeout, TimeUnit.MILLISECONDS);
@@ -609,16 +621,18 @@ public class TransactionManager extends CompactionTxnHandler {
         LOG.debug("Locks did not acquire immediately, waiting...");
         rsp = waitForLocks(hiveLocks);
       }
-      waitForWal.get();
     } catch (IOException e) {
-      // This is only here because LockKeeper.close has to throw an IOException because Closeable
-      // .close does.  But in reality it never will, so this should never happen.
-      throw new RuntimeException("This should never happen", e);
+      throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
     } catch (InterruptedException|ExecutionException e) {
-      // This means we failed to record it in the WAL.  We could try to nicely unwind everything.
-      //  But more realistically this likely means we're screwed and should just die.
-      LOG.error("Unable to record transaction abort in the WAL", e);
-      throw new RuntimeException(e);
+      LOG.error("LogChecker blew up", e);
+      selfDestruct();
+    }
+
+    try {
+      waitForWal.get();
+    } catch (InterruptedException|ExecutionException e) {
+      LOG.error("Unable to record lock request in the WAL", e);
+      selfDestruct();
     }
     return rsp;
   }
@@ -644,9 +658,7 @@ public class TransactionManager extends CompactionTxnHandler {
     try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
       return new LockResponse(hiveLocks[0].getTxnId(), checkMyLocks(hiveLocks));
     } catch (IOException e) {
-      // This is only here because LockKeeper.close has to throw an IOException because Closeable
-      // .close does.  But in reality it never will, so this should never happen.
-      throw new RuntimeException("This should never happen", e);
+      throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
     }
   }
 
@@ -673,6 +685,7 @@ public class TransactionManager extends CompactionTxnHandler {
   @Override
   public LockResponse checkLock(CheckLockRequest rqst) throws NoSuchTxnException,
       NoSuchLockException, TxnAbortedException, MetaException {
+    checkAlive();
     // Locks must now be associated with a transaction
     if (!rqst.isSetTxnid()) {
       throw new NoSuchLockException("Locks must now be associated with a transaction");
@@ -684,9 +697,7 @@ public class TransactionManager extends CompactionTxnHandler {
       if (txn == null) throwAbortedOrNonExistent(rqst.getTxnid(), "check locks");
       locks = txn.getHiveLocks();
     } catch (IOException e) {
-      // This is only here because LockKeeper.close has to throw an IOException because Closeable
-      // .close does.  But in reality it never will, so this should never happen.
-      throw new RuntimeException("This should never happen", e);
+      throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
     }
     return waitForLocks(locks);
   }
@@ -702,13 +713,14 @@ public class TransactionManager extends CompactionTxnHandler {
 
   @Override
   public ShowLocksResponse showLocks(ShowLocksRequest rqst) throws MetaException {
+    checkAlive();
     // Put a checkpoint on the WAL so that everything in there get's moved before we go look in
     // the database.  This is slower (since we're waiting for the WAL to clear) but
     // much easier than combining data from the database tables and the WAL.  Since this method
     // is used to satisfy 'show locks' (not an operation that needs to perform in under a second)
     // this should be fine.
     try {
-      wal.waitForCheckpoint(walWaitForCheckpointTimeout);
+      wal.waitForCheckpoint(walWaitForCheckpointTimeout, TimeUnit.MILLISECONDS);
     } catch (InterruptedException e) {
       // This likely means that we're being shutdown anyway, so just return nothing
       LOG.warn("Received interrupt exception while waiting for checkpoint");
@@ -722,12 +734,13 @@ public class TransactionManager extends CompactionTxnHandler {
 
   @Override
   public int numLocksInLockTable() throws SQLException, MetaException {
+    checkAlive();
     // Put a checkpoint on the WAL so that everything in there get's moved before we go look in
     // the database.  This is slower (since we're waiting for the WAL to clear) but
     // much easier than combining data from the database tables and the WAL.  Since this method
     // is used in testing this should be fine.
     try {
-      wal.waitForCheckpoint(walWaitForCheckpointTimeout);
+      wal.waitForCheckpoint(walWaitForCheckpointTimeout, TimeUnit.MILLISECONDS);
     } catch (InterruptedException e) {
       // This likely means that we're being shutdown anyway, so just return nothing
       LOG.warn("Received interrupt exception while waiting for checkpoint");
@@ -753,6 +766,7 @@ public class TransactionManager extends CompactionTxnHandler {
   @Override
   public void addDynamicPartitions(AddDynamicPartitions rqst) throws NoSuchTxnException,
       TxnAbortedException, MetaException {
+    checkAlive();
     if (LOG.isDebugEnabled()) {
       LOG.debug("Adding dynamic partitions for transaction " + rqst.getTxnid() + " table " +
           rqst.getDbname() + "." + rqst.getTablename());
@@ -785,33 +799,39 @@ public class TransactionManager extends CompactionTxnHandler {
       waitForWal = wal.queueLockAcquisition(Arrays.asList(partitionsWrittenTo));
       txn.addLocks(partitionsWrittenTo);
     } catch (IOException e) {
-      // This is only here because LockKeeper.close has to throw an IOException because Closeable
-      // .close does.  But in reality it never will, so this should never happen.
-      throw new RuntimeException("This should never happen", e);
+      throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
     }
 
     try {
       waitForWal.get();
     } catch (InterruptedException|ExecutionException e) {
-      // This means we failed to record it in the WAL.  We could try to nicely unwind everything.
-      //  But more realistically this likely means we're screwed and should just die.
-      LOG.error("Unable to record transaction abort in the WAL", e);
-      throw new RuntimeException(e);
+      LOG.error("Unable to record lock acquisition in the WAL", e);
+      selfDestruct();
     }
   }
 
   @Override
-  public void cleanupRecords(HiveObjectType type, Database db, Table table, Iterator<Partition>
-      partitionIterator) throws MetaException {
-    // TODO need to handle this, as there may be entries in the WAL referencing the dropped
-    // object.  Clean the WAL first to avoid race conditions where we clean the DB and then the
-    // WAL moves the record from the WAL to the DB.
-    // TODO Also need to release any locks related to this object.
-    super.cleanupRecords(type, db, table, partitionIterator);
+  public void cleanupRecords(final HiveObjectType type, final Database db, final Table table,
+                             final Iterator<Partition> partitionIterator) throws MetaException {
+    checkAlive();
+    // There's no reason to block for this, as the main event of dropping the object has already
+    // occurred in a separate transaction and cannot be undone.  So rather than optimizing for
+    // speed by checking the WAL and then the db tables, we'll fire a future event that waits
+    // until everything currently in the WAL is written out and then executes the cleanup just
+    // against the DB tables.
+    threadPool.execute(new FutureTask<>(new Callable<Integer>() {
+      @Override
+      public Integer call() throws Exception {
+        wal.waitForCheckpoint(1, TimeUnit.MINUTES);
+        TransactionManager.super.cleanupRecords(type, db, table, partitionIterator);
+        return 1;
+      }
+    }));
   }
 
   @Override
   public void markCompacted(CompactionInfo info) throws MetaException {
+    checkAlive();
     if (LOG.isDebugEnabled()) {
       LOG.debug("Cleaning up after compaction of " + info.dbname + "." + info.tableName +
           (info.partName == null ? "" : "." + info.partName));
@@ -842,17 +862,13 @@ public class TransactionManager extends CompactionTxnHandler {
           waitForWal = wal.queueForgetLocks(toBeForgotten);
         }
       } catch (IOException e) {
-        // This is only here because LockKeeper.close has to throw an IOException because Closeable
-        // .close does.  But in reality it never will, so this should never happen.
-        throw new RuntimeException("This should never happen", e);
+        throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
       }
       try {
         if (waitForWal != null) waitForWal.get();
       } catch (InterruptedException|ExecutionException e) {
-        // This means we failed to record it in the WAL.  We could try to nicely unwind everything.
-        //  But more realistically this likely means we're screwed and should just die.
         LOG.error("Unable to record forgetting locks in the WAL", e);
-        throw new RuntimeException(e);
+        selfDestruct();
       }
     }
 
@@ -871,6 +887,7 @@ public class TransactionManager extends CompactionTxnHandler {
 
   @Override
   public List<CompactionInfo> findReadyToClean() throws MetaException {
+    checkAlive();
     // Before we allow something to be cleaned we need to assure that we don't have any active
     // read locks.  So first get the list from CompactionTxnHander and then double check it
     // against our structures.
@@ -880,9 +897,7 @@ public class TransactionManager extends CompactionTxnHandler {
       try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
         minOpenTxn = findMinOpenTxn();
       } catch (IOException e) {
-        // This is only here because LockKeeper.close has to throw an IOException because Closeable
-        // .close does.  But in reality it never will, so this should never happen.
-        throw new RuntimeException("This should never happen", e);
+        throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
       }
 
       List<CompactionInfo> approved = new ArrayList<>(toClean.size());
@@ -919,6 +934,12 @@ public class TransactionManager extends CompactionTxnHandler {
   private static class RecoveryResults {
     long nextTxnId;
     long nextLockId;
+  }
+
+  private void checkAlive() throws MetaException {
+    if (hesDeadJim) {
+      throw new MetaException("The TransactionManager has died, awaiting regeneration");
+    }
   }
 
   // This assumes that no one else is running when it is, thus it doesn't grab locks.
@@ -1109,9 +1130,7 @@ public class TransactionManager extends CompactionTxnHandler {
           lockQueuesToCheck = new ArrayList<>();
         }
       } catch (IOException e) {
-        // This is only here because LockKeeper.close has to throw an IOException because Closeable
-        // .close does.  But in reality it never will, so this should never happen.
-        throw new RuntimeException("This should never happen", e);
+        throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
       }
 
       if (keys != null) {
@@ -1174,9 +1193,7 @@ public class TransactionManager extends CompactionTxnHandler {
           }
           waitForWal = wal.queueLockAcquisition(toAcquire);
         } catch (IOException e) {
-          // This is only here because LockKeeper.close has to throw an IOException because Closeable
-          // .close does.  But in reality it never will, so this should never happen.
-          throw new RuntimeException("This should never happen", e);
+          throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
         } // Now outside read lock
 
         // TODO I think I can do this after I'm out of the lock.  But I want to wait for the
@@ -1193,10 +1210,8 @@ public class TransactionManager extends CompactionTxnHandler {
         try {
           waitForWal.get();
         } catch (InterruptedException|ExecutionException e) {
-          // This means we failed to record it in the WAL.  We could try to nicely unwind everything.
-          //  But more realistically this likely means we're screwed and should just die.
-          LOG.error("Unable to record transaction abort in the WAL", e);
-          throw new RuntimeException(e);
+          LOG.error("Unable to record lock acquisition in the WAL", e);
+          selfDestruct();
         }
 
         // Notify any waiters to go look for their locks
@@ -1255,9 +1270,7 @@ public class TransactionManager extends CompactionTxnHandler {
           }
         }
       } catch (IOException e) {
-        // This is only here because LockKeeper.close has to throw an IOException because Closeable
-        // .close does.  But in reality it never will, so this should never happen.
-        throw new RuntimeException("This should never happen", e);
+        throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
       }
       return null;
     }
@@ -1309,9 +1322,7 @@ public class TransactionManager extends CompactionTxnHandler {
           }
         }
       } catch (IOException e) {
-        // This is only here because LockKeeper.close has to throw an IOException because Closeable
-        // .close does.  But in reality it never will, so this should never happen.
-        throw new RuntimeException("This should never happen", e);
+        throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
       }
 
       // Now go back through the potentials list, holding the write lock, and remove any that
@@ -1410,9 +1421,7 @@ public class TransactionManager extends CompactionTxnHandler {
         }
 
       } catch (IOException e) {
-        // This is only here because LockKeeper.close has to throw an IOException because Closeable
-        // .close does.  But in reality it never will, so this should never happen.
-        throw new RuntimeException("This should never happen", e);
+        throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
       }
 
       if (emptyAbortedWrites.size() > 0 || emptyQueues.size() > 0) {
@@ -1430,9 +1439,7 @@ public class TransactionManager extends CompactionTxnHandler {
             }
           }
         } catch (IOException e) {
-          // This is only here because LockKeeper.close has to throw an IOException because Closeable
-          // .close does.  But in reality it never will, so this should never happen.
-          throw new RuntimeException("This should never happen", e);
+          throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
         }
       }
     }
@@ -1449,9 +1456,7 @@ public class TransactionManager extends CompactionTxnHandler {
           if (aborted.fullyCompacted()) forgettable.add(aborted);
         }
       } catch (IOException e) {
-        // This is only here because LockKeeper.close has to throw an IOException because Closeable
-        // .close does.  But in reality it never will, so this should never happen.
-        throw new RuntimeException("This should never happen", e);
+        throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
       }
 
       if (forgettable.size() > 0) {
@@ -1464,9 +1469,7 @@ public class TransactionManager extends CompactionTxnHandler {
           }
           wal.queueForgetTransactions(forgettable);
         } catch (IOException e) {
-          // This is only here because LockKeeper.close has to throw an IOException because Closeable
-          // .close does.  But in reality it never will, so this should never happen.
-          throw new RuntimeException("This should never happen", e);
+          throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
         }
       }
     }

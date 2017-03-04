@@ -23,6 +23,7 @@ import org.apache.hadoop.hive.metastore.api.OpenTxnRequest;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
@@ -65,7 +66,7 @@ public class NoopWal implements WriteAheadLog {
   }
 
   @Override
-  public void waitForCheckpoint(long maxWait) throws InterruptedException, TimeoutException {
+  public void waitForCheckpoint(long maxWait, TimeUnit unit) throws InterruptedException, TimeoutException {
 
   }
 
