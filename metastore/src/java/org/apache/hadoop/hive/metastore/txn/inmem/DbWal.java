@@ -111,14 +111,22 @@ public class DbWal implements WriteAheadLog {
           String sql = "insert into TXN_WAL (TW_ID, TW_TYPE, TW_RECORDED_AT, TW_TXNID, " +
               "TW_OPEN_TXN_RQST) values (?, ?, ?, ?, ?)";
 
-          if (LOG.isDebugEnabled()) LOG.debug("Going to prepare statement " + sql);
+          if (LOG.isDebugEnabled()) {
+            LOG.debug("Going to prepare statement " + sql);
+          }
 
           try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setLong(1, nextWalId++);
+            long thisWalId = nextWalId++;
+            stmt.setLong(1, thisWalId);
             stmt.setInt(2, EntryType.OPEN_TXN.ordinal());
-            stmt.setLong(3, sqlGenerator.getDbTime(conn));
+            long now = sqlGenerator.getDbTime(conn);
+            stmt.setLong(3, now);
             stmt.setLong(4, txnId);
             stmt.setBytes(5, serialize(rqst));
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("Executing prepared statement with values: " + thisWalId + ", " +
+                  EntryType.OPEN_TXN + ", " + now + ", " + txnId + ", <binary>");
+            }
             return stmt.executeUpdate();
           }
         }
@@ -144,10 +152,16 @@ public class DbWal implements WriteAheadLog {
           if (LOG.isDebugEnabled()) LOG.debug("Going to prepare statement " + sql);
 
           try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setLong(1, nextWalId++);
+            long thisWalId = nextWalId++;
+            stmt.setLong(1, thisWalId);
             stmt.setInt(2, EntryType.ABORT_TXN.ordinal());
-            stmt.setLong(3, sqlGenerator.getDbTime(conn));
+            long now = sqlGenerator.getDbTime(conn);
+            stmt.setLong(3, now);
             stmt.setLong(4, openTxn.getTxnId());
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("Executing prepared statement with values: " + thisWalId + ", " +
+                  EntryType.ABORT_TXN + ", " + now + ", " + openTxn.getTxnId() + ", <binary>");
+            }
             return stmt.executeUpdate();
           }
         }
@@ -173,11 +187,18 @@ public class DbWal implements WriteAheadLog {
           if (LOG.isDebugEnabled()) LOG.debug("Going to prepare statement " + sql);
 
           try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setLong(1, nextWalId++);
+            long thisWalId = nextWalId++;
+            stmt.setLong(1, thisWalId);
             stmt.setInt(2, EntryType.COMMIT_TXN.ordinal());
-            stmt.setLong(3, sqlGenerator.getDbTime(conn));
+            long now = sqlGenerator.getDbTime(conn);
+            stmt.setLong(3, now);
             stmt.setLong(4, committedTxn.getTxnId());
             stmt.setLong(5, committedTxn.getCommitId());
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("Executing prepared statement with values: " + thisWalId + ", " +
+                  EntryType.COMMIT_TXN + ", " + now + ", " + committedTxn.getTxnId() +
+                  ", " + committedTxn.getCommitId() + ", <binary>");
+            }
             return stmt.executeUpdate();
           }
         }
@@ -189,7 +210,7 @@ public class DbWal implements WriteAheadLog {
 
   @Override
   public Future<Integer> queueLockRequest(final LockRequest rqst,
-                                                final List<HiveLock> newLocks) {
+                                          final List<HiveLock> newLocks) {
     FutureTask<Integer> result = new FutureTask<>(new Callable<Integer>() {
       @Override
       public Integer call() throws Exception {
@@ -204,11 +225,17 @@ public class DbWal implements WriteAheadLog {
           if (LOG.isDebugEnabled()) LOG.debug("Going to prepare statement " + sql);
 
           try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setLong(1, nextWalId++);
+            long thisWalId = nextWalId++;
+            stmt.setLong(1, thisWalId);
             stmt.setInt(2, EntryType.REQUEST_LOCKS.ordinal());
-            stmt.setLong(3, sqlGenerator.getDbTime(conn));
+            long now = sqlGenerator.getDbTime(conn);
+            stmt.setLong(3, now);
             stmt.setBytes(4, serialize(rqst));
             stmt.setBytes(5, serialize(newLocks));
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("Executing prepared statement with values: " + thisWalId + ", " +
+                  EntryType.REQUEST_LOCKS + ", " + now + ", <binary>, <binary>");
+            }
             return stmt.executeUpdate();
           }
         }
@@ -234,10 +261,16 @@ public class DbWal implements WriteAheadLog {
           if (LOG.isDebugEnabled()) LOG.debug("Going to prepare statement " + sql);
 
           try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setLong(1, nextWalId++);
+            long thisWalId = nextWalId++;
+            stmt.setLong(1, thisWalId);
             stmt.setInt(2, EntryType.ACQUIRE_LOCKS.ordinal());
-            stmt.setLong(3, sqlGenerator.getDbTime(conn));
+            long now = sqlGenerator.getDbTime(conn);
+            stmt.setLong(3, now);
             stmt.setBytes(4, serialize(acquiredLocks));
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("Executing prepared statement with values: " + thisWalId + ", " +
+                  EntryType.ACQUIRE_LOCKS + ", " + now + ", <binary>");
+            }
             return stmt.executeUpdate();
           }
         }
@@ -263,10 +296,16 @@ public class DbWal implements WriteAheadLog {
           if (LOG.isDebugEnabled()) LOG.debug("Going to prepare statement " + sql);
 
           try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setLong(1, nextWalId++);
+            long thisWalId = nextWalId++;
+            stmt.setLong(1, thisWalId);
             stmt.setInt(2, EntryType.FORGET_LOCKS.ordinal());
-            stmt.setLong(3, sqlGenerator.getDbTime(conn));
+            long now = sqlGenerator.getDbTime(conn);
+            stmt.setLong(3, now);
             stmt.setBytes(4, serialize(locksToForget));
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("Executing prepared statement with values: " + thisWalId + ", " +
+                  EntryType.FORGET_LOCKS + ", " + now + ", <binary>");
+            }
             return stmt.executeUpdate();
           }
         }
@@ -297,10 +336,15 @@ public class DbWal implements WriteAheadLog {
           try (PreparedStatement stmt = conn.prepareStatement(sql)) {
             int rc = 0;
             for (HiveTransaction txn : txns) {
-              stmt.setLong(1, nextWalId++);
+              long thisWalId = nextWalId++;
+              stmt.setLong(1, thisWalId);
               stmt.setInt(2, EntryType.FORGET_TXN.ordinal());
               stmt.setLong(3, now);
               stmt.setLong(4, txn.getTxnId());
+              if (LOG.isDebugEnabled()) {
+                LOG.debug("Executing prepared statement with values: " + thisWalId + ", " +
+                    EntryType.FORGET_TXN + ", " + now + ", " + txn.getTxnId());
+              }
               rc += stmt.executeUpdate();
             }
             conn.commit();

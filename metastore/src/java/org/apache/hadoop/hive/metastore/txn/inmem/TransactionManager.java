@@ -193,6 +193,7 @@ public class TransactionManager extends CompactionTxnHandler {
   private WriteAheadLog wal;
   private long lockPollTimeout;
   private long walWaitForCheckpointTimeout;
+  // This is set to true once we've self destructed, since Java doesn't allow delete(this)
   private boolean hesDeadJim;
   private int maxOpenTxns;
 
@@ -290,7 +291,10 @@ public class TransactionManager extends CompactionTxnHandler {
 
   /**
    * Shutdown the transaction manager hard.  This is only intended for use in error conditions.
+   * It is also useful for tests that want to force the transaction manager to rebuild itself and
+   * force new state.
    */
+  @VisibleForTesting
   void selfDestruct() {
     hesDeadJim = true;
     LOG.error("Memory and db got out of sync!  Dying now so we can recover and move on.");
@@ -443,7 +447,7 @@ public class TransactionManager extends CompactionTxnHandler {
 
     if (locks != null && locks.length > 0) {
       LOG.debug("Requesting lockChecker run");
-      threadPool.execute(lockChecker);
+      waitForLockChecker = threadPool.submit(lockChecker);
     }
 
     try {
@@ -483,7 +487,7 @@ public class TransactionManager extends CompactionTxnHandler {
         }
         // Request a lockChecker run since we've released locks.
         LOG.debug("Requesting lockChecker run");
-        threadPool.execute(lockChecker);
+        waitForLockChecker = threadPool.submit(lockChecker);
       }
 
       openTxns.remove(txn.getTxnId());
@@ -603,29 +607,24 @@ public class TransactionManager extends CompactionTxnHandler {
     // First, see if our locks acquired immediately using the return from our submission to the
     // thread queue.
     LockResponse rsp = null;
-    try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
-      try {
-        lockCheckerRun.get(lockPollTimeout, TimeUnit.MILLISECONDS);
-      } catch (TimeoutException e) {
-        // Fall through to wait case.
-      }
-
-      if (checkMyLocks(hiveLocks) == LockState.ACQUIRED) {
-        LOG.debug("Locks acquired immediately, returning");
-        rsp = new LockResponse(rqst.getTxnid(),
-            org.apache.hadoop.hive.metastore.api.LockState.ACQUIRED);
-      } else {
-        // We didn't acquire right away, so long poll.  We won't wait forever, but we can wait a few
-        // seconds to avoid the clients banging away every few hundred milliseconds to see if their
-        // locks have acquired.
-        LOG.debug("Locks did not acquire immediately, waiting...");
-        rsp = waitForLocks(hiveLocks);
-      }
-    } catch (IOException e) {
-      throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
+    try {
+      lockCheckerRun.get(lockPollTimeout, TimeUnit.MILLISECONDS);
+    } catch (TimeoutException e) {
+      // Fall through to wait case.
     } catch (InterruptedException|ExecutionException e) {
-      LOG.error("LogChecker blew up", e);
+      LOG.error("lockChecker threw exception", e);
       selfDestruct();
+    }
+
+    if (checkMyLocks(hiveLocks) == LockState.ACQUIRED) {
+      LOG.debug("Locks acquired immediately, returning");
+      rsp = new LockResponse(rqst.getTxnid(), LockState.ACQUIRED);
+    } else {
+      // We didn't acquire right away, so long poll.  We won't wait forever, but we can wait a few
+      // seconds to avoid the clients banging away every few hundred milliseconds to see if their
+      // locks have acquired.
+      LOG.debug("Locks did not acquire immediately, waiting...");
+      rsp = waitForLocks(hiveLocks);
     }
 
     try {
@@ -696,9 +695,15 @@ public class TransactionManager extends CompactionTxnHandler {
       OpenTransaction txn = openTxns.get(rqst.getTxnid());
       if (txn == null) throwAbortedOrNonExistent(rqst.getTxnid(), "check locks");
       locks = txn.getHiveLocks();
+      // Check initially as our locks may have already acquired
+      if (checkMyLocks(locks) == LockState.ACQUIRED) {
+        return new LockResponse(rqst.getTxnid(), LockState.ACQUIRED);
+      }
     } catch (IOException e) {
       throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
     }
+    // The locks haven't acquired yet, but wait a bit before we return and see if we get lucky.
+    // This long polling reduces the network load on the metastore.
     return waitForLocks(locks);
   }
 
@@ -1517,4 +1522,9 @@ public class TransactionManager extends CompactionTxnHandler {
   @VisibleForTesting void forceDeadlockDetector() {
     deadlockDetector.run();
   }
+
+  // Make visible to the unit tests when the lockChecker has finished running so they know when
+  // to check the lock states without sleeps that will certainly go wrong on a busy system.
+  @VisibleForTesting Future<?> waitForLockChecker;
+
 }

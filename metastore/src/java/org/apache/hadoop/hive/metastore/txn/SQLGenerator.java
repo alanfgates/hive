@@ -36,7 +36,7 @@ import java.util.List;
  * todo: why throw MetaException?
  */
 public class SQLGenerator {
-  static final private Logger LOG = LoggerFactory.getLogger(TxnHandler.class.getName());
+  static final private Logger LOG = LoggerFactory.getLogger(SQLGenerator.class.getName());
 
   private final DatabaseProduct dbProduct;
   private final HiveConf conf;
