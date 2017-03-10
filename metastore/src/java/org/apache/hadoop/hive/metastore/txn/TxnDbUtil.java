@@ -230,6 +230,7 @@ public final class TxnDbUtil {
         success &= dropTable(stmt, "COMPLETED_COMPACTIONS", retryCount);
         success &= dropTable(stmt, "AUX_TABLE", retryCount);
         success &= dropTable(stmt, "WRITE_SET", retryCount);
+        success &= dropTable(stmt, "TXN_WAL", retryCount);
       } finally {
         closeResources(conn, stmt, null);
       }

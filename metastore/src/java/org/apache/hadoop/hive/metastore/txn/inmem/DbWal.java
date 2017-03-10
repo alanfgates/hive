@@ -450,7 +450,8 @@ public class DbWal implements WriteAheadLog {
           // get the id and type and a subsequent one to get just the columns the move method
           // cares about.
           try {
-            String sql = "select TW_ID, TW_TYPE, TW_RECORDED_AT, TW_TXNID, TW_COMMIT_ID, " +
+            // Initial select is added by addLimitClause
+            String sql = " TW_ID, TW_TYPE, TW_RECORDED_AT, TW_TXNID, TW_COMMIT_ID, " +
                 "TW_OPEN_TXN_RQST, TW_LOCK_RQST, TW_LOCKS  from TXN_WAL order by TW_ID";
             sql = sqlGenerator.addLimitClause(numRecordsFromWalToDb, sql);
 
@@ -493,17 +494,19 @@ public class DbWal implements WriteAheadLog {
               }
             }
 
-            try (Statement stmt = conn.createStatement()) {
-              StringBuilder buf = new StringBuilder("delete from TXN_WAL where TW_ID in (");
-              boolean first = true;
-              for (long wid : entriesToRemove) {
-                if (first) first = false;
-                else buf.append(", ");
-                buf.append(wid);
+            if (entriesToRemove.size() > 0) {
+              try (Statement stmt = conn.createStatement()) {
+                StringBuilder buf = new StringBuilder("delete from TXN_WAL where TW_ID in (");
+                boolean first = true;
+                for (long wid : entriesToRemove) {
+                  if (first) first = false;
+                  else buf.append(", ");
+                  buf.append(wid);
+                }
+                buf.append(')');
+                if (LOG.isDebugEnabled()) LOG.debug("Going to execute statement " + buf.toString());
+                stmt.execute(buf.toString());
               }
-              buf.append(')');
-              if (LOG.isDebugEnabled()) LOG.debug("Going to execute statement " + buf.toString());
-              stmt.execute(buf.toString());
             }
 
             conn.commit();
