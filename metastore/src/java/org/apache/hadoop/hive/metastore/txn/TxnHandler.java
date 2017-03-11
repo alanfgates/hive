@@ -155,7 +155,7 @@ public abstract class TxnHandler implements TxnStore, TxnStore.MutexAPI {
   
   public enum OpertaionType {
     SELECT('s'), INSERT('i'), UPDATE('u'), DELETE('d');
-    private final char sqlConst;
+    public final char sqlConst;
     OpertaionType(char sqlConst) {
       this.sqlConst = sqlConst;
     }

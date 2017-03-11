@@ -17,10 +17,25 @@
  */
 package org.apache.hadoop.hive.metastore.txn.inmem;
 
+import org.apache.hadoop.hive.metastore.api.LockType;
 import org.apache.hadoop.hive.metastore.api.TxnState;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 abstract class HiveTransaction {
   protected final long txnId;
+  /**
+   * Aborted and Committed transactions keep track of writes they did
+   */
+  protected Map<EntityKey, Set<WriteSetRecordIdentifier>> writeSets;
+  /**
+   * Use an array rathen than a list in order to explicitly control growth.  ArrayList is memory
+   * efficient (only 4 more bytes than an array) and you can control the initial
+   * capacity, but when it grows you loose control of how.
+   */
+  protected HiveLock[] hiveLocks;
 
   protected HiveTransaction(long txnId) {
     this.txnId = txnId;
@@ -28,10 +43,25 @@ abstract class HiveTransaction {
 
   abstract TxnState getState();
 
-  abstract void addLocks(HiveLock[] locks);
-
   long getTxnId() {
     return txnId;
+  }
+
+  Map<EntityKey, Set<WriteSetRecordIdentifier>> getWriteSets() {
+    return writeSets;
+  }
+
+  /**
+   * Only for use during recovery.  This will add entities back into the writeSets.
+   * @param entityKey entity to add.
+   */
+  void addWriteSet(EntityKey entityKey) {
+    if (writeSets == null) writeSets = new HashMap<>();
+    writeSets.put(entityKey, null);
+  }
+
+  HiveLock[] getHiveLocks() {
+    return hiveLocks;
   }
 
   @Override
@@ -46,4 +76,14 @@ abstract class HiveTransaction {
     return (int)txnId;
   }
 
+  protected void buildWriteSets() {
+    if (hiveLocks != null) {
+      writeSets = new HashMap<>(hiveLocks.length);
+      for (HiveLock lock : hiveLocks) {
+        if (lock.getType() == LockType.SHARED_WRITE) {
+          writeSets.put(lock.getEntityLocked(), null);
+        }
+      }
+    }
+  }
 }

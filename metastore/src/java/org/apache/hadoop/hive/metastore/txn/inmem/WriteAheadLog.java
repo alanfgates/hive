@@ -36,7 +36,7 @@ interface WriteAheadLog {
 
   enum EntryType {
     // DON'T EVER REARRANGE THESE!  WE'RE STORING THE ORDINAL VALUES IN THE DATABASE.
-    OPEN_TXN, ABORT_TXN, COMMIT_TXN, REQUEST_LOCKS, ACQUIRE_LOCKS, FORGET_LOCKS, FORGET_TXN;
+    OPEN_TXN, ABORT_TXN, COMMIT_TXN, REQUEST_LOCKS, ACQUIRE_LOCKS, FORGET_TXN;
 
     private static EntryType[] vals = values();
 
@@ -86,14 +86,6 @@ interface WriteAheadLog {
    * the WAL until the future.get() returns.
    */
   Future<Integer> queueLockAcquisition(List<HiveLock> acquiredLocks);
-
-  /**
-   * Delete locks from the database.
-   * @param locksToForget locks that we're done with and can be removed
-   * @return future with a count of inserted record.  Write is not guaranteed to be in
-   * the WAL until the future.get() returns.
-   */
-  Future<Integer> queueForgetLocks(List<HiveLock> locksToForget);
 
   /**
    * Delete a transaction from the database.

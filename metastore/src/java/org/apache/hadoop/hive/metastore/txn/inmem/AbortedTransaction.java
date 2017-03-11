@@ -17,15 +17,10 @@
  */
 package org.apache.hadoop.hive.metastore.txn.inmem;
 
-import org.apache.hadoop.hive.metastore.api.LockType;
+import org.apache.hadoop.hive.metastore.api.LockState;
 import org.apache.hadoop.hive.metastore.api.TxnState;
 
-import java.util.HashMap;
-import java.util.Map;
-
 class AbortedTransaction extends HiveTransaction {
-
-  private Map<EntityKey, HiveLock> compactableLocks;
 
   /**
    * Constructor for normal operations where an open transaction is being aborted.
@@ -33,7 +28,7 @@ class AbortedTransaction extends HiveTransaction {
    */
   AbortedTransaction(OpenTransaction openTxn) {
     super(openTxn.getTxnId());
-    compactLockArray(openTxn.getHiveLocks());
+    buildWriteSets();
   }
 
   AbortedTransaction(long txnId) {
@@ -46,43 +41,20 @@ class AbortedTransaction extends HiveTransaction {
   }
 
   /**
-   * This should only ever be called when recovering an aborted transaction.  In general you
-   * can't add new locks to an aborted transaction.
-   * @param locks locks to put in the transaction.
-   */
-  @Override
-  void addLocks(HiveLock[] locks) {
-    compactLockArray(locks);
-  }
-
-  /**
-   * Note that a dtp a lock is associated with has been compacted, so we can forget about the lock
-   * @param key dtp lock is associated with
-   */
-  HiveLock compactLock(EntityKey key) {
-    return compactableLocks.remove(key);
-  }
-
-  /**
    * Determine whether all dtps written to by an aborted transaction have been compacted.
    * @return true if all have been compacted, false otherwise.
    */
   boolean fullyCompacted() {
-    return compactableLocks.size() == 0;
+    return writeSets.size() == 0;
   }
 
-  Map<EntityKey, HiveLock> getCompactableLocks() {
-    return compactableLocks;
+  /**
+   * Remove an entry from the WriteSets.  This is done once we've compacted the entity and we no
+   * longer need to remember it.
+   * @param entityKey entity to remove from the write set
+   */
+  void clearWriteSet(EntityKey entityKey) {
+    writeSets.remove(entityKey);
   }
 
-  private void compactLockArray(HiveLock[] locks) {
-    compactableLocks = new HashMap<>();
-    if (locks != null) {
-      for (HiveLock lock : locks) {
-        if (lock.getType() == LockType.SHARED_WRITE) {
-          compactableLocks.put(lock.getEntityLocked(), lock);
-        }
-      }
-    }
-  }
 }

@@ -1929,10 +1929,6 @@ public class HiveConf extends Configuration {
         "60s", new TimeValidator(TimeUnit.SECONDS),
         "How often to run the lock queue shrinker thread (finds lock queues that are empty and " +
         "removes them)"),
-    TXNMGR_INMEM_COMMITTED_TXN_CLEANER_THREAD_PERIOD("hive.txnmgr.inmem.committedtxncleaner.period",
-        "5s", new TimeValidator(TimeUnit.SECONDS),
-        "How often to run the committed transaction cleaner thread (finds committed transactions " +
-        "that we no longer need to keep in memory)"),
     TXNMGR_INMEM_TXN_TIMEOUT_THREAD_PERIOD("hive.txnmgr.inmem.txntimeout.period",
         "1s", new TimeValidator(TimeUnit.SECONDS),
         "How often to run the transaction timeout thread (finds transactions that have timed out" +
@@ -1955,6 +1951,9 @@ public class HiveConf extends Configuration {
         "Number of records to move from the WAL to tables in a single transaction"),
     TXNMGR_INMEM_WAL_RECOVERY_TXN_SIZE("hive.txnmgr.inmem.wal.recovery.txn.size", 10000,
         "Number of records to move from the WAL to tables in a single transaction during recovery"),
+    TXNMGR_INMEM_WRITE_SET_RETRIEVER_IMPL("hive.txnmgr.inmem.write.set.retriever.impl",
+        "org.apache.hadoop.hive.metastore.txn.inmem.TransactionManager.DummyWriteSetRetriever",
+        "Class to use to retrieve WriteSets from the storage."),
 
     MERGE_CARDINALITY_VIOLATION_CHECK("hive.merge.cardinality.check", true,
       "Set to true to ensure that each SQL Merge statement ensures that for each row in the target\n" +

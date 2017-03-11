@@ -31,6 +31,7 @@ class CommittedTransaction extends HiveTransaction {
   CommittedTransaction(OpenTransaction openTxn, long commitId) {
     super(openTxn.getTxnId());
     this.commitId = commitId;
+    buildWriteSets();
   }
 
   /**
@@ -43,7 +44,6 @@ class CommittedTransaction extends HiveTransaction {
     this.commitId = commitId;
   }
 
-
   @Override
   TxnState getState() {
     return TxnState.COMMITTED;
@@ -51,10 +51,5 @@ class CommittedTransaction extends HiveTransaction {
 
   long getCommitId() {
     return commitId;
-  }
-
-  @Override
-  void addLocks(HiveLock[] locks) {
-    throw new UnsupportedOperationException("You can't add locks to a committed transaction!");
   }
 }

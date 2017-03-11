@@ -66,7 +66,7 @@ public class TestTransactionManager {
   @After
   public void after() throws Exception {
     // Take down the transaction manager so we have a clean slate for the next test.
-    txnManager.selfDestruct();
+    txnManager.selfDestruct("just testing");
     TxnDbUtil.cleanDb();
   }
 
@@ -96,7 +96,8 @@ public class TestTransactionManager {
     Assert.assertEquals(0, txnManager.copyOpenTxns().size());
     // No shared write locks, so this transaction will be forgotten
     Assert.assertEquals(0, txnManager.copyAbortedTxns().size());
-    Assert.assertEquals(0, txnManager.copyCommittedTxns().size());
+    Assert.assertEquals(0, txnManager.copyCommittedTxnsByTxnId().size());
+    Assert.assertEquals(0, txnManager.copyCommittedTxnsByCommitId().size());
   }
 
   @Test
@@ -109,7 +110,8 @@ public class TestTransactionManager {
     Assert.assertEquals(0, txnManager.copyOpenTxns().size());
     Assert.assertEquals(0, txnManager.copyAbortedTxns().size());
     // There were no shared write locks, so this transaction should be forgotten
-    Assert.assertEquals(0, txnManager.copyCommittedTxns().size());
+    Assert.assertEquals(0, txnManager.copyCommittedTxnsByTxnId().size());
+    Assert.assertEquals(0, txnManager.copyCommittedTxnsByCommitId().size());
   }
 
   @Test
@@ -129,10 +131,11 @@ public class TestTransactionManager {
 
     txnManager.commitTxn(new CommitTxnRequest(txnId));
 
-    Assert.assertEquals(0, txnManager.copyLockQueues().get(new EntityKey("db", "t", null)).queue.size());
+    Assert.assertEquals(0, txnManager.copyLockQueues().get(new EntityKey("db", "t", null)).size());
 
     // This was a shared read lock, so it should have been dropped
-    Assert.assertEquals(0, txnManager.copyCommittedTxns().size());
+    Assert.assertEquals(0, txnManager.copyCommittedTxnsByCommitId().size());
+    Assert.assertEquals(0, txnManager.copyCommittedTxnsByTxnId().size());
 
     txnManager.forceQueueShrinker();
     Assert.assertEquals(0, txnManager.copyLockQueues().size());
@@ -150,7 +153,7 @@ public class TestTransactionManager {
 
     txnManager.abortTxn(new AbortTxnRequest(txnId));
 
-    Assert.assertEquals(0, txnManager.copyLockQueues().get(new EntityKey("db", "t", null)).queue.size());
+    Assert.assertEquals(0, txnManager.copyLockQueues().get(new EntityKey("db", "t", null)).size());
 
     Assert.assertEquals(0, txnManager.copyAbortedTxns().size());
   }
@@ -172,10 +175,10 @@ public class TestTransactionManager {
 
     txnManager.commitTxn(new CommitTxnRequest(txnId));
 
-    Assert.assertEquals(0, txnManager.copyLockQueues().get(new EntityKey("db", "t", null)).queue.size());
-    Assert.assertEquals(txnId, txnManager.copyLockQueues().get(new EntityKey("db", "t", null)).maxCommitId);
+    Assert.assertEquals(0, txnManager.copyLockQueues().get(new EntityKey("db", "t", null)).size());
 
-    Assert.assertEquals(1, txnManager.copyCommittedTxns().size());
+    Assert.assertEquals(1, txnManager.copyCommittedTxnsByCommitId().size());
+    Assert.assertEquals(1, txnManager.copyCommittedTxnsByTxnId().size());
   }
 
   @Test
@@ -191,7 +194,7 @@ public class TestTransactionManager {
 
     txnManager.abortTxn(new AbortTxnRequest(txnId));
 
-    Assert.assertEquals(0, txnManager.copyLockQueues().get(new EntityKey("db", "t", null)).queue.size());
+    Assert.assertEquals(0, txnManager.copyLockQueues().get(new EntityKey("db", "t", null)).size());
 
     Assert.assertEquals(1, txnManager.copyAbortedTxns().size());
 
@@ -452,7 +455,7 @@ public class TestTransactionManager {
 
     txnManager.markCompacted(new CompactionInfo("db", "t", null, CompactionType.MAJOR));
 
-    txnManager.forceAbortedTxnForgetter();
+    txnManager.forceTxnForgetter();
     txnManager.forceQueueShrinker();
     Assert.assertEquals(0, txnManager.copyAbortedTxns().size());
     Assert.assertEquals(0, txnManager.copyAbortedWrites().size());

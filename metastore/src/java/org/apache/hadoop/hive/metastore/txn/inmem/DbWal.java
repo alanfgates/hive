@@ -281,41 +281,6 @@ public class DbWal implements WriteAheadLog {
   }
 
   @Override
-  public Future<Integer> queueForgetLocks(final List<HiveLock> locksToForget) {
-    FutureTask<Integer> result = new FutureTask<>(new Callable<Integer>() {
-      @Override
-      public Integer call() throws Exception {
-        try (Connection conn = connPool.getConnection()) {
-          // Set auto-commit to on as we'll just be inserting one row, hopefully very quickly.
-          conn.setAutoCommit(true);
-          conn.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
-
-          String sql = "insert into TXN_WAL (TW_ID, TW_TYPE, TW_RECORDED_AT, TW_LOCKS)" +
-              " values (?, ?, ?, ?)";
-
-          if (LOG.isDebugEnabled()) LOG.debug("Going to prepare statement " + sql);
-
-          try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            long thisWalId = nextWalId++;
-            stmt.setLong(1, thisWalId);
-            stmt.setInt(2, EntryType.FORGET_LOCKS.ordinal());
-            long now = sqlGenerator.getDbTime(conn);
-            stmt.setLong(3, now);
-            stmt.setBytes(4, serialize(locksToForget));
-            if (LOG.isDebugEnabled()) {
-              LOG.debug("Executing prepared statement with values: " + thisWalId + ", " +
-                  EntryType.FORGET_LOCKS + ", " + now + ", <binary>");
-            }
-            return stmt.executeUpdate();
-          }
-        }
-      }
-    });
-    writeQueue.add(result);
-    return result;
-  }
-
-  @Override
   public Future<Integer> queueForgetTransactions(final List<? extends HiveTransaction> txns) {
     // Rather than serialize transactions, we add a record for each transaction.  This avoids
     // need to serialize a list of transactions
@@ -526,9 +491,6 @@ public class DbWal implements WriteAheadLog {
                   case ACQUIRE_LOCKS:
                     moveAcquireLocks(conn, recordedAt, rs);
                     break;
-                  case FORGET_LOCKS:
-                    moveForgetLocks(conn, rs);
-                    break;
                   case FORGET_TXN:
                     moveForgetTxn(conn, rs);
                     break;
@@ -562,8 +524,7 @@ public class DbWal implements WriteAheadLog {
           }
         }
       } catch (Throwable t) {
-        LOG.error("Caught exception in wal to table mover thread", t);
-        txnMgr.selfDestruct();
+        throw txnMgr.selfDestruct("Caught exception in wal to table mover thread", t);
       }
       LOG.debug("walToTableMover run completed");
     }
@@ -603,23 +564,10 @@ public class DbWal implements WriteAheadLog {
         if (LOG.isDebugEnabled()) LOG.debug("Going to execute statement " + buf.toString());
         stmt.executeUpdate(buf.toString());
 
-        // Move any shared write locks to aborted/released
-        buf = new StringBuilder("update HIVE_LOCKS set hl_lock_state = ")
-            .append(SQLGenerator.quoteChar(TxnHandler.LOCK_ABORTED))
-            .append(" where hl_txnid = ")
-            .append(txnId)
-            .append(" and hl_lock_type = ")
-            .append(SQLGenerator.quoteChar(TxnHandler.LOCK_SEMI_SHARED));
-        if (LOG.isDebugEnabled()) LOG.debug("Going to execute statement " + buf.toString());
-        stmt.executeUpdate(buf.toString());
-
-        // Delete any other locks
-        buf = new StringBuilder("delete from HIVE_LOCKS where hl_txnid = ")
-            .append(txnId)
-            .append(" and hl_lock_type <> ")
-            .append(SQLGenerator.quoteChar(TxnHandler.LOCK_SEMI_SHARED));
-        if (LOG.isDebugEnabled()) LOG.debug("Going to execute statement " + buf.toString());
-        stmt.executeUpdate(buf.toString());
+        // Delete locks
+        String sql = "delete from HIVE_LOCKS where hl_txnid = " + txnId;
+        if (LOG.isDebugEnabled()) LOG.debug("Going to execute statement " + sql);
+        stmt.executeUpdate(sql);
       }
     }
 
@@ -628,47 +576,40 @@ public class DbWal implements WriteAheadLog {
       long txnId = rs.getLong(TW_TXNID_POS);
       long commitId = rs.getLong(TW_COMMIT_ID_POS);
 
-      // Set the transaction to aborted/committed
+      // Delete the transaction, we don't need to track it in the TXNS table anymore
       try (Statement stmt = conn.createStatement()) {
-        StringBuilder buf = new StringBuilder("update TXNS set txn_state = ")
-            .append(SQLGenerator.quoteChar(TxnHandler.TXN_COMMITTED))
-            .append(", txn_committed_id = ")
-            .append(commitId)
-            .append(" where txn_id = ")
-            .append(txnId);
+        String sql = "delete from TXNS where txn_id = " + txnId;
 
-        if (LOG.isDebugEnabled()) LOG.debug("Going to execute statement " + buf.toString());
-        stmt.executeUpdate(buf.toString());
+        if (LOG.isDebugEnabled()) LOG.debug("Going to execute statement " + sql);
+        stmt.executeUpdate(sql);
 
-        // Move any shared write locks to aborted/released
-        buf = new StringBuilder("update HIVE_LOCKS set hl_lock_state = ")
-            .append(SQLGenerator.quoteChar(TxnHandler.LOCK_RELEASED))
-            .append(" where hl_txnid = ")
-            .append(txnId)
-            .append(" and hl_lock_type = ")
-            .append(SQLGenerator.quoteChar(TxnHandler.LOCK_SEMI_SHARED));
-        if (LOG.isDebugEnabled()) LOG.debug("Going to execute statement " + buf.toString());
-        stmt.executeUpdate(buf.toString());
+        // Delete any locks
+        sql = "delete from HIVE_LOCKS where hl_txnid = " + txnId;
+        if (LOG.isDebugEnabled()) LOG.debug("Going to execute statement " + sql);
+        stmt.executeUpdate(sql);
 
-        // Delete any other locks
-        buf = new StringBuilder("delete from HIVE_LOCKS where hl_txnid = ")
-            .append(txnId)
-            .append(" and hl_lock_type <> ")
-            .append(SQLGenerator.quoteChar(TxnHandler.LOCK_SEMI_SHARED));
-        if (LOG.isDebugEnabled()) LOG.debug("Going to execute statement " + buf.toString());
-        stmt.executeUpdate(buf.toString());
+        // Add entries to the write set table
+        sql = "insert into WRITE_SET (ws_database, ws_table, ws_partition, ws_txnid, " +
+            "ws_commit_id, ws_operation_type) " +
+            "select distinct tc_database, tc_table, tc_partition, tc_txnid, " + commitId +
+            ", tc_operation_type " +
+            "from TXN_COMPONENTS where tc_txnid=" + txnId + " and tc_operation_type IN(" +
+            SQLGenerator.quoteChar(TxnHandler.OpertaionType.UPDATE.sqlConst) + "," +
+            SQLGenerator.quoteChar(TxnHandler.OpertaionType.DELETE.sqlConst) + ")";
+        LOG.debug("Going to execute insert <" + sql + ">");
+        stmt.executeUpdate(sql);
 
         // Move TXN_COMPONENTS entries to COMPLETED_TXN_COMPONENTS
-        String s = "insert into COMPLETED_TXN_COMPONENTS select tc_txnid, tc_database, tc_table, " +
+        sql = "insert into COMPLETED_TXN_COMPONENTS select tc_txnid, tc_database, tc_table, " +
             "tc_partition from TXN_COMPONENTS where tc_txnid = " + txnId;
-        LOG.debug("Going to execute insert <" + s + ">");
-        stmt.executeUpdate(s);
-        s = "delete from TXN_COMPONENTS where tc_txnid = " + txnId;
-        LOG.debug("Going to execute delete <" + s + ">");
-        stmt.executeUpdate(s);
+        LOG.debug("Going to execute insert <" + sql + ">");
+        stmt.executeUpdate(sql);
 
-        // I don't put entries in the WRITE_SET table because we don't need that table anymore.
-        // That is answered from memory by tracking the committed transactions.
+        sql = "delete from TXN_COMPONENTS where tc_txnid = " + txnId;
+        LOG.debug("Going to execute delete <" + sql + ">");
+        stmt.executeUpdate(sql);
+
+
       }
     }
 

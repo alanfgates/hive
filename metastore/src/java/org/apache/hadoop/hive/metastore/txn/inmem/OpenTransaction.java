@@ -25,34 +25,22 @@ class OpenTransaction extends HiveTransaction {
 
   private long lastHeartbeat;
 
-  // I chose an array over a list so that I could explicitly control growth.  ArrayList is memory
-  // efficient (only 4 more bytes than an array I believe) and you can control the initial
-  // capacity, but when it grows you loose control of how.
-  private HiveLock[] hiveLocks;
-
   OpenTransaction(long txnId) {
     super(txnId);
     lastHeartbeat = System.currentTimeMillis();
   }
-
-  // TODO constructor for recovering from db
-
 
   @Override
   TxnState getState() {
     return TxnState.OPEN;
   }
 
-  public long getLastHeartbeat() {
+  long getLastHeartbeat() {
     return lastHeartbeat;
   }
 
-  public void setLastHeartbeat(long lastHeartbeat) {
+  void setLastHeartbeat(long lastHeartbeat) {
     this.lastHeartbeat = lastHeartbeat;
-  }
-
-  HiveLock[] getHiveLocks() {
-    return hiveLocks;
   }
 
   /**
@@ -61,7 +49,6 @@ class OpenTransaction extends HiveTransaction {
    *                 array, so don't plan to do anything else with it.  All your locks are belong to
    *                 us.
    */
-  @Override
   void addLocks(HiveLock[] newLocks) {
     if (hiveLocks == null) {
       hiveLocks = newLocks;
@@ -71,4 +58,5 @@ class OpenTransaction extends HiveTransaction {
       System.arraycopy(newLocks, 0, hiveLocks, origSize, newLocks.length);
     }
   }
+
 }

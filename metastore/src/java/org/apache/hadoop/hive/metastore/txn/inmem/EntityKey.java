@@ -18,6 +18,7 @@
 package org.apache.hadoop.hive.metastore.txn.inmem;
 
 import org.apache.hadoop.hive.metastore.api.LockComponent;
+import org.apache.hadoop.hive.metastore.txn.CompactionInfo;
 
 class EntityKey {
   final String db;
@@ -34,6 +35,12 @@ class EntityKey {
     db = lc.getDbname();
     table = lc.isSetTablename() ? lc.getTablename() : null;
     part = lc.isSetPartitionname() ? lc.getPartitionname() : null;
+  }
+
+  EntityKey(CompactionInfo ci) {
+    db = ci.dbname;
+    table = ci.tableName;
+    part = ci.partName;
   }
 
   @Override

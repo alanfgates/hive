@@ -56,11 +56,6 @@ public class NoopWal implements WriteAheadLog {
   }
 
   @Override
-  public Future<Integer> queueForgetLocks(List<HiveLock> locksToForget) {
-    return null;
-  }
-
-  @Override
   public Future<Integer> queueForgetTransactions(List<? extends HiveTransaction> txns) {
     return null;
   }
