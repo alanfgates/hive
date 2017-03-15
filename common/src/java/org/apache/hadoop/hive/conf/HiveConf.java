@@ -1952,7 +1952,7 @@ public class HiveConf extends Configuration {
     TXNMGR_INMEM_WAL_RECOVERY_TXN_SIZE("hive.txnmgr.inmem.wal.recovery.txn.size", 10000,
         "Number of records to move from the WAL to tables in a single transaction during recovery"),
     TXNMGR_INMEM_WRITE_SET_RETRIEVER_IMPL("hive.txnmgr.inmem.write.set.retriever.impl",
-        "org.apache.hadoop.hive.metastore.txn.inmem.TransactionManager.DummyWriteSetRetriever",
+        "org.apache.hadoop.hive.metastore.txn.inmem.TransactionManager$DummyWriteSetRetriever",
         "Class to use to retrieve WriteSets from the storage."),
 
     MERGE_CARDINALITY_VIOLATION_CHECK("hive.merge.cardinality.check", true,

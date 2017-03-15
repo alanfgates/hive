@@ -126,6 +126,9 @@ public class TransactionManager extends CompactionTxnHandler {
     conf = configuration;
   }
 
+  @VisibleForTesting static HiveConf getHiveConf() {
+    return conf;
+  }
   /**
    * Get the transaction manager instance.  In the case where the transaction manager runs into
    * an error and dies this will generate a new one.  So it is best to call this each time rather
@@ -151,10 +154,7 @@ public class TransactionManager extends CompactionTxnHandler {
 
   // This is just a typedef, but I get tired of typing all the generics everywhere
   @VisibleForTesting static class LockQueue extends TreeMap<Long, HiveLock> {
-
   }
-
-  private enum WriteSetCheck { OK, WAIT_FOR_FSREAD, CONFLICT }
 
   // This lock needs to be acquired in write mode only when modifying the structures that store
   // locks and transactions (e.g. opening, aborting, committing txns, adding locks).  To modify
@@ -214,6 +214,7 @@ public class TransactionManager extends CompactionTxnHandler {
   // This is set to true once we've self destructed, since Java doesn't allow delete(this)
   private boolean hesDeadJim;
   private int maxOpenTxns;
+  private Class<? extends WriteSetRetriever> writeSetRetriever;
 
   private TransactionManager() {
     LOG.info("Initializing the TransactionManager...");
@@ -490,220 +491,233 @@ public class TransactionManager extends CompactionTxnHandler {
     throw new UnsupportedOperationException();
   }
 
-  private static class CommitTxnInfo {
-    private final WriteSetCheck check;
-    private final OpenTransaction openTxn;
-
-    public CommitTxnInfo(WriteSetCheck check, OpenTransaction openTxn) {
-      this.check = check;
-      this.openTxn = openTxn;
-    }
-  }
-
+  // TODO handle dynamic partition locks where we'll have both table and partition locks and we
+  // need to not check conflicts on the table level.
   @Override
   public void commitTxn(CommitTxnRequest rqst) throws NoSuchTxnException, TxnAbortedException,
       MetaException {
-    checkAlive();
-    CommitTxnInfo info = commitTxnInternal(rqst);
-    // This strange dance is required because we need to check if there are conflicts while we
-    // hold the write lock (so that others aren't creating new conflicts while we're checking), but
-    // could be required to go to the file system to see what records were updated in a write.
-    // There's no way we want to do that while we hold the write lock.  So if we detect a
-    // potential conflict but we do not yet have the write set information we release the lock
-    // and then go find the records.  However, we could get unlucky and have another potentially
-    // conflicting transaction commit while we're reading, so we have to go check again.
-    switch (info.check) {
-      case OK: return;
-
-      case CONFLICT:
-        abortTxnInternal(info.openTxn);
-        throw new TxnAbortedException("A previous transaction had a write conflict with your transaction");
-
-      case WAIT_FOR_FSREAD:
-        try {
-          waitForWriteSetRecordRead(rqst.getTxnid());
-          commitTxn(rqst);
-        } catch (ExecutionException e) {
-          // This means we failed to read from storage
-          LOG.warn("Failed to read recordIds from storage, aborting transaction " +
-              rqst.getTxnid() + "because we cannot tell if there were conflicts or not.");
-          abortTxnInternal(info.openTxn);
-          throw new TxnAbortedException("We cannot tell if a previous transaction had a write " +
-              "conflict with your transaction");
-        }
-        break;
-
-      default:
-        throw new RuntimeException("Unexpected state " + info.check);
-    }
-  }
-
-  private CommitTxnInfo commitTxnInternal(CommitTxnRequest rqst)
-      throws NoSuchTxnException, TxnAbortedException, MetaException {
-    if (LOG.isDebugEnabled()) {
-      LOG.debug("Committing txn " + rqst.getTxnid());
-    }
-    Future<Integer> waitForWal;
-    try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
-      OpenTransaction txn = openTxns.get(rqst.getTxnid());
-      if (txn == null) throwAbortedOrNonExistent(rqst.getTxnid(), "commit");
-      CommittedTransaction committedTxn = new CommittedTransaction(txn, nextTxnId - 1);
-      WriteSetCheck check = checkForWriteConflicts(committedTxn);
-      if (check != WriteSetCheck.OK) return new CommitTxnInfo(check, txn);
-
-      HiveLock[] locks = txn.getHiveLocks();
-      if (locks != null) {
-        for (HiveLock lock : locks) {
-          lockQueues.get(lock.getEntityLocked()).remove(lock.getLockId());
-          lockQueuesToCheck.add(lock.getEntityLocked());
-        }
-        // Request a lockChecker run since we've released locks.
-        LOG.debug("Requesting lockChecker run");
-        waitForLockChecker = threadPool.submit(lockChecker);
-      }
-
-      openTxns.remove(txn.getTxnId());
-      // We only need to remember the transaction if it had write locks.  If it's read only or
-      // DDL we can forget it.
-      if (committedTxn.getWriteSets() != null) {
-        // There's no need to move the transaction counter ahead
-        waitForWal = wal.queueCommitTxn(committedTxn);
-
-        // We'll need to remember this transaction for a bit
-        committedTxnsByTxnId.put(committedTxn.getTxnId(), committedTxn);
-        committedTxnsByCommitId.put(committedTxn.getCommitId(), committedTxn);
-
-        if (LOG.isDebugEnabled()) {
-          LOG.debug("Created new committed transaction with txn id " + committedTxn.getTxnId());
-        }
-
-        // Add our writes to committedWrites
-        for (EntityKey entityKey : committedTxn.getWriteSets().keySet()) {
-          Set<Long> commits = committedWrites.get(entityKey);
-          if (commits == null) {
-            commits = new TreeSet<>();
-            committedWrites.put(entityKey, commits);
-          }
-          commits.add(committedTxn.getCommitId());
-        }
-      } else {
-        waitForWal = wal.queueForgetTransactions(Collections.singletonList(txn));
-        if (LOG.isDebugEnabled()) {
-          LOG.debug("Forgetting transaction " + txn.getTxnId() +
-              " as it is committed and held no write locks");
-        }
-      }
-    } catch (IOException e) {
-      throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
-    }
     try {
-      waitForWal.get();
-    } catch (InterruptedException|ExecutionException e) {
-      throw selfDestruct("Unable to record transaction commit in the WAL", e);
-    }
-    return new CommitTxnInfo(WriteSetCheck.OK, null);
-  }
+      LOG.debug("Received request to commit transaction " + rqst.getTxnid());
+      // Step 1, figure out if there are any potential conflicts for which we need to go fetch
+      // write sets.  Do this under the read lock.
+      OpenTransaction openTxn;
+      final CommittedTransaction committedTxn;
+      Map<EntityKey, List<Future<CommittedTransaction>>> futurePotentialConflicts = new HashMap<>();
+      Map<EntityKey, Future<CommittedTransaction>> myFuture = new HashMap<>();
+      try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
+        openTxn = openTxns.get(rqst.getTxnid());
+        if (openTxn == null) throwAbortedOrNonExistent(rqst.getTxnid(), "commit");
+        // We need to create the committedTxn so we can generate the writeSets.
+        committedTxn = new CommittedTransaction(openTxn, nextTxnId);
+        if (committedTxn.getWriteSets() != null) {
+          LOG.debug("Our write sets are not null");
+          for (Map.Entry<EntityKey, Set<WriteSetRecordIdentifier>> entry : committedTxn.getWriteSets().entrySet()) {
 
-  // This method assumes you hold the write lock
-  private WriteSetCheck checkForWriteConflicts(CommittedTransaction committedTxn) {
-    for (Map.Entry<EntityKey, Set<WriteSetRecordIdentifier>> entry : committedTxn.getWriteSets().entrySet()) {
-      Set<Long> potentialConflicts = committedWrites.get(entry.getKey());
-      if (potentialConflicts == null) continue;
-      // Now we need to check each potential conflict.  If at any point we discover that we
-      // haven't read the potential conflicts yet, go to the file system and find out.
-      if (entry.getValue() == null) return WriteSetCheck.WAIT_FOR_FSREAD;
-      for (long possibleConflictingCommitId : potentialConflicts) {
-        if (possibleConflictingCommitId > committedTxn.getTxnId() &&
-            possibleConflictingCommitId <= committedTxn.getCommitId()) {
-          // Bingo, this might be a problem
-          // We jump through a number of maps here, assuming all our accesses are non-null.  If
-          // everything is working these should not be null.  We should not be encountering
-          // potential conflicts that we don't have a record of.
-          // This gets the appropriate committed transaction, then gets its writeSet for the
-          // entity we're checking for conflicts on.
-          Set<WriteSetRecordIdentifier> theirRecordIds = committedTxnsByCommitId.get(
-              possibleConflictingCommitId).getWriteSets().get(entry.getKey());
-          if (theirRecordIds == null) {
-            // We have to go read their records
-            return WriteSetCheck.WAIT_FOR_FSREAD;
-          }
-          // We have the information, do the check.  Having this join under the lock is
-          // unfortunate.  We could probably improve this algorithm by doing the join outside the
-          // lock and under the lock just checking that there were no new joins to do.
-          for (WriteSetRecordIdentifier myRecordId : entry.getValue()) {
-            if (theirRecordIds.contains(myRecordId)) return WriteSetCheck.CONFLICT;
+            Set<Long> potentialConflicts = committedWrites.get(entry.getKey());
+            if (potentialConflicts == null) continue;
+            LOG.debug("potential conflicts are not null");
+
+            // Now we need to check each potential conflict.  We do this in parallel in the
+            // background.  It's possible another commit has already fetched these.
+            boolean sawAtLeastOne = false;
+            for (long possibleConflictingCommitId : potentialConflicts) {
+              if (possibleConflictingCommitId > committedTxn.getTxnId() &&
+                  possibleConflictingCommitId <= committedTxn.getCommitId()) {
+                LOG.debug("Found possible conflicting transaction with commit id " +
+                    possibleConflictingCommitId);
+                CommittedTransaction possibleConflict =
+                    committedTxnsByCommitId.get(possibleConflictingCommitId);
+                Set<WriteSetRecordIdentifier> theirRecordIds =
+                    possibleConflict.getWriteSets().get(entry.getKey());
+                if (theirRecordIds == null) {
+                  LOG.debug("Scheduling fetch of records ");
+                  // We have to go read their records
+                  List<Future<CommittedTransaction>> list =
+                      futurePotentialConflicts.get(entry.getKey());
+                  if (list == null) {
+                    list = new ArrayList<>();
+                    futurePotentialConflicts.put(entry.getKey(), list);
+                  }
+                  list.add(scheduleWriteSetRetriever(possibleConflict, entry.getKey()));
+                  sawAtLeastOne = true;
+                }
+              }
+            }
+            // Make sure we only fetch our own if we saw a potential conflict
+            if (entry.getValue() == null && sawAtLeastOne) {
+              LOG.debug("Scheduling fetch of records for our own writeSets");
+              myFuture.put(entry.getKey(), scheduleWriteSetRetriever(committedTxn, entry.getKey()));
+            }
           }
         }
+      } catch (IOException e) {
+        throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
       }
-    }
-    // We made it through without finding a conflict, so we're good.
-    return WriteSetCheck.OK;
-  }
 
-  private void waitForWriteSetRecordRead(long committedTxnId) throws
-      ExecutionException {
-    // Fetch all of the records from storage that we need to resolve these conflicts
-    List<Future<Set<WriteSetRecordIdentifier>>> reads = new ArrayList<>();
-    try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
-      CommittedTransaction committedTxn = committedTxnsByTxnId.get(committedTxnId);
-      for (Map.Entry<EntityKey, Set<WriteSetRecordIdentifier>> entry : committedTxn.getWriteSets().entrySet()) {
-        Set<Long> potentialConflicts = committedWrites.get(entry.getKey());
-        if (potentialConflicts == null) continue;
-
-        // Now we need to check each potential conflict.  If at any point we discover that we
-        // haven't read the potential conflicts yet, go to the file system and find out.
-        if (entry.getValue() == null) {
-          reads.add(scheduleWriteSetRetriever(committedTxn, entry.getKey()));
+      // Step 2, go fetch any write sets, not under the read lock.
+      Map<EntityKey, List<CommittedTransaction>> potentialConflicts =
+          new HashMap<>(futurePotentialConflicts.size());
+      try {
+        for (EntityKey entityKey : myFuture.keySet()) {
+          LOG.debug("Checking for conflicts in " + entityKey);
+          myFuture.get(entityKey).get();
+          for (Future<CommittedTransaction> potentialConflictingTxn : futurePotentialConflicts.get(entityKey)) {
+            List<CommittedTransaction> list = potentialConflicts.get(entityKey);
+            if (list == null) {
+              list = new ArrayList<>();
+              potentialConflicts.put(entityKey, list);
+            }
+            list.add(potentialConflictingTxn.get());
+          }
         }
-        for (long possibleConflictingCommitId : potentialConflicts) {
-          if (possibleConflictingCommitId > committedTxn.getTxnId() &&
-              possibleConflictingCommitId <= committedTxn.getCommitId()) {
-            CommittedTransaction possibleConflict =
-                committedTxnsByCommitId.get(possibleConflictingCommitId);
-            Set<WriteSetRecordIdentifier> theirRecordIds =
-                possibleConflict.getWriteSets().get(entry.getKey());
-            if (theirRecordIds == null) {
-              // We have to go read their records
-              reads.add(scheduleWriteSetRetriever(possibleConflict, entry.getKey()));
+      } catch (InterruptedException e) {
+        throw selfDestruct("Interuppted while reading record ids from storage, guessing this " +
+            "means it is time to die", e);
+      } catch (ExecutionException e) {
+        LOG.warn("Failed to read recordIds from storage, aborting transaction " +
+            rqst.getTxnid() + "because we cannot tell if there were conflicts or not.");
+        abortTxnInternal(openTxn);
+        throw new TxnAbortedException("We cannot tell if a previous transaction had a write " +
+            "conflict with your transaction");
+      }
+
+      // Step 3, do the join of write sets to check for any conflicts.  We do this outside the read
+      // lock.
+      for (EntityKey entityKey : myFuture.keySet()) {
+        Set<WriteSetRecordIdentifier> myIds = committedTxn.getWriteSets().get(entityKey);
+        assert myIds != null;
+        for (CommittedTransaction potential : potentialConflicts.get(entityKey)) {
+          Set<WriteSetRecordIdentifier> theirIds = potential.getWriteSets().get(entityKey);
+          assert theirIds != null;
+          for (WriteSetRecordIdentifier myId : myIds) {
+            if (theirIds.contains(myId)) {
+              // We've found a conflict, we're done.
+              LOG.info("Found that txn " + committedTxn.getTxnId() + " with commitId " +
+                  committedTxn.getCommitId() + " had conflict with transaction " +
+                  potential.getTxnId() + " with commitId " + potential.getCommitId() +
+                  ".  Conflicting record: " + myId);
+              abortTxnInternal(openTxn);
+              throw new TxnAbortedException("A previous transaction had a write conflict with " +
+                  "your transaction");
             }
           }
         }
       }
-    } catch (IOException e) {
-      throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
-    }
 
-    for (Future<Set<WriteSetRecordIdentifier>> read : reads) {
-      try {
-        // This can throw an ExecutionException.  I let that bubble up and just abort the
-        // transaction, being pessimistic on the odds of a conflict.  But that seems better than
-        // calling selfDestruct, since storage is much more likely to return transient errors.
-        read.get();
-      } catch (InterruptedException e) {
-        throw selfDestruct("Interuppted while reading record ids from storage, guessing this means it is " +
-            "time to die", e);
+      // Step 4, get the write lock and actually commit the transaction.  We need to first check that
+      // the transaction is still open.
+      Future<Integer> waitForWal = null;
+      try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
+        // We need to refetch the open transaction to guarantee that it's still open.
+        openTxn = openTxns.get(rqst.getTxnid());
+        if (openTxn == null) throwAbortedOrNonExistent(rqst.getTxnid(), "commit");
+
+        // Check that the commit ID hasn't moved.  If it has, make sure the committing
+        // transaction didn't potentially conflict with this one.  If it did, give up and start over.
+        if (committedTxn.getWriteSets() != null && nextTxnId > committedTxn.getCommitId()) {
+          for (long otherCommitId = committedTxn.getCommitId() + 1; otherCommitId <= nextTxnId;
+               otherCommitId++) {
+            CommittedTransaction other = committedTxnsByCommitId.get(otherCommitId);
+            if (other != null) {
+              for (EntityKey entityKey : committedTxn.getWriteSets().keySet()) {
+                if (other.getWriteSets().get(entityKey) != null) {
+                  // Bummer, give up and start over
+                  LOG.debug("CommitId moved while we checked conflicts and a commit done since then" +
+                      " looks like it might conflict, so starting commit process over");
+                  throw new RetryException();
+                }
+              }
+            }
+          }
+        }
+
+        HiveLock[] locks = openTxn.getHiveLocks();
+        if (locks != null) {
+          for (HiveLock lock : locks) {
+            lockQueues.get(lock.getEntityLocked()).remove(lock.getLockId());
+            lockQueuesToCheck.add(lock.getEntityLocked());
+          }
+          // Request a lockChecker run since we've released locks.
+          LOG.debug("Requesting lockChecker run");
+          waitForLockChecker = threadPool.submit(lockChecker);
+        }
+
+        openTxns.remove(rqst.getTxnid());
+        // We only need to remember the transaction if it had write locks.  If it's read only or
+        // DDL we can forget it.
+        if (committedTxn.getWriteSets() != null) {
+          // There's no need to move the transaction counter ahead
+          waitForWal = wal.queueCommitTxn(committedTxn);
+
+          // We'll need to remember this transaction for a bit
+          committedTxnsByTxnId.put(rqst.getTxnid(), committedTxn);
+          committedTxnsByCommitId.put(committedTxn.getCommitId(), committedTxn);
+
+          if (LOG.isDebugEnabled()) {
+            LOG.debug("Created new committed transaction with txn id " + rqst.getTxnid() +
+                " and commitId " + committedTxn.getCommitId());
+          }
+
+          // Add our writes to committedWrites
+          for (EntityKey entityKey : committedTxn.getWriteSets().keySet()) {
+            Set<Long> commits = committedWrites.get(entityKey);
+            if (commits == null) {
+              commits = new TreeSet<>();
+              committedWrites.put(entityKey, commits);
+            }
+            commits.add(committedTxn.getCommitId());
+          }
+        } else {
+          waitForWal = wal.queueForgetTransactions(Collections.singletonList(openTxn));
+          if (LOG.isDebugEnabled()) {
+            LOG.debug("Forgetting transaction " + rqst.getTxnid() +
+                " as it is committed and held no write locks");
+          }
+        }
+      } catch (IOException e) {
+        throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
       }
+      try {
+        if (waitForWal != null) waitForWal.get();
+      } catch (InterruptedException | ExecutionException e) {
+        throw selfDestruct("Unable to record transaction commit in the WAL", e);
+      }
+    } catch (RetryException e) {
+      // This means we had to unwind it and try again
+      commitTxn(rqst);
     }
-
   }
 
-  private Future<Set<WriteSetRecordIdentifier>>
-  scheduleWriteSetRetriever(CommittedTransaction committedTxn, EntityKey entityKey) {
-    String className = conf.getVar(HiveConf.ConfVars.TXNMGR_INMEM_WRITE_SET_RETRIEVER_IMPL);
+  private Future<CommittedTransaction>
+  scheduleWriteSetRetriever(final CommittedTransaction committedTxn, final EntityKey entityKey) {
     try {
-      Class<?> clazz = Class.forName(className);
-      final WriteSetRetriever retriever = (WriteSetRetriever)clazz.newInstance();
+      if (writeSetRetriever == null) {
+        String className = conf.getVar(HiveConf.ConfVars.TXNMGR_INMEM_WRITE_SET_RETRIEVER_IMPL);
+        writeSetRetriever = (Class<? extends WriteSetRetriever>)Class.forName(className);
+
+      }
+      final WriteSetRetriever retriever = writeSetRetriever.newInstance();
       retriever.setEntityKey(entityKey);
       retriever.setTxnId(committedTxn.getTxnId());
-      return threadPool.submit(new Callable<Set<WriteSetRecordIdentifier>>() {
+      return threadPool.submit(new Callable<CommittedTransaction>() {
         @Override
-        public Set<WriteSetRecordIdentifier> call() throws Exception {
+        public CommittedTransaction call() throws Exception {
           retriever.readRecordIds();
-          return retriever.getRecordIds();
+          committedTxn.getWriteSets().put(entityKey, retriever.getRecordIds());
+          return committedTxn;
         }
       });
     } catch (ClassNotFoundException|IllegalAccessException|InstantiationException e) {
+      String className = conf.getVar(HiveConf.ConfVars.TXNMGR_INMEM_WRITE_SET_RETRIEVER_IMPL);
       throw selfDestruct("Unable to instantiate WriteSetRetriever " + className, e);
+    }
+  }
+
+  static class DummyWriteSetRetriever extends WriteSetRetriever {
+    @Override
+    public void readRecordIds() throws IOException {
+      recordIds = new HashSet<>();
+
     }
   }
 
@@ -982,7 +996,7 @@ public class TransactionManager extends CompactionTxnHandler {
     try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
       // Add the locks to the appropriate transaction so that we know what things to compact and
       // so we know what partitions were touched by this change.  Don't put the locks in the dtps
-      // because we're actually covered by the table lock.  Do increment the counters in the dtps.
+      // because we're actually covered by the table lock.
       OpenTransaction txn = openTxns.get(rqst.getTxnid());
       if (txn == null) {
         throwAbortedOrNonExistent(rqst.getTxnid(), "add dynamic partitions");
@@ -1128,7 +1142,7 @@ public class TransactionManager extends CompactionTxnHandler {
   // critical ones be O(n) rather than forcing things in the critical path to be O(ln(n)) so
   // these can be O(1).
   private long findMinOpenTxn() {
-    long minOpenTxn = nextTxnId - 1;
+    long minOpenTxn = nextTxnId;
     for (Long txnId : openTxns.keySet()) {
       minOpenTxn = Math.min(txnId, minOpenTxn);
     }
@@ -1358,7 +1372,7 @@ public class TransactionManager extends CompactionTxnHandler {
 
       if (keys != null) {
         List<HiveLock> acquired = new ArrayList<>();
-        Future<Integer> waitForWal;
+        Future<Integer> waitForWal = null;
         try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
           // Many keys may have been added to the queue, grab them all so we can do this just
           // once.
@@ -1395,15 +1409,17 @@ public class TransactionManager extends CompactionTxnHandler {
               lastLock = lock;
             }
           }
-          waitForWal = wal.queueLockAcquisition(acquired);
+          if (acquired.size() > 0) waitForWal = wal.queueLockAcquisition(acquired);
         } catch (IOException e) {
           throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
         } // Now outside read lock
 
-        try {
-          waitForWal.get();
-        } catch (InterruptedException|ExecutionException e) {
-          throw selfDestruct("Unable to record lock acquisition in the WAL", e);
+        if (waitForWal != null) {
+          try {
+            waitForWal.get();
+          } catch (InterruptedException | ExecutionException e) {
+            throw selfDestruct("Unable to record lock acquisition in the WAL", e);
+          }
         }
 
         // Notify any waiters to go look for their locks
@@ -1605,7 +1621,7 @@ public class TransactionManager extends CompactionTxnHandler {
         }
         minOpenTxn = findMinOpenTxn();
         for (CommittedTransaction committedTxn : committedTxnsByTxnId.values()) {
-          if (committedTxn.getCommitId() < minOpenTxn) {
+          if (committedTxn.getCommitId() <= minOpenTxn) {
             forgettableCommitted.add(committedTxn);
           }
         }
@@ -1613,7 +1629,7 @@ public class TransactionManager extends CompactionTxnHandler {
         throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
       }
 
-      if (forgettableAborted.size() > 0) {
+      if (forgettableAborted.size() > 0 || forgettableCommitted.size() > 0) {
         try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
           for (AbortedTransaction aborted : forgettableAborted) {
             if (LOG.isDebugEnabled()) {
@@ -1645,8 +1661,14 @@ public class TransactionManager extends CompactionTxnHandler {
     }
   };
 
-  // We don't want to expose the internal structures, even for tests to look at.  But they need
-  // some way to see them.  So provide methods that will make point in time copies.
+  //
+  //
+
+  /**
+   * We don't want to expose the internal structures, even for tests to look at.  But they need
+   * some way to see them.  So provide methods that will make point in time copies.
+   * @return copy of open transactions
+   */
   @VisibleForTesting Map<Long, OpenTransaction> copyOpenTxns() {
     return new HashMap<>(openTxns);
   }
@@ -1675,8 +1697,14 @@ public class TransactionManager extends CompactionTxnHandler {
     return new HashMap<>(abortedWrites);
   }
 
-  // When unit testing is set we don't run all the threads in the background.  Give the unit
-  // tests the ability to force run some of the threads
+  @VisibleForTesting Map<EntityKey, Set<Long>> copyCommittedWrites() {
+    return new HashMap<>(committedWrites);
+  }
+
+  /**
+   * When unit testing is set we don't run all the threads in the background.  Give the unit
+   * tests the ability to force run some of the threads
+   */
   @VisibleForTesting void forceTxnForgetter() {
     txnForgetter.run();
   }
@@ -1693,8 +1721,21 @@ public class TransactionManager extends CompactionTxnHandler {
     deadlockDetector.run();
   }
 
-  // Make visible to the unit tests when the lockChecker has finished running so they know when
-  // to check the lock states without sleeps that will certainly go wrong on a busy system.
+  /**
+   * Make visible to the unit tests when the lockChecker has finished running so they know when
+   * to check the lock states without sleeps that will certainly go wrong on a busy system.
+   */
   @VisibleForTesting Future<?> waitForLockChecker;
+
+  /**
+   * A test class that will always return the same single row in record ids, thus (hopefully)
+   * creating a conflict when checking writeSets.
+   */
+  @VisibleForTesting static class AlwaysConflictingRetriever extends WriteSetRetriever {
+    @Override
+    public void readRecordIds() throws IOException {
+      recordIds.add(new WriteSetRecordIdentifier(1, 1, 1));
+    }
+  }
 
 }

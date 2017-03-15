@@ -1934,7 +1934,7 @@ public abstract class TxnHandler implements TxnStore, TxnStore.MutexAPI {
     return previous_timeout;
   }
 
-  protected class RetryException extends Exception {
+  public class RetryException extends Exception {
 
   }
 

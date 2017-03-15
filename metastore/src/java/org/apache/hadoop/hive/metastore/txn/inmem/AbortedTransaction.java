@@ -28,7 +28,7 @@ class AbortedTransaction extends HiveTransaction {
    */
   AbortedTransaction(OpenTransaction openTxn) {
     super(openTxn.getTxnId());
-    buildWriteSets();
+    buildWriteSets(openTxn);
   }
 
   AbortedTransaction(long txnId) {

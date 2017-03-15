@@ -29,21 +29,18 @@ import java.util.concurrent.locks.Lock;
  * until the lock is acquired.  Calling close will release the lock.
  */
 public class LockKeeper implements Closeable {
-  static final private Logger LOG = LoggerFactory.getLogger(TransactionManager.class.getName());
+  static final private Logger LOG = LoggerFactory.getLogger(LockKeeper.class.getName());
 
   private final Lock lock;
 
   public LockKeeper(Lock lock) {
     this.lock = lock;
-    if (LOG.isDebugEnabled()) LOG.debug("Waiting for lock " + lock.getClass().getName());
     this.lock.lock();
-    if (LOG.isDebugEnabled()) LOG.debug("Acquired lock " + lock.getClass().getName());
   }
 
   @Override
   public void close() throws IOException {
     lock.unlock();
-    if (LOG.isDebugEnabled()) LOG.debug("Released lock " + lock.getClass().getName());
     // Note that this will never really throw, but I can't make Java not think it might.
   }
 }

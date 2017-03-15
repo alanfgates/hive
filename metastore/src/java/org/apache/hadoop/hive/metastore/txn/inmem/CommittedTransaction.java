@@ -31,7 +31,7 @@ class CommittedTransaction extends HiveTransaction {
   CommittedTransaction(OpenTransaction openTxn, long commitId) {
     super(openTxn.getTxnId());
     this.commitId = commitId;
-    buildWriteSets();
+    buildWriteSets(openTxn);
   }
 
   /**

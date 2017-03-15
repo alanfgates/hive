@@ -76,11 +76,14 @@ abstract class HiveTransaction {
     return (int)txnId;
   }
 
-  protected void buildWriteSets() {
-    if (hiveLocks != null) {
-      writeSets = new HashMap<>(hiveLocks.length);
-      for (HiveLock lock : hiveLocks) {
+  protected void buildWriteSets(HiveTransaction openTxn) {
+    if (openTxn.hiveLocks != null) {
+      for (HiveLock lock : openTxn.hiveLocks) {
         if (lock.getType() == LockType.SHARED_WRITE) {
+          // Don't create the writeSets until we see at least one shared write
+          if (writeSets == null) {
+            writeSets = new HashMap<>(openTxn.hiveLocks.length);
+          }
           writeSets.put(lock.getEntityLocked(), null);
         }
       }
