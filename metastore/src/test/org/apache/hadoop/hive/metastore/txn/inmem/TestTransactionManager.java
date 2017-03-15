@@ -692,4 +692,6 @@ public class TestTransactionManager {
 
   // TODO Test that deadlock detection works
 
+  // TODO test recovery
+
 }

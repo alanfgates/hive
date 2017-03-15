@@ -55,6 +55,7 @@ import org.apache.hadoop.hive.metastore.txn.TxnHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nonnull;
 import javax.sql.DataSource;
 import java.io.IOException;
 import java.sql.Connection;
@@ -133,7 +134,7 @@ public class TransactionManager extends CompactionTxnHandler {
    * Get the transaction manager instance.  In the case where the transaction manager runs into
    * an error and dies this will generate a new one.  So it is best to call this each time rather
    * than keeping a reference.
-   * @return
+   * @return a reference to the TransactionManager singleton.
    */
   static public TransactionManager get() {
     if (self == null) {
@@ -433,8 +434,7 @@ public class TransactionManager extends CompactionTxnHandler {
     if (LOG.isDebugEnabled()) LOG.debug("Aborting transaction " + rqst.getTxnid());
     OpenTransaction txn;
     try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
-      txn = openTxns.get(rqst.getTxnid());
-      if (txn == null) throwAbortedOrNonExistent(rqst.getTxnid(), "abort");
+      txn = assureTxnOpen(rqst.getTxnid(), "abort");
     } catch (IOException e) {
       throw new RuntimeException("LockKeeper.close doesn't throw, how did this happen?", e);
     }
@@ -505,8 +505,7 @@ public class TransactionManager extends CompactionTxnHandler {
       Map<EntityKey, List<Future<CommittedTransaction>>> futurePotentialConflicts = new HashMap<>();
       Map<EntityKey, Future<CommittedTransaction>> myFuture = new HashMap<>();
       try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
-        openTxn = openTxns.get(rqst.getTxnid());
-        if (openTxn == null) throwAbortedOrNonExistent(rqst.getTxnid(), "commit");
+        openTxn = assureTxnOpen(rqst.getTxnid(), "commit");
         // We need to create the committedTxn so we can generate the writeSets.
         committedTxn = new CommittedTransaction(openTxn, nextTxnId);
         if (committedTxn.getWriteSets() != null) {
@@ -609,8 +608,7 @@ public class TransactionManager extends CompactionTxnHandler {
       Future<Integer> waitForWal = null;
       try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
         // We need to refetch the open transaction to guarantee that it's still open.
-        openTxn = openTxns.get(rqst.getTxnid());
-        if (openTxn == null) throwAbortedOrNonExistent(rqst.getTxnid(), "commit");
+        openTxn = assureTxnOpen(rqst.getTxnid(), "commit");
 
         // Check that the commit ID hasn't moved.  If it has, make sure the committing
         // transaction didn't potentially conflict with this one.  If it did, give up and start over.
@@ -729,8 +727,7 @@ public class TransactionManager extends CompactionTxnHandler {
 
     if (LOG.isDebugEnabled()) LOG.debug("Heartbeating txn " + ids.getTxnid());
     try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
-      OpenTransaction txn = openTxns.get(ids.getTxnid());
-      if (txn == null) throwAbortedOrNonExistent(ids.getTxnid(), "abort");
+      OpenTransaction txn = assureTxnOpen(ids.getTxnid(), "heartbeat");
       txn.setLastHeartbeat(System.currentTimeMillis());
       // Don't write this down to the database.  There's no value.
     } catch (IOException e) {
@@ -765,8 +762,7 @@ public class TransactionManager extends CompactionTxnHandler {
     Future<?> lockCheckerRun;
     Future<Integer> waitForWal;
     try (LockKeeper lk = new LockKeeper(masterLock.writeLock())) {
-      txn = openTxns.get(rqst.getTxnid());
-      if (txn == null) throwAbortedOrNonExistent(rqst.getTxnid(), "obtain lock in");
+      txn = assureTxnOpen(rqst.getTxnid(), "obtain lock in");
 
       for (int i = 0; i < components.size(); i++) {
         EntityKey key = new EntityKey(components.get(i));
@@ -901,8 +897,7 @@ public class TransactionManager extends CompactionTxnHandler {
     // Find the locks associated with this transaction, so we know what to check
     HiveLock[] locks = null;
     try (LockKeeper lk = new LockKeeper(masterLock.readLock())) {
-      OpenTransaction txn = openTxns.get(rqst.getTxnid());
-      if (txn == null) throwAbortedOrNonExistent(rqst.getTxnid(), "check locks");
+      OpenTransaction txn = assureTxnOpen(rqst.getTxnid(), "check locks");
       locks = txn.getHiveLocks();
       // Check initially as our locks may have already acquired
       if (checkMyLocks(locks) == LockState.ACQUIRED) {
@@ -997,10 +992,7 @@ public class TransactionManager extends CompactionTxnHandler {
       // Add the locks to the appropriate transaction so that we know what things to compact and
       // so we know what partitions were touched by this change.  Don't put the locks in the dtps
       // because we're actually covered by the table lock.
-      OpenTransaction txn = openTxns.get(rqst.getTxnid());
-      if (txn == null) {
-        throwAbortedOrNonExistent(rqst.getTxnid(), "add dynamic partitions");
-      }
+      OpenTransaction txn = assureTxnOpen(rqst.getTxnid(), "add dynamic partitions");
 
       List<String> partitionNames = rqst.getPartitionnames();
       HiveLock[] partitionsWrittenTo = new HiveLock[partitionNames.size()];
@@ -1128,12 +1120,16 @@ public class TransactionManager extends CompactionTxnHandler {
     return toClean;
   }
 
-  private void throwAbortedOrNonExistent(long id, String attempedAction)
-      throws TxnAbortedException, NoSuchTxnException {
-    if (abortedTxns.containsKey(id)) {
-      throw new TxnAbortedException("Attempt to " + attempedAction + " aborted transaction " + id);
+  private @Nonnull OpenTransaction assureTxnOpen(long id, String attemptedAction)
+      throws NoSuchTxnException, TxnAbortedException {
+    OpenTransaction txn = openTxns.get(id);
+    if (txn == null) {
+      if (abortedTxns.containsKey(id)) {
+        throw new TxnAbortedException("Attempt to " + attemptedAction + " aborted transaction " + id);
+      }
+      throw new NoSuchTxnException("Attempt to " + attemptedAction + " non-existent transaction" + id);
     }
-    throw new NoSuchTxnException("Attempt to " + attempedAction + " non-existent transaction" + id);
+    return txn;
   }
 
   // This method assumes you are holding the read lock.  We could avoid this by making openTxns a
