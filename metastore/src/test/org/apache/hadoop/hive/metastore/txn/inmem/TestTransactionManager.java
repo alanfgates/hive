@@ -690,7 +690,64 @@ public class TestTransactionManager {
     }
   }
 
-  // TODO Test that deadlock detection works
+  // Test that deadlock detection works
+  @Test
+  public void deadlockDetection() throws MetaException, NoSuchTxnException,
+      TxnAbortedException, NoSuchLockException {
+    OpenTxnsResponse rsp = txnManager.openTxns(new OpenTxnRequest(1, "me", "localhost"));
+    long txnId = rsp.getTxn_ids().get(0);
+    OpenTxnsResponse rsp2 = txnManager.openTxns(new OpenTxnRequest(1, "me", "localhost"));
+    long txnId2 = rsp2.getTxn_ids().get(0);
+    LockComponent lockComponent = new LockComponent(LockType.EXCLUSIVE, LockLevel.TABLE, "db");
+    lockComponent.setTablename("t");
+    LockRequest lockRqst = new LockRequest(Collections.singletonList(lockComponent), "me", "localhost");
+    lockRqst.setTxnid(txnId);
+    LockResponse lockResponse = txnManager.lock(lockRqst);
+    Assert.assertEquals(LockState.ACQUIRED, lockResponse.getState());
+
+    LockComponent lockComponent2 = new LockComponent(LockType.EXCLUSIVE, LockLevel.TABLE, "db");
+    lockComponent2.setTablename("u");
+    LockRequest lockRqst2 = new LockRequest(Collections.singletonList(lockComponent2), "me", "localhost");
+    lockRqst2.setTxnid(txnId2);
+    LockResponse lockResponse2 = txnManager.lock(lockRqst2);
+    LOG.debug("Second lockRequest got back " + lockResponse2);
+    Assert.assertEquals(LockState.ACQUIRED, lockResponse2.getState());
+
+    LockRequest lockRqst3 = new LockRequest(Collections.singletonList(lockComponent2), "me", "localhost");
+    lockRqst3.setTxnid(txnId);
+    LockResponse lockResponse3 = txnManager.lock(lockRqst3);
+    Assert.assertEquals(LockState.WAITING, lockResponse3.getState());
+
+    LockRequest lockRqst4 = new LockRequest(Collections.singletonList(lockComponent), "me", "localhost");
+    lockRqst4.setTxnid(txnId2);
+    LockResponse lockResponse4 = txnManager.lock(lockRqst4);
+    Assert.assertEquals(LockState.WAITING, lockResponse4.getState());
+
+    // Excellent, we're deadlocked
+    txnManager.forceDeadlockDetector();
+
+    // One of the transactions should be aborted.  Which one is not determined.  But it can't be
+    // both.
+    boolean oneAborted = false, twoAborted = false;
+    try {
+      HeartbeatRequest heartbeat = new HeartbeatRequest();
+      heartbeat.setTxnid(txnId);
+      txnManager.heartbeat(heartbeat);
+    } catch (TxnAbortedException|NoSuchTxnException e) {
+      oneAborted = true;
+    }
+    try {
+      HeartbeatRequest heartbeat = new HeartbeatRequest();
+      heartbeat.setTxnid(txnId2);
+      txnManager.heartbeat(heartbeat);
+    } catch (TxnAbortedException|NoSuchTxnException e) {
+      twoAborted = true;
+    }
+
+    Assert.assertTrue("Expected one or two to be aborted, not both, one aborted = " + oneAborted
+        + " twoAborted = " + twoAborted, (oneAborted || twoAborted) && !(oneAborted && twoAborted));
+  }
+
 
   // TODO test recovery
 

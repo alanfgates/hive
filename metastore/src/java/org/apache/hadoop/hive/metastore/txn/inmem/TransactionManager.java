@@ -1463,6 +1463,7 @@ public class TransactionManager extends CompactionTxnHandler {
           // Only check if we have both acquired and waiting locks.  A transaction might be in
           // a cycle without that, but it won't be key to the cycle without it.
           if (sawAcquired && sawWaiting) {
+            LOG.debug("Found a potential deadlock component in transaction " + txn.getTxnId());
             if (lookForDeadlock(txn.getTxnId(), txn, true)) {
               LOG.warn("Detected deadlock, aborting transaction " + txn.getTxnId() +
                   " to resolve it");
@@ -1495,7 +1496,7 @@ public class TransactionManager extends CompactionTxnHandler {
         if (lock.getState() == LockState.WAITING) {
           // We need to look at all of the locks ahead of this lock in it's queue
           for (HiveLock predecessor :
-              lockQueues.get(lock.getEntityLocked()).headMap(lock.getTxnId()).values()) {
+              lockQueues.get(lock.getEntityLocked()).headMap(lock.getLockId()).values()) {
             if (lookForDeadlock(initialTxnId, openTxns.get(predecessor.getTxnId()), false)) {
               return true;
             }
