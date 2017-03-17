@@ -22,6 +22,7 @@ import org.apache.hadoop.hive.metastore.api.AbortTxnRequest;
 import org.apache.hadoop.hive.metastore.api.CheckLockRequest;
 import org.apache.hadoop.hive.metastore.api.CommitTxnRequest;
 import org.apache.hadoop.hive.metastore.api.CompactionType;
+import org.apache.hadoop.hive.metastore.api.DataOperationType;
 import org.apache.hadoop.hive.metastore.api.GetOpenTxnsResponse;
 import org.apache.hadoop.hive.metastore.api.HeartbeatRequest;
 import org.apache.hadoop.hive.metastore.api.LockComponent;
@@ -46,9 +47,11 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -123,6 +126,7 @@ public class TestTransactionManager {
     long txnId = rsp.getTxn_ids().get(0);
     LockComponent lockComponent = new LockComponent(LockType.SHARED_READ, LockLevel.TABLE, "db");
     lockComponent.setTablename("t");
+    lockComponent.setOperationType(DataOperationType.SELECT);
     LockRequest lockRqst = new LockRequest(Collections.singletonList(lockComponent), "me", "localhost");
     lockRqst.setTxnid(txnId);
     LockResponse lockResponse = txnManager.lock(lockRqst);
@@ -150,6 +154,7 @@ public class TestTransactionManager {
     long txnId = rsp.getTxn_ids().get(0);
     LockComponent lockComponent = new LockComponent(LockType.SHARED_READ, LockLevel.TABLE, "db");
     lockComponent.setTablename("t");
+    lockComponent.setOperationType(DataOperationType.SELECT);
     LockRequest lockRqst = new LockRequest(Collections.singletonList(lockComponent), "me", "localhost");
     lockRqst.setTxnid(txnId);
     LockResponse lockResponse = txnManager.lock(lockRqst);
@@ -167,6 +172,7 @@ public class TestTransactionManager {
     long txnId = rsp.getTxn_ids().get(0);
     LockComponent lockComponent = new LockComponent(LockType.SHARED_WRITE, LockLevel.TABLE, "db");
     lockComponent.setTablename("t");
+    lockComponent.setOperationType(DataOperationType.UPDATE);
     LockRequest lockRqst = new LockRequest(Collections.singletonList(lockComponent), "me", "localhost");
     lockRqst.setTxnid(txnId);
     LockResponse lockResponse = txnManager.lock(lockRqst);
@@ -190,6 +196,7 @@ public class TestTransactionManager {
     long txnId = rsp.getTxn_ids().get(0);
     LockComponent lockComponent = new LockComponent(LockType.SHARED_WRITE, LockLevel.TABLE, "db");
     lockComponent.setTablename("t");
+    lockComponent.setOperationType(DataOperationType.UPDATE);
     LockRequest lockRqst = new LockRequest(Collections.singletonList(lockComponent), "me", "localhost");
     lockRqst.setTxnid(txnId);
     LockResponse lockResponse = txnManager.lock(lockRqst);
@@ -211,6 +218,7 @@ public class TestTransactionManager {
     long txnId2 = rsp2.getTxn_ids().get(0);
     LockComponent lockComponent = new LockComponent(LockType.SHARED_READ, LockLevel.TABLE, "db");
     lockComponent.setTablename("t");
+    lockComponent.setOperationType(DataOperationType.SELECT);
     LockRequest lockRqst =
         new LockRequest(Collections.singletonList(lockComponent), "me", "localhost");
     lockRqst.setTxnid(txnId);
@@ -233,6 +241,7 @@ public class TestTransactionManager {
     long txnId2 = rsp2.getTxn_ids().get(0);
     LockComponent lockComponent = new LockComponent(LockType.SHARED_WRITE, LockLevel.TABLE, "db");
     lockComponent.setTablename("t");
+    lockComponent.setOperationType(DataOperationType.UPDATE);
     LockRequest lockRqst =
         new LockRequest(Collections.singletonList(lockComponent), "me", "localhost");
     lockRqst.setTxnid(txnId);
@@ -275,6 +284,7 @@ public class TestTransactionManager {
       long txnId2 = rsp2.getTxn_ids().get(0);
       LockComponent lockComponent = new LockComponent(LockType.SHARED_WRITE, LockLevel.TABLE, "db");
       lockComponent.setTablename("t");
+      lockComponent.setOperationType(DataOperationType.UPDATE);
       LockRequest lockRqst =
           new LockRequest(Collections.singletonList(lockComponent), "me", "localhost");
       lockRqst.setTxnid(txnId);
@@ -323,6 +333,7 @@ public class TestTransactionManager {
       long txnId2 = rsp2.getTxn_ids().get(0);
       LockComponent lockComponent = new LockComponent(LockType.SHARED_WRITE, LockLevel.TABLE, "db");
       lockComponent.setTablename("t");
+      lockComponent.setOperationType(DataOperationType.UPDATE);
       LockRequest lockRqst =
           new LockRequest(Collections.singletonList(lockComponent), "me", "localhost");
       lockRqst.setTxnid(txnId);
@@ -332,6 +343,7 @@ public class TestTransactionManager {
 
       LockComponent lockComponent2 = new LockComponent(LockType.SHARED_WRITE, LockLevel.TABLE, "db");
       lockComponent.setTablename("u");
+      lockComponent.setOperationType(DataOperationType.UPDATE);
       lockRqst = new LockRequest(Collections.singletonList(lockComponent2), "me", "localhost");
       lockRqst.setTxnid(txnId2);
       lockResponse = txnManager.lock(lockRqst);
@@ -367,6 +379,7 @@ public class TestTransactionManager {
       long txnId = rsp.getTxn_ids().get(0);
       LockComponent lockComponent = new LockComponent(LockType.SHARED_WRITE, LockLevel.TABLE, "db");
       lockComponent.setTablename("t");
+      lockComponent.setOperationType(DataOperationType.UPDATE);
       LockRequest lockRqst =
           new LockRequest(Collections.singletonList(lockComponent), "me", "localhost");
       lockRqst.setTxnid(txnId);
@@ -406,6 +419,7 @@ public class TestTransactionManager {
     long txnId2 = rsp2.getTxn_ids().get(0);
     LockComponent lockComponent = new LockComponent(LockType.SHARED_WRITE, LockLevel.TABLE, "db");
     lockComponent.setTablename("t");
+    lockComponent.setOperationType(DataOperationType.UPDATE);
     LockRequest lockRqst =
         new LockRequest(Collections.singletonList(lockComponent), "me", "localhost");
     lockRqst.setTxnid(txnId);
@@ -437,8 +451,10 @@ public class TestTransactionManager {
     long txnId = rsp.getTxn_ids().get(0);
     LockComponent lockComponent = new LockComponent(LockType.EXCLUSIVE, LockLevel.TABLE, "db");
     lockComponent.setTablename("t");
+    lockComponent.setOperationType(DataOperationType.DELETE);
     LockComponent lockComponent2 = new LockComponent(LockType.EXCLUSIVE, LockLevel.TABLE, "db");
     lockComponent2.setTablename("u");
+    lockComponent2.setOperationType(DataOperationType.DELETE);
     LockRequest lockRqst =
         new LockRequest(Collections.singletonList(lockComponent), "me", "localhost");
     lockRqst.setTxnid(txnId);
@@ -491,6 +507,7 @@ public class TestTransactionManager {
     long txnId = rsp.getTxn_ids().get(0);
     LockComponent lockComponent = new LockComponent(LockType.EXCLUSIVE, LockLevel.TABLE, "db");
     lockComponent.setTablename("t");
+    lockComponent.setOperationType(DataOperationType.DELETE);
     LockRequest lockRqst =
         new LockRequest(Collections.singletonList(lockComponent), "me", "localhost");
     lockRqst.setTxnid(txnId);
@@ -502,6 +519,7 @@ public class TestTransactionManager {
     long txnId2 = rsp2.getTxn_ids().get(0);
     LockComponent lockComponent2 = new LockComponent(LockType.SHARED_WRITE, LockLevel.TABLE, "db");
     lockComponent2.setTablename("u");
+    lockComponent2.setOperationType(DataOperationType.UPDATE);
     lockRqst = new LockRequest(Arrays.asList(lockComponent, lockComponent2), "me", "localhost");
     lockRqst.setTxnid(txnId2);
     lockResponse = txnManager.lock(lockRqst);
@@ -516,6 +534,7 @@ public class TestTransactionManager {
     long txnId = rsp.getTxn_ids().get(0);
     LockComponent lockComponent = new LockComponent(LockType.SHARED_READ, LockLevel.TABLE, "db");
     lockComponent.setTablename("t");
+    lockComponent.setOperationType(DataOperationType.SELECT);
     LockRequest lockRqst =
         new LockRequest(Collections.singletonList(lockComponent), "me", "localhost");
     lockRqst.setTxnid(txnId);
@@ -530,6 +549,7 @@ public class TestTransactionManager {
     LockComponent lockComponent3 = new LockComponent(LockType.SHARED_READ, LockLevel.PARTITION, "db");
     lockComponent3.setTablename("t");
     lockComponent3.setPartitionname("p");
+    lockComponent3.setOperationType(DataOperationType.SELECT);
     LockRequest lockRqst3 = new LockRequest(Collections.singletonList(lockComponent3), "me",
         "localhost");
     lockRqst3.setTxnid(txnId3);
@@ -540,6 +560,7 @@ public class TestTransactionManager {
     OpenTxnsResponse rsp2 = txnManager.openTxns(new OpenTxnRequest(1, "me", "localhost"));
     long txnId2 = rsp2.getTxn_ids().get(0);
     LockComponent lockComponent2 = new LockComponent(LockType.EXCLUSIVE, LockLevel.DB, "db");
+    lockComponent.setOperationType(DataOperationType.DELETE);
     LockRequest lockRqst2 = new LockRequest(Collections.singletonList(lockComponent2), "me",
         "localhost");
     lockRqst2.setTxnid(txnId2);
@@ -566,6 +587,7 @@ public class TestTransactionManager {
     long txnId2 = rsp2.getTxn_ids().get(0);
     LockComponent lockComponent = new LockComponent(LockType.EXCLUSIVE, LockLevel.TABLE, "db");
     lockComponent.setTablename("t");
+    lockComponent.setOperationType(DataOperationType.DELETE);
     LockRequest lockRqst = new LockRequest(Collections.singletonList(lockComponent), "me", "localhost");
     lockRqst.setTxnid(txnId);
     LockResponse lockResponse = txnManager.lock(lockRqst);
@@ -574,6 +596,7 @@ public class TestTransactionManager {
 
     lockComponent = new LockComponent(LockType.EXCLUSIVE, LockLevel.TABLE, "db");
     lockComponent.setTablename("u");
+    lockComponent.setOperationType(DataOperationType.DELETE);
     lockRqst = new LockRequest(Collections.singletonList(lockComponent), "me", "localhost");
     lockRqst.setTxnid(txnId2);
     lockResponse = txnManager.lock(lockRqst);
@@ -586,6 +609,7 @@ public class TestTransactionManager {
     long txnId = rsp.getTxn_ids().get(0);
     LockComponent lockComponent = new LockComponent(LockType.SHARED_WRITE, LockLevel.TABLE, "db");
     lockComponent.setTablename("t");
+    lockComponent.setOperationType(DataOperationType.UPDATE);
     LockRequest lockRqst = new LockRequest(Collections.singletonList(lockComponent), "me",
         "localhost");
     lockRqst.setTxnid(txnId);
@@ -611,6 +635,7 @@ public class TestTransactionManager {
     long txnId = rsp.getTxn_ids().get(0);
     LockComponent lockComponent = new LockComponent(LockType.SHARED_WRITE, LockLevel.TABLE, "db");
     lockComponent.setTablename("t");
+    lockComponent.setOperationType(DataOperationType.UPDATE);
     LockRequest lockRqst = new LockRequest(Collections.singletonList(lockComponent), "me",
         "localhost");
     lockRqst.setTxnid(txnId);
@@ -700,6 +725,7 @@ public class TestTransactionManager {
     long txnId2 = rsp2.getTxn_ids().get(0);
     LockComponent lockComponent = new LockComponent(LockType.EXCLUSIVE, LockLevel.TABLE, "db");
     lockComponent.setTablename("t");
+    lockComponent.setOperationType(DataOperationType.DELETE);
     LockRequest lockRqst = new LockRequest(Collections.singletonList(lockComponent), "me", "localhost");
     lockRqst.setTxnid(txnId);
     LockResponse lockResponse = txnManager.lock(lockRqst);
@@ -707,6 +733,7 @@ public class TestTransactionManager {
 
     LockComponent lockComponent2 = new LockComponent(LockType.EXCLUSIVE, LockLevel.TABLE, "db");
     lockComponent2.setTablename("u");
+    lockComponent2.setOperationType(DataOperationType.DELETE);
     LockRequest lockRqst2 = new LockRequest(Collections.singletonList(lockComponent2), "me", "localhost");
     lockRqst2.setTxnid(txnId2);
     LockResponse lockResponse2 = txnManager.lock(lockRqst2);
@@ -750,5 +777,85 @@ public class TestTransactionManager {
 
 
   // TODO test recovery
+  // open txns, aborted txns with writes, committed txns with writes, current locks
+  @Test
+  public void recovery() throws MetaException, NoSuchTxnException, TxnAbortedException {
+    OpenTxnsResponse rsp = txnManager.openTxns(new OpenTxnRequest(1, "me", "localhost"));
+    long txnId = rsp.getTxn_ids().get(0);
+    LockComponent lockComponent = new LockComponent(LockType.SHARED_WRITE, LockLevel.TABLE, "db");
+    lockComponent.setTablename("t");
+    lockComponent.setOperationType(DataOperationType.UPDATE);
+    LockRequest lockRqst = new LockRequest(Collections.singletonList(lockComponent), "me", "localhost");
+    lockRqst.setTxnid(txnId);
+    LockResponse lockResponse = txnManager.lock(lockRqst);
+    Assert.assertEquals(LockState.ACQUIRED, lockResponse.getState());
+
+    txnManager.abortTxn(new AbortTxnRequest(txnId));
+
+    rsp = txnManager.openTxns(new OpenTxnRequest(1, "me", "localhost"));
+    txnId = rsp.getTxn_ids().get(0);
+    lockComponent = new LockComponent(LockType.SHARED_WRITE, LockLevel.TABLE, "db");
+    lockComponent.setTablename("t2");
+    lockComponent.setOperationType(DataOperationType.UPDATE);
+    lockRqst = new LockRequest(Collections.singletonList(lockComponent), "me", "localhost");
+    lockRqst.setTxnid(txnId);
+    lockResponse = txnManager.lock(lockRqst);
+    Assert.assertEquals(LockState.ACQUIRED, lockResponse.getState());
+
+    txnManager.commitTxn(new CommitTxnRequest(txnId));
+
+    rsp = txnManager.openTxns(new OpenTxnRequest(1, "me", "localhost"));
+    txnId = rsp.getTxn_ids().get(0);
+    lockComponent = new LockComponent(LockType.SHARED_READ, LockLevel.TABLE, "db");
+    lockComponent.setTablename("t3");
+    lockComponent.setOperationType(DataOperationType.SELECT);
+    lockRqst = new LockRequest(Collections.singletonList(lockComponent), "me", "localhost");
+    lockRqst.setTxnid(txnId);
+    lockResponse = txnManager.lock(lockRqst);
+    Assert.assertEquals(LockState.ACQUIRED, lockResponse.getState());
+
+    rsp = txnManager.openTxns(new OpenTxnRequest(1, "me", "localhost"));
+    txnId = rsp.getTxn_ids().get(0);
+    lockComponent = new LockComponent(LockType.EXCLUSIVE, LockLevel.DB, "db");
+    lockComponent.setOperationType(DataOperationType.DELETE);
+    lockRqst = new LockRequest(Collections.singletonList(lockComponent), "me", "localhost");
+    lockRqst.setTxnid(txnId);
+    lockResponse = txnManager.lock(lockRqst);
+    Assert.assertEquals(LockState.WAITING, lockResponse.getState());
+
+    // Run the queueShrinker (only the shrinker, not any forgetters) so we match again after startup
+    txnManager.forceQueueShrinker();
+
+    // Get copies of the structures as they are now.
+    Map<Long, OpenTransaction> openTxns = txnManager.copyOpenTxns();
+    Assert.assertEquals(2, openTxns.size());
+    Map<Long, AbortedTransaction> abortedTxns = txnManager.copyAbortedTxns();
+    Assert.assertEquals(1, abortedTxns.size());
+    Map<Long, CommittedTransaction> committedByTxnId = txnManager.copyCommittedTxnsByTxnId();
+    Assert.assertEquals(1, committedByTxnId.size());
+    Map<Long, CommittedTransaction> committedByCommitId = txnManager.copyCommittedTxnsByCommitId();
+    Assert.assertEquals(1, committedByCommitId.size());
+    Map<EntityKey, TransactionManager.LockQueue> lockQueues = txnManager.copyLockQueues();
+    Assert.assertEquals(2, lockQueues.size());
+    Assert.assertEquals(1, lockQueues.get(new EntityKey("db", "t3", null)).size());
+    Map<EntityKey, List<AbortedTransaction>> abortedWrites = txnManager.copyAbortedWrites();
+    Assert.assertEquals(1, abortedWrites.size());
+    Map<EntityKey, Set<Long>> committedWrites = txnManager.copyCommittedWrites();
+    Assert.assertEquals(1, committedWrites.size());
+
+    // Down she goes
+    txnManager.selfDestruct("taking down to test recovery");
+
+    // Back up
+    txnManager = TransactionManager.get();
+
+    Assert.assertEquals(openTxns, txnManager.copyOpenTxns());
+    Assert.assertEquals(abortedTxns, txnManager.copyAbortedTxns());
+    Assert.assertEquals(committedByTxnId, txnManager.copyCommittedTxnsByTxnId());
+    Assert.assertEquals(committedByCommitId, txnManager.copyCommittedTxnsByCommitId());
+    Assert.assertEquals(lockQueues, txnManager.copyLockQueues());
+    Assert.assertEquals(abortedWrites, txnManager.copyAbortedWrites());
+    Assert.assertEquals(committedWrites, txnManager.copyCommittedWrites());
+  }
 
 }

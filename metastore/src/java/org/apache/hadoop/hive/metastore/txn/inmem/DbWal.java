@@ -222,7 +222,9 @@ public class DbWal implements WriteAheadLog {
           String sql = "insert into TXN_WAL (TW_ID, TW_TYPE, TW_RECORDED_AT, TW_LOCK_RQST, " +
               "TW_LOCKS) values (?, ?, ?, ?, ?)";
 
-          if (LOG.isDebugEnabled()) LOG.debug("Going to prepare statement " + sql);
+          if (LOG.isDebugEnabled()) {
+            LOG.debug("Going to prepare statement " + sql);
+          }
 
           try (PreparedStatement stmt = conn.prepareStatement(sql)) {
             long thisWalId = nextWalId++;
@@ -578,14 +580,10 @@ public class DbWal implements WriteAheadLog {
 
       // Delete the transaction, we don't need to track it in the TXNS table anymore
       try (Statement stmt = conn.createStatement()) {
-        String sql = "delete from TXNS where txn_id = " + txnId;
-
-        if (LOG.isDebugEnabled()) LOG.debug("Going to execute statement " + sql);
-        stmt.executeUpdate(sql);
-
-        // Delete any locks
-        sql = "delete from HIVE_LOCKS where hl_txnid = " + txnId;
-        if (LOG.isDebugEnabled()) LOG.debug("Going to execute statement " + sql);
+        // Move TXN_COMPONENTS entries to COMPLETED_TXN_COMPONENTS
+        String sql = "insert into COMPLETED_TXN_COMPONENTS select tc_txnid, tc_database, " +
+            "tc_table, tc_partition from TXN_COMPONENTS where tc_txnid = " + txnId;
+        LOG.debug("Going to execute insert <" + sql + ">");
         stmt.executeUpdate(sql);
 
         // Add entries to the write set table
@@ -597,18 +595,21 @@ public class DbWal implements WriteAheadLog {
             SQLGenerator.quoteChar(TxnHandler.OpertaionType.UPDATE.sqlConst) + "," +
             SQLGenerator.quoteChar(TxnHandler.OpertaionType.DELETE.sqlConst) + ")";
         LOG.debug("Going to execute insert <" + sql + ">");
-        stmt.executeUpdate(sql);
 
-        // Move TXN_COMPONENTS entries to COMPLETED_TXN_COMPONENTS
-        sql = "insert into COMPLETED_TXN_COMPONENTS select tc_txnid, tc_database, tc_table, " +
-            "tc_partition from TXN_COMPONENTS where tc_txnid = " + txnId;
-        LOG.debug("Going to execute insert <" + sql + ">");
         stmt.executeUpdate(sql);
-
         sql = "delete from TXN_COMPONENTS where tc_txnid = " + txnId;
         LOG.debug("Going to execute delete <" + sql + ">");
         stmt.executeUpdate(sql);
 
+        sql = "delete from TXNS where txn_id = " + txnId;
+
+        if (LOG.isDebugEnabled()) LOG.debug("Going to execute statement " + sql);
+        stmt.executeUpdate(sql);
+
+        // Delete any locks
+        sql = "delete from HIVE_LOCKS where hl_txnid = " + txnId;
+        if (LOG.isDebugEnabled()) LOG.debug("Going to execute statement " + sql);
+        stmt.executeUpdate(sql);
 
       }
     }
@@ -663,23 +664,9 @@ public class DbWal implements WriteAheadLog {
 
         // Create entries in the Locks table
         rows = new ArrayList<>();
-        Iterator<HiveLock> locks = newLocks.iterator();
-        for (LockComponent lc : rqst.getComponent()) {
-          assert locks.hasNext();
-          HiveLock newLock = locks.next();
-          if (lc.isSetOperationType() && lc.getOperationType() == DataOperationType.UNSET &&
-              (conf.getBoolVar(HiveConf.ConfVars.HIVE_IN_TEST) || conf.getBoolVar(HiveConf.ConfVars.HIVE_IN_TEZ_TEST))) {
-            //old version of thrift client should have (lc.isSetOperationType() == false) but they do not
-            //If you add a default value to a variable, isSet() for that variable is true regardless of the where the
-            //message was created (for object variables.  It works correctly for boolean vars, e.g. LockComponent.isAcid).
-            //in test mode, upgrades are not tested, so client version and server version of thrift always matches so
-            //we see UNSET here it means something didn't set the appropriate value.
-            throw new IllegalStateException("Bug: operationType=" + lc.getOperationType() + " for component "
-                + lc + " agentInfo=" + rqst.getAgentInfo());
-          }
-          LockType lockType = lc.getType();
+        for (HiveLock lock : newLocks) {
           char lockChar;
-          switch (lockType) {
+          switch (lock.getType()) {
             case EXCLUSIVE:
               lockChar = TxnHandler.LOCK_EXCLUSIVE;
               break;
@@ -692,19 +679,19 @@ public class DbWal implements WriteAheadLog {
             case INTENTION:
               lockChar = TxnHandler.LOCK_INTENTION;
               break;
-            default: throw new RuntimeException("Unknown lock type " + lockType);
+            default: throw new RuntimeException("Unknown lock type " + lock.getType());
           }
           // Always set internal lock id to zero as it's part of the primary key, but we don't
           // need it anymore.
-          rows.add(newLock.getLockId() + ", 0," + rqst.getTxnid() + ", " +
-              SQLGenerator.quoteString(lc.getDbname()) + ", " +
-              SQLGenerator.valueOrNullLiteral(lc.getTablename()) + ", " +
-              SQLGenerator.valueOrNullLiteral(lc.getPartitionname()) + ", " +
+          rows.add(lock.getLockId() + ", 0," + lock.getTxnId() + ", " +
+              SQLGenerator.quoteString(lock.getEntityLocked().getDb()) + ", " +
+              SQLGenerator.valueOrNullLiteral(lock.getEntityLocked().getTable()) + ", " +
+              SQLGenerator.valueOrNullLiteral(lock.getEntityLocked().getPart()) + ", " +
               SQLGenerator.quoteChar(TxnHandler.LOCK_WAITING) + ", " +
               SQLGenerator.quoteChar(lockChar) + ", " + recordedAt + ", " +
               SQLGenerator.valueOrNullLiteral(rqst.getUser()) + ", " +
               SQLGenerator.valueOrNullLiteral(rqst.getHostname()) + ", " +
-              SQLGenerator.valueOrNullLiteral(rqst.getAgentInfo()));// + ")";
+              SQLGenerator.valueOrNullLiteral(rqst.getAgentInfo()));
         }
         queries = sqlGenerator.createInsertValuesStmt(
             "HIVE_LOCKS (hl_lock_ext_id, hl_lock_int_id, hl_txnid, hl_db, " +
@@ -729,41 +716,25 @@ public class DbWal implements WriteAheadLog {
             .append(recordedAt)
             .append(", hl_acquired_at = ")
             .append(recordedAt)
-            .append(", where hl_lock_ext_id in (");
+            .append(" where hl_lock_ext_id in (");
         boolean first = true;
         for (HiveLock acquired : acquiredLocks) {
           if (first) first = false;
           else buf.append(", ");
           buf.append(acquired.getLockId());
         }
+        buf.append(')');
         if (LOG.isDebugEnabled()) LOG.debug("Going to execute update <" + buf.toString() + ">");
-        stmt.executeUpdate(buf.toString());
+        int rc = stmt.executeUpdate(buf.toString());
+        LOG.debug("Updated " + rc + " statements");
       }
-    }
-
-    private void moveForgetLocks(Connection conn, ResultSet rs) throws SQLException,
-        IllegalAccessException, IOException, InstantiationException {
-      LOG.debug("Moving forget locks");
-      List<HiveLock> toBeForgotten = deserialize(HiveLock.class, rs.getBytes(TW_LOCKS_POS));
-      try (Statement stmt = conn.createStatement()) {
-        StringBuilder buf = new StringBuilder("delete from HIVE_LOCKS where hl_lock_ext_id in (");
-        boolean first = true;
-        for (HiveLock lock : toBeForgotten) {
-          if (first) first = false;
-          else buf.append(", ");
-          buf.append(lock.getLockId());
-        }
-        buf.append(")");
-        if (LOG.isDebugEnabled()) LOG.debug("Going to execute delete <" + buf.toString() + ">");
-        stmt.executeUpdate(buf.toString());
-      }
-
     }
 
     private void moveForgetTxn(Connection conn, ResultSet rs) throws SQLException {
       LOG.debug("Moving forget transaction");
       long txnId = rs.getLong(TW_TXNID_POS);
       try (Statement stmt = conn.createStatement()) {
+        // TODO need to forget TXN_COMPONENTS as well I suspect
         // Forget the transaction
         String sql = "delete from TXNS where txn_id = " + txnId;
         LOG.debug("Going to execute delete <" + sql + ">");

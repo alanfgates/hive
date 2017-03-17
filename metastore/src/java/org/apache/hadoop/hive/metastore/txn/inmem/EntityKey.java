@@ -19,11 +19,24 @@ package org.apache.hadoop.hive.metastore.txn.inmem;
 
 import org.apache.hadoop.hive.metastore.api.LockComponent;
 import org.apache.hadoop.hive.metastore.txn.CompactionInfo;
+import org.apache.hadoop.io.BooleanWritable;
+import org.apache.hadoop.io.Writable;
+import org.apache.hadoop.io.WritableUtils;
 
-class EntityKey {
-  final String db;
-  final String table;
-  final String part;
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+
+class EntityKey implements Writable {
+  private String db;    // Can't be final due to writable, but don't ever change this
+  private String table; // Can't be final due to writable, but don't ever change this
+  private String part;  // Can't be final due to writable, but don't ever change this
+
+  /**
+   * Only for use with readFields.
+   */
+  EntityKey() {
+  }
 
   EntityKey(String db, String table, String part) {
     this.db = db;
@@ -41,6 +54,18 @@ class EntityKey {
     db = ci.dbname;
     table = ci.tableName;
     part = ci.partName;
+  }
+
+  String getDb() {
+    return db;
+  }
+
+  String getTable() {
+    return table;
+  }
+
+  String getPart() {
+    return part;
   }
 
   @Override
@@ -81,5 +106,29 @@ class EntityKey {
       }
     }
     return bldr.toString();
+  }
+
+  @Override
+  public void write(DataOutput out) throws IOException {
+    WritableUtils.writeString(out, db);
+    out.writeBoolean(table != null);
+    if (table != null) {
+      WritableUtils.writeString(out, table);
+      out.writeBoolean(part != null);
+      if (part != null) {
+        WritableUtils.writeString(out, part);
+      }
+    }
+  }
+
+  @Override
+  public void readFields(DataInput in) throws IOException {
+    db = WritableUtils.readString(in);
+    if (in.readBoolean()) {
+      table = WritableUtils.readString(in);
+      if (in.readBoolean()) {
+        part = WritableUtils.readString(in);
+      }
+    }
   }
 }

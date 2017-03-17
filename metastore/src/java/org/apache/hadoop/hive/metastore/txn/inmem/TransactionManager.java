@@ -1234,7 +1234,7 @@ public class TransactionManager extends CompactionTxnHandler {
             long lockId = rs.getLong(2);
             EntityKey entityKey = new EntityKey(rs.getString(3), rs.getString(4), rs.getString(5));
             LockType lockType;
-            switch (rs.getString(6).charAt(0)) {
+            switch (rs.getString(7).charAt(0)) {
               case TxnHandler.LOCK_SEMI_SHARED:
                 lockType = LockType.SHARED_WRITE;
                 break;
@@ -1247,19 +1247,31 @@ public class TransactionManager extends CompactionTxnHandler {
               case TxnHandler.LOCK_SHARED:
                 lockType = LockType.SHARED_READ;
                 break;
-              default: throw new RuntimeException("Unknown lock type " + rs.getString(6));
+              default: throw new RuntimeException("Unknown lock type " + rs.getString(7));
             }
 
             HiveLock hiveLock = new HiveLock(lockId, txnId, entityKey, lockType);
             LockQueue queue = getQueue(entityKey);
-            assert rs.getString(5).charAt(0) == TxnHandler.LOCK_WAITING ||
-                rs.getString(5).charAt(0) == TxnHandler.LOCK_ACQUIRED;
+            switch (rs.getString(6).charAt(0)) {
+              case TxnHandler.LOCK_WAITING:
+                hiveLock.setState(LockState.WAITING);
+                break;
+
+              case TxnHandler.LOCK_ACQUIRED:
+                hiveLock.setState(LockState.ACQUIRED);
+                break;
+
+              default:
+                throw new RuntimeException("Unexpected lock state " + rs.getString(6).charAt(0));
+            }
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("Processing recovered entry from locks,  " + hiveLock);
+            }
             getLockList(openTxnLocks, txnId).add(hiveLock);
             queue.put(hiveLock.getLockId(), hiveLock);
           }
 
           // Put each of the locks into their transactions
-          addLocksToTransactions(openTxnLocks, openTxns, "acquired and/or waiting", "open");
           for (Map.Entry<Long, List<HiveLock>> entry : openTxnLocks.entrySet()) {
             OpenTransaction txn = openTxns.get(entry.getKey());
             if (txn == null) {
@@ -1294,7 +1306,7 @@ public class TransactionManager extends CompactionTxnHandler {
 
             while (rs.next()) {
               AbortedTransaction abortedTxn = abortedTxns.get(rs.getLong(1));
-              EntityKey entityKey = new EntityKey(rs.getString(3), rs.getString(4), rs.getString(5));
+              EntityKey entityKey = new EntityKey(rs.getString(2), rs.getString(3), rs.getString(4));
               abortedTxn.addWriteSet(entityKey);
               List<AbortedTransaction> writes = abortedWrites.get(entityKey);
               if (writes == null) {
@@ -1310,10 +1322,12 @@ public class TransactionManager extends CompactionTxnHandler {
           if (LOG.isDebugEnabled()) LOG.debug("Going to execute query " + sql);
           rs = stmt.executeQuery(sql);
           while (rs.next()) {
+            LOG.debug("Found a writeSet");
             long txnId = rs.getLong(1);
             long commitId = rs.getLong(2);
             CommittedTransaction committedTxn = committedTxnsByTxnId.get(txnId);
             if (committedTxn == null) {
+              LOG.debug("Adding to committed txns");
               committedTxn = new CommittedTransaction(txnId, commitId);
               committedTxnsByTxnId.put(txnId, committedTxn);
               committedTxnsByCommitId.put(commitId, committedTxn);
@@ -1344,11 +1358,6 @@ public class TransactionManager extends CompactionTxnHandler {
       map.put(txnId, lockList);
     }
     return lockList;
-  }
-
-  private void addLocksToTransactions(Map<Long, List<HiveLock>> txnLockList,
-                                      Map<Long, ? extends HiveTransaction> transactionMap,
-                                      String lockStates, String txnState) {
   }
 
   private final Runnable lockChecker = new Runnable() {

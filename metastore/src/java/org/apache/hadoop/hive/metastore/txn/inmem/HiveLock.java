@@ -27,10 +27,10 @@ import java.io.DataOutput;
 import java.io.IOException;
 
 class HiveLock implements Writable {
-  private long txnId;  // Can't be final due to Writable, but don't ever change this
-  private long lockId;  // Can't be final due to Writable, but don't ever change this
-  private final EntityKey entityLocked;
-  private final LockType type;
+  private long txnId;             // Can't be final due to Writable, but don't ever change this
+  private long lockId;            // Can't be final due to Writable, but don't ever change this
+  private EntityKey entityLocked; // Can't be final due to Writable, but don't ever change this
+  private LockType type;          // Can't be final due to Writable, but don't ever change this
   private LockState state;
 
   /**
@@ -94,18 +94,28 @@ class HiveLock implements Writable {
     return (int)(txnId * 31 + lockId);
   }
 
-  // This only serializes the transaction id and the lock id.  This means locks deserialized via
-  // readFields will not be valid for general use.  All this is only intended for WAL, which
-  // doesn't need any information beyond the txn id and lock id.
   @Override
-  public void write(DataOutput dataOutput) throws IOException {
-    WritableUtils.writeVLong(dataOutput, txnId);
-    WritableUtils.writeVLong(dataOutput, lockId);
+  public String toString() {
+    return "entityLocked: " + entityLocked + " txnId: " + txnId + " lockId: " + lockId + " type "
+        + type + " state " + state;
   }
 
   @Override
-  public void readFields(DataInput dataInput) throws IOException {
-    txnId = WritableUtils.readVLong(dataInput);
-    lockId = WritableUtils.readVLong(dataInput);
+  public void write(DataOutput out) throws IOException {
+    WritableUtils.writeVLong(out, txnId);
+    WritableUtils.writeVLong(out, lockId);
+    entityLocked.write(out);
+    WritableUtils.writeEnum(out, type);
+    WritableUtils.writeEnum(out, state);
+  }
+
+  @Override
+  public void readFields(DataInput in) throws IOException {
+    txnId = WritableUtils.readVLong(in);
+    lockId = WritableUtils.readVLong(in);
+    entityLocked = new EntityKey();
+    entityLocked.readFields(in);
+    type = WritableUtils.readEnum(in, LockType.class);
+    state = WritableUtils.readEnum(in, LockState.class);
   }
 }
