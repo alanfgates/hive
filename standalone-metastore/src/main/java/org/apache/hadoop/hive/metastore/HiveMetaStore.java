@@ -399,6 +399,13 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       return threadLocalIpAddress.get();
     }
 
+    // Make it possible for tests to check that the right type of PartitionExpressionProxy was
+    // instantiated.
+    @VisibleForTesting
+    PartitionExpressionProxy getExpressionProxy() {
+      return expressionProxy;
+    }
+
     /**
      * Use {@link #getThreadId()} instead.
      * @return thread id
@@ -4649,7 +4656,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         String toReturn = defaultValue;
         try {
           toReturn = MetastoreConf.get(conf, name);
-          if (toReturn == null || toReturn.length() == 0) toReturn = defaultValue;
+          if (toReturn == null) toReturn = defaultValue;
         } catch (RuntimeException e) {
           LOG.error(threadLocalId.get().toString() + ": "
               + "RuntimeException thrown in get_config_value - msg: "
