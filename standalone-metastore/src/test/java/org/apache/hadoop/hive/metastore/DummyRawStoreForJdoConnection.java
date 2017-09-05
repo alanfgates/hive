@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -23,10 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import junit.framework.Assert;
-
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.AggrStats;
 import org.apache.hadoop.hive.metastore.api.ColumnStatistics;
 import org.apache.hadoop.hive.metastore.api.ColumnStatisticsObj;
@@ -65,8 +62,10 @@ import org.apache.hadoop.hive.metastore.api.Type;
 import org.apache.hadoop.hive.metastore.api.UnknownDBException;
 import org.apache.hadoop.hive.metastore.api.UnknownPartitionException;
 import org.apache.hadoop.hive.metastore.api.UnknownTableException;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.partition.spec.PartitionSpecProxy;
 import org.apache.thrift.TException;
+import org.junit.Assert;
 
 /**
  *
@@ -89,7 +88,7 @@ public class DummyRawStoreForJdoConnection implements RawStore {
   @Override
   public void setConf(Configuration arg0) {
     String expected = DummyJdoConnectionUrlHook.newUrl;
-    String actual = arg0.get(HiveConf.ConfVars.METASTORECONNECTURLKEY.varname);
+    String actual = MetastoreConf.getVar(arg0, MetastoreConf.ConfVars.CONNECTURLKEY);
 
     Assert.assertEquals("The expected URL used by JDO to connect to the metastore: " + expected +
         " did not match the actual value when the Raw Store was initialized: " + actual,
