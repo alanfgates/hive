@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -19,7 +19,6 @@
 package org.apache.hadoop.hive.metastore;
 
 import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_DATABASE_NAME;
-import static org.apache.hadoop.hive.metastore.MetaStoreUtils.isIndexTable;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
@@ -49,25 +48,22 @@ import java.security.PrivilegedExceptionAction;
 
 import javax.security.auth.login.LoginException;
 
+import org.apache.hadoop.classification.InterfaceAudience;
+import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.common.ObjectPair;
 import org.apache.hadoop.hive.common.StatsSetupConst;
 import org.apache.hadoop.hive.common.ValidTxnList;
-import org.apache.hadoop.hive.common.auth.HiveAuthUtils;
-import org.apache.hadoop.hive.common.classification.InterfaceAudience;
-import org.apache.hadoop.hive.common.classification.InterfaceAudience.Public;
-import org.apache.hadoop.hive.common.classification.InterfaceStability.Unstable;
-import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
-import org.apache.hadoop.hive.conf.HiveConfUtil;
 import org.apache.hadoop.hive.metastore.api.*;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf.ConfVars;
 import org.apache.hadoop.hive.metastore.partition.spec.PartitionSpecProxy;
 import org.apache.hadoop.hive.metastore.security.HadoopThriftAuthBridge;
 import org.apache.hadoop.hive.metastore.txn.TxnUtils;
 import org.apache.hadoop.hive.metastore.utils.SecurityUtils;
-import org.apache.hadoop.hive.shims.Utils;
+import org.apache.hadoop.hive.metastore.utils.MetaStoreUtils;
+import org.apache.hadoop.hive.metastore.utils.ObjectPair;
+import org.apache.hadoop.hive.metastore.utils.SecurityUtils;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.StringUtils;
 import org.apache.thrift.TApplicationException;
@@ -92,8 +88,8 @@ import com.google.common.collect.Lists;
  * For users who require retry mechanism when the connection between metastore and client is
  * broken, RetryingMetaStoreClient class should be used.
  */
-@Public
-@Unstable
+@InterfaceAudience.Public
+@InterfaceStability.Evolving
 public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   /**
    * Capabilities of the current client. If this client talks to a MetaStore server in a manner
@@ -112,7 +108,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   private boolean isConnected = false;
   private URI metastoreUris[];
   private final HiveMetaHookLoader hookLoader;
-  protected final HiveConf conf;  // Keep a copy of HiveConf so if Session conf changes, we may need to get a new HMS client.
+  protected final Configuration conf;  // Keep a copy of HiveConf so if Session conf changes, we may need to get a new HMS client.
   protected boolean fastpath = false;
   private String tokenStrForm;
   private final boolean localMetaStore;
@@ -130,63 +126,53 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
 
   static final protected Logger LOG = LoggerFactory.getLogger(HiveMetaStoreClient.class);
 
-  public HiveMetaStoreClient(HiveConf conf) throws MetaException {
+  public HiveMetaStoreClient(Configuration conf) throws MetaException {
     this(conf, null, true);
   }
 
-  public HiveMetaStoreClient(HiveConf conf, HiveMetaHookLoader hookLoader) throws MetaException {
+  public HiveMetaStoreClient(Configuration conf, HiveMetaHookLoader hookLoader) throws MetaException {
     this(conf, hookLoader, true);
   }
 
-  public HiveMetaStoreClient(HiveConf conf, HiveMetaHookLoader hookLoader, Boolean allowEmbedded)
+  public HiveMetaStoreClient(Configuration conf, HiveMetaHookLoader hookLoader, Boolean allowEmbedded)
     throws MetaException {
 
     this.hookLoader = hookLoader;
     if (conf == null) {
-      conf = new HiveConf(HiveMetaStoreClient.class);
+      conf = MetastoreConf.newMetastoreConf();
       this.conf = conf;
     } else {
-      this.conf = new HiveConf(conf);
+      this.conf = new Configuration(conf);
     }
-    version = HiveConf.getBoolVar(conf, ConfVars.HIVE_IN_TEST) ? TEST_VERSION : VERSION;
+    version = MetastoreConf.getBoolVar(conf, ConfVars.HIVE_IN_TEST) ? TEST_VERSION : VERSION;
     filterHook = loadFilterHooks();
-    fileMetadataBatchSize = HiveConf.getIntVar(
-        conf, HiveConf.ConfVars.METASTORE_BATCH_RETRIEVE_OBJECTS_MAX);
+    fileMetadataBatchSize = MetastoreConf.getIntVar(
+        conf, ConfVars.BATCH_RETRIEVE_OBJECTS_MAX);
 
-    String msUri = conf.getVar(ConfVars.METASTOREURIS);
-    localMetaStore = HiveConfUtil.isEmbeddedMetaStore(msUri);
+    String msUri = MetastoreConf.getVar(conf, ConfVars.THRIFT_URIS);
+    localMetaStore = MetastoreConf.isEmbeddedMetaStore(msUri);
     if (localMetaStore) {
       if (!allowEmbedded) {
         throw new MetaException("Embedded metastore is not allowed here. Please configure "
-            + ConfVars.METASTOREURIS.varname + "; it is currently set to [" + msUri + "]");
+            + ConfVars.THRIFT_URIS.varname + "; it is currently set to [" + msUri + "]");
       }
       // instantiate the metastore server handler directly instead of connecting
       // through the network
-      if (conf.getBoolVar(ConfVars.METASTORE_FASTPATH)) {
-        client = new HiveMetaStore.HMSHandler("hive client", this.conf, true);
-        fastpath = true;
-      } else {
-        client = HiveMetaStore.newRetryingHMSHandler("hive client", this.conf, true);
-      }
+      client = HiveMetaStore.newRetryingHMSHandler("hive client", this.conf, true);
       isConnected = true;
       snapshotActiveConf();
       return;
-    } else {
-      if (conf.getBoolVar(ConfVars.METASTORE_FASTPATH)) {
-        throw new RuntimeException("You can't set hive.metastore.fastpath to true when you're " +
-            "talking to the thrift metastore service.  You must run the metastore locally.");
-      }
     }
 
     // get the number retries
-    retries = HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORETHRIFTCONNECTIONRETRIES);
-    retryDelaySeconds = conf.getTimeVar(
-        ConfVars.METASTORE_CLIENT_CONNECT_RETRY_DELAY, TimeUnit.SECONDS);
+    retries = MetastoreConf.getIntVar(conf, ConfVars.THRIFT_CONNECTION_RETRIES);
+    retryDelaySeconds = MetastoreConf.getTimeVar(conf,
+        ConfVars.CLIENT_CONNECT_RETRY_DELAY, TimeUnit.SECONDS);
 
     // user wants file store based configuration
-    if (conf.getVar(HiveConf.ConfVars.METASTOREURIS) != null) {
-      String metastoreUrisString[] = conf.getVar(
-          HiveConf.ConfVars.METASTOREURIS).split(",");
+    if (MetastoreConf.getVar(conf, ConfVars.THRIFT_URIS) != null) {
+      String metastoreUrisString[] = MetastoreConf.getVar(conf,
+          ConfVars.THRIFT_URIS).split(",");
       metastoreUris = new URI[metastoreUrisString.length];
       try {
         int i = 0;
@@ -245,7 +231,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
         String delegationTokenStr = getDelegationToken(proxyUser, proxyUser);
         SecurityUtils.setTokenStr(UserGroupInformation.getCurrentUser(), delegationTokenStr,
             delegationTokenPropString);
-        this.conf.setVar(ConfVars.METASTORE_TOKEN_SIGNATURE, delegationTokenPropString);
+        MetastoreConf.setVar(this.conf, ConfVars.TOKEN_SIGNATURE, delegationTokenPropString);
         close();
       } catch (Exception e) {
         LOG.error("Error while setting delegation token for " + proxyUser, e);
@@ -261,26 +247,15 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   }
 
   private MetaStoreFilterHook loadFilterHooks() throws IllegalStateException {
-    Class<? extends MetaStoreFilterHook> authProviderClass = conf.
-        getClass(HiveConf.ConfVars.METASTORE_FILTER_HOOK.varname,
-            DefaultMetaStoreFilterHookImpl.class,
+    Class<? extends MetaStoreFilterHook> authProviderClass = MetastoreConf.
+        getClass(conf, ConfVars.FILTER_HOOK, DefaultMetaStoreFilterHookImpl.class,
             MetaStoreFilterHook.class);
     String msg = "Unable to create instance of " + authProviderClass.getName() + ": ";
     try {
       Constructor<? extends MetaStoreFilterHook> constructor =
           authProviderClass.getConstructor(Configuration.class);
       return constructor.newInstance(conf);
-    } catch (NoSuchMethodException e) {
-      throw new IllegalStateException(msg + e.getMessage(), e);
-    } catch (SecurityException e) {
-      throw new IllegalStateException(msg + e.getMessage(), e);
-    } catch (InstantiationException e) {
-      throw new IllegalStateException(msg + e.getMessage(), e);
-    } catch (IllegalAccessException e) {
-      throw new IllegalStateException(msg + e.getMessage(), e);
-    } catch (IllegalArgumentException e) {
-      throw new IllegalStateException(msg + e.getMessage(), e);
-    } catch (InvocationTargetException e) {
+    } catch (NoSuchMethodException | SecurityException | IllegalAccessException | InstantiationException | IllegalArgumentException | InvocationTargetException e) {
       throw new IllegalStateException(msg + e.getMessage(), e);
     }
   }
@@ -311,7 +286,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   }
 
   @Override
-  public boolean isCompatibleWith(HiveConf conf) {
+  public boolean isCompatibleWith(Configuration conf) {
     // Make a copy of currentMetaVars, there is a race condition that
 	// currentMetaVars might be changed during the execution of the method
     Map<String, String> currentMetaVarsCopy = currentMetaVars;
@@ -319,7 +294,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
       return false; // recreate
     }
     boolean compatible = true;
-    for (ConfVars oneVar : HiveConf.metaVars) {
+    for (ConfVars oneVar : MetastoreConf.metaVars) {
       // Since metaVars are all of different types, use string for comparison
       String oldVar = currentMetaVarsCopy.get(oneVar.varname);
       String newVar = conf.get(oneVar.varname, "");
@@ -335,7 +310,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
 
   @Override
   public void setHiveAddedJars(String addedJars) {
-    HiveConf.setVar(conf, ConfVars.HIVEADDEDJARS, addedJars);
+    MetastoreConf.setVar(conf, ConfVars.ADDED_JARS, addedJars);
   }
 
   @Override
@@ -408,12 +383,12 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   private void open() throws MetaException {
     isConnected = false;
     TTransportException tte = null;
-    boolean useSSL = conf.getBoolVar(ConfVars.HIVE_METASTORE_USE_SSL);
-    boolean useSasl = conf.getBoolVar(ConfVars.METASTORE_USE_THRIFT_SASL);
-    boolean useFramedTransport = conf.getBoolVar(ConfVars.METASTORE_USE_THRIFT_FRAMED_TRANSPORT);
-    boolean useCompactProtocol = conf.getBoolVar(ConfVars.METASTORE_USE_THRIFT_COMPACT_PROTOCOL);
-    int clientSocketTimeout = (int) conf.getTimeVar(
-        ConfVars.METASTORE_CLIENT_SOCKET_TIMEOUT, TimeUnit.MILLISECONDS);
+    boolean useSSL = MetastoreConf.getBoolVar(conf, ConfVars.USE_SSL);
+    boolean useSasl = MetastoreConf.getBoolVar(conf, ConfVars.USE_THRIFT_SASL);
+    boolean useFramedTransport = MetastoreConf.getBoolVar(conf, ConfVars.USE_THRIFT_FRAMED_TRANSPORT);
+    boolean useCompactProtocol = MetastoreConf.getBoolVar(conf, ConfVars.USE_THRIFT_COMPACT_PROTOCOL);
+    int clientSocketTimeout = (int) MetastoreConf.getTimeVar(conf,
+        ConfVars.CLIENT_SOCKET_TIMEOUT, TimeUnit.MILLISECONDS);
 
     for (int attempt = 0; !isConnected && attempt < retries; ++attempt) {
       for (URI store : metastoreUris) {
@@ -422,16 +397,17 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
         try {
           if (useSSL) {
             try {
-              String trustStorePath = conf.getVar(ConfVars.HIVE_METASTORE_SSL_TRUSTSTORE_PATH).trim();
+              String trustStorePath = MetastoreConf.getVar(conf, ConfVars.SSL_TRUSTSTORE_PATH).trim();
               if (trustStorePath.isEmpty()) {
-                throw new IllegalArgumentException(ConfVars.HIVE_METASTORE_SSL_TRUSTSTORE_PATH.varname
+                throw new IllegalArgumentException(ConfVars.SSL_TRUSTSTORE_PATH.varname
                     + " Not configured for SSL connection");
               }
               String trustStorePassword =
                   MetastoreConf.getPassword(conf, MetastoreConf.ConfVars.SSL_TRUSTSTORE_PASSWORD);
 
               // Create an SSL socket and connect
-              transport = HiveAuthUtils.getSSLSocket(store.getHost(), store.getPort(), clientSocketTimeout, trustStorePath, trustStorePassword );
+              transport = SecurityUtils.getSSLSocket(store.getHost(), store.getPort(), clientSocketTimeout,
+                  trustStorePath, trustStorePassword );
               LOG.info("Opened an SSL connection to metastore, current connections: " + connCount.incrementAndGet());
             } catch(IOException e) {
               throw new IllegalArgumentException(e);
@@ -454,7 +430,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
               // this should happen on the map/reduce tasks if the client added the
               // tokens into hadoop's credential store in the front end during job
               // submission.
-              String tokenSig = conf.getVar(ConfVars.METASTORE_TOKEN_SIGNATURE);
+              String tokenSig = MetastoreConf.getVar(conf, ConfVars.TOKEN_SIGNATURE);
               // tokenSig could be null
               tokenStrForm = SecurityUtils.getTokenStrForm(tokenSig);
 
@@ -467,7 +443,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
               } else {
                 LOG.info("HMSC::open(): Could not find delegation token. Creating KERBEROS-based thrift connection.");
                 String principalConfig =
-                    conf.getVar(HiveConf.ConfVars.METASTORE_KERBEROS_PRINCIPAL);
+                    MetastoreConf.getVar(conf, ConfVars.KERBEROS_PRINCIPAL);
                 transport = authBridge.createClientTransport(
                     principalConfig, store.getHost(), "KERBEROS", null,
                     transport, MetaStoreUtils.getMetaStoreSaslProperties(conf, useSSL));
@@ -505,10 +481,10 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
             }
           }
 
-          if (isConnected && !useSasl && conf.getBoolVar(ConfVars.METASTORE_EXECUTE_SET_UGI)){
+          if (isConnected && !useSasl && MetastoreConf.getBoolVar(conf, ConfVars.EXECUTE_SET_UGI)){
             // Call set_ugi, only in unsecure mode.
             try {
-              UserGroupInformation ugi = Utils.getUGI();
+              UserGroupInformation ugi = SecurityUtils.getUGI();
               client.set_ugi(ugi.getUserName(), Arrays.asList(ugi.getGroupNames()));
             } catch (LoginException e) {
               LOG.warn("Failed to do login. set_ugi() is not successful, " +
@@ -549,8 +525,8 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   }
 
   private void snapshotActiveConf() {
-    currentMetaVars = new HashMap<String, String>(HiveConf.metaVars.length);
-    for (ConfVars oneVar : HiveConf.metaVars) {
+    currentMetaVars = new HashMap<>(MetastoreConf.metaVars.length);
+    for (ConfVars oneVar : MetastoreConf.metaVars) {
       currentMetaVars.put(oneVar.varname, conf.get(oneVar.varname, ""));
     }
   }
@@ -599,15 +575,12 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
    * @see org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore.Iface#add_partition(org.apache.hadoop.hive.metastore.api.Partition)
    */
   @Override
-  public Partition add_partition(Partition new_part)
-      throws InvalidObjectException, AlreadyExistsException, MetaException,
-      TException {
+  public Partition add_partition(Partition new_part) throws TException {
     return add_partition(new_part, null);
   }
 
   public Partition add_partition(Partition new_part, EnvironmentContext envContext)
-      throws InvalidObjectException, AlreadyExistsException, MetaException,
-      TException {
+      throws TException {
     Partition p = client.add_partition_with_environment_context(new_part, envContext);
     return fastpath ? p : deepCopy(p);
   }
@@ -621,18 +594,15 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
    * @see org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore.Iface#add_partitions(List)
    */
   @Override
-  public int add_partitions(List<Partition> new_parts)
-      throws InvalidObjectException, AlreadyExistsException, MetaException,
-      TException {
+  public int add_partitions(List<Partition> new_parts) throws TException {
     return client.add_partitions(new_parts);
   }
 
   @Override
   public List<Partition> add_partitions(
-      List<Partition> parts, boolean ifNotExists, boolean needResults)
-      throws InvalidObjectException, AlreadyExistsException, MetaException, TException {
+      List<Partition> parts, boolean ifNotExists, boolean needResults) throws TException {
     if (parts.isEmpty()) {
-      return needResults ? new ArrayList<Partition>() : null;
+      return needResults ? new ArrayList<>() : null;
     }
     Partition part = parts.get(0);
     AddPartitionsRequest req = new AddPartitionsRequest(
@@ -661,14 +631,12 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
    */
   @Override
   public Partition appendPartition(String db_name, String table_name,
-      List<String> part_vals) throws InvalidObjectException,
-      AlreadyExistsException, MetaException, TException {
+      List<String> part_vals) throws TException {
     return appendPartition(db_name, table_name, part_vals, null);
   }
 
   public Partition appendPartition(String db_name, String table_name, List<String> part_vals,
-      EnvironmentContext envContext) throws InvalidObjectException, AlreadyExistsException,
-      MetaException, TException {
+      EnvironmentContext envContext) throws TException {
     Partition p = client.append_partition_with_environment_context(db_name, table_name,
         part_vals, envContext);
     return fastpath ? p : deepCopy(p);
@@ -676,13 +644,12 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
 
   @Override
   public Partition appendPartition(String dbName, String tableName, String partName)
-      throws InvalidObjectException, AlreadyExistsException, MetaException, TException {
+      throws TException {
     return appendPartition(dbName, tableName, partName, null);
   }
 
   public Partition appendPartition(String dbName, String tableName, String partName,
-      EnvironmentContext envContext) throws InvalidObjectException, AlreadyExistsException,
-      MetaException, TException {
+      EnvironmentContext envContext) throws TException {
     Partition p = client.append_partition_by_name_with_environment_context(dbName, tableName,
         partName, envContext);
     return fastpath ? p : deepCopy(p);
@@ -926,7 +893,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   }
 
   private static EnvironmentContext getEnvironmentContextWithIfPurgeSet() {
-    Map<String, String> warehouseOptions = new HashMap<String, String>();
+    Map<String, String> warehouseOptions = new HashMap<>();
     warehouseOptions.put("ifPurge", "TRUE");
     return new EnvironmentContext(warehouseOptions);
   }
@@ -985,7 +952,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
                                         List<ObjectPair<Integer, byte[]>> partExprs, PartitionDropOptions options)
       throws TException {
     RequestPartsSpec rps = new RequestPartsSpec();
-    List<DropPartitionsExpr> exprs = new ArrayList<DropPartitionsExpr>(partExprs.size());
+    List<DropPartitionsExpr> exprs = new ArrayList<>(partExprs.size());
     for (ObjectPair<Integer, byte[]> partExpr : partExprs) {
       DropPartitionsExpr dpe = new DropPartitionsExpr();
       dpe.setExpr(partExpr.getSecond());
@@ -1052,8 +1019,8 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
     //build new environmentContext with ifPurge;
     EnvironmentContext envContext = null;
     if(ifPurge){
-      Map<String, String> warehouseOptions = null;
-      warehouseOptions = new HashMap<String, String>();
+      Map<String, String> warehouseOptions;
+      warehouseOptions = new HashMap<>();
       warehouseOptions.put("ifPurge", "TRUE");
       envContext = new EnvironmentContext(warehouseOptions);
     }
@@ -1112,7 +1079,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
       }
       return;
     }
-    if (isIndexTable(tbl)) {
+    if (MetaStoreUtils.isIndexTable(tbl)) {
       throw new UnsupportedOperationException("Cannot drop index tables");
     }
     HiveMetaHook hook = getHook(tbl);
@@ -1189,7 +1156,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
     Map<String, Type> result = null;
     Map<String, Type> fromClient = client.get_type_all(name);
     if (fromClient != null) {
-      result = new LinkedHashMap<String, Type>();
+      result = new LinkedHashMap<>();
       for (String key : fromClient.keySet()) {
         result.put(key, deepCopy(fromClient.get(key)));
       }
@@ -1312,7 +1279,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
     if (max_parts >= 0) {
       req.setMaxParts(max_parts);
     }
-    PartitionsByExprResult r = null;
+    PartitionsByExprResult r;
     try {
       r = client.get_partitions_by_expr(req);
     } catch (TApplicationException te) {
@@ -1489,7 +1456,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
       sources.put(meta.getDbName() + "." + meta.getTableName(), meta);
       List<String> tables = dbTables.get(meta.getDbName());
       if (tables == null) {
-        dbTables.put(meta.getDbName(), tables = new ArrayList<String>());
+        dbTables.put(meta.getDbName(), tables = new ArrayList<>());
       }
       tables.add(meta.getTableName());
     }
@@ -1809,7 +1776,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
       throws MetaException, TException, UnknownTableException,
       UnknownDBException {
       EnvironmentContext envCxt = null;
-      String addedJars = conf.getVar(ConfVars.HIVEADDEDJARS);
+      String addedJars = MetastoreConf.getVar(conf, ConfVars.ADDED_JARS);
       if(org.apache.commons.lang.StringUtils.isNotBlank(addedJars)) {
          Map<String, String> props = new HashMap<String, String>();
          props.put("hive.added.jars.path", addedJars);
@@ -2104,7 +2071,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   MetaException, TException, IOException {
     //a convenience method that makes the intended owner for the delegation
     //token request the current user
-    String owner = conf.getUser();
+    String owner = SecurityUtils.getUser();
     return getDelegationToken(owner, renewerKerberosPrincipalName);
   }
 
@@ -2493,7 +2460,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
     List<String> colNames, List<String> partNames) throws NoSuchObjectException, MetaException, TException {
     if (colNames.isEmpty() || partNames.isEmpty()) {
       LOG.debug("Columns is empty or partNames is empty : Short-circuiting stats eval on client side.");
-      return new AggrStats(new ArrayList<ColumnStatisticsObj>(),0); // Nothing to aggregate
+      return new AggrStats(new ArrayList<>(),0); // Nothing to aggregate
     }
     PartitionsStatsRequest req = new PartitionsStatsRequest(dbName, tblName, colNames, partNames);
     return client.get_aggr_stats_for(req);
@@ -2612,7 +2579,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   }
 
   @Override
-  public boolean isSameConfObj(HiveConf c) {
+  public boolean isSameConfObj(Configuration c) {
     return conf == c;
   }
 

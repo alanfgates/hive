@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -25,13 +25,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import org.apache.hadoop.hive.common.ObjectPair;
+import org.apache.hadoop.classification.InterfaceAudience;
+import org.apache.hadoop.classification.InterfaceStability;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.ValidTxnList;
-import org.apache.hadoop.hive.common.classification.InterfaceAudience;
-import org.apache.hadoop.hive.common.classification.InterfaceAudience.Public;
-import org.apache.hadoop.hive.common.classification.InterfaceStability.Evolving;
 import org.apache.hadoop.hive.common.classification.RetrySemantics;
-import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.annotation.NoReconnect;
 import org.apache.hadoop.hive.metastore.api.AggrStats;
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException;
@@ -104,20 +102,21 @@ import org.apache.hadoop.hive.metastore.api.UnknownDBException;
 import org.apache.hadoop.hive.metastore.api.UnknownPartitionException;
 import org.apache.hadoop.hive.metastore.api.UnknownTableException;
 import org.apache.hadoop.hive.metastore.partition.spec.PartitionSpecProxy;
+import org.apache.hadoop.hive.metastore.utils.ObjectPair;
 import org.apache.thrift.TException;
 
 /**
  * Wrapper around hive metastore thrift api
  */
-@Public
-@Evolving
+@InterfaceAudience.Public
+@InterfaceStability.Evolving
 public interface IMetaStoreClient {
 
   /**
    * Returns whether current client is compatible with conf argument or not
    * @return
    */
-  boolean isCompatibleWith(HiveConf conf);
+  boolean isCompatibleWith(Configuration conf);
 
   /**
    * Set added jars path info to MetaStoreClient.
@@ -801,8 +800,8 @@ public interface IMetaStoreClient {
                         PartitionDropOptions options) throws TException;
 
   List<Partition> dropPartitions(String dbName, String tblName,
-      List<ObjectPair<Integer, byte[]>> partExprs, boolean deleteData,
-      boolean ifExists) throws NoSuchObjectException, MetaException, TException;
+                                 List<ObjectPair<Integer, byte[]>> partExprs, boolean deleteData,
+                                 boolean ifExists) throws NoSuchObjectException, MetaException, TException;
 
   List<Partition> dropPartitions(String dbName, String tblName,
       List<ObjectPair<Integer, byte[]>> partExprs, boolean deleteData,
@@ -1719,7 +1718,7 @@ public interface IMetaStoreClient {
    */
   void putFileMetadata(List<Long> fileIds, List<ByteBuffer> metadata) throws TException;
 
-  boolean isSameConfObj(HiveConf c);
+  boolean isSameConfObj(Configuration c);
 
   boolean cacheFileMetadata(String dbName, String tableName, String partName,
       boolean allParts) throws TException;

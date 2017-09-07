@@ -39,7 +39,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.common.FileUtils;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
-import org.apache.hadoop.hive.metastore.MetaStoreUtils;
+import org.apache.hadoop.hive.metastore.HiveMetaStoreUtils;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.MetaException;
@@ -48,6 +48,7 @@ import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.SkewedInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
+import org.apache.hadoop.hive.metastore.utils.MetaStoreUtils;
 import org.apache.hadoop.hive.ql.exec.Utilities;
 import org.apache.hadoop.hive.ql.io.HiveFileFormatUtils;
 import org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat;
@@ -267,7 +268,7 @@ public class Table implements Serializable {
   }
 
   final public Class<? extends Deserializer> getDeserializerClass() throws Exception {
-    return MetaStoreUtils.getDeserializerClass(SessionState.getSessionConf(), tTable);
+    return HiveMetaStoreUtils.getDeserializerClass(SessionState.getSessionConf(), tTable);
   }
 
   final public Deserializer getDeserializer(boolean skipConfError) {
@@ -279,7 +280,7 @@ public class Table implements Serializable {
 
   final public Deserializer getDeserializerFromMetaStore(boolean skipConfError) {
     try {
-      return MetaStoreUtils.getDeserializer(SessionState.getSessionConf(), tTable, skipConfError);
+      return HiveMetaStoreUtils.getDeserializer(SessionState.getSessionConf(), tTable, skipConfError);
     } catch (MetaException e) {
       throw new RuntimeException(e);
     }
@@ -639,7 +640,7 @@ public class Table implements Serializable {
           SessionState.getSessionConf(), serializationLib, tTable.getParameters())) {
         return Hive.getFieldsFromDeserializerForMsStorage(this, getDeserializer());
       } else {
-        return MetaStoreUtils.getFieldsFromDeserializer(getTableName(), getDeserializer());
+        return HiveMetaStoreUtils.getFieldsFromDeserializer(getTableName(), getDeserializer());
       }
     } catch (Exception e) {
       LOG.error("Unable to get field from serde: " + serializationLib, e);
