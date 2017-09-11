@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -33,10 +33,11 @@ import org.apache.commons.cli.Option;
 import org.apache.commons.cli.OptionBuilder;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.ObjectStore;
 
 /**
@@ -113,10 +114,10 @@ public class HiveMetaTool {
     cmdLineOptions.addOption(tablePropKey);
   }
 
-  private void initObjectStore(HiveConf hiveConf) {
+  private void initObjectStore(Configuration conf) {
     if (!isObjStoreInitialized) {
       objStore = new ObjectStore();
-      objStore.setConf(hiveConf);
+      objStore.setConf(conf);
       isObjStoreInitialized = true;
     }
   }
@@ -129,8 +130,8 @@ public class HiveMetaTool {
   }
 
   private void listFSRoot() {
-    HiveConf hiveConf = new HiveConf(HiveMetaTool.class);
-    initObjectStore(hiveConf);
+    Configuration conf = MetastoreConf.newMetastoreConf();
+    initObjectStore(conf);
 
     Set<String> hdfsRoots = objStore.listFSRoots();
     if (hdfsRoots != null) {
@@ -145,12 +146,11 @@ public class HiveMetaTool {
   }
 
   private void executeJDOQLSelect(String query) {
-    HiveConf hiveConf = new HiveConf(HiveMetaTool.class);
-    initObjectStore(hiveConf);
+    Configuration conf = MetastoreConf.newMetastoreConf();
+    initObjectStore(conf);
 
     System.out.println("Executing query: " + query);
-    ObjectStore.QueryWrapper queryWrapper = new ObjectStore.QueryWrapper();
-    try {
+    try (ObjectStore.QueryWrapper queryWrapper = new ObjectStore.QueryWrapper()) {
       Collection<?> result = objStore.executeJDOQLSelect(query, queryWrapper);
       if (result != null) {
         Iterator<?> iter = result.iterator();
@@ -160,16 +160,14 @@ public class HiveMetaTool {
         }
       } else {
         System.err.println("Encountered error during executeJDOQLSelect -" +
-          "commit of JDO transaction failed.");
+            "commit of JDO transaction failed.");
       }
-    } finally {
-      queryWrapper.close();
     }
   }
 
-  private long executeJDOQLUpdate(String query) {
-    HiveConf hiveConf = new HiveConf(HiveMetaTool.class);
-    initObjectStore(hiveConf);
+  private void executeJDOQLUpdate(String query) {
+    Configuration conf = MetastoreConf.newMetastoreConf();
+    initObjectStore(conf);
 
     System.out.println("Executing query: " + query);
     long numUpdated = objStore.executeJDOQLUpdate(query);
@@ -179,7 +177,6 @@ public class HiveMetaTool {
       System.err.println("Encountered error during executeJDOQL -" +
         "commit of JDO transaction failed.");
     }
-    return numUpdated;
   }
 
   private int printUpdateLocations(Map<String, String> updateLocations) {
@@ -194,8 +191,8 @@ public class HiveMetaTool {
 
   private void printTblURIUpdateSummary(ObjectStore.UpdateMStorageDescriptorTblURIRetVal retVal,
     boolean isDryRun) {
-    String tblName = new String("SDS");
-    String fieldName = new String("LOCATION");
+    String tblName = "SDS";
+    String fieldName = "LOCATION";
 
     if (retVal == null) {
       System.err.println("Encountered error while executing updateMStorageDescriptorTblURI - " +
@@ -232,8 +229,8 @@ public class HiveMetaTool {
 
   private void printDatabaseURIUpdateSummary(ObjectStore.UpdateMDatabaseURIRetVal retVal,
     boolean isDryRun) {
-    String tblName = new String("DBS");
-    String fieldName = new String("LOCATION_URI");
+    String tblName = "DBS";
+    String fieldName = "LOCATION_URI";
 
     if (retVal == null) {
       System.err.println("Encountered error while executing updateMDatabaseURI - " +
@@ -295,7 +292,7 @@ public class HiveMetaTool {
 
   private void printSerdePropURIUpdateSummary(ObjectStore.UpdateSerdeURIRetVal retVal,
     String serdePropKey, boolean isDryRun) {
-    String tblName = new String("SERDE_PARAMS");
+    String tblName = "SERDE_PARAMS";
 
     if (retVal == null) {
       System.err.println("Encountered error while executing updateSerdeURI - " +
@@ -327,8 +324,8 @@ public class HiveMetaTool {
 
   public void updateFSRootLocation(URI oldURI, URI newURI, String serdePropKey, String
       tablePropKey, boolean isDryRun) {
-    HiveConf hiveConf = new HiveConf(HiveMetaTool.class);
-    initObjectStore(hiveConf);
+    Configuration conf = MetastoreConf.newMetastoreConf();
+    initObjectStore(conf);
 
     System.out.println("Looking for LOCATION_URI field in DBS table to update..");
     ObjectStore.UpdateMDatabaseURIRetVal updateMDBURIRetVal = objStore.updateMDatabaseURI(oldURI,
