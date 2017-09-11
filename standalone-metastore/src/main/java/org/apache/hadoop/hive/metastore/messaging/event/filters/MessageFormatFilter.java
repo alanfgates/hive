@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,23 +17,20 @@
  */
 package org.apache.hadoop.hive.metastore.messaging.event.filters;
 
-import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.NotificationEvent;
 
-public class AndFilter implements IMetaStoreClient.NotificationFilter {
-  final IMetaStoreClient.NotificationFilter[] filters;
+public class MessageFormatFilter extends BasicFilter {
+  private final String format;
 
-  public AndFilter(final IMetaStoreClient.NotificationFilter... filters) {
-    this.filters = filters;
+  public MessageFormatFilter(String format) {
+    this.format = format;
   }
 
   @Override
-  public boolean accept(final NotificationEvent event) {
-    for (IMetaStoreClient.NotificationFilter filter : filters) {
-      if (!filter.accept(event)) {
-        return false;
-      }
+  boolean shouldAccept(final NotificationEvent event) {
+    if (format == null) {
+      return true; // let's say that passing null in will not do any filtering.
     }
-    return true;
+    return format.equalsIgnoreCase(event.getMessageFormat());
   }
 }

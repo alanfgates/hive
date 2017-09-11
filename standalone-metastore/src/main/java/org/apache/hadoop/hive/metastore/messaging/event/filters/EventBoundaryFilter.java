@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,17 +17,18 @@
  */
 package org.apache.hadoop.hive.metastore.messaging.event.filters;
 
-import org.apache.hadoop.hive.metastore.IMetaStoreClient.NotificationFilter;
 import org.apache.hadoop.hive.metastore.api.NotificationEvent;
 
-public abstract class BasicFilter implements NotificationFilter {
-  @Override
-  public boolean accept(final NotificationEvent event) {
-    if (event == null) {
-      return false; // get rid of trivial case first, so that we can safely assume non-null
-    }
-    return shouldAccept(event);
+public class EventBoundaryFilter extends BasicFilter {
+  private final long eventFrom, eventTo;
+
+  public EventBoundaryFilter(final long eventFrom, final long eventTo) {
+    this.eventFrom = eventFrom;
+    this.eventTo = eventTo;
   }
 
-  abstract boolean shouldAccept(final NotificationEvent event);
+  @Override
+  boolean shouldAccept(final NotificationEvent event) {
+    return eventFrom <= event.getEventId() && event.getEventId() <= eventTo;
+  }
 }

@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -18,10 +18,10 @@
  */
 package org.apache.hadoop.hive.metastore.messaging;
 
-import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.NotificationEvent;
 import org.apache.hadoop.hive.metastore.api.NotificationEventsCountRequest;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.messaging.event.filters.DatabaseAndTableFilter;
 import org.apache.thrift.TException;
 
@@ -55,7 +55,7 @@ public class EventUtils {
       if (batchSize == null){
         try {
           batchSize = Integer.parseInt(
-            msc.getConfigValue(HiveConf.ConfVars.METASTORE_BATCH_RETRIEVE_MAX.varname, "50"));
+            msc.getConfigValue(MetastoreConf.ConfVars.BATCH_RETRIEVE_MAX.varname, "50"));
           // TODO: we're asking the metastore what its configuration for this var is - we may
           // want to revisit to pull from client side instead. The reason I have it this way
           // is because the metastore is more likely to have a reasonable config for this than
@@ -152,7 +152,7 @@ public class EventUtils {
       }
 
       if (batch == null){
-        batch = new ArrayList<NotificationEvent>();
+        batch = new ArrayList<>();
         // instantiate empty list so that we don't error out on iterator fetching.
         // If we're here, then the next check of pos will show our caller that
         // that we've exhausted our event supply

@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,20 +17,17 @@
  */
 package org.apache.hadoop.hive.metastore.messaging.event.filters;
 
+import org.apache.hadoop.hive.metastore.IMetaStoreClient.NotificationFilter;
 import org.apache.hadoop.hive.metastore.api.NotificationEvent;
 
-public class MessageFormatFilter extends BasicFilter {
-  private final String format;
-
-  public MessageFormatFilter(String format) {
-    this.format = format;
-  }
-
+public abstract class BasicFilter implements NotificationFilter {
   @Override
-  boolean shouldAccept(final NotificationEvent event) {
-    if (format == null) {
-      return true; // let's say that passing null in will not do any filtering.
+  public boolean accept(final NotificationEvent event) {
+    if (event == null) {
+      return false; // get rid of trivial case first, so that we can safely assume non-null
     }
-    return format.equalsIgnoreCase(event.getMessageFormat());
+    return shouldAccept(event);
   }
+
+  abstract boolean shouldAccept(final NotificationEvent event);
 }
