@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -18,7 +18,7 @@
 
 package org.apache.hadoop.hive.metastore;
 
-import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.Partition;
@@ -26,10 +26,11 @@ import org.apache.hadoop.hive.metastore.api.PartitionSpec;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf.ConfVars;
 import org.apache.hadoop.hive.metastore.partition.spec.CompositePartitionSpecProxy;
 import org.apache.hadoop.hive.metastore.partition.spec.PartitionSpecProxy;
 import org.apache.hadoop.hive.metastore.utils.MetaStoreUtils;
-import org.apache.hadoop.hive.serde2.columnar.LazyBinaryColumnarSerDe;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -51,7 +52,7 @@ public class TestHiveMetaStorePartitionSpecs {
 
   private static final Logger LOG = LoggerFactory.getLogger(TestHiveMetaStorePartitionSpecs.class);
   private static int msPort;
-  private static HiveConf hiveConf;
+  private static Configuration conf;
   private static SecurityManager securityManager;
 
   public static class NoExitSecurityManager extends SecurityManager {
@@ -80,30 +81,25 @@ public class TestHiveMetaStorePartitionSpecs {
     LOG.info("Shutting down metastore.");
     System.setSecurityManager(securityManager);
 
-    HiveMetaStoreClient hmsc = new HiveMetaStoreClient(hiveConf);
+    HiveMetaStoreClient hmsc = new HiveMetaStoreClient(conf);
     hmsc.dropDatabase(dbName, true, true, true);
   }
 
   @BeforeClass
   public static void startMetaStoreServer() throws Exception {
 
-    HiveConf metastoreConf = new HiveConf();
-    metastoreConf.setClass(HiveConf.ConfVars.METASTORE_EXPRESSION_PROXY_CLASS.varname,
+    Configuration metastoreConf = MetastoreConf.newMetastoreConf();
+    MetastoreConf.setClass(metastoreConf, ConfVars.EXPRESSION_PROXY_CLASS,
       MockPartitionExpressionForMetastore.class, PartitionExpressionProxy.class);
     msPort = MetaStoreTestUtils.startMetaStore(metastoreConf);
     securityManager = System.getSecurityManager();
     System.setSecurityManager(new NoExitSecurityManager());
-    hiveConf = new HiveConf(TestHiveMetaStorePartitionSpecs.class);
-    hiveConf.setVar(HiveConf.ConfVars.METASTOREURIS, "thrift://localhost:"
-        + msPort);
-    hiveConf.setIntVar(HiveConf.ConfVars.METASTORETHRIFTCONNECTIONRETRIES, 3);
-    hiveConf.set(HiveConf.ConfVars.PREEXECHOOKS.varname, "");
-    hiveConf.set(HiveConf.ConfVars.POSTEXECHOOKS.varname, "");
-    hiveConf.set(HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY.varname,
-        "false");
-    hiveConf.set(HiveConf.ConfVars.METASTORE_EXPRESSION_PROXY_CLASS.name(), MockPartitionExpressionForMetastore.class.getCanonicalName());
-    System.setProperty(HiveConf.ConfVars.PREEXECHOOKS.varname, " ");
-    System.setProperty(HiveConf.ConfVars.POSTEXECHOOKS.varname, " ");
+    conf = MetastoreConf.newMetastoreConf();
+    MetastoreConf.setVar(conf, ConfVars.THRIFT_URIS, "thrift://localhost:" + msPort);
+    MetastoreConf.setLongVar(conf, ConfVars.THRIFT_CONNECTION_RETRIES, 3);
+    MetastoreConf.setBoolVar(conf, ConfVars.HIVE_SUPPORT_CONCURRENCY, false);
+    MetastoreConf.setClass(conf, ConfVars.EXPRESSION_PROXY_CLASS,
+        MockPartitionExpressionForMetastore.class, PartitionExpressionProxy.class);
   }
 
   private static String dbName = "testpartitionspecs_db";
@@ -114,15 +110,16 @@ public class TestHiveMetaStorePartitionSpecs {
   private static void createTable(HiveMetaStoreClient hmsc, boolean enablePartitionGrouping) throws Exception {
 
 
-    List<FieldSchema> columns = new ArrayList<FieldSchema>();
+    List<FieldSchema> columns = new ArrayList<>();
     columns.add(new FieldSchema("foo", "string", ""));
     columns.add(new FieldSchema("bar", "string", ""));
 
-    List<FieldSchema> partColumns = new ArrayList<FieldSchema>();
+    List<FieldSchema> partColumns = new ArrayList<>();
     partColumns.add(new FieldSchema("dt", "string", ""));
     partColumns.add(new FieldSchema("blurb", "string", ""));
 
-    SerDeInfo serdeInfo = new SerDeInfo("LBCSerDe", LazyBinaryColumnarSerDe.class.getCanonicalName(), new HashMap<String, String>());
+    SerDeInfo serdeInfo = new SerDeInfo("LBCSerDe",
+        "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe", new HashMap<>());
 
     StorageDescriptor storageDescriptor
         = new StorageDescriptor(columns, null,
@@ -130,7 +127,7 @@ public class TestHiveMetaStorePartitionSpecs {
         "org.apache.hadoop.hive.ql.io.RCFileOutputFormat",
         false, 0, serdeInfo, null, null, null);
 
-    Map<String, String> tableParameters = new HashMap<String, String>();
+    Map<String, String> tableParameters = new HashMap<>();
     tableParameters.put("hive.hcatalog.partition.spec.grouping.enabled", enablePartitionGrouping? "true":"false");
     Table table = new Table(tableName, dbName, "", 0, 0, 0, storageDescriptor, partColumns, tableParameters, "", "", "");
 
@@ -178,7 +175,7 @@ public class TestHiveMetaStorePartitionSpecs {
 
   private void testGetPartitionSpecs(boolean enablePartitionGrouping) {
     try {
-      HiveMetaStoreClient hmsc = new HiveMetaStoreClient(hiveConf);
+      HiveMetaStoreClient hmsc = new HiveMetaStoreClient(conf);
       clearAndRecreateDB(hmsc);
       createTable(hmsc, enablePartitionGrouping);
       Table table = hmsc.getTable(dbName, tableName);
@@ -187,9 +184,9 @@ public class TestHiveMetaStorePartitionSpecs {
       PartitionSpecProxy partitionSpecProxy = hmsc.listPartitionSpecs(dbName, tableName, -1);
       Assert.assertEquals( "Unexpected number of partitions.", nDates * 2, partitionSpecProxy.size());
 
-      Map<String, List<String>> locationToDateMap = new HashMap<String, List<String>>();
-      locationToDateMap.put("isLocatedInTablePath",  new ArrayList<String>());
-      locationToDateMap.put("isLocatedOutsideTablePath", new ArrayList<String>());
+      Map<String, List<String>> locationToDateMap = new HashMap<>();
+      locationToDateMap.put("isLocatedInTablePath",  new ArrayList<>());
+      locationToDateMap.put("isLocatedOutsideTablePath", new ArrayList<>());
       PartitionSpecProxy.PartitionIterator iterator = partitionSpecProxy.getPartitionIterator();
 
       while (iterator.hasNext()) {
@@ -197,7 +194,7 @@ public class TestHiveMetaStorePartitionSpecs {
         locationToDateMap.get(partition.getValues().get(1)).add(partition.getValues().get(0));
       }
 
-      List<String> expectedDates = new ArrayList<String>(nDates);
+      List<String> expectedDates = new ArrayList<>(nDates);
       for (int i=0; i<nDates; ++i) {
         expectedDates.add(datePrefix + i);
       }
@@ -245,7 +242,7 @@ public class TestHiveMetaStorePartitionSpecs {
   public void testAddPartitions() {
     try {
       // Create source table.
-      HiveMetaStoreClient hmsc = new HiveMetaStoreClient(hiveConf);
+      HiveMetaStoreClient hmsc = new HiveMetaStoreClient(conf);
       clearAndRecreateDB(hmsc);
       createTable(hmsc, true);
       Table table = hmsc.getTable(dbName, tableName);
@@ -301,7 +298,7 @@ public class TestHiveMetaStorePartitionSpecs {
   public void testFetchingPartitionsWithDifferentSchemas() {
     try {
       // Create source table.
-      HiveMetaStoreClient hmsc = new HiveMetaStoreClient(hiveConf);
+      HiveMetaStoreClient hmsc = new HiveMetaStoreClient(conf);
       clearAndRecreateDB(hmsc);
       createTable(hmsc, true);
       Table table = hmsc.getTable(dbName, tableName);
@@ -345,14 +342,14 @@ public class TestHiveMetaStorePartitionSpecs {
 
       // Categorize the partitions returned, and confirm that all partitions are accounted for.
       PartitionSpecProxy.PartitionIterator iterator = partitionSpecProxy.getPartitionIterator();
-      Map<String, List<Partition>> blurbToPartitionList = new HashMap<String, List<Partition>>(3);
+      Map<String, List<Partition>> blurbToPartitionList = new HashMap<>(3);
       while (iterator.hasNext()) {
 
         Partition partition = iterator.next();
         String blurb = partition.getValues().get(1);
 
         if (!blurbToPartitionList.containsKey(blurb)) {
-          blurbToPartitionList.put(blurb, new ArrayList<Partition>(nDates));
+          blurbToPartitionList.put(blurb, new ArrayList<>(nDates));
         }
 
         blurbToPartitionList.get(blurb).add(partition);

@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -19,8 +19,11 @@
 package org.apache.hadoop.hive.metastore;
 
 import java.security.Permission;
-import org.apache.hadoop.hive.conf.HiveConf;
+
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.api.MetaException;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf.ConfVars;
 import org.apache.hadoop.hive.metastore.utils.MetaStoreUtils;
 import org.apache.thrift.TException;
 import org.junit.After;
@@ -41,7 +44,7 @@ public class TestHiveMetaStoreGetMetaConf {
   public ExpectedException thrown = ExpectedException.none();
 
   private static final Logger LOG = LoggerFactory.getLogger(TestHiveMetaStoreGetMetaConf.class);
-  private static HiveConf hiveConf;
+  private static Configuration conf;
   private static SecurityManager securityManager;
 
   private HiveMetaStoreClient hmsc;
@@ -76,26 +79,20 @@ public class TestHiveMetaStoreGetMetaConf {
 
     securityManager = System.getSecurityManager();
     System.setSecurityManager(new NoExitSecurityManager());
-    HiveConf metastoreConf = new HiveConf();
-    metastoreConf.setClass(HiveConf.ConfVars.METASTORE_EXPRESSION_PROXY_CLASS.varname,
+    Configuration metastoreConf = MetastoreConf.newMetastoreConf();
+    MetastoreConf.setClass(metastoreConf, ConfVars.EXPRESSION_PROXY_CLASS,
       MockPartitionExpressionForMetastore.class, PartitionExpressionProxy.class);
-    metastoreConf.setBoolVar(HiveConf.ConfVars.METASTORE_TRY_DIRECT_SQL_DDL, false);
-    int msPort = MetaStoreTestUtils.startMetaStore(metastoreConf);
-    hiveConf = new HiveConf(TestHiveMetaStoreGetMetaConf.class);
-    hiveConf.setVar(HiveConf.ConfVars.METASTOREURIS, "thrift://localhost:"
-        + msPort);
-    hiveConf.setVar(HiveConf.ConfVars.PREEXECHOOKS, "");
-    hiveConf.setVar(HiveConf.ConfVars.POSTEXECHOOKS, "");
-    hiveConf.setBoolVar(HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY, false);
-    hiveConf.setIntVar(HiveConf.ConfVars.METASTORETHRIFTCONNECTIONRETRIES, 10);
-
-    System.setProperty(HiveConf.ConfVars.PREEXECHOOKS.varname, " ");
-    System.setProperty(HiveConf.ConfVars.POSTEXECHOOKS.varname, " ");
+    MetastoreConf.setBoolVar(metastoreConf, ConfVars.TRY_DIRECT_SQL_DDL, false);
+    int msPort = MetaStoreUtils.startMetaStore(metastoreConf);
+    conf = MetastoreConf.newMetastoreConf();
+    MetastoreConf.setVar(conf, ConfVars.THRIFT_URIS, "thrift://localhost:" + msPort);
+    MetastoreConf.setBoolVar(conf, ConfVars.HIVE_SUPPORT_CONCURRENCY, false);
+    MetastoreConf.setLongVar(conf, ConfVars.THRIFT_CONNECTION_RETRIES, 10);
   }
 
   @Before
   public void setup() throws MetaException {
-    hmsc = new HiveMetaStoreClient(hiveConf);
+    hmsc = new HiveMetaStoreClient(conf);
   }
 
   @After
@@ -106,31 +103,31 @@ public class TestHiveMetaStoreGetMetaConf {
   }
 
   @Test
-  public void testGetMetaConfDefault() throws MetaException, TException {
-    HiveConf.ConfVars metaConfVar = HiveConf.ConfVars.METASTORE_TRY_DIRECT_SQL;
-    String expected = metaConfVar.getDefaultValue();
+  public void testGetMetaConfDefault() throws TException {
+    ConfVars metaConfVar = ConfVars.TRY_DIRECT_SQL;
+    String expected = metaConfVar.defaultVal.toString();
     String actual = hmsc.getMetaConf(metaConfVar.toString());
     assertEquals(expected, actual);
   }
 
   @Test
-  public void testGetMetaConfDefaultEmptyString() throws MetaException, TException {
-    HiveConf.ConfVars metaConfVar = HiveConf.ConfVars.METASTORE_PARTITION_NAME_WHITELIST_PATTERN;
+  public void testGetMetaConfDefaultEmptyString() throws TException {
+    ConfVars metaConfVar = ConfVars.PARTITION_NAME_WHITELIST_PATTERN;
     String expected = "";
     String actual = hmsc.getMetaConf(metaConfVar.toString());
     assertEquals(expected, actual);
   }
 
   @Test
-  public void testGetMetaConfOverridden() throws MetaException, TException {
-    HiveConf.ConfVars metaConfVar = HiveConf.ConfVars.METASTORE_TRY_DIRECT_SQL_DDL;
+  public void testGetMetaConfOverridden() throws TException {
+    ConfVars metaConfVar = ConfVars.TRY_DIRECT_SQL_DDL;
     String expected = "false";
     String actual = hmsc.getMetaConf(metaConfVar.toString());
     assertEquals(expected, actual);
   }
 
   @Test
-  public void testGetMetaConfUnknownPreperty() throws MetaException, TException {
+  public void testGetMetaConfUnknownPreperty() throws TException {
     String unknownPropertyName = "hive.meta.foo.bar";
     thrown.expect(MetaException.class);
     thrown.expectMessage("Invalid configuration key " + unknownPropertyName);

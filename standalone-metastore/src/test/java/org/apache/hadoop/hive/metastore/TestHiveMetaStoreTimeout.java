@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -20,9 +20,11 @@ package org.apache.hadoop.hive.metastore;
 
 import java.util.concurrent.TimeUnit;
 
-import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.MetaException;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf.ConfVars;
 import org.apache.hadoop.util.StringUtils;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -35,25 +37,19 @@ import org.junit.Test;
  */
 public class TestHiveMetaStoreTimeout {
   protected static HiveMetaStoreClient client;
-  protected static HiveConf hiveConf;
+  protected static Configuration conf;
   protected static Warehouse warehouse;
 
   @BeforeClass
   public static void setUp() throws Exception {
     HiveMetaStore.TEST_TIMEOUT_ENABLED = true;
-    hiveConf = new HiveConf(TestHiveMetaStoreTimeout.class);
-    hiveConf.set(HiveConf.ConfVars.METASTORE_EXPRESSION_PROXY_CLASS.varname,
-        MockPartitionExpressionForMetastore.class.getCanonicalName());
-    hiveConf.setTimeVar(HiveConf.ConfVars.METASTORE_CLIENT_SOCKET_TIMEOUT, 10 * 1000,
+    conf = MetastoreConf.newMetastoreConf();
+    MetastoreConf.setClass(conf, ConfVars.EXPRESSION_PROXY_CLASS,
+        MockPartitionExpressionForMetastore.class, PartitionExpressionProxy.class);
+    MetastoreConf.setTimeVar(conf, ConfVars.CLIENT_SOCKET_TIMEOUT, 1000,
         TimeUnit.MILLISECONDS);
-    warehouse = new Warehouse(hiveConf);
-    try {
-      client = new HiveMetaStoreClient(hiveConf);
-    } catch (Throwable e) {
-      System.err.println("Unable to open the metastore");
-      System.err.println(StringUtils.stringifyException(e));
-      throw e;
-    }
+    warehouse = new Warehouse(conf);
+    client = new HiveMetaStoreClient(conf);
   }
 
   @AfterClass
@@ -70,7 +66,7 @@ public class TestHiveMetaStoreTimeout {
 
   @Test
   public void testNoTimeout() throws Exception {
-    HiveMetaStore.TEST_TIMEOUT_VALUE = 5 * 1000;
+    HiveMetaStore.TEST_TIMEOUT_VALUE = 250;
 
     String dbName = "db";
     client.dropDatabase(dbName, true, true);
@@ -88,7 +84,7 @@ public class TestHiveMetaStoreTimeout {
 
   @Test
   public void testTimeout() throws Exception {
-    HiveMetaStore.TEST_TIMEOUT_VALUE = 15 * 1000;
+    HiveMetaStore.TEST_TIMEOUT_VALUE = 2 * 1000;
 
     String dbName = "db";
     client.dropDatabase(dbName, true, true);
@@ -104,12 +100,12 @@ public class TestHiveMetaStoreTimeout {
     }
 
     // restore
-    HiveMetaStore.TEST_TIMEOUT_VALUE = 5 * 1000;
+    HiveMetaStore.TEST_TIMEOUT_VALUE = 1;
   }
 
   @Test
   public void testResetTimeout() throws Exception {
-    HiveMetaStore.TEST_TIMEOUT_VALUE = 5 * 1000;
+    HiveMetaStore.TEST_TIMEOUT_VALUE = 250;
     String dbName = "db";
 
     // no timeout before reset
@@ -124,7 +120,8 @@ public class TestHiveMetaStoreTimeout {
     client.dropDatabase(dbName, true, true);
 
     // reset
-    client.setMetaConf(HiveConf.ConfVars.METASTORE_CLIENT_SOCKET_TIMEOUT.varname, "3s");
+    HiveMetaStore.TEST_TIMEOUT_VALUE = 2000;
+    client.setMetaConf(ConfVars.CLIENT_SOCKET_TIMEOUT.varname, "1s");
 
     // timeout after reset
     try {
@@ -137,6 +134,6 @@ public class TestHiveMetaStoreTimeout {
 
     // restore
     client.dropDatabase(dbName, true, true);
-    client.setMetaConf(HiveConf.ConfVars.METASTORE_CLIENT_SOCKET_TIMEOUT.varname, "10s");
+    client.setMetaConf(ConfVars.CLIENT_SOCKET_TIMEOUT.varname, "10s");
   }
 }

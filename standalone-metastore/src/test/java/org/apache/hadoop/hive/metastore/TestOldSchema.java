@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -22,8 +22,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.ndv.hll.HyperLogLog;
-import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.api.AggrStats;
 import org.apache.hadoop.hive.metastore.api.ColumnStatistics;
 import org.apache.hadoop.hive.metastore.api.ColumnStatisticsData;
@@ -41,8 +41,8 @@ import org.apache.hadoop.hive.metastore.api.Partition;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
-import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -84,14 +84,14 @@ public class TestOldSchema {
     }
   }
 
-  byte bitVectors[][] = new byte[2][];
+  private byte bitVectors[][] = new byte[2][];
 
   @Before
   public void setUp() throws Exception {
-    HiveConf conf = new HiveConf();
-    conf.setVar(HiveConf.ConfVars.METASTORE_EXPRESSION_PROXY_CLASS,
-        MockPartitionExpressionProxy.class.getName());
-    conf.setBoolVar(HiveConf.ConfVars.HIVE_STATS_FETCH_BITVECTOR, false);
+    Configuration conf = MetastoreConf.newMetastoreConf();
+    MetastoreConf.setClass(conf, MetastoreConf.ConfVars.EXPRESSION_PROXY_CLASS,
+        MockPartitionExpressionProxy.class, PartitionExpressionProxy.class);
+    MetastoreConf.setBoolVar(conf, MetastoreConf.ConfVars.STATS_FETCH_BITVECTOR, false);
 
     store = new ObjectStore();
     store.setConf(conf);
@@ -114,8 +114,6 @@ public class TestOldSchema {
 
   /**
    * Tests partition operations
-   * 
-   * @throws Exception
    */
   @Test
   public void testPartitionOps() throws Exception {
@@ -128,11 +126,11 @@ public class TestOldSchema {
     cols.add(new FieldSchema("col1", "long", "nocomment"));
     SerDeInfo serde = new SerDeInfo("serde", "seriallib", null);
     StorageDescriptor sd = new StorageDescriptor(cols, "file:/tmp", "input", "output", false, 0,
-        serde, null, null, Collections.<String, String> emptyMap());
+        serde, null, null, Collections.emptyMap());
     List<FieldSchema> partCols = new ArrayList<>();
     partCols.add(new FieldSchema("ds", "string", ""));
     Table table = new Table(tableName, dbName, "me", (int) now, (int) now, 0, sd, partCols,
-        Collections.<String, String> emptyMap(), null, null, null);
+        Collections.emptyMap(), null, null, null);
     store.createTable(table);
 
     Deadline.startTimer("getPartition");
@@ -142,7 +140,7 @@ public class TestOldSchema {
       StorageDescriptor psd = new StorageDescriptor(sd);
       psd.setLocation("file:/tmp/default/hit/ds=" + partVal);
       Partition part = new Partition(partVal, dbName, tableName, (int) now, (int) now, psd,
-          Collections.<String, String> emptyMap());
+          Collections.emptyMap());
       store.addPartition(part);
       ColumnStatistics cs = new ColumnStatistics();
       ColumnStatisticsDesc desc = new ColumnStatisticsDesc(false, dbName, tableName);
@@ -191,11 +189,11 @@ public class TestOldSchema {
 
   }
 
-  private static interface Checker {
+  private interface Checker {
     void checkStats(AggrStats aggrStats) throws Exception;
   }
 
-  public static void dropAllStoreObjects(RawStore store) throws MetaException,
+  private static void dropAllStoreObjects(RawStore store) throws MetaException,
       InvalidObjectException, InvalidInputException {
     try {
       Deadline.registerIfNot(100000);
