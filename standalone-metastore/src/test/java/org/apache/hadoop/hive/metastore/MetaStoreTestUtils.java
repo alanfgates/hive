@@ -23,8 +23,8 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Map;
 
-import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.metastore.HiveMetaStore.HMSHandler;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.security.HadoopThriftAuthBridge;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,13 +37,14 @@ public class MetaStoreTestUtils {
     return MetaStoreTestUtils.startMetaStore(HadoopThriftAuthBridge.getBridge(), null);
   }
 
-  public static int startMetaStore(final HadoopThriftAuthBridge bridge, HiveConf conf) throws Exception {
+  public static int startMetaStore(final HadoopThriftAuthBridge bridge, Configuration conf)
+      throws Exception {
     int port = MetaStoreTestUtils.findFreePort();
     MetaStoreTestUtils.startMetaStore(port, bridge, conf);
     return port;
   }
 
-  public static int startMetaStore(HiveConf conf) throws Exception {
+  public static int startMetaStore(Configuration conf) throws Exception {
     return startMetaStore(HadoopThriftAuthBridge.getBridge(), conf);
   }
 
@@ -52,17 +53,17 @@ public class MetaStoreTestUtils {
   }
 
   public static void startMetaStore(final int port,
-      final HadoopThriftAuthBridge bridge, HiveConf hiveConf)
+      final HadoopThriftAuthBridge bridge, Configuration conf)
       throws Exception{
-    if (hiveConf == null) {
-      hiveConf = new HiveConf(HMSHandler.class);
+    if (conf == null) {
+      conf = MetastoreConf.newMetastoreConf();
     }
-    final HiveConf finalHiveConf = hiveConf;
+    final Configuration finalConf = conf;
     Thread thread = new Thread(new Runnable() {
       @Override
       public void run() {
         try {
-          HiveMetaStore.startMetaStore(port, bridge, finalHiveConf);
+          HiveMetaStore.startMetaStore(port, bridge, finalConf);
         } catch (Throwable e) {
           LOG.error("Metastore Thrift Server threw an exception...", e);
         }
