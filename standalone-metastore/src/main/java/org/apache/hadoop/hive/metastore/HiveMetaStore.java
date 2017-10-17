@@ -534,19 +534,20 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         partitionValidationPattern = null;
       }
 
-      // TODO move EventCleanerTask to RunnableConfigurable
+      ThreadPool.initialize(conf);
       long cleanFreq = MetastoreConf.getTimeVar(conf, ConfVars.EVENT_CLEAN_FREQ, TimeUnit.MILLISECONDS);
       if (cleanFreq > 0) {
-        // In default config, there is no timer.
-        Timer cleaner = new Timer("Metastore Events Cleaner Thread", true);
-        cleaner.schedule(new EventCleanerTask(this), cleanFreq, cleanFreq);
+        ThreadPool.getPool().scheduleAtFixedRate(new EventCleanerTask(this), cleanFreq,
+            cleanFreq, TimeUnit.MILLISECONDS);
       }
 
-      cleanFreq = hiveConf.getTimeVar(ConfVars.REPL_DUMPDIR_CLEAN_FREQ, TimeUnit.MILLISECONDS);
+      cleanFreq = MetastoreConf.getTimeVar(conf, ConfVars.REPL_DUMPDIR_CLEAN_FREQ,
+          TimeUnit.MILLISECONDS);
       if (cleanFreq > 0) {
-        // In default config, there is no timer.
-        Timer cleaner = new Timer("Repl Dump Dir Cleaner Thread", true);
-        cleaner.schedule(new DumpDirCleanerTask(hiveConf), cleanFreq, cleanFreq);
+        DumpDirCleanerTask ddc = new DumpDirCleanerTask();
+        ddc.setConf(conf);
+        ThreadPool.getPool().scheduleAtFixedRate(ddc, cleanFreq, cleanFreq,
+            TimeUnit.MILLISECONDS);
       }
       expressionProxy = PartFilterExprUtil.createExpressionProxy(conf);
       fileMetadataManager = new FileMetadataManager(this.getMS(), conf);
@@ -6400,6 +6401,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         boolean throw_exception) throws TException {
       startFunction("partition_name_has_valid_characters");
       boolean ret;
+      Exception ex = null;
       try {
         if (throw_exception) {
           MetaStoreUtils.validatePartitionNameCharacters(part_vals, partitionValidationPattern);
@@ -6409,6 +6411,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
               partitionValidationPattern);
         }
       } catch (Exception e) {
+        ex = e;
         if (e instanceof MetaException) {
           throw (MetaException)e;
         } else {
@@ -6857,7 +6860,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         authorizeProxyPrivilege();
       } catch (Exception ex) {
         LOG.error("Not authorized to make the get_next_notification call. You can try to disable " +
-            HiveConf.ConfVars.METASTORE_EVENT_DB_NOTIFICATION_API_AUTH.varname, ex);
+            ConfVars.EVENT_DB_NOTIFICATION_API_AUTH.varname, ex);
         throw new TException(ex);
       }
 
@@ -6871,7 +6874,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         authorizeProxyPrivilege();
       } catch (Exception ex) {
         LOG.error("Not authorized to make the get_current_notificationEventId call. You can try to disable " +
-            HiveConf.ConfVars.METASTORE_EVENT_DB_NOTIFICATION_API_AUTH.varname, ex);
+            ConfVars.EVENT_DB_NOTIFICATION_API_AUTH.varname, ex);
         throw new TException(ex);
       }
 
@@ -6886,7 +6889,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         authorizeProxyPrivilege();
       } catch (Exception ex) {
         LOG.error("Not authorized to make the get_notification_events_count call. You can try to disable " +
-            HiveConf.ConfVars.METASTORE_EVENT_DB_NOTIFICATION_API_AUTH.varname, ex);
+            ConfVars.EVENT_DB_NOTIFICATION_API_AUTH.varname, ex);
         throw new TException(ex);
       }
 
@@ -6896,17 +6899,18 @@ public class HiveMetaStore extends ThriftHiveMetastore {
 
     private void authorizeProxyPrivilege() throws Exception {
       // Skip the auth in embedded mode or if the auth is disabled
-      if (!isMetaStoreRemote() || !hiveConf.getBoolVar(HiveConf.ConfVars.METASTORE_EVENT_DB_NOTIFICATION_API_AUTH)) {
+      if (!isMetaStoreRemote() ||
+          !MetastoreConf.getBoolVar(conf, ConfVars.EVENT_DB_NOTIFICATION_API_AUTH)) {
         return;
       }
       String user = null;
       try {
-        user = Utils.getUGI().getShortUserName();
+        user = SecurityUtils.getUGI().getShortUserName();
       } catch (Exception ex) {
         LOG.error("Cannot obtain username", ex);
         throw ex;
       }
-      if (!MetaStoreUtils.checkUserHasHostProxyPrivileges(user, hiveConf, getIPAddress())) {
+      if (!MetaStoreUtils.checkUserHasHostProxyPrivileges(user, conf, getIPAddress())) {
         throw new MetaException("User " + user + " is not allowed to perform this API call");
       }
     }
@@ -7498,8 +7502,8 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       if (useSasl) {
         // we are in secure mode. Login using keytab
         String kerberosName = SecurityUtil
-            .getServerPrincipal(conf.getVar(ConfVars.METASTORE_KERBEROS_PRINCIPAL), "0.0.0.0");
-        String keyTabFile = conf.getVar(ConfVars.METASTORE_KERBEROS_KEYTAB_FILE);
+            .getServerPrincipal(MetastoreConf.getVar(conf, ConfVars.KERBEROS_PRINCIPAL), "0.0.0.0");
+        String keyTabFile = MetastoreConf.getVar(conf, ConfVars.KERBEROS_KEYTAB_FILE);
         UserGroupInformation.loginUserFromKeytab(kerberosName, keyTabFile);
       }
 
@@ -7525,11 +7529,6 @@ public class HiveMetaStore extends ThriftHiveMetastore {
           throw new HiveMetaException("Framed transport is not supported with SASL enabled.");
         }
         saslServer = bridge.createServer(
-            /*
-            conf.getVar(HiveConf.ConfVars.METASTORE_KERBEROS_KEYTAB_FILE),
-            conf.getVar(HiveConf.ConfVars.METASTORE_KERBEROS_PRINCIPAL),
-            conf.getVar(HiveConf.ConfVars.METASTORE_CLIENT_KERBEROS_PRINCIPAL));
-            */
             MetastoreConf.getVar(conf, ConfVars.KERBEROS_KEYTAB_FILE),
             MetastoreConf.getVar(conf, ConfVars.KERBEROS_PRINCIPAL),
             MetastoreConf.getVar(conf, ConfVars.CLIENT_KERBEROS_PRINCIPAL));
@@ -7814,20 +7813,6 @@ public class HiveMetaStore extends ThriftHiveMetastore {
                                                  long interval) {
     rc.setConf(conf);
     ThreadPool.getPool().scheduleAtFixedRate(rc, 0, interval, TimeUnit.MILLISECONDS);
-  }
-
-  static Map<FileMetadataExprType, FileMetadataHandler> createHandlerMap() {
-    Map<FileMetadataExprType, FileMetadataHandler> fmHandlers = new HashMap<>();
-    for (FileMetadataExprType v : FileMetadataExprType.values()) {
-      switch (v) {
-      case ORC_SARG:
-        fmHandlers.put(v, new OrcFileMetadataHandler());
-        break;
-      default:
-        throw new AssertionError("Unsupported type " + v);
-      }
-    }
-    return fmHandlers;
   }
 
   /**
