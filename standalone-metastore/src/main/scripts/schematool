@@ -18,4 +18,4 @@
 bin=`dirname "$0"`
 bin=`cd "$bin"; pwd`
 
-. "$bin"/hive --service schemaTool "$@"
+. "$bin"/base --service schemaTool "$@"

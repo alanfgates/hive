@@ -23,7 +23,7 @@ esac
 bin=`dirname "$0"`
 bin=`cd "$bin"; pwd`
 
-. "$bin"/hive-config.sh
+. "$bin"/metastore-config.sh
 
 SERVICE=""
 HELP=""
@@ -72,27 +72,27 @@ if [[ "$SERVICE" =~ ^(help|schemaTool)$ ]] ; then
   SKIP_HADOOPVERSION=true
 fi
 
-if [ -f "${HIVE_CONF_DIR}/hive-env.sh" ]; then
-  . "${HIVE_CONF_DIR}/hive-env.sh"
+if [ -f "${METASTORE_CONF_DIR}/metastore-env.sh" ]; then
+  . "${METASTORE_CONF_DIR}/metastore-env.sh"
 fi
 
-CLASSPATH="${HIVE_CONF_DIR}"
+CLASSPATH="${METASTORE_CONF_DIR}"
 
-HIVE_LIB=${HIVE_HOME}/lib
+METASTORE_LIB=${METASTORE_HOME}/lib
 
 # needed for execution
-if [ ! -f ${HIVE_LIB}/standalone-metastore-*.jar ]; then
+if [ ! -f ${METASTORE_LIB}/standalone-metastore-*.jar ]; then
   echo "Missing Standalone MetaStore Jar"
   exit 2;
 fi
 
-for f in ${HIVE_LIB}/*.jar; do
+for f in ${METASTORE_LIB}/*.jar; do
   CLASSPATH=${CLASSPATH}:$f;
 done
 
 # add the auxillary jars such as serdes
-if [ -d "${HIVE_AUX_JARS_PATH}" ]; then
-  hive_aux_jars_abspath=`cd ${HIVE_AUX_JARS_PATH} && pwd`
+if [ -d "${METASTORE_AUX_JARS_PATH}" ]; then
+  hive_aux_jars_abspath=`cd ${METASTORE_AUX_JARS_PATH} && pwd`
   for f in $hive_aux_jars_abspath/*.jar; do
     if [[ ! -f $f ]]; then
         continue;
@@ -107,14 +107,14 @@ if [ -d "${HIVE_AUX_JARS_PATH}" ]; then
         AUX_PARAM=${AUX_PARAM},file://$f;
     fi
   done
-elif [ "${HIVE_AUX_JARS_PATH}" != "" ]; then 
-  HIVE_AUX_JARS_PATH=`echo $HIVE_AUX_JARS_PATH | sed 's/,/:/g'`
+elif [ "${METASTORE_AUX_JARS_PATH}" != "" ]; then 
+  METASTORE_AUX_JARS_PATH=`echo $METASTORE_AUX_JARS_PATH | sed 's/,/:/g'`
   if $cygwin; then
-      HIVE_AUX_JARS_PATH=`cygpath -p -w "$HIVE_AUX_JARS_PATH"`
-      HIVE_AUX_JARS_PATH=`echo $HIVE_AUX_JARS_PATH | sed 's/;/,/g'`
+      METASTORE_AUX_JARS_PATH=`cygpath -p -w "$METASTORE_AUX_JARS_PATH"`
+      METASTORE_AUX_JARS_PATH=`echo $METASTORE_AUX_JARS_PATH | sed 's/;/,/g'`
   fi
-  AUX_CLASSPATH=${AUX_CLASSPATH}:${HIVE_AUX_JARS_PATH}
-  AUX_PARAM="file://$(echo ${HIVE_AUX_JARS_PATH} | sed 's/:/,file:\/\//g')"
+  AUX_CLASSPATH=${AUX_CLASSPATH}:${METASTORE_AUX_JARS_PATH}
+  AUX_PARAM="file://$(echo ${METASTORE_AUX_JARS_PATH} | sed 's/:/,file:\/\//g')"
 fi
 
 if $cygwin; then
@@ -138,8 +138,8 @@ else
 fi
 
 # also pass hive classpath to hadoop
-if [ "$HIVE_CLASSPATH" != "" ]; then
-  export HADOOP_CLASSPATH="${HADOOP_CLASSPATH}:${HIVE_CLASSPATH}";
+if [ "$METASTORE_CLASSPATH" != "" ]; then
+  export HADOOP_CLASSPATH="${HADOOP_CLASSPATH}:${METASTORE_CLASSPATH}";
 fi
 
 # check for hadoop in the path
@@ -190,7 +190,7 @@ if [ "$SKIP_HADOOPVERSION" = false ]; then
 fi
 
 if [ "${AUX_PARAM}" != "" ]; then
-  HIVE_OPTS="$HIVE_OPTS --hiveconf hive.aux.jars.path=${AUX_PARAM}"
+  METASTORE_OPTS="$METASTORE_OPTS --hiveconf hive.aux.jars.path=${AUX_PARAM}"
   AUX_JARS_CMD_LINE="-libjars ${AUX_PARAM}"
 fi
 
@@ -206,7 +206,7 @@ if [ "$DEBUG" ]; then
     exit 0
   else
     get_debug_params "$DEBUG"
-    export HADOOP_CLIENT_OPTS="$HADOOP_CLIENT_OPTS $HIVE_MAIN_CLIENT_DEBUG_OPTS"
+    export HADOOP_CLIENT_OPTS="$HADOOP_CLIENT_OPTS $METASTORE_MAIN_CLIENT_DEBUG_OPTS"
   fi
 fi
 

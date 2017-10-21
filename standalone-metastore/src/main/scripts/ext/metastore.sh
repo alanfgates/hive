@@ -17,17 +17,17 @@ THISSERVICE=metastore
 export SERVICE_LIST="${SERVICE_LIST}${THISSERVICE} "
 
 metastore() {
-  echo "$(timestamp): Starting Hive Metastore Server"
+  echo "$(timestamp): Starting Metastore Server"
   CLASS=org.apache.hadoop.hive.metastore.HiveMetaStore
   if $cygwin; then
-    HIVE_LIB=`cygpath -w "$HIVE_LIB"`
+    METASTORE_LIB=`cygpath -w "$METASTORE_LIB"`
   fi
-  JAR=${HIVE_LIB}/hive-standalone-metastore-*.jar
+  JAR=${METASTORE_LIB}/hive-standalone-metastore-*.jar
 
   # hadoop 20 or newer - skip the aux_jars option and hiveconf
 
   export HADOOP_CLIENT_OPTS=" -Dproc_metastore $HADOOP_CLIENT_OPTS "
-  export HADOOP_OPTS="$HIVE_METASTORE_HADOOP_OPTS $HADOOP_OPTS"
+  export HADOOP_OPTS="$METASTORE_HADOOP_OPTS $HADOOP_OPTS"
   exec $HADOOP jar $JAR $CLASS "$@"
 }
 

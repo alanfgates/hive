@@ -35,8 +35,8 @@ bin=`cd "$bin"; pwd`
 this="$bin/$script"
 
 # the root of the Hive installation
-if [[ -z $HIVE_HOME ]] ; then
-  export HIVE_HOME=`dirname "$bin"`
+if [[ -z $METASTORE_HOME ]] ; then
+  export METASTORE_HOME=`dirname "$bin"`
 fi
 
 #check to see if the conf dir is given as an optional argument
@@ -46,11 +46,11 @@ while [ $# -gt 0 ]; do    # Until you run out of parameters . . .
         shift
         confdir=$1
         shift
-        HIVE_CONF_DIR=$confdir
+        METASTORE_CONF_DIR=$confdir
         ;;
     --auxpath)
         shift
-        HIVE_AUX_JARS_PATH=$1
+        METASTORE_AUX_JARS_PATH=$1
         shift
         ;;
     *)
@@ -61,10 +61,10 @@ done
 
 
 # Allow alternate conf dir location.
-HIVE_CONF_DIR="${HIVE_CONF_DIR:-$HIVE_HOME/conf}"
+METASTORE_CONF_DIR="${METASTORE_CONF_DIR:-$METASTORE_HOME/conf}"
 
-export HIVE_CONF_DIR=$HIVE_CONF_DIR
-export HIVE_AUX_JARS_PATH=$HIVE_AUX_JARS_PATH
+export METASTORE_CONF_DIR=$METASTORE_CONF_DIR
+export METASTORE_AUX_JARS_PATH=$METASTORE_AUX_JARS_PATH
 
 # Default to use 256MB 
 export HADOOP_HEAPSIZE=${HADOOP_HEAPSIZE:-256}

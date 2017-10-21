@@ -17,12 +17,12 @@ THISSERVICE=schemaTool
 export SERVICE_LIST="${SERVICE_LIST}${THISSERVICE} "
 
 schemaTool() {
-  HIVE_OPTS=''
-  CLASS=org.apache.hive.beeline.HiveSchemaTool
+  METASTORE_OPTS=''
+  CLASS=org.apache.hadoop.hive.metastore.tools.HiveSchemaTool
   if $cygwin; then
-    HIVE_LIB=`cygpath -w "$HIVE_LIB"`
+    METASTORE_LIB=`cygpath -w "$METASTORE_LIB"`
   fi
-  JAR=${HIVE_LIB}/hive-standalone-metastore-*.jar
+  JAR=${METASTORE_LIB}/hive-standalone-metastore-*.jar
 
   # hadoop 20 or newer - skip the aux_jars option and hiveconf
   exec $HADOOP jar $JAR $CLASS "$@"
