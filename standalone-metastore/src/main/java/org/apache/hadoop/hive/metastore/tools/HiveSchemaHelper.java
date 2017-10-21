@@ -56,10 +56,8 @@ public class HiveSchemaHelper {
       Configuration conf)
       throws HiveMetaException {
     try {
-      url = url == null ? getValidConfVar(
-        MetastoreConf.ConfVars.CONNECTURLKEY, conf) : url;
-      driver = driver == null ? getValidConfVar(
-        MetastoreConf.ConfVars.CONNECTION_DRIVER, conf) : driver;
+      url = url == null ? MetastoreConf.getVar(conf, MetastoreConf.ConfVars.CONNECTURLKEY) : url;
+      driver = driver == null ? MetastoreConf.getVar(conf, MetastoreConf.ConfVars.CONNECTION_DRIVER) : driver;
       if (printInfo) {
         System.out.println("Metastore connection URL:\t " + url);
         System.out.println("Metastore Connection Driver :\t " + driver);
@@ -74,8 +72,6 @@ public class HiveSchemaHelper {
 
       // Connect using the JDBC URL and user/pass from conf
       return DriverManager.getConnection(url, userName, password);
-    } catch (IOException e) {
-      throw new HiveMetaException("Failed to get schema version.", e);
     } catch (SQLException e) {
       throw new HiveMetaException("Failed to get schema version.", e);
     } catch (ClassNotFoundException e) {
@@ -86,15 +82,6 @@ public class HiveSchemaHelper {
   public static Connection getConnectionToMetastore(MetaStoreConnectionInfo info) throws HiveMetaException {
     return getConnectionToMetastore(info.getUsername(), info.getPassword(), info.getUrl(),
         info.getDriver(), info.getPrintInfo(), info.getConf());
-  }
-
-  public static String getValidConfVar(MetastoreConf.ConfVars confVar, Configuration conf)
-      throws IOException {
-    String confVarStr = conf.get(confVar.varname);
-    if (confVarStr == null || confVarStr.isEmpty()) {
-      throw new IOException("Empty " + confVar.varname);
-    }
-    return confVarStr.trim();
   }
 
   public interface NestedScriptParser {
@@ -300,6 +287,7 @@ public class HiveSchemaHelper {
             // Now we have a complete statement, process it
             // write the line to buffer
             sb.append(currentCommand);
+            sb.append(";");
             sb.append(System.getProperty("line.separator"));
           }
         }
