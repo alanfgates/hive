@@ -38,6 +38,7 @@
     <maven.compiler.target>1.8</maven.compiler.target>
     <maven.compiler.useIncrementalCompilation>false</maven.compiler.useIncrementalCompilation>
     <maven.repo.local>${settings.localRepository}</maven.repo.local>
+    <maven.assembly.plugin.version>2.3</maven.assembly.plugin.version>
 
     <!-- Test Properties -->
     <log4j.conf.dir>${project.basedir}/src/test/resources</log4j.conf.dir>
@@ -198,16 +199,6 @@
         </exclusion>
       </exclusions>
     </dependency>
-    <dependency>
-      <groupId>org.apache.logging.log4j</groupId>
-      <artifactId>log4j-slf4j-impl</artifactId>
-      <version>${log4j2.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.logging.log4j</groupId>
-      <artifactId>log4j-1.2-api</artifactId>
-      <version>${log4j2.version}</version>
-    </dependency>
     <!-- This is our one and only Hive dependency.-->
     <dependency>
       <groupId>org.apache.hive</groupId>
@@ -327,6 +318,15 @@
         </includes>
       </resource>
     </resources>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-assembly-plugin</artifactId>
+          <version>${maven.assembly.plugin.version}</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
     <plugins>
       <!-- plugins are always listed in sorted order by groupId, artifectId -->
       <plugin>
@@ -402,10 +402,30 @@
           </execution>
         </executions>
       </plugin>
-      <!-- TODO MS-SPLIT assembly plugin -->
       <!-- TODO MS-SPLIT findbugs plugin -->
       <!-- TODO MS-SPLIT javadoc plugin -->
       <!-- TODO MS-SPLIT rat plugin -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-assembly-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>assemble</id>
+            <phase>package</phase>
+            <goals>
+              <goal>single</goal>
+            </goals>
+            <configuration>
+              <finalName>apache-hive-metastore-${project.version}</finalName>
+              <descriptors>
+                <descriptor>src/assembly/bin.xml</descriptor>
+                <descriptor>src/assembly/src.xml</descriptor>
+              </descriptors>
+              <tarLongFileMode>gnu</tarLongFileMode>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
@@ -497,29 +517,6 @@
         <configuration>
           <sourceDirectory>${basedir}/src/main/java</sourceDirectory>
         </configuration>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-antrun-plugin</artifactId>
-        <executions>
-          <execution>
-            <id>generate-version-annotation</id>
-            <phase>generate-sources</phase>
-            <configuration>
-              <target>
-                <exec executable="bash" failonerror="true">
-                  <arg value="${basedir}/src/main/resources/saveVersion.sh"/>
-                  <arg value="${project.version}"/>
-                  <arg value="${hive.version.shortname}"/>
-                  <arg value="${basedir}/src"/>
-                </exec>
-              </target>
-            </configuration>
-            <goals>
-              <goal>run</goal>
-            </goals>
-          </execution>
-        </executions>
       </plugin>
     </plugins>
   </build>
