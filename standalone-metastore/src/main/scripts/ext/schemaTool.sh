@@ -19,11 +19,15 @@ export SERVICE_LIST="${SERVICE_LIST}${THISSERVICE} "
 schemaTool() {
   HIVE_OPTS=''
   CLASS=org.apache.hive.beeline.HiveSchemaTool
-  execHiveCmd $CLASS "$@"
+  if $cygwin; then
+    HIVE_LIB=`cygpath -w "$HIVE_LIB"`
+  fi
+  JAR=${HIVE_LIB}/hive-standalone-metastore-*.jar
+
+  # hadoop 20 or newer - skip the aux_jars option and hiveconf
+  exec $HADOOP jar $JAR $CLASS "$@"
 }
 
 schemaTool_help () {
-  HIVE_OPTS=''
-  CLASS=org.apache.hive.beeline.HiveSchemaTool
-  execHiveCmd $CLASS "--help"
+  schemaTool -h
 }
