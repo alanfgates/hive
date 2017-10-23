@@ -81,7 +81,7 @@ CLASSPATH="${METASTORE_CONF_DIR}"
 METASTORE_LIB=${METASTORE_HOME}/lib
 
 # needed for execution
-if [ ! -f ${METASTORE_LIB}/standalone-metastore-*.jar ]; then
+if [ ! -f ${METASTORE_LIB}/hive-standalone-metastore-*.jar ]; then
   echo "Missing Standalone MetaStore Jar"
   exit 2;
 fi
@@ -181,7 +181,7 @@ if [ "$SKIP_HADOOPVERSION" = false ]; then
       exit 5
   fi
   
-  if [ "$hadoop_major_ver" -lt "2" -o ("$hadoop_major_ver" -eq "2" -a "$hadoop_minor_ver" -lt "6") ]; then
+  if [ "$hadoop_major_ver" -lt "2" ] || [ "$hadoop_major_ver" -eq "2" -a "$hadoop_minor_ver" -lt "6" ]; then
       echo "Standalone metastore requires Hadoop 2.6 or later."
       echo "'hadoop version' returned:"
       echo `$HADOOP version`

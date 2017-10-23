@@ -631,7 +631,7 @@ CREATE TABLE "WM_POOL" (
     "RP_ID" bigint NOT NULL,
     "PATH" character varying(1024) NOT NULL,
     "PARENT_POOL_ID" bigint,
-    "ALLOC_FRACTION" DOUBLE,
+    "ALLOC_FRACTION" double precision,
     "QUERY_PARALLELISM" integer
 );
 

@@ -89,8 +89,14 @@ public class HiveSchemaTool {
   private final IMetaStoreSchemaInfo metaStoreSchemaInfo;
   private boolean needsQuotedIdentifier;
 
+  private static String findHomeDir() {
+    // If METASTORE_HOME is set, use it, else use HIVE_HOME for backwards compatibility.
+    String homeDir = System.getenv("METASTORE_HOME");
+    return homeDir == null ? System.getenv("HIVE_HOME") : homeDir;
+  }
+
   public HiveSchemaTool(String dbType, String metaDbType) throws HiveMetaException {
-    this(System.getenv("HIVE_HOME"), MetastoreConf.newMetastoreConf(), dbType, metaDbType);
+    this(findHomeDir(), MetastoreConf.newMetastoreConf(), dbType, metaDbType);
   }
 
   public HiveSchemaTool(String hiveHome, Configuration conf, String dbType, String metaDbType)
