@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -74,7 +74,7 @@ public class VerifyingObjectStore extends ObjectStore {
   @Override
   public boolean getPartitionsByExpr(String dbName, String tblName, byte[] expr,
       String defaultPartitionName, short maxParts, List<Partition> result) throws TException {
-    List<Partition> ormParts = new LinkedList<Partition>();
+    List<Partition> ormParts = new LinkedList<>();
     boolean sqlResult = getPartitionsByExprInternal(
         dbName, tblName, expr, defaultPartitionName, maxParts, result, true, false);
     boolean ormResult = getPartitionsByExprInternal(

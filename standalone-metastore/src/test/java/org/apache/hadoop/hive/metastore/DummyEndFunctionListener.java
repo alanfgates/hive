@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -30,9 +30,9 @@ import org.apache.hadoop.conf.Configuration;
  */
 public class DummyEndFunctionListener extends MetaStoreEndFunctionListener{
 
-  public static final List<String> funcNameList = new ArrayList<String>();
+  public static final List<String> funcNameList = new ArrayList<>();
   public static final List<MetaStoreEndFunctionContext> contextList =
-    new ArrayList<MetaStoreEndFunctionContext>();
+    new ArrayList<>();
 
   public DummyEndFunctionListener(Configuration config) {
     super(config);

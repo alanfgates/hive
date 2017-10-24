@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,8 +17,7 @@
  */
 package org.apache.hadoop.hive.metastore;
 
-import java.util.ArrayList;
-import java.util.List;
+import javax.jdo.JDOException;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.api.InvalidOperationException;
@@ -28,22 +27,36 @@ import org.apache.hadoop.hive.metastore.events.PreEventContext;
 
 /**
  *
- * DummyPreListener.
+ * AlternateFailurePreListener.
  *
- * An implementation of MetaStorePreEventListener which stores the Events it's seen in a list.
+ * An implementation of MetaStorePreEventListener which fails every other time it's invoked,
+ * starting with the first time.
+ *
+ * It also records and makes available the number of times it's been invoked.
  */
-public class DummyPreListener extends MetaStorePreEventListener {
+public class AlternateFailurePreListener extends MetaStorePreEventListener {
 
-  public static final List<PreEventContext> notifyList = new ArrayList<PreEventContext>();
+  private static int callCount = 0;
+  private static boolean throwException = true;
 
-  public DummyPreListener(Configuration config) {
+  public AlternateFailurePreListener(Configuration config) {
     super(config);
   }
 
   @Override
   public void onEvent(PreEventContext context) throws MetaException, NoSuchObjectException,
       InvalidOperationException {
-    notifyList.add(context);
+
+    callCount++;
+    if (throwException) {
+      throwException = false;
+      throw new JDOException();
+    }
+
+    throwException = true;
   }
 
+  public static int getCallCount() {
+    return callCount;
+  }
 }

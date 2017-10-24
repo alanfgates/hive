@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -49,7 +49,7 @@ public class InjectableBehaviourObjectStore extends ObjectStore {
       assertEquals(expectedInjectionCalled, injectionPathCalled);
       assertEquals(expectedNonInjectedPathCalled, nonInjectedPathCalled);
     }
-  };
+  }
 
   private static com.google.common.base.Function<Table,Table> getTableModifier =
       com.google.common.base.Functions.identity();

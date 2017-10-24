@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -46,7 +46,7 @@ import org.apache.hadoop.hive.metastore.events.LoadPartitionDoneEvent;
  */
 public class DummyListener extends MetaStoreEventListener{
 
-  public static final List<ListenerEvent> notifyList = new ArrayList<ListenerEvent>();
+  public static final List<ListenerEvent> notifyList = new ArrayList<>();
 
   /**
    * @return The last event received, or null if no event was received.
