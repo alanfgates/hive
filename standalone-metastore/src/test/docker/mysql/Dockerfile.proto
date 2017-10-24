@@ -1,0 +1,39 @@
+FROM centos
+
+# Install required packages
+RUN yum upgrade -y && \
+    yum update -y 
+
+RUN yum install -y mariadb-server mariadb mysql-connector-java* java-1.8.0-openjdk-devel sudo hostname wget which
+
+RUN sudo -u mysql mysql_install_db
+RUN sudo -u mysql mysqld_safe & 
+
+RUN echo "CREATE DATABASE hive;" > /tmp/createuser.sql
+RUN echo "CREATE USER 'hive'@'localhost' IDENTIFIED BY 'hive';" >> /tmp/createuser.sql
+RUN echo "REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'hive'@'localhost';" >> /tmp/createuser.sql
+RUN echo "GRANT ALL PRIVILEGES ON hive.* TO 'hive'@'localhost';" >> /tmp/createuser.sql
+RUN echo "FLUSH PRIVILEGES;" >> /tmp/createuser.sql
+RUN sudo mysql < /tmp/createuser.sql
+
+# Get Hadoop
+RUN mkdir /usr/hadoop && \
+    cd /usr/hadoop &&  \
+    wget http://apache.mirrors.tds.net/hadoop/common/hadoop-2.8.1/hadoop-2.8.1.tar.gz &&  \
+    tar zxf hadoop-2.8.1.tar.gz
+
+RUN mkdir -p /usr/hive/metastore && \
+    adduser hive --create-home
+
+ADD __REPLACE_ME_WITH_TARBALL_NAME__ /usr/hive/metastore
+
+COPY metastore-site.xml /usr/hive/metastore/__REPLACE_ME_WITH_UNTARRED_NAME__/conf/metastore-site.xml
+    
+RUN echo "export HADOOP_HOME=/usr/hadoop/hadoop-2.8.1" >> /home/hive/.bash_profile
+RUN echo "export METASTORE_HOME=/usr/hive/metastore/__REPLACE_ME_WITH_UNTARRED_NAME__" >> /home/hive/.bash_profile
+RUN echo "export PATH=$PATH:$HADOOP_HOME/bin:$METASTORE_HOME/bin" >> /home/hive/.bash_profile
+RUN echo "export JAVA_HOME=/usr" >> /home/hive/.bash_profile
+
+RUN cp /usr/share/java/mysql-connector-java.jar /usr/hive/metastore/__REPLACE_ME_WITH_UNTARRED_NAME__/lib && \
+    chown -R hive /usr/hive
+

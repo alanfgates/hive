@@ -37,7 +37,7 @@ mkdir target/docker
 
 tarball_filename=`basename $TARBALL`
 untarred_dir=`basename $UNTARRED`
-for dir in postgres
+for dir in postgres mysql
 do
   docker_src_dir="$PWD/src/test/docker/$dir"
   docker_target_dir="$PWD/target/docker/$dir"
