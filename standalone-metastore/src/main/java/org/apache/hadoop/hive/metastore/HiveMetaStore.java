@@ -7247,6 +7247,69 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         throw e;
       }
     }
+
+    @Override
+    public void create_ischema(ISchema schema) throws TException {
+
+    }
+
+    @Override
+    public void alter_ischema(String schemaName, ISchema newSchema) throws TException {
+
+    }
+
+    @Override
+    public ISchema get_ischema(String schemaName) throws TException {
+      return null;
+    }
+
+    @Override
+    public void drop_ischema(String schemaName) throws TException {
+
+    }
+
+    @Override
+    public void add_schema_version(String schemaName, SchemaVersion schemaVersion)
+        throws TException {
+
+    }
+
+    @Override
+    public SchemaVersion get_schema_version(String schemaName, int version) throws TException {
+      return null;
+    }
+
+    @Override
+    public SchemaVersion get_schema_latest_version(String schemName) throws TException {
+      return null;
+    }
+
+    @Override
+    public List<SchemaVersion> get_schema_all_versions(String schemaName) throws TException {
+      return null;
+    }
+
+    @Override
+    public void drop_schema_version(String schemaName, int version) throws TException {
+
+    }
+
+    @Override
+    public FindSchemasByColsResp get_schemas_by_cols(FindSchemasByColsRqst rqst) throws TException {
+      return null;
+    }
+
+    @Override
+    public void map_schema_version_to_serde(String schemaName, int version, String serdeName)
+        throws TException {
+
+    }
+
+    @Override
+    public void set_schema_version_state(String schemaName, int version,
+                                         SchemaVersionState state) throws TException {
+
+    }
   }
 
   private static IHMSHandler newRetryingHMSHandler(IHMSHandler baseHandler, Configuration conf)

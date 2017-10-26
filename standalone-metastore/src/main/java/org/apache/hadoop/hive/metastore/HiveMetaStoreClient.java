@@ -2602,4 +2602,66 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   public String getMetastoreDbUuid() throws TException {
     return client.get_metastore_db_uuid();
   }
+
+  @Override
+  public void createISchema(ISchema schema) throws TException {
+    client.create_ischema(schema);
+  }
+
+  @Override
+  public void alterISchema(String schemaName, ISchema newSchema) throws TException {
+    client.alter_ischema(schemaName, newSchema);
+  }
+
+  @Override
+  public ISchema getISchema(String name) throws TException {
+    return client.get_ischema(name);
+  }
+
+  @Override
+  public void dropISchema(String name) throws TException {
+    client.drop_ischema(name);
+  }
+
+  @Override
+  public void addSchemaVersion(String schemaName, SchemaVersion schemaVersion) throws TException {
+    client.add_schema_version(schemaName, schemaVersion);
+  }
+
+  @Override
+  public SchemaVersion getSchemaVersion(String schemaName, int version) throws TException {
+    return client.get_schema_version(schemaName, version);
+  }
+
+  @Override
+  public SchemaVersion getSchemaLatestVersion(String schemaName) throws TException {
+    return client.get_schema_latest_version(schemaName);
+  }
+
+  @Override
+  public List<SchemaVersion> getSchemaAllVersions(String schemaName) throws TException {
+    return client.get_schema_all_versions(schemaName);
+  }
+
+  @Override
+  public void dropSchemaVersion(String schemaName, int version) throws TException {
+    client.drop_schema_version(schemaName, version);
+  }
+
+  @Override
+  public FindSchemasByColsResp getSchemaByCols(FindSchemasByColsRqst rqst) throws TException {
+    return client.get_schemas_by_cols(rqst);
+  }
+
+  @Override
+  public void mapSchemaVersionToSerde(String schemaName, int version, String serdeName)
+      throws TException {
+    client.map_schema_version_to_serde(schemaName, version, serdeName);
+  }
+
+  @Override
+  public void setSchemaVersionState(String schemaName, int version, SchemaVersionState state)
+      throws TException {
+    client.set_schema_version_state(schemaName, version, state);
+  }
 }
