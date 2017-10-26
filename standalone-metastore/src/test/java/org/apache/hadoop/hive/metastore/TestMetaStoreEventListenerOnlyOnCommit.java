@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -20,73 +20,89 @@ package org.apache.hadoop.hive.metastore;
 
 import java.util.List;
 
-import junit.framework.TestCase;
-
-import org.apache.hadoop.hive.cli.CliSessionState;
-import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.metastore.api.Database;
+import org.apache.hadoop.hive.metastore.api.Partition;
+import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.client.builder.DatabaseBuilder;
+import org.apache.hadoop.hive.metastore.client.builder.PartitionBuilder;
+import org.apache.hadoop.hive.metastore.client.builder.TableBuilder;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf.ConfVars;
 import org.apache.hadoop.hive.metastore.events.ListenerEvent;
 import org.apache.hadoop.hive.metastore.security.HadoopThriftAuthBridge;
-import org.apache.hadoop.hive.metastore.utils.MetaStoreUtils;
-import org.apache.hadoop.hive.ql.Driver;
-import org.apache.hadoop.hive.ql.session.SessionState;
+import org.junit.Before;
+import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Ensure that the status of MetaStore events depend on the RawStore's commit status.
  */
-public class TestMetaStoreEventListenerOnlyOnCommit extends TestCase {
+public class TestMetaStoreEventListenerOnlyOnCommit {
 
-  private HiveConf hiveConf;
+  private Configuration conf;
   private HiveMetaStoreClient msc;
-  private Driver driver;
 
-  @Override
-  protected void setUp() throws Exception {
-
-    super.setUp();
-
+  @Before
+  public void setUp() throws Exception {
     DummyRawStoreControlledCommit.setCommitSucceed(true);
 
-    System.setProperty(HiveConf.ConfVars.METASTORE_EVENT_LISTENERS.varname,
-            DummyListener.class.getName());
-    System.setProperty(HiveConf.ConfVars.METASTORE_RAW_STORE_IMPL.varname,
+    System.setProperty(ConfVars.EVENT_LISTENERS.varname, DummyListener.class.getName());
+    System.setProperty(ConfVars.RAW_STORE_IMPL.varname,
             DummyRawStoreControlledCommit.class.getName());
 
     int port = MetaStoreTestUtils.findFreePort();
-    MetaStoreTestUtils.startMetaStore(port, HadoopThriftAuthBridge.getBridge());
 
-    hiveConf = new HiveConf(this.getClass());
-    hiveConf.setVar(HiveConf.ConfVars.METASTOREURIS, "thrift://localhost:" + port);
-    hiveConf.setIntVar(HiveConf.ConfVars.METASTORETHRIFTCONNECTIONRETRIES, 3);
-    hiveConf.set(HiveConf.ConfVars.PREEXECHOOKS.varname, "");
-    hiveConf.set(HiveConf.ConfVars.POSTEXECHOOKS.varname, "");
-    hiveConf.set(HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY.varname, "false");
-    SessionState.start(new CliSessionState(hiveConf));
-    msc = new HiveMetaStoreClient(hiveConf);
-    driver = new Driver(hiveConf);
+    conf = MetastoreConf.newMetastoreConf();
+    MetastoreConf.setVar(conf, ConfVars.THRIFT_URIS, "thrift://localhost:" + port);
+    MetastoreConf.setLongVar(conf, ConfVars.THRIFT_CONNECTION_RETRIES, 3);
+    MetastoreConf.setBoolVar(conf, ConfVars.HIVE_SUPPORT_CONCURRENCY, false);
+    MetastoreConf.setClass(conf, ConfVars.EXPRESSION_PROXY_CLASS,
+        NullPartitionExpressionProxy.class, PartitionExpressionProxy.class);
+    MetaStoreTestUtils.startMetaStore(port, HadoopThriftAuthBridge.getBridge(), conf);
+    msc = new HiveMetaStoreClient(conf);
 
     DummyListener.notifyList.clear();
   }
 
+  @Test
   public void testEventStatus() throws Exception {
     int listSize = 0;
     List<ListenerEvent> notifyList = DummyListener.notifyList;
     assertEquals(notifyList.size(), listSize);
 
-    driver.run("CREATE DATABASE tmpDb");
+    String dbName = "tmpDb";
+    Database db = new DatabaseBuilder()
+        .setName(dbName)
+        .build();
+    msc.createDatabase(db);
+
     listSize += 1;
     notifyList = DummyListener.notifyList;
     assertEquals(notifyList.size(), listSize);
     assertTrue(DummyListener.getLastEvent().getStatus());
 
-    driver.run("CREATE TABLE unittest_TestMetaStoreEventListenerOnlyOnCommit (id INT) " +
-                "PARTITIONED BY (ds STRING)");
+    String tableName = "unittest_TestMetaStoreEventListenerOnlyOnCommit";
+    Table table = new TableBuilder()
+        .setDbName(db)
+        .setTableName(tableName)
+        .addCol("id", "int")
+        .addPartCol("ds", "string")
+        .build();
+    msc.createTable(table);
     listSize += 1;
     notifyList = DummyListener.notifyList;
     assertEquals(notifyList.size(), listSize);
     assertTrue(DummyListener.getLastEvent().getStatus());
 
-    driver.run("ALTER TABLE unittest_TestMetaStoreEventListenerOnlyOnCommit " +
-                "ADD PARTITION(ds='foo1')");
+    Partition part = new PartitionBuilder()
+        .fromTable(table)
+        .addValue("foo1")
+        .build();
+    msc.add_partition(part);
     listSize += 1;
     notifyList = DummyListener.notifyList;
     assertEquals(notifyList.size(), listSize);
@@ -94,8 +110,11 @@ public class TestMetaStoreEventListenerOnlyOnCommit extends TestCase {
 
     DummyRawStoreControlledCommit.setCommitSucceed(false);
 
-    driver.run("ALTER TABLE unittest_TestMetaStoreEventListenerOnlyOnCommit " +
-                "ADD PARTITION(ds='foo2')");
+    part = new PartitionBuilder()
+        .fromTable(table)
+        .addValue("foo2")
+        .build();
+    msc.add_partition(part);
     listSize += 1;
     notifyList = DummyListener.notifyList;
     assertEquals(notifyList.size(), listSize);

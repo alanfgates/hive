@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -18,31 +18,32 @@
 
 package org.apache.hadoop.hive.metastore;
 
-
-
-import junit.framework.TestCase;
-
-import org.apache.hadoop.hive.cli.CliSessionState;
-import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
+import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.client.builder.DatabaseBuilder;
+import org.apache.hadoop.hive.metastore.client.builder.TableBuilder;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf.ConfVars;
 import org.apache.hadoop.hive.metastore.security.HadoopThriftAuthBridge;
-import org.apache.hadoop.hive.ql.Driver;
-import org.apache.hadoop.hive.ql.session.SessionState;
-import org.apache.hadoop.hive.metastore.utils.MetaStoreUtils;
+import org.junit.Before;
+import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * TestMetaStoreEventListener. Test case for
  * {@link org.apache.hadoop.hive.metastore.MetaStoreEndFunctionListener}
  */
-public class TestMetaStoreEndFunctionListener extends TestCase {
-  private HiveConf hiveConf;
+public class TestMetaStoreEndFunctionListener {
+  private Configuration conf;
   private HiveMetaStoreClient msc;
-  private Driver driver;
 
-  @Override
-  protected void setUp() throws Exception {
-
-    super.setUp();
+  @Before
+  public void setUp() throws Exception {
     System.setProperty("hive.metastore.event.listeners",
         DummyListener.class.getName());
     System.setProperty("hive.metastore.pre.event.listeners",
@@ -50,37 +51,34 @@ public class TestMetaStoreEndFunctionListener extends TestCase {
     System.setProperty("hive.metastore.end.function.listeners",
         DummyEndFunctionListener.class.getName());
     int port = MetaStoreTestUtils.findFreePort();
-    MetaStoreTestUtils.startMetaStore(port, HadoopThriftAuthBridge.getBridge());
-    hiveConf = new HiveConf(this.getClass());
-    hiveConf.setVar(HiveConf.ConfVars.METASTOREURIS, "thrift://localhost:" + port);
-    hiveConf.setIntVar(HiveConf.ConfVars.METASTORETHRIFTCONNECTIONRETRIES, 3);
-    hiveConf.set(HiveConf.ConfVars.PREEXECHOOKS.varname, "");
-    hiveConf.set(HiveConf.ConfVars.POSTEXECHOOKS.varname, "");
-    hiveConf.set(HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY.varname, "false");
-    SessionState.start(new CliSessionState(hiveConf));
-    msc = new HiveMetaStoreClient(hiveConf);
-    driver = new Driver(hiveConf);
+    conf = MetastoreConf.newMetastoreConf();
+    MetastoreConf.setClass(conf, ConfVars.EXPRESSION_PROXY_CLASS,
+        NullPartitionExpressionProxy.class, PartitionExpressionProxy.class);
+    MetastoreConf.setVar(conf, ConfVars.THRIFT_URIS, "thrift://localhost:" + port);
+    MetastoreConf.setLongVar(conf, ConfVars.THRIFT_CONNECTION_RETRIES, 3);
+    MetastoreConf.setBoolVar(conf, ConfVars.HIVE_SUPPORT_CONCURRENCY, false);
+    MetaStoreTestUtils.startMetaStore(port, HadoopThriftAuthBridge.getBridge(), conf);
+    msc = new HiveMetaStoreClient(conf);
   }
 
-  @Override
-  protected void tearDown() throws Exception {
-    super.tearDown();
-  }
-
+  @Test
   public void testEndFunctionListener() throws Exception {
     /* Objective here is to ensure that when exceptions are thrown in HiveMetaStore in API methods
      * they bubble up and are stored in the MetaStoreEndFunctionContext objects
      */
     String dbName = "hive3524";
     String tblName = "tmptbl";
-    int listSize = 0;
+    int listSize;
 
-    driver.run("create database " + dbName);
+    Database db = new DatabaseBuilder()
+        .setName(dbName)
+        .build();
+    msc.createDatabase(db);
 
     try {
       msc.getDatabase("UnknownDB");
-    }
-    catch (Exception e) {
+    } catch (Exception e) {
+      // All good
     }
     listSize = DummyEndFunctionListener.funcNameList.size();
     String func_name = DummyEndFunctionListener.funcNameList.get(listSize-1);
@@ -92,13 +90,18 @@ public class TestMetaStoreEndFunctionListener extends TestCase {
     assertTrue((e instanceof NoSuchObjectException));
     assertEquals(context.getInputTableName(), null);
 
-    driver.run("use " + dbName);
-    driver.run(String.format("create table %s (a string) partitioned by (b string)", tblName));
-    String tableName = "Unknown";
+    String unknownTable = "UnknownTable";
+    Table table = new TableBuilder()
+        .setDbName(db)
+        .setTableName(tblName)
+        .addCol("a", "string")
+        .addPartCol("b", "string")
+        .build();
+    msc.createTable(table);
     try {
-      msc.getTable(dbName, tableName);
-    }
-    catch (Exception e1) {
+      msc.getTable(dbName, unknownTable);
+    } catch (Exception e1) {
+      // All good
     }
     listSize = DummyEndFunctionListener.funcNameList.size();
     func_name = DummyEndFunctionListener.funcNameList.get(listSize-1);
@@ -108,12 +111,12 @@ public class TestMetaStoreEndFunctionListener extends TestCase {
     e = context.getException();
     assertTrue((e!=null));
     assertTrue((e instanceof NoSuchObjectException));
-    assertEquals(context.getInputTableName(), tableName);
+    assertEquals(context.getInputTableName(), unknownTable);
 
     try {
       msc.getPartition("hive3524", tblName, "b=2012");
-    }
-    catch (Exception e2) {
+    } catch (Exception e2) {
+      // All good
     }
     listSize = DummyEndFunctionListener.funcNameList.size();
     func_name = DummyEndFunctionListener.funcNameList.get(listSize-1);
@@ -125,9 +128,9 @@ public class TestMetaStoreEndFunctionListener extends TestCase {
     assertTrue((e instanceof NoSuchObjectException));
     assertEquals(context.getInputTableName(), tblName);
     try {
-      driver.run("drop table Unknown");
-    }
-    catch (Exception e4) {
+      msc.dropTable(dbName, unknownTable);
+    } catch (Exception e4) {
+      // All good
     }
     listSize = DummyEndFunctionListener.funcNameList.size();
     func_name = DummyEndFunctionListener.funcNameList.get(listSize-1);
@@ -137,7 +140,7 @@ public class TestMetaStoreEndFunctionListener extends TestCase {
     e = context.getException();
     assertTrue((e!=null));
     assertTrue((e instanceof NoSuchObjectException));
-    assertEquals(context.getInputTableName(), "Unknown");
+    assertEquals(context.getInputTableName(), "UnknownTable");
 
   }
 

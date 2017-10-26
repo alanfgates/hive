@@ -611,7 +611,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
             " by " + e.getMessage());
       }
       Configuration configuration = getConf();
-      String oldValue = configuration.get(key);
+      String oldValue = MetastoreConf.get(configuration, key);
       // Save prev val of the key on threadLocal
       Map<String, String> modifiedConf = getModifiedConf();
       if (!modifiedConf.containsKey(key)) {
