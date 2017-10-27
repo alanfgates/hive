@@ -249,7 +249,7 @@
         </value>
       </field>
       <field name="description">
-        <column name="DESCRIPTION" length="256" jdbc-type="VARCHAR" allows-null="true"/>
+        <column name="DESCRIPTION" length="4000" jdbc-type="VARCHAR" allows-null="true"/>
       </field>
       <field name="serializerClass">
         <column name="SERIALIZER_CLASS" length="4000" jdbc-type="VARCHAR" allows-null="true"/>
@@ -1256,7 +1256,7 @@
         <column name="DESCRIPTION" jdbc-type="varchar" length="4000" allows-null="true"/>
       </field>
       <field name="schemaText">
-        <column name="SCHEMA_TEXT" jdbc-type="LONGVARCHAR"/>
+        <column name="SCHEMA_TEXT" jdbc-type="LONGVARCHAR" allows-null="true"/>
       </field>
       <field name="fingerprint">
         <column name="FINGERPRINT" jdbc-type="varchar" length="256" allows-null="true"/>
