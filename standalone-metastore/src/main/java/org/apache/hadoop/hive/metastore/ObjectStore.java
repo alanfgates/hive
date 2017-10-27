@@ -117,6 +117,7 @@ import org.apache.hadoop.hive.metastore.api.SQLNotNullConstraint;
 import org.apache.hadoop.hive.metastore.api.SQLPrimaryKey;
 import org.apache.hadoop.hive.metastore.api.SQLUniqueConstraint;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
+import org.apache.hadoop.hive.metastore.api.SerdeType;
 import org.apache.hadoop.hive.metastore.api.SkewedInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
@@ -1644,15 +1645,22 @@ public class ObjectStore implements RawStore, Configurable {
     if (ms == null) {
       throw new MetaException("Invalid SerDeInfo object");
     }
-    return new SerDeInfo(ms.getName(), ms.getSerializationLib(), convertMap(ms.getParameters()));
+    SerDeInfo serde =
+        new SerDeInfo(ms.getName(), ms.getSerializationLib(), convertMap(ms.getParameters()));
+    if (ms.getDescription() != null) serde.setDescription(ms.getDescription());
+    if (ms.getSerializerClass() != null) serde.setSerializerClass(ms.getSerializerClass());
+    if (ms.getDeserializerClass() != null) serde.setDeserializerClass(ms.getDeserializerClass());
+    if (ms.getSerdeType() > 0) serde.setSerdeType(SerdeType.findByValue(ms.getSerdeType()));
+    return serde;
   }
 
   private MSerDeInfo convertToMSerDeInfo(SerDeInfo ms) throws MetaException {
     if (ms == null) {
       throw new MetaException("Invalid SerDeInfo object");
     }
-    return new MSerDeInfo(ms.getName(), ms.getSerializationLib(), ms
-        .getParameters());
+    return new MSerDeInfo(ms.getName(), ms.getSerializationLib(), ms.getParameters(),
+        ms.getDescription(), ms.getSerializerClass(), ms.getDeserializerClass(),
+        ms.getSerdeType() == null ? 0 : ms.getSerdeType().getValue());
   }
 
   /**
