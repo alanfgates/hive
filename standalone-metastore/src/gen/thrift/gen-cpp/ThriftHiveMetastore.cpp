@@ -40091,14 +40091,6 @@ uint32_t ThriftHiveMetastore_create_ischema_result::read(::apache::thrift::proto
           xfer += iprot->skip(ftype);
         }
         break;
-      case 3:
-        if (ftype == ::apache::thrift::protocol::T_STRUCT) {
-          xfer += this->o3.read(iprot);
-          this->__isset.o3 = true;
-        } else {
-          xfer += iprot->skip(ftype);
-        }
-        break;
       default:
         xfer += iprot->skip(ftype);
         break;
@@ -40124,10 +40116,6 @@ uint32_t ThriftHiveMetastore_create_ischema_result::write(::apache::thrift::prot
   } else if (this->__isset.o2) {
     xfer += oprot->writeFieldBegin("o2", ::apache::thrift::protocol::T_STRUCT, 2);
     xfer += this->o2.write(oprot);
-    xfer += oprot->writeFieldEnd();
-  } else if (this->__isset.o3) {
-    xfer += oprot->writeFieldBegin("o3", ::apache::thrift::protocol::T_STRUCT, 3);
-    xfer += this->o3.write(oprot);
     xfer += oprot->writeFieldEnd();
   }
   xfer += oprot->writeFieldStop();
@@ -40173,14 +40161,6 @@ uint32_t ThriftHiveMetastore_create_ischema_presult::read(::apache::thrift::prot
         if (ftype == ::apache::thrift::protocol::T_STRUCT) {
           xfer += this->o2.read(iprot);
           this->__isset.o2 = true;
-        } else {
-          xfer += iprot->skip(ftype);
-        }
-        break;
-      case 3:
-        if (ftype == ::apache::thrift::protocol::T_STRUCT) {
-          xfer += this->o3.read(iprot);
-          this->__isset.o3 = true;
         } else {
           xfer += iprot->skip(ftype);
         }
@@ -40334,14 +40314,6 @@ uint32_t ThriftHiveMetastore_alter_ischema_result::read(::apache::thrift::protoc
           xfer += iprot->skip(ftype);
         }
         break;
-      case 3:
-        if (ftype == ::apache::thrift::protocol::T_STRUCT) {
-          xfer += this->o3.read(iprot);
-          this->__isset.o3 = true;
-        } else {
-          xfer += iprot->skip(ftype);
-        }
-        break;
       default:
         xfer += iprot->skip(ftype);
         break;
@@ -40367,10 +40339,6 @@ uint32_t ThriftHiveMetastore_alter_ischema_result::write(::apache::thrift::proto
   } else if (this->__isset.o2) {
     xfer += oprot->writeFieldBegin("o2", ::apache::thrift::protocol::T_STRUCT, 2);
     xfer += this->o2.write(oprot);
-    xfer += oprot->writeFieldEnd();
-  } else if (this->__isset.o3) {
-    xfer += oprot->writeFieldBegin("o3", ::apache::thrift::protocol::T_STRUCT, 3);
-    xfer += this->o3.write(oprot);
     xfer += oprot->writeFieldEnd();
   }
   xfer += oprot->writeFieldStop();
@@ -40416,14 +40384,6 @@ uint32_t ThriftHiveMetastore_alter_ischema_presult::read(::apache::thrift::proto
         if (ftype == ::apache::thrift::protocol::T_STRUCT) {
           xfer += this->o2.read(iprot);
           this->__isset.o2 = true;
-        } else {
-          xfer += iprot->skip(ftype);
-        }
-        break;
-      case 3:
-        if (ftype == ::apache::thrift::protocol::T_STRUCT) {
-          xfer += this->o3.read(iprot);
-          this->__isset.o3 = true;
         } else {
           xfer += iprot->skip(ftype);
         }
@@ -40561,14 +40521,6 @@ uint32_t ThriftHiveMetastore_get_ischema_result::read(::apache::thrift::protocol
           xfer += iprot->skip(ftype);
         }
         break;
-      case 2:
-        if (ftype == ::apache::thrift::protocol::T_STRUCT) {
-          xfer += this->o2.read(iprot);
-          this->__isset.o2 = true;
-        } else {
-          xfer += iprot->skip(ftype);
-        }
-        break;
       default:
         xfer += iprot->skip(ftype);
         break;
@@ -40594,10 +40546,6 @@ uint32_t ThriftHiveMetastore_get_ischema_result::write(::apache::thrift::protoco
   } else if (this->__isset.o1) {
     xfer += oprot->writeFieldBegin("o1", ::apache::thrift::protocol::T_STRUCT, 1);
     xfer += this->o1.write(oprot);
-    xfer += oprot->writeFieldEnd();
-  } else if (this->__isset.o2) {
-    xfer += oprot->writeFieldBegin("o2", ::apache::thrift::protocol::T_STRUCT, 2);
-    xfer += this->o2.write(oprot);
     xfer += oprot->writeFieldEnd();
   }
   xfer += oprot->writeFieldStop();
@@ -40643,14 +40591,6 @@ uint32_t ThriftHiveMetastore_get_ischema_presult::read(::apache::thrift::protoco
         if (ftype == ::apache::thrift::protocol::T_STRUCT) {
           xfer += this->o1.read(iprot);
           this->__isset.o1 = true;
-        } else {
-          xfer += iprot->skip(ftype);
-        }
-        break;
-      case 2:
-        if (ftype == ::apache::thrift::protocol::T_STRUCT) {
-          xfer += this->o2.read(iprot);
-          this->__isset.o2 = true;
         } else {
           xfer += iprot->skip(ftype);
         }
@@ -40921,14 +40861,6 @@ uint32_t ThriftHiveMetastore_add_schema_version_args::read(::apache::thrift::pro
     switch (fid)
     {
       case 1:
-        if (ftype == ::apache::thrift::protocol::T_STRING) {
-          xfer += iprot->readString(this->schemaName);
-          this->__isset.schemaName = true;
-        } else {
-          xfer += iprot->skip(ftype);
-        }
-        break;
-      case 2:
         if (ftype == ::apache::thrift::protocol::T_STRUCT) {
           xfer += this->schemaVersion.read(iprot);
           this->__isset.schemaVersion = true;
@@ -40953,11 +40885,7 @@ uint32_t ThriftHiveMetastore_add_schema_version_args::write(::apache::thrift::pr
   apache::thrift::protocol::TOutputRecursionTracker tracker(*oprot);
   xfer += oprot->writeStructBegin("ThriftHiveMetastore_add_schema_version_args");
 
-  xfer += oprot->writeFieldBegin("schemaName", ::apache::thrift::protocol::T_STRING, 1);
-  xfer += oprot->writeString(this->schemaName);
-  xfer += oprot->writeFieldEnd();
-
-  xfer += oprot->writeFieldBegin("schemaVersion", ::apache::thrift::protocol::T_STRUCT, 2);
+  xfer += oprot->writeFieldBegin("schemaVersion", ::apache::thrift::protocol::T_STRUCT, 1);
   xfer += this->schemaVersion.write(oprot);
   xfer += oprot->writeFieldEnd();
 
@@ -40976,11 +40904,7 @@ uint32_t ThriftHiveMetastore_add_schema_version_pargs::write(::apache::thrift::p
   apache::thrift::protocol::TOutputRecursionTracker tracker(*oprot);
   xfer += oprot->writeStructBegin("ThriftHiveMetastore_add_schema_version_pargs");
 
-  xfer += oprot->writeFieldBegin("schemaName", ::apache::thrift::protocol::T_STRING, 1);
-  xfer += oprot->writeString((*(this->schemaName)));
-  xfer += oprot->writeFieldEnd();
-
-  xfer += oprot->writeFieldBegin("schemaVersion", ::apache::thrift::protocol::T_STRUCT, 2);
+  xfer += oprot->writeFieldBegin("schemaVersion", ::apache::thrift::protocol::T_STRUCT, 1);
   xfer += (*(this->schemaVersion)).write(oprot);
   xfer += oprot->writeFieldEnd();
 
@@ -41039,14 +40963,6 @@ uint32_t ThriftHiveMetastore_add_schema_version_result::read(::apache::thrift::p
           xfer += iprot->skip(ftype);
         }
         break;
-      case 4:
-        if (ftype == ::apache::thrift::protocol::T_STRUCT) {
-          xfer += this->o4.read(iprot);
-          this->__isset.o4 = true;
-        } else {
-          xfer += iprot->skip(ftype);
-        }
-        break;
       default:
         xfer += iprot->skip(ftype);
         break;
@@ -41076,10 +40992,6 @@ uint32_t ThriftHiveMetastore_add_schema_version_result::write(::apache::thrift::
   } else if (this->__isset.o3) {
     xfer += oprot->writeFieldBegin("o3", ::apache::thrift::protocol::T_STRUCT, 3);
     xfer += this->o3.write(oprot);
-    xfer += oprot->writeFieldEnd();
-  } else if (this->__isset.o4) {
-    xfer += oprot->writeFieldBegin("o4", ::apache::thrift::protocol::T_STRUCT, 4);
-    xfer += this->o4.write(oprot);
     xfer += oprot->writeFieldEnd();
   }
   xfer += oprot->writeFieldStop();
@@ -41133,14 +41045,6 @@ uint32_t ThriftHiveMetastore_add_schema_version_presult::read(::apache::thrift::
         if (ftype == ::apache::thrift::protocol::T_STRUCT) {
           xfer += this->o3.read(iprot);
           this->__isset.o3 = true;
-        } else {
-          xfer += iprot->skip(ftype);
-        }
-        break;
-      case 4:
-        if (ftype == ::apache::thrift::protocol::T_STRUCT) {
-          xfer += this->o4.read(iprot);
-          this->__isset.o4 = true;
         } else {
           xfer += iprot->skip(ftype);
         }
@@ -41294,14 +41198,6 @@ uint32_t ThriftHiveMetastore_get_schema_version_result::read(::apache::thrift::p
           xfer += iprot->skip(ftype);
         }
         break;
-      case 2:
-        if (ftype == ::apache::thrift::protocol::T_STRUCT) {
-          xfer += this->o2.read(iprot);
-          this->__isset.o2 = true;
-        } else {
-          xfer += iprot->skip(ftype);
-        }
-        break;
       default:
         xfer += iprot->skip(ftype);
         break;
@@ -41327,10 +41223,6 @@ uint32_t ThriftHiveMetastore_get_schema_version_result::write(::apache::thrift::
   } else if (this->__isset.o1) {
     xfer += oprot->writeFieldBegin("o1", ::apache::thrift::protocol::T_STRUCT, 1);
     xfer += this->o1.write(oprot);
-    xfer += oprot->writeFieldEnd();
-  } else if (this->__isset.o2) {
-    xfer += oprot->writeFieldBegin("o2", ::apache::thrift::protocol::T_STRUCT, 2);
-    xfer += this->o2.write(oprot);
     xfer += oprot->writeFieldEnd();
   }
   xfer += oprot->writeFieldStop();
@@ -41376,14 +41268,6 @@ uint32_t ThriftHiveMetastore_get_schema_version_presult::read(::apache::thrift::
         if (ftype == ::apache::thrift::protocol::T_STRUCT) {
           xfer += this->o1.read(iprot);
           this->__isset.o1 = true;
-        } else {
-          xfer += iprot->skip(ftype);
-        }
-        break;
-      case 2:
-        if (ftype == ::apache::thrift::protocol::T_STRUCT) {
-          xfer += this->o2.read(iprot);
-          this->__isset.o2 = true;
         } else {
           xfer += iprot->skip(ftype);
         }
@@ -41521,14 +41405,6 @@ uint32_t ThriftHiveMetastore_get_schema_latest_version_result::read(::apache::th
           xfer += iprot->skip(ftype);
         }
         break;
-      case 2:
-        if (ftype == ::apache::thrift::protocol::T_STRUCT) {
-          xfer += this->o2.read(iprot);
-          this->__isset.o2 = true;
-        } else {
-          xfer += iprot->skip(ftype);
-        }
-        break;
       default:
         xfer += iprot->skip(ftype);
         break;
@@ -41554,10 +41430,6 @@ uint32_t ThriftHiveMetastore_get_schema_latest_version_result::write(::apache::t
   } else if (this->__isset.o1) {
     xfer += oprot->writeFieldBegin("o1", ::apache::thrift::protocol::T_STRUCT, 1);
     xfer += this->o1.write(oprot);
-    xfer += oprot->writeFieldEnd();
-  } else if (this->__isset.o2) {
-    xfer += oprot->writeFieldBegin("o2", ::apache::thrift::protocol::T_STRUCT, 2);
-    xfer += this->o2.write(oprot);
     xfer += oprot->writeFieldEnd();
   }
   xfer += oprot->writeFieldStop();
@@ -41603,14 +41475,6 @@ uint32_t ThriftHiveMetastore_get_schema_latest_version_presult::read(::apache::t
         if (ftype == ::apache::thrift::protocol::T_STRUCT) {
           xfer += this->o1.read(iprot);
           this->__isset.o1 = true;
-        } else {
-          xfer += iprot->skip(ftype);
-        }
-        break;
-      case 2:
-        if (ftype == ::apache::thrift::protocol::T_STRUCT) {
-          xfer += this->o2.read(iprot);
-          this->__isset.o2 = true;
         } else {
           xfer += iprot->skip(ftype);
         }
@@ -41760,14 +41624,6 @@ uint32_t ThriftHiveMetastore_get_schema_all_versions_result::read(::apache::thri
           xfer += iprot->skip(ftype);
         }
         break;
-      case 2:
-        if (ftype == ::apache::thrift::protocol::T_STRUCT) {
-          xfer += this->o2.read(iprot);
-          this->__isset.o2 = true;
-        } else {
-          xfer += iprot->skip(ftype);
-        }
-        break;
       default:
         xfer += iprot->skip(ftype);
         break;
@@ -41801,10 +41657,6 @@ uint32_t ThriftHiveMetastore_get_schema_all_versions_result::write(::apache::thr
   } else if (this->__isset.o1) {
     xfer += oprot->writeFieldBegin("o1", ::apache::thrift::protocol::T_STRUCT, 1);
     xfer += this->o1.write(oprot);
-    xfer += oprot->writeFieldEnd();
-  } else if (this->__isset.o2) {
-    xfer += oprot->writeFieldBegin("o2", ::apache::thrift::protocol::T_STRUCT, 2);
-    xfer += this->o2.write(oprot);
     xfer += oprot->writeFieldEnd();
   }
   xfer += oprot->writeFieldStop();
@@ -41862,14 +41714,6 @@ uint32_t ThriftHiveMetastore_get_schema_all_versions_presult::read(::apache::thr
         if (ftype == ::apache::thrift::protocol::T_STRUCT) {
           xfer += this->o1.read(iprot);
           this->__isset.o1 = true;
-        } else {
-          xfer += iprot->skip(ftype);
-        }
-        break;
-      case 2:
-        if (ftype == ::apache::thrift::protocol::T_STRUCT) {
-          xfer += this->o2.read(iprot);
-          this->__isset.o2 = true;
         } else {
           xfer += iprot->skip(ftype);
         }
@@ -53111,9 +52955,6 @@ void ThriftHiveMetastoreClient::recv_create_ischema()
   if (result.__isset.o2) {
     throw result.o2;
   }
-  if (result.__isset.o3) {
-    throw result.o3;
-  }
   return;
 }
 
@@ -53173,9 +53014,6 @@ void ThriftHiveMetastoreClient::recv_alter_ischema()
   }
   if (result.__isset.o2) {
     throw result.o2;
-  }
-  if (result.__isset.o3) {
-    throw result.o3;
   }
   return;
 }
@@ -53237,9 +53075,6 @@ void ThriftHiveMetastoreClient::recv_get_ischema(ISchema& _return)
   }
   if (result.__isset.o1) {
     throw result.o1;
-  }
-  if (result.__isset.o2) {
-    throw result.o2;
   }
   throw ::apache::thrift::TApplicationException(::apache::thrift::TApplicationException::MISSING_RESULT, "get_ischema failed: unknown result");
 }
@@ -53306,19 +53141,18 @@ void ThriftHiveMetastoreClient::recv_drop_ischema()
   return;
 }
 
-void ThriftHiveMetastoreClient::add_schema_version(const std::string& schemaName, const SchemaVersion& schemaVersion)
+void ThriftHiveMetastoreClient::add_schema_version(const SchemaVersion& schemaVersion)
 {
-  send_add_schema_version(schemaName, schemaVersion);
+  send_add_schema_version(schemaVersion);
   recv_add_schema_version();
 }
 
-void ThriftHiveMetastoreClient::send_add_schema_version(const std::string& schemaName, const SchemaVersion& schemaVersion)
+void ThriftHiveMetastoreClient::send_add_schema_version(const SchemaVersion& schemaVersion)
 {
   int32_t cseqid = 0;
   oprot_->writeMessageBegin("add_schema_version", ::apache::thrift::protocol::T_CALL, cseqid);
 
   ThriftHiveMetastore_add_schema_version_pargs args;
-  args.schemaName = &schemaName;
   args.schemaVersion = &schemaVersion;
   args.write(oprot_);
 
@@ -53365,9 +53199,6 @@ void ThriftHiveMetastoreClient::recv_add_schema_version()
   }
   if (result.__isset.o3) {
     throw result.o3;
-  }
-  if (result.__isset.o4) {
-    throw result.o4;
   }
   return;
 }
@@ -53431,9 +53262,6 @@ void ThriftHiveMetastoreClient::recv_get_schema_version(SchemaVersion& _return)
   if (result.__isset.o1) {
     throw result.o1;
   }
-  if (result.__isset.o2) {
-    throw result.o2;
-  }
   throw ::apache::thrift::TApplicationException(::apache::thrift::TApplicationException::MISSING_RESULT, "get_schema_version failed: unknown result");
 }
 
@@ -53495,9 +53323,6 @@ void ThriftHiveMetastoreClient::recv_get_schema_latest_version(SchemaVersion& _r
   if (result.__isset.o1) {
     throw result.o1;
   }
-  if (result.__isset.o2) {
-    throw result.o2;
-  }
   throw ::apache::thrift::TApplicationException(::apache::thrift::TApplicationException::MISSING_RESULT, "get_schema_latest_version failed: unknown result");
 }
 
@@ -53558,9 +53383,6 @@ void ThriftHiveMetastoreClient::recv_get_schema_all_versions(std::vector<SchemaV
   }
   if (result.__isset.o1) {
     throw result.o1;
-  }
-  if (result.__isset.o2) {
-    throw result.o2;
   }
   throw ::apache::thrift::TApplicationException(::apache::thrift::TApplicationException::MISSING_RESULT, "get_schema_all_versions failed: unknown result");
 }
@@ -63425,12 +63247,9 @@ void ThriftHiveMetastoreProcessor::process_create_ischema(int32_t seqid, ::apach
   } catch (AlreadyExistsException &o1) {
     result.o1 = o1;
     result.__isset.o1 = true;
-  } catch (InvalidObjectException &o2) {
+  } catch (MetaException &o2) {
     result.o2 = o2;
     result.__isset.o2 = true;
-  } catch (MetaException &o3) {
-    result.o3 = o3;
-    result.__isset.o3 = true;
   } catch (const std::exception& e) {
     if (this->eventHandler_.get() != NULL) {
       this->eventHandler_->handlerError(ctx, "ThriftHiveMetastore.create_ischema");
@@ -63487,12 +63306,9 @@ void ThriftHiveMetastoreProcessor::process_alter_ischema(int32_t seqid, ::apache
   } catch (NoSuchObjectException &o1) {
     result.o1 = o1;
     result.__isset.o1 = true;
-  } catch (InvalidObjectException &o2) {
+  } catch (MetaException &o2) {
     result.o2 = o2;
     result.__isset.o2 = true;
-  } catch (MetaException &o3) {
-    result.o3 = o3;
-    result.__isset.o3 = true;
   } catch (const std::exception& e) {
     if (this->eventHandler_.get() != NULL) {
       this->eventHandler_->handlerError(ctx, "ThriftHiveMetastore.alter_ischema");
@@ -63550,9 +63366,6 @@ void ThriftHiveMetastoreProcessor::process_get_ischema(int32_t seqid, ::apache::
   } catch (MetaException &o1) {
     result.o1 = o1;
     result.__isset.o1 = true;
-  } catch (NoSuchObjectException &o2) {
-    result.o2 = o2;
-    result.__isset.o2 = true;
   } catch (const std::exception& e) {
     if (this->eventHandler_.get() != NULL) {
       this->eventHandler_->handlerError(ctx, "ThriftHiveMetastore.get_ischema");
@@ -63667,19 +63480,16 @@ void ThriftHiveMetastoreProcessor::process_add_schema_version(int32_t seqid, ::a
 
   ThriftHiveMetastore_add_schema_version_result result;
   try {
-    iface_->add_schema_version(args.schemaName, args.schemaVersion);
+    iface_->add_schema_version(args.schemaVersion);
   } catch (AlreadyExistsException &o1) {
     result.o1 = o1;
     result.__isset.o1 = true;
-  } catch (InvalidObjectException &o2) {
+  } catch (NoSuchObjectException &o2) {
     result.o2 = o2;
     result.__isset.o2 = true;
-  } catch (NoSuchObjectException &o3) {
+  } catch (MetaException &o3) {
     result.o3 = o3;
     result.__isset.o3 = true;
-  } catch (MetaException &o4) {
-    result.o4 = o4;
-    result.__isset.o4 = true;
   } catch (const std::exception& e) {
     if (this->eventHandler_.get() != NULL) {
       this->eventHandler_->handlerError(ctx, "ThriftHiveMetastore.add_schema_version");
@@ -63737,9 +63547,6 @@ void ThriftHiveMetastoreProcessor::process_get_schema_version(int32_t seqid, ::a
   } catch (MetaException &o1) {
     result.o1 = o1;
     result.__isset.o1 = true;
-  } catch (NoSuchObjectException &o2) {
-    result.o2 = o2;
-    result.__isset.o2 = true;
   } catch (const std::exception& e) {
     if (this->eventHandler_.get() != NULL) {
       this->eventHandler_->handlerError(ctx, "ThriftHiveMetastore.get_schema_version");
@@ -63797,9 +63604,6 @@ void ThriftHiveMetastoreProcessor::process_get_schema_latest_version(int32_t seq
   } catch (MetaException &o1) {
     result.o1 = o1;
     result.__isset.o1 = true;
-  } catch (NoSuchObjectException &o2) {
-    result.o2 = o2;
-    result.__isset.o2 = true;
   } catch (const std::exception& e) {
     if (this->eventHandler_.get() != NULL) {
       this->eventHandler_->handlerError(ctx, "ThriftHiveMetastore.get_schema_latest_version");
@@ -63857,9 +63661,6 @@ void ThriftHiveMetastoreProcessor::process_get_schema_all_versions(int32_t seqid
   } catch (MetaException &o1) {
     result.o1 = o1;
     result.__isset.o1 = true;
-  } catch (NoSuchObjectException &o2) {
-    result.o2 = o2;
-    result.__isset.o2 = true;
   } catch (const std::exception& e) {
     if (this->eventHandler_.get() != NULL) {
       this->eventHandler_->handlerError(ctx, "ThriftHiveMetastore.get_schema_all_versions");
@@ -78910,10 +78711,6 @@ void ThriftHiveMetastoreConcurrentClient::recv_create_ischema(const int32_t seqi
         sentry.commit();
         throw result.o2;
       }
-      if (result.__isset.o3) {
-        sentry.commit();
-        throw result.o3;
-      }
       sentry.commit();
       return;
     }
@@ -79000,10 +78797,6 @@ void ThriftHiveMetastoreConcurrentClient::recv_alter_ischema(const int32_t seqid
       if (result.__isset.o2) {
         sentry.commit();
         throw result.o2;
-      }
-      if (result.__isset.o3) {
-        sentry.commit();
-        throw result.o3;
       }
       sentry.commit();
       return;
@@ -79092,10 +78885,6 @@ void ThriftHiveMetastoreConcurrentClient::recv_get_ischema(ISchema& _return, con
       if (result.__isset.o1) {
         sentry.commit();
         throw result.o1;
-      }
-      if (result.__isset.o2) {
-        sentry.commit();
-        throw result.o2;
       }
       // in a bad state, don't commit
       throw ::apache::thrift::TApplicationException(::apache::thrift::TApplicationException::MISSING_RESULT, "get_ischema failed: unknown result");
@@ -79198,20 +78987,19 @@ void ThriftHiveMetastoreConcurrentClient::recv_drop_ischema(const int32_t seqid)
   } // end while(true)
 }
 
-void ThriftHiveMetastoreConcurrentClient::add_schema_version(const std::string& schemaName, const SchemaVersion& schemaVersion)
+void ThriftHiveMetastoreConcurrentClient::add_schema_version(const SchemaVersion& schemaVersion)
 {
-  int32_t seqid = send_add_schema_version(schemaName, schemaVersion);
+  int32_t seqid = send_add_schema_version(schemaVersion);
   recv_add_schema_version(seqid);
 }
 
-int32_t ThriftHiveMetastoreConcurrentClient::send_add_schema_version(const std::string& schemaName, const SchemaVersion& schemaVersion)
+int32_t ThriftHiveMetastoreConcurrentClient::send_add_schema_version(const SchemaVersion& schemaVersion)
 {
   int32_t cseqid = this->sync_.generateSeqId();
   ::apache::thrift::async::TConcurrentSendSentry sentry(&this->sync_);
   oprot_->writeMessageBegin("add_schema_version", ::apache::thrift::protocol::T_CALL, cseqid);
 
   ThriftHiveMetastore_add_schema_version_pargs args;
-  args.schemaName = &schemaName;
   args.schemaVersion = &schemaVersion;
   args.write(oprot_);
 
@@ -79277,10 +79065,6 @@ void ThriftHiveMetastoreConcurrentClient::recv_add_schema_version(const int32_t 
       if (result.__isset.o3) {
         sentry.commit();
         throw result.o3;
-      }
-      if (result.__isset.o4) {
-        sentry.commit();
-        throw result.o4;
       }
       sentry.commit();
       return;
@@ -79371,10 +79155,6 @@ void ThriftHiveMetastoreConcurrentClient::recv_get_schema_version(SchemaVersion&
         sentry.commit();
         throw result.o1;
       }
-      if (result.__isset.o2) {
-        sentry.commit();
-        throw result.o2;
-      }
       // in a bad state, don't commit
       throw ::apache::thrift::TApplicationException(::apache::thrift::TApplicationException::MISSING_RESULT, "get_schema_version failed: unknown result");
     }
@@ -79463,10 +79243,6 @@ void ThriftHiveMetastoreConcurrentClient::recv_get_schema_latest_version(SchemaV
         sentry.commit();
         throw result.o1;
       }
-      if (result.__isset.o2) {
-        sentry.commit();
-        throw result.o2;
-      }
       // in a bad state, don't commit
       throw ::apache::thrift::TApplicationException(::apache::thrift::TApplicationException::MISSING_RESULT, "get_schema_latest_version failed: unknown result");
     }
@@ -79554,10 +79330,6 @@ void ThriftHiveMetastoreConcurrentClient::recv_get_schema_all_versions(std::vect
       if (result.__isset.o1) {
         sentry.commit();
         throw result.o1;
-      }
-      if (result.__isset.o2) {
-        sentry.commit();
-        throw result.o2;
       }
       // in a bad state, don't commit
       throw ::apache::thrift::TApplicationException(::apache::thrift::TApplicationException::MISSING_RESULT, "get_schema_all_versions failed: unknown result");

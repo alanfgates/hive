@@ -1775,7 +1775,6 @@ public interface IMetaStoreClient {
    * of the schema that have columns, etc.
    * @param schema schema to create
    * @throws AlreadyExistsException if a schema of this name already exists
-   * @throws InvalidObjectException the passed in schema is not valid
    * @throws MetaException general metastore error
    * @throws TException general thrift error
    */
@@ -1786,7 +1785,6 @@ public interface IMetaStoreClient {
    * @param schemaName name of the schema
    * @param newSchema altered schema object
    * @throws NoSuchObjectException no schema with this name could be found
-   * @throws InvalidObjectException the passed in schema is not valid
    * @throws MetaException general metastore error
    * @throws TException general thrift error
    */
@@ -1795,8 +1793,7 @@ public interface IMetaStoreClient {
   /**
    * Fetch a schema.
    * @param name name of the schema
-   * @return the schema
-   * @throws NoSuchObjectException no schema with this name could be found
+   * @return the schema or null if no such schema
    * @throws MetaException general metastore error
    * @throws TException general thrift error
    */
@@ -1814,22 +1811,19 @@ public interface IMetaStoreClient {
 
   /**
    * Add a new version to an existing schema.
-   * @param schemaName name of the schema
    * @param schemaVersion version object to add
    * @throws AlreadyExistsException a version of this schema with the same version id already exists
-   * @throws InvalidObjectException the passed in schema version is not valid
    * @throws NoSuchObjectException no schema with this name could be found
    * @throws MetaException general metastore error
    * @throws TException general thrift error
    */
-  void addSchemaVersion(String schemaName, SchemaVersion schemaVersion) throws TException;
+  void addSchemaVersion(SchemaVersion schemaVersion) throws TException;
 
   /**
    * Get a specific version of a schema.
    * @param schemaName name of the schema
    * @param version version of the schema
-   * @return the schema version
-   * @throws NoSuchObjectException no matching version of the schema could be found
+   * @return the schema version or null if no such schema version
    * @throws MetaException general metastore error
    * @throws TException general thrift error
    */
@@ -1838,9 +1832,8 @@ public interface IMetaStoreClient {
   /**
    * Get the latest version of a schema.
    * @param schemaName name of the schema
-   * @return latest version of the schema
-   * @throws NoSuchObjectException no schema with this name could be found or the schema with
-   * this name has no versions
+   * @return latest version of the schema or null if the schema does not exist or there are no
+   * version of the schema.
    * @throws MetaException general metastore error
    * @throws TException general thrift error
    */
@@ -1849,9 +1842,8 @@ public interface IMetaStoreClient {
   /**
    * Get all the extant versions of a schema.
    * @param schemaName name of the schema.
-   * @return list of all the schema versions
-   * @throws NoSuchObjectException no schema with this name could be found or the schema with
-   * this name has no versions
+   * @return list of all the schema versions or null if this schema does not exist or has no
+   * versions.
    * @throws MetaException general metastore error
    * @throws TException general thrift error
    */

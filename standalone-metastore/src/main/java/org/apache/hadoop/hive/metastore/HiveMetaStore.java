@@ -7269,8 +7269,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
     }
 
     @Override
-    public void add_schema_version(String schemaName, SchemaVersion schemaVersion)
-        throws TException {
+    public void add_schema_version(SchemaVersion schemaVersion) throws TException {
 
     }
 

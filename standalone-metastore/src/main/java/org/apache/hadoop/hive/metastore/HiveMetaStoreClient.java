@@ -2624,8 +2624,8 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   }
 
   @Override
-  public void addSchemaVersion(String schemaName, SchemaVersion schemaVersion) throws TException {
-    client.add_schema_version(schemaName, schemaVersion);
+  public void addSchemaVersion(SchemaVersion schemaVersion) throws TException {
+    client.add_schema_version(schemaVersion);
   }
 
   @Override

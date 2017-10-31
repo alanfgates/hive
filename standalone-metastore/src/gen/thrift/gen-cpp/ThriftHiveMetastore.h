@@ -188,7 +188,7 @@ class ThriftHiveMetastoreIf : virtual public  ::facebook::fb303::FacebookService
   virtual void alter_ischema(const std::string& schemaName, const ISchema& newSchema) = 0;
   virtual void get_ischema(ISchema& _return, const std::string& schemaName) = 0;
   virtual void drop_ischema(const std::string& schemaName) = 0;
-  virtual void add_schema_version(const std::string& schemaName, const SchemaVersion& schemaVersion) = 0;
+  virtual void add_schema_version(const SchemaVersion& schemaVersion) = 0;
   virtual void get_schema_version(SchemaVersion& _return, const std::string& schemaName, const int32_t version) = 0;
   virtual void get_schema_latest_version(SchemaVersion& _return, const std::string& schemName) = 0;
   virtual void get_schema_all_versions(std::vector<SchemaVersion> & _return, const std::string& schemaName) = 0;
@@ -751,7 +751,7 @@ class ThriftHiveMetastoreNull : virtual public ThriftHiveMetastoreIf , virtual p
   void drop_ischema(const std::string& /* schemaName */) {
     return;
   }
-  void add_schema_version(const std::string& /* schemaName */, const SchemaVersion& /* schemaVersion */) {
+  void add_schema_version(const SchemaVersion& /* schemaVersion */) {
     return;
   }
   void get_schema_version(SchemaVersion& /* _return */, const std::string& /* schemaName */, const int32_t /* version */) {
@@ -20775,10 +20775,9 @@ class ThriftHiveMetastore_create_ischema_pargs {
 };
 
 typedef struct _ThriftHiveMetastore_create_ischema_result__isset {
-  _ThriftHiveMetastore_create_ischema_result__isset() : o1(false), o2(false), o3(false) {}
+  _ThriftHiveMetastore_create_ischema_result__isset() : o1(false), o2(false) {}
   bool o1 :1;
   bool o2 :1;
-  bool o3 :1;
 } _ThriftHiveMetastore_create_ischema_result__isset;
 
 class ThriftHiveMetastore_create_ischema_result {
@@ -20791,24 +20790,19 @@ class ThriftHiveMetastore_create_ischema_result {
 
   virtual ~ThriftHiveMetastore_create_ischema_result() throw();
   AlreadyExistsException o1;
-  InvalidObjectException o2;
-  MetaException o3;
+  MetaException o2;
 
   _ThriftHiveMetastore_create_ischema_result__isset __isset;
 
   void __set_o1(const AlreadyExistsException& val);
 
-  void __set_o2(const InvalidObjectException& val);
-
-  void __set_o3(const MetaException& val);
+  void __set_o2(const MetaException& val);
 
   bool operator == (const ThriftHiveMetastore_create_ischema_result & rhs) const
   {
     if (!(o1 == rhs.o1))
       return false;
     if (!(o2 == rhs.o2))
-      return false;
-    if (!(o3 == rhs.o3))
       return false;
     return true;
   }
@@ -20824,10 +20818,9 @@ class ThriftHiveMetastore_create_ischema_result {
 };
 
 typedef struct _ThriftHiveMetastore_create_ischema_presult__isset {
-  _ThriftHiveMetastore_create_ischema_presult__isset() : o1(false), o2(false), o3(false) {}
+  _ThriftHiveMetastore_create_ischema_presult__isset() : o1(false), o2(false) {}
   bool o1 :1;
   bool o2 :1;
-  bool o3 :1;
 } _ThriftHiveMetastore_create_ischema_presult__isset;
 
 class ThriftHiveMetastore_create_ischema_presult {
@@ -20836,8 +20829,7 @@ class ThriftHiveMetastore_create_ischema_presult {
 
   virtual ~ThriftHiveMetastore_create_ischema_presult() throw();
   AlreadyExistsException o1;
-  InvalidObjectException o2;
-  MetaException o3;
+  MetaException o2;
 
   _ThriftHiveMetastore_create_ischema_presult__isset __isset;
 
@@ -20902,10 +20894,9 @@ class ThriftHiveMetastore_alter_ischema_pargs {
 };
 
 typedef struct _ThriftHiveMetastore_alter_ischema_result__isset {
-  _ThriftHiveMetastore_alter_ischema_result__isset() : o1(false), o2(false), o3(false) {}
+  _ThriftHiveMetastore_alter_ischema_result__isset() : o1(false), o2(false) {}
   bool o1 :1;
   bool o2 :1;
-  bool o3 :1;
 } _ThriftHiveMetastore_alter_ischema_result__isset;
 
 class ThriftHiveMetastore_alter_ischema_result {
@@ -20918,24 +20909,19 @@ class ThriftHiveMetastore_alter_ischema_result {
 
   virtual ~ThriftHiveMetastore_alter_ischema_result() throw();
   NoSuchObjectException o1;
-  InvalidObjectException o2;
-  MetaException o3;
+  MetaException o2;
 
   _ThriftHiveMetastore_alter_ischema_result__isset __isset;
 
   void __set_o1(const NoSuchObjectException& val);
 
-  void __set_o2(const InvalidObjectException& val);
-
-  void __set_o3(const MetaException& val);
+  void __set_o2(const MetaException& val);
 
   bool operator == (const ThriftHiveMetastore_alter_ischema_result & rhs) const
   {
     if (!(o1 == rhs.o1))
       return false;
     if (!(o2 == rhs.o2))
-      return false;
-    if (!(o3 == rhs.o3))
       return false;
     return true;
   }
@@ -20951,10 +20937,9 @@ class ThriftHiveMetastore_alter_ischema_result {
 };
 
 typedef struct _ThriftHiveMetastore_alter_ischema_presult__isset {
-  _ThriftHiveMetastore_alter_ischema_presult__isset() : o1(false), o2(false), o3(false) {}
+  _ThriftHiveMetastore_alter_ischema_presult__isset() : o1(false), o2(false) {}
   bool o1 :1;
   bool o2 :1;
-  bool o3 :1;
 } _ThriftHiveMetastore_alter_ischema_presult__isset;
 
 class ThriftHiveMetastore_alter_ischema_presult {
@@ -20963,8 +20948,7 @@ class ThriftHiveMetastore_alter_ischema_presult {
 
   virtual ~ThriftHiveMetastore_alter_ischema_presult() throw();
   NoSuchObjectException o1;
-  InvalidObjectException o2;
-  MetaException o3;
+  MetaException o2;
 
   _ThriftHiveMetastore_alter_ischema_presult__isset __isset;
 
@@ -21022,10 +21006,9 @@ class ThriftHiveMetastore_get_ischema_pargs {
 };
 
 typedef struct _ThriftHiveMetastore_get_ischema_result__isset {
-  _ThriftHiveMetastore_get_ischema_result__isset() : success(false), o1(false), o2(false) {}
+  _ThriftHiveMetastore_get_ischema_result__isset() : success(false), o1(false) {}
   bool success :1;
   bool o1 :1;
-  bool o2 :1;
 } _ThriftHiveMetastore_get_ischema_result__isset;
 
 class ThriftHiveMetastore_get_ischema_result {
@@ -21039,7 +21022,6 @@ class ThriftHiveMetastore_get_ischema_result {
   virtual ~ThriftHiveMetastore_get_ischema_result() throw();
   ISchema success;
   MetaException o1;
-  NoSuchObjectException o2;
 
   _ThriftHiveMetastore_get_ischema_result__isset __isset;
 
@@ -21047,15 +21029,11 @@ class ThriftHiveMetastore_get_ischema_result {
 
   void __set_o1(const MetaException& val);
 
-  void __set_o2(const NoSuchObjectException& val);
-
   bool operator == (const ThriftHiveMetastore_get_ischema_result & rhs) const
   {
     if (!(success == rhs.success))
       return false;
     if (!(o1 == rhs.o1))
-      return false;
-    if (!(o2 == rhs.o2))
       return false;
     return true;
   }
@@ -21071,10 +21049,9 @@ class ThriftHiveMetastore_get_ischema_result {
 };
 
 typedef struct _ThriftHiveMetastore_get_ischema_presult__isset {
-  _ThriftHiveMetastore_get_ischema_presult__isset() : success(false), o1(false), o2(false) {}
+  _ThriftHiveMetastore_get_ischema_presult__isset() : success(false), o1(false) {}
   bool success :1;
   bool o1 :1;
-  bool o2 :1;
 } _ThriftHiveMetastore_get_ischema_presult__isset;
 
 class ThriftHiveMetastore_get_ischema_presult {
@@ -21084,7 +21061,6 @@ class ThriftHiveMetastore_get_ischema_presult {
   virtual ~ThriftHiveMetastore_get_ischema_presult() throw();
   ISchema* success;
   MetaException o1;
-  NoSuchObjectException o2;
 
   _ThriftHiveMetastore_get_ischema_presult__isset __isset;
 
@@ -21213,8 +21189,7 @@ class ThriftHiveMetastore_drop_ischema_presult {
 };
 
 typedef struct _ThriftHiveMetastore_add_schema_version_args__isset {
-  _ThriftHiveMetastore_add_schema_version_args__isset() : schemaName(false), schemaVersion(false) {}
-  bool schemaName :1;
+  _ThriftHiveMetastore_add_schema_version_args__isset() : schemaVersion(false) {}
   bool schemaVersion :1;
 } _ThriftHiveMetastore_add_schema_version_args__isset;
 
@@ -21223,23 +21198,18 @@ class ThriftHiveMetastore_add_schema_version_args {
 
   ThriftHiveMetastore_add_schema_version_args(const ThriftHiveMetastore_add_schema_version_args&);
   ThriftHiveMetastore_add_schema_version_args& operator=(const ThriftHiveMetastore_add_schema_version_args&);
-  ThriftHiveMetastore_add_schema_version_args() : schemaName() {
+  ThriftHiveMetastore_add_schema_version_args() {
   }
 
   virtual ~ThriftHiveMetastore_add_schema_version_args() throw();
-  std::string schemaName;
   SchemaVersion schemaVersion;
 
   _ThriftHiveMetastore_add_schema_version_args__isset __isset;
-
-  void __set_schemaName(const std::string& val);
 
   void __set_schemaVersion(const SchemaVersion& val);
 
   bool operator == (const ThriftHiveMetastore_add_schema_version_args & rhs) const
   {
-    if (!(schemaName == rhs.schemaName))
-      return false;
     if (!(schemaVersion == rhs.schemaVersion))
       return false;
     return true;
@@ -21261,7 +21231,6 @@ class ThriftHiveMetastore_add_schema_version_pargs {
 
 
   virtual ~ThriftHiveMetastore_add_schema_version_pargs() throw();
-  const std::string* schemaName;
   const SchemaVersion* schemaVersion;
 
   uint32_t write(::apache::thrift::protocol::TProtocol* oprot) const;
@@ -21269,11 +21238,10 @@ class ThriftHiveMetastore_add_schema_version_pargs {
 };
 
 typedef struct _ThriftHiveMetastore_add_schema_version_result__isset {
-  _ThriftHiveMetastore_add_schema_version_result__isset() : o1(false), o2(false), o3(false), o4(false) {}
+  _ThriftHiveMetastore_add_schema_version_result__isset() : o1(false), o2(false), o3(false) {}
   bool o1 :1;
   bool o2 :1;
   bool o3 :1;
-  bool o4 :1;
 } _ThriftHiveMetastore_add_schema_version_result__isset;
 
 class ThriftHiveMetastore_add_schema_version_result {
@@ -21286,19 +21254,16 @@ class ThriftHiveMetastore_add_schema_version_result {
 
   virtual ~ThriftHiveMetastore_add_schema_version_result() throw();
   AlreadyExistsException o1;
-  InvalidObjectException o2;
-  NoSuchObjectException o3;
-  MetaException o4;
+  NoSuchObjectException o2;
+  MetaException o3;
 
   _ThriftHiveMetastore_add_schema_version_result__isset __isset;
 
   void __set_o1(const AlreadyExistsException& val);
 
-  void __set_o2(const InvalidObjectException& val);
+  void __set_o2(const NoSuchObjectException& val);
 
-  void __set_o3(const NoSuchObjectException& val);
-
-  void __set_o4(const MetaException& val);
+  void __set_o3(const MetaException& val);
 
   bool operator == (const ThriftHiveMetastore_add_schema_version_result & rhs) const
   {
@@ -21307,8 +21272,6 @@ class ThriftHiveMetastore_add_schema_version_result {
     if (!(o2 == rhs.o2))
       return false;
     if (!(o3 == rhs.o3))
-      return false;
-    if (!(o4 == rhs.o4))
       return false;
     return true;
   }
@@ -21324,11 +21287,10 @@ class ThriftHiveMetastore_add_schema_version_result {
 };
 
 typedef struct _ThriftHiveMetastore_add_schema_version_presult__isset {
-  _ThriftHiveMetastore_add_schema_version_presult__isset() : o1(false), o2(false), o3(false), o4(false) {}
+  _ThriftHiveMetastore_add_schema_version_presult__isset() : o1(false), o2(false), o3(false) {}
   bool o1 :1;
   bool o2 :1;
   bool o3 :1;
-  bool o4 :1;
 } _ThriftHiveMetastore_add_schema_version_presult__isset;
 
 class ThriftHiveMetastore_add_schema_version_presult {
@@ -21337,9 +21299,8 @@ class ThriftHiveMetastore_add_schema_version_presult {
 
   virtual ~ThriftHiveMetastore_add_schema_version_presult() throw();
   AlreadyExistsException o1;
-  InvalidObjectException o2;
-  NoSuchObjectException o3;
-  MetaException o4;
+  NoSuchObjectException o2;
+  MetaException o3;
 
   _ThriftHiveMetastore_add_schema_version_presult__isset __isset;
 
@@ -21404,10 +21365,9 @@ class ThriftHiveMetastore_get_schema_version_pargs {
 };
 
 typedef struct _ThriftHiveMetastore_get_schema_version_result__isset {
-  _ThriftHiveMetastore_get_schema_version_result__isset() : success(false), o1(false), o2(false) {}
+  _ThriftHiveMetastore_get_schema_version_result__isset() : success(false), o1(false) {}
   bool success :1;
   bool o1 :1;
-  bool o2 :1;
 } _ThriftHiveMetastore_get_schema_version_result__isset;
 
 class ThriftHiveMetastore_get_schema_version_result {
@@ -21421,7 +21381,6 @@ class ThriftHiveMetastore_get_schema_version_result {
   virtual ~ThriftHiveMetastore_get_schema_version_result() throw();
   SchemaVersion success;
   MetaException o1;
-  NoSuchObjectException o2;
 
   _ThriftHiveMetastore_get_schema_version_result__isset __isset;
 
@@ -21429,15 +21388,11 @@ class ThriftHiveMetastore_get_schema_version_result {
 
   void __set_o1(const MetaException& val);
 
-  void __set_o2(const NoSuchObjectException& val);
-
   bool operator == (const ThriftHiveMetastore_get_schema_version_result & rhs) const
   {
     if (!(success == rhs.success))
       return false;
     if (!(o1 == rhs.o1))
-      return false;
-    if (!(o2 == rhs.o2))
       return false;
     return true;
   }
@@ -21453,10 +21408,9 @@ class ThriftHiveMetastore_get_schema_version_result {
 };
 
 typedef struct _ThriftHiveMetastore_get_schema_version_presult__isset {
-  _ThriftHiveMetastore_get_schema_version_presult__isset() : success(false), o1(false), o2(false) {}
+  _ThriftHiveMetastore_get_schema_version_presult__isset() : success(false), o1(false) {}
   bool success :1;
   bool o1 :1;
-  bool o2 :1;
 } _ThriftHiveMetastore_get_schema_version_presult__isset;
 
 class ThriftHiveMetastore_get_schema_version_presult {
@@ -21466,7 +21420,6 @@ class ThriftHiveMetastore_get_schema_version_presult {
   virtual ~ThriftHiveMetastore_get_schema_version_presult() throw();
   SchemaVersion* success;
   MetaException o1;
-  NoSuchObjectException o2;
 
   _ThriftHiveMetastore_get_schema_version_presult__isset __isset;
 
@@ -21524,10 +21477,9 @@ class ThriftHiveMetastore_get_schema_latest_version_pargs {
 };
 
 typedef struct _ThriftHiveMetastore_get_schema_latest_version_result__isset {
-  _ThriftHiveMetastore_get_schema_latest_version_result__isset() : success(false), o1(false), o2(false) {}
+  _ThriftHiveMetastore_get_schema_latest_version_result__isset() : success(false), o1(false) {}
   bool success :1;
   bool o1 :1;
-  bool o2 :1;
 } _ThriftHiveMetastore_get_schema_latest_version_result__isset;
 
 class ThriftHiveMetastore_get_schema_latest_version_result {
@@ -21541,7 +21493,6 @@ class ThriftHiveMetastore_get_schema_latest_version_result {
   virtual ~ThriftHiveMetastore_get_schema_latest_version_result() throw();
   SchemaVersion success;
   MetaException o1;
-  NoSuchObjectException o2;
 
   _ThriftHiveMetastore_get_schema_latest_version_result__isset __isset;
 
@@ -21549,15 +21500,11 @@ class ThriftHiveMetastore_get_schema_latest_version_result {
 
   void __set_o1(const MetaException& val);
 
-  void __set_o2(const NoSuchObjectException& val);
-
   bool operator == (const ThriftHiveMetastore_get_schema_latest_version_result & rhs) const
   {
     if (!(success == rhs.success))
       return false;
     if (!(o1 == rhs.o1))
-      return false;
-    if (!(o2 == rhs.o2))
       return false;
     return true;
   }
@@ -21573,10 +21520,9 @@ class ThriftHiveMetastore_get_schema_latest_version_result {
 };
 
 typedef struct _ThriftHiveMetastore_get_schema_latest_version_presult__isset {
-  _ThriftHiveMetastore_get_schema_latest_version_presult__isset() : success(false), o1(false), o2(false) {}
+  _ThriftHiveMetastore_get_schema_latest_version_presult__isset() : success(false), o1(false) {}
   bool success :1;
   bool o1 :1;
-  bool o2 :1;
 } _ThriftHiveMetastore_get_schema_latest_version_presult__isset;
 
 class ThriftHiveMetastore_get_schema_latest_version_presult {
@@ -21586,7 +21532,6 @@ class ThriftHiveMetastore_get_schema_latest_version_presult {
   virtual ~ThriftHiveMetastore_get_schema_latest_version_presult() throw();
   SchemaVersion* success;
   MetaException o1;
-  NoSuchObjectException o2;
 
   _ThriftHiveMetastore_get_schema_latest_version_presult__isset __isset;
 
@@ -21644,10 +21589,9 @@ class ThriftHiveMetastore_get_schema_all_versions_pargs {
 };
 
 typedef struct _ThriftHiveMetastore_get_schema_all_versions_result__isset {
-  _ThriftHiveMetastore_get_schema_all_versions_result__isset() : success(false), o1(false), o2(false) {}
+  _ThriftHiveMetastore_get_schema_all_versions_result__isset() : success(false), o1(false) {}
   bool success :1;
   bool o1 :1;
-  bool o2 :1;
 } _ThriftHiveMetastore_get_schema_all_versions_result__isset;
 
 class ThriftHiveMetastore_get_schema_all_versions_result {
@@ -21661,7 +21605,6 @@ class ThriftHiveMetastore_get_schema_all_versions_result {
   virtual ~ThriftHiveMetastore_get_schema_all_versions_result() throw();
   std::vector<SchemaVersion>  success;
   MetaException o1;
-  NoSuchObjectException o2;
 
   _ThriftHiveMetastore_get_schema_all_versions_result__isset __isset;
 
@@ -21669,15 +21612,11 @@ class ThriftHiveMetastore_get_schema_all_versions_result {
 
   void __set_o1(const MetaException& val);
 
-  void __set_o2(const NoSuchObjectException& val);
-
   bool operator == (const ThriftHiveMetastore_get_schema_all_versions_result & rhs) const
   {
     if (!(success == rhs.success))
       return false;
     if (!(o1 == rhs.o1))
-      return false;
-    if (!(o2 == rhs.o2))
       return false;
     return true;
   }
@@ -21693,10 +21632,9 @@ class ThriftHiveMetastore_get_schema_all_versions_result {
 };
 
 typedef struct _ThriftHiveMetastore_get_schema_all_versions_presult__isset {
-  _ThriftHiveMetastore_get_schema_all_versions_presult__isset() : success(false), o1(false), o2(false) {}
+  _ThriftHiveMetastore_get_schema_all_versions_presult__isset() : success(false), o1(false) {}
   bool success :1;
   bool o1 :1;
-  bool o2 :1;
 } _ThriftHiveMetastore_get_schema_all_versions_presult__isset;
 
 class ThriftHiveMetastore_get_schema_all_versions_presult {
@@ -21706,7 +21644,6 @@ class ThriftHiveMetastore_get_schema_all_versions_presult {
   virtual ~ThriftHiveMetastore_get_schema_all_versions_presult() throw();
   std::vector<SchemaVersion> * success;
   MetaException o1;
-  NoSuchObjectException o2;
 
   _ThriftHiveMetastore_get_schema_all_versions_presult__isset __isset;
 
@@ -22714,8 +22651,8 @@ class ThriftHiveMetastoreClient : virtual public ThriftHiveMetastoreIf, public  
   void drop_ischema(const std::string& schemaName);
   void send_drop_ischema(const std::string& schemaName);
   void recv_drop_ischema();
-  void add_schema_version(const std::string& schemaName, const SchemaVersion& schemaVersion);
-  void send_add_schema_version(const std::string& schemaName, const SchemaVersion& schemaVersion);
+  void add_schema_version(const SchemaVersion& schemaVersion);
+  void send_add_schema_version(const SchemaVersion& schemaVersion);
   void recv_add_schema_version();
   void get_schema_version(SchemaVersion& _return, const std::string& schemaName, const int32_t version);
   void send_get_schema_version(const std::string& schemaName, const int32_t version);
@@ -24724,13 +24661,13 @@ class ThriftHiveMetastoreMultiface : virtual public ThriftHiveMetastoreIf, publi
     ifaces_[i]->drop_ischema(schemaName);
   }
 
-  void add_schema_version(const std::string& schemaName, const SchemaVersion& schemaVersion) {
+  void add_schema_version(const SchemaVersion& schemaVersion) {
     size_t sz = ifaces_.size();
     size_t i = 0;
     for (; i < (sz - 1); ++i) {
-      ifaces_[i]->add_schema_version(schemaName, schemaVersion);
+      ifaces_[i]->add_schema_version(schemaVersion);
     }
-    ifaces_[i]->add_schema_version(schemaName, schemaVersion);
+    ifaces_[i]->add_schema_version(schemaVersion);
   }
 
   void get_schema_version(SchemaVersion& _return, const std::string& schemaName, const int32_t version) {
@@ -25314,8 +25251,8 @@ class ThriftHiveMetastoreConcurrentClient : virtual public ThriftHiveMetastoreIf
   void drop_ischema(const std::string& schemaName);
   int32_t send_drop_ischema(const std::string& schemaName);
   void recv_drop_ischema(const int32_t seqid);
-  void add_schema_version(const std::string& schemaName, const SchemaVersion& schemaVersion);
-  int32_t send_add_schema_version(const std::string& schemaName, const SchemaVersion& schemaVersion);
+  void add_schema_version(const SchemaVersion& schemaVersion);
+  int32_t send_add_schema_version(const SchemaVersion& schemaVersion);
   void recv_add_schema_version(const int32_t seqid);
   void get_schema_version(SchemaVersion& _return, const std::string& schemaName, const int32_t version);
   int32_t send_get_schema_version(const std::string& schemaName, const int32_t version);

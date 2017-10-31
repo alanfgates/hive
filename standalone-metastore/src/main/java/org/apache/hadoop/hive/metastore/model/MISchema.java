@@ -69,7 +69,7 @@ public class MISchema {
     this.validationLevel = validationLevel;
   }
 
-  public boolean isCanEvolve() {
+  public boolean getCanEvolve() {
     return canEvolve;
   }
 

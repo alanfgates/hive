@@ -1322,10 +1322,9 @@ class Iface(fb303.FacebookService.Iface):
     """
     pass
 
-  def add_schema_version(self, schemaName, schemaVersion):
+  def add_schema_version(self, schemaVersion):
     """
     Parameters:
-     - schemaName
      - schemaVersion
     """
     pass
@@ -7250,8 +7249,6 @@ class Client(fb303.FacebookService.Client, Iface):
       raise result.o1
     if result.o2 is not None:
       raise result.o2
-    if result.o3 is not None:
-      raise result.o3
     return
 
   def alter_ischema(self, schemaName, newSchema):
@@ -7287,8 +7284,6 @@ class Client(fb303.FacebookService.Client, Iface):
       raise result.o1
     if result.o2 is not None:
       raise result.o2
-    if result.o3 is not None:
-      raise result.o3
     return
 
   def get_ischema(self, schemaName):
@@ -7322,8 +7317,6 @@ class Client(fb303.FacebookService.Client, Iface):
       return result.success
     if result.o1 is not None:
       raise result.o1
-    if result.o2 is not None:
-      raise result.o2
     raise TApplicationException(TApplicationException.MISSING_RESULT, "get_ischema failed: unknown result")
 
   def drop_ischema(self, schemaName):
@@ -7361,19 +7354,17 @@ class Client(fb303.FacebookService.Client, Iface):
       raise result.o3
     return
 
-  def add_schema_version(self, schemaName, schemaVersion):
+  def add_schema_version(self, schemaVersion):
     """
     Parameters:
-     - schemaName
      - schemaVersion
     """
-    self.send_add_schema_version(schemaName, schemaVersion)
+    self.send_add_schema_version(schemaVersion)
     self.recv_add_schema_version()
 
-  def send_add_schema_version(self, schemaName, schemaVersion):
+  def send_add_schema_version(self, schemaVersion):
     self._oprot.writeMessageBegin('add_schema_version', TMessageType.CALL, self._seqid)
     args = add_schema_version_args()
-    args.schemaName = schemaName
     args.schemaVersion = schemaVersion
     args.write(self._oprot)
     self._oprot.writeMessageEnd()
@@ -7396,8 +7387,6 @@ class Client(fb303.FacebookService.Client, Iface):
       raise result.o2
     if result.o3 is not None:
       raise result.o3
-    if result.o4 is not None:
-      raise result.o4
     return
 
   def get_schema_version(self, schemaName, version):
@@ -7433,8 +7422,6 @@ class Client(fb303.FacebookService.Client, Iface):
       return result.success
     if result.o1 is not None:
       raise result.o1
-    if result.o2 is not None:
-      raise result.o2
     raise TApplicationException(TApplicationException.MISSING_RESULT, "get_schema_version failed: unknown result")
 
   def get_schema_latest_version(self, schemName):
@@ -7468,8 +7455,6 @@ class Client(fb303.FacebookService.Client, Iface):
       return result.success
     if result.o1 is not None:
       raise result.o1
-    if result.o2 is not None:
-      raise result.o2
     raise TApplicationException(TApplicationException.MISSING_RESULT, "get_schema_latest_version failed: unknown result")
 
   def get_schema_all_versions(self, schemaName):
@@ -7503,8 +7488,6 @@ class Client(fb303.FacebookService.Client, Iface):
       return result.success
     if result.o1 is not None:
       raise result.o1
-    if result.o2 is not None:
-      raise result.o2
     raise TApplicationException(TApplicationException.MISSING_RESULT, "get_schema_all_versions failed: unknown result")
 
   def drop_schema_version(self, schemaName, version):
@@ -11803,12 +11786,9 @@ class Processor(fb303.FacebookService.Processor, Iface, TProcessor):
     except AlreadyExistsException as o1:
       msg_type = TMessageType.REPLY
       result.o1 = o1
-    except InvalidObjectException as o2:
+    except MetaException as o2:
       msg_type = TMessageType.REPLY
       result.o2 = o2
-    except MetaException as o3:
-      msg_type = TMessageType.REPLY
-      result.o3 = o3
     except Exception as ex:
       msg_type = TMessageType.EXCEPTION
       logging.exception(ex)
@@ -11831,12 +11811,9 @@ class Processor(fb303.FacebookService.Processor, Iface, TProcessor):
     except NoSuchObjectException as o1:
       msg_type = TMessageType.REPLY
       result.o1 = o1
-    except InvalidObjectException as o2:
+    except MetaException as o2:
       msg_type = TMessageType.REPLY
       result.o2 = o2
-    except MetaException as o3:
-      msg_type = TMessageType.REPLY
-      result.o3 = o3
     except Exception as ex:
       msg_type = TMessageType.EXCEPTION
       logging.exception(ex)
@@ -11859,9 +11836,6 @@ class Processor(fb303.FacebookService.Processor, Iface, TProcessor):
     except MetaException as o1:
       msg_type = TMessageType.REPLY
       result.o1 = o1
-    except NoSuchObjectException as o2:
-      msg_type = TMessageType.REPLY
-      result.o2 = o2
     except Exception as ex:
       msg_type = TMessageType.EXCEPTION
       logging.exception(ex)
@@ -11905,22 +11879,19 @@ class Processor(fb303.FacebookService.Processor, Iface, TProcessor):
     iprot.readMessageEnd()
     result = add_schema_version_result()
     try:
-      self._handler.add_schema_version(args.schemaName, args.schemaVersion)
+      self._handler.add_schema_version(args.schemaVersion)
       msg_type = TMessageType.REPLY
     except (TTransport.TTransportException, KeyboardInterrupt, SystemExit):
       raise
     except AlreadyExistsException as o1:
       msg_type = TMessageType.REPLY
       result.o1 = o1
-    except InvalidObjectException as o2:
+    except NoSuchObjectException as o2:
       msg_type = TMessageType.REPLY
       result.o2 = o2
-    except NoSuchObjectException as o3:
+    except MetaException as o3:
       msg_type = TMessageType.REPLY
       result.o3 = o3
-    except MetaException as o4:
-      msg_type = TMessageType.REPLY
-      result.o4 = o4
     except Exception as ex:
       msg_type = TMessageType.EXCEPTION
       logging.exception(ex)
@@ -11943,9 +11914,6 @@ class Processor(fb303.FacebookService.Processor, Iface, TProcessor):
     except MetaException as o1:
       msg_type = TMessageType.REPLY
       result.o1 = o1
-    except NoSuchObjectException as o2:
-      msg_type = TMessageType.REPLY
-      result.o2 = o2
     except Exception as ex:
       msg_type = TMessageType.EXCEPTION
       logging.exception(ex)
@@ -11968,9 +11936,6 @@ class Processor(fb303.FacebookService.Processor, Iface, TProcessor):
     except MetaException as o1:
       msg_type = TMessageType.REPLY
       result.o1 = o1
-    except NoSuchObjectException as o2:
-      msg_type = TMessageType.REPLY
-      result.o2 = o2
     except Exception as ex:
       msg_type = TMessageType.EXCEPTION
       logging.exception(ex)
@@ -11993,9 +11958,6 @@ class Processor(fb303.FacebookService.Processor, Iface, TProcessor):
     except MetaException as o1:
       msg_type = TMessageType.REPLY
       result.o1 = o1
-    except NoSuchObjectException as o2:
-      msg_type = TMessageType.REPLY
-      result.o2 = o2
     except Exception as ex:
       msg_type = TMessageType.EXCEPTION
       logging.exception(ex)
@@ -39464,20 +39426,17 @@ class create_ischema_result:
   Attributes:
    - o1
    - o2
-   - o3
   """
 
   thrift_spec = (
     None, # 0
     (1, TType.STRUCT, 'o1', (AlreadyExistsException, AlreadyExistsException.thrift_spec), None, ), # 1
-    (2, TType.STRUCT, 'o2', (InvalidObjectException, InvalidObjectException.thrift_spec), None, ), # 2
-    (3, TType.STRUCT, 'o3', (MetaException, MetaException.thrift_spec), None, ), # 3
+    (2, TType.STRUCT, 'o2', (MetaException, MetaException.thrift_spec), None, ), # 2
   )
 
-  def __init__(self, o1=None, o2=None, o3=None,):
+  def __init__(self, o1=None, o2=None,):
     self.o1 = o1
     self.o2 = o2
-    self.o3 = o3
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -39496,14 +39455,8 @@ class create_ischema_result:
           iprot.skip(ftype)
       elif fid == 2:
         if ftype == TType.STRUCT:
-          self.o2 = InvalidObjectException()
+          self.o2 = MetaException()
           self.o2.read(iprot)
-        else:
-          iprot.skip(ftype)
-      elif fid == 3:
-        if ftype == TType.STRUCT:
-          self.o3 = MetaException()
-          self.o3.read(iprot)
         else:
           iprot.skip(ftype)
       else:
@@ -39524,10 +39477,6 @@ class create_ischema_result:
       oprot.writeFieldBegin('o2', TType.STRUCT, 2)
       self.o2.write(oprot)
       oprot.writeFieldEnd()
-    if self.o3 is not None:
-      oprot.writeFieldBegin('o3', TType.STRUCT, 3)
-      self.o3.write(oprot)
-      oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
 
@@ -39539,7 +39488,6 @@ class create_ischema_result:
     value = 17
     value = (value * 31) ^ hash(self.o1)
     value = (value * 31) ^ hash(self.o2)
-    value = (value * 31) ^ hash(self.o3)
     return value
 
   def __repr__(self):
@@ -39637,20 +39585,17 @@ class alter_ischema_result:
   Attributes:
    - o1
    - o2
-   - o3
   """
 
   thrift_spec = (
     None, # 0
     (1, TType.STRUCT, 'o1', (NoSuchObjectException, NoSuchObjectException.thrift_spec), None, ), # 1
-    (2, TType.STRUCT, 'o2', (InvalidObjectException, InvalidObjectException.thrift_spec), None, ), # 2
-    (3, TType.STRUCT, 'o3', (MetaException, MetaException.thrift_spec), None, ), # 3
+    (2, TType.STRUCT, 'o2', (MetaException, MetaException.thrift_spec), None, ), # 2
   )
 
-  def __init__(self, o1=None, o2=None, o3=None,):
+  def __init__(self, o1=None, o2=None,):
     self.o1 = o1
     self.o2 = o2
-    self.o3 = o3
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -39669,14 +39614,8 @@ class alter_ischema_result:
           iprot.skip(ftype)
       elif fid == 2:
         if ftype == TType.STRUCT:
-          self.o2 = InvalidObjectException()
+          self.o2 = MetaException()
           self.o2.read(iprot)
-        else:
-          iprot.skip(ftype)
-      elif fid == 3:
-        if ftype == TType.STRUCT:
-          self.o3 = MetaException()
-          self.o3.read(iprot)
         else:
           iprot.skip(ftype)
       else:
@@ -39697,10 +39636,6 @@ class alter_ischema_result:
       oprot.writeFieldBegin('o2', TType.STRUCT, 2)
       self.o2.write(oprot)
       oprot.writeFieldEnd()
-    if self.o3 is not None:
-      oprot.writeFieldBegin('o3', TType.STRUCT, 3)
-      self.o3.write(oprot)
-      oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
 
@@ -39712,7 +39647,6 @@ class alter_ischema_result:
     value = 17
     value = (value * 31) ^ hash(self.o1)
     value = (value * 31) ^ hash(self.o2)
-    value = (value * 31) ^ hash(self.o3)
     return value
 
   def __repr__(self):
@@ -39796,19 +39730,16 @@ class get_ischema_result:
   Attributes:
    - success
    - o1
-   - o2
   """
 
   thrift_spec = (
     (0, TType.STRUCT, 'success', (ISchema, ISchema.thrift_spec), None, ), # 0
     (1, TType.STRUCT, 'o1', (MetaException, MetaException.thrift_spec), None, ), # 1
-    (2, TType.STRUCT, 'o2', (NoSuchObjectException, NoSuchObjectException.thrift_spec), None, ), # 2
   )
 
-  def __init__(self, success=None, o1=None, o2=None,):
+  def __init__(self, success=None, o1=None,):
     self.success = success
     self.o1 = o1
-    self.o2 = o2
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -39831,12 +39762,6 @@ class get_ischema_result:
           self.o1.read(iprot)
         else:
           iprot.skip(ftype)
-      elif fid == 2:
-        if ftype == TType.STRUCT:
-          self.o2 = NoSuchObjectException()
-          self.o2.read(iprot)
-        else:
-          iprot.skip(ftype)
       else:
         iprot.skip(ftype)
       iprot.readFieldEnd()
@@ -39855,10 +39780,6 @@ class get_ischema_result:
       oprot.writeFieldBegin('o1', TType.STRUCT, 1)
       self.o1.write(oprot)
       oprot.writeFieldEnd()
-    if self.o2 is not None:
-      oprot.writeFieldBegin('o2', TType.STRUCT, 2)
-      self.o2.write(oprot)
-      oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
 
@@ -39870,7 +39791,6 @@ class get_ischema_result:
     value = 17
     value = (value * 31) ^ hash(self.success)
     value = (value * 31) ^ hash(self.o1)
-    value = (value * 31) ^ hash(self.o2)
     return value
 
   def __repr__(self):
@@ -40046,18 +39966,15 @@ class drop_ischema_result:
 class add_schema_version_args:
   """
   Attributes:
-   - schemaName
    - schemaVersion
   """
 
   thrift_spec = (
     None, # 0
-    (1, TType.STRING, 'schemaName', None, None, ), # 1
-    (2, TType.STRUCT, 'schemaVersion', (SchemaVersion, SchemaVersion.thrift_spec), None, ), # 2
+    (1, TType.STRUCT, 'schemaVersion', (SchemaVersion, SchemaVersion.thrift_spec), None, ), # 1
   )
 
-  def __init__(self, schemaName=None, schemaVersion=None,):
-    self.schemaName = schemaName
+  def __init__(self, schemaVersion=None,):
     self.schemaVersion = schemaVersion
 
   def read(self, iprot):
@@ -40070,11 +39987,6 @@ class add_schema_version_args:
       if ftype == TType.STOP:
         break
       if fid == 1:
-        if ftype == TType.STRING:
-          self.schemaName = iprot.readString()
-        else:
-          iprot.skip(ftype)
-      elif fid == 2:
         if ftype == TType.STRUCT:
           self.schemaVersion = SchemaVersion()
           self.schemaVersion.read(iprot)
@@ -40090,12 +40002,8 @@ class add_schema_version_args:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return
     oprot.writeStructBegin('add_schema_version_args')
-    if self.schemaName is not None:
-      oprot.writeFieldBegin('schemaName', TType.STRING, 1)
-      oprot.writeString(self.schemaName)
-      oprot.writeFieldEnd()
     if self.schemaVersion is not None:
-      oprot.writeFieldBegin('schemaVersion', TType.STRUCT, 2)
+      oprot.writeFieldBegin('schemaVersion', TType.STRUCT, 1)
       self.schemaVersion.write(oprot)
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
@@ -40107,7 +40015,6 @@ class add_schema_version_args:
 
   def __hash__(self):
     value = 17
-    value = (value * 31) ^ hash(self.schemaName)
     value = (value * 31) ^ hash(self.schemaVersion)
     return value
 
@@ -40128,22 +40035,19 @@ class add_schema_version_result:
    - o1
    - o2
    - o3
-   - o4
   """
 
   thrift_spec = (
     None, # 0
     (1, TType.STRUCT, 'o1', (AlreadyExistsException, AlreadyExistsException.thrift_spec), None, ), # 1
-    (2, TType.STRUCT, 'o2', (InvalidObjectException, InvalidObjectException.thrift_spec), None, ), # 2
-    (3, TType.STRUCT, 'o3', (NoSuchObjectException, NoSuchObjectException.thrift_spec), None, ), # 3
-    (4, TType.STRUCT, 'o4', (MetaException, MetaException.thrift_spec), None, ), # 4
+    (2, TType.STRUCT, 'o2', (NoSuchObjectException, NoSuchObjectException.thrift_spec), None, ), # 2
+    (3, TType.STRUCT, 'o3', (MetaException, MetaException.thrift_spec), None, ), # 3
   )
 
-  def __init__(self, o1=None, o2=None, o3=None, o4=None,):
+  def __init__(self, o1=None, o2=None, o3=None,):
     self.o1 = o1
     self.o2 = o2
     self.o3 = o3
-    self.o4 = o4
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -40162,20 +40066,14 @@ class add_schema_version_result:
           iprot.skip(ftype)
       elif fid == 2:
         if ftype == TType.STRUCT:
-          self.o2 = InvalidObjectException()
+          self.o2 = NoSuchObjectException()
           self.o2.read(iprot)
         else:
           iprot.skip(ftype)
       elif fid == 3:
         if ftype == TType.STRUCT:
-          self.o3 = NoSuchObjectException()
+          self.o3 = MetaException()
           self.o3.read(iprot)
-        else:
-          iprot.skip(ftype)
-      elif fid == 4:
-        if ftype == TType.STRUCT:
-          self.o4 = MetaException()
-          self.o4.read(iprot)
         else:
           iprot.skip(ftype)
       else:
@@ -40200,10 +40098,6 @@ class add_schema_version_result:
       oprot.writeFieldBegin('o3', TType.STRUCT, 3)
       self.o3.write(oprot)
       oprot.writeFieldEnd()
-    if self.o4 is not None:
-      oprot.writeFieldBegin('o4', TType.STRUCT, 4)
-      self.o4.write(oprot)
-      oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
 
@@ -40216,7 +40110,6 @@ class add_schema_version_result:
     value = (value * 31) ^ hash(self.o1)
     value = (value * 31) ^ hash(self.o2)
     value = (value * 31) ^ hash(self.o3)
-    value = (value * 31) ^ hash(self.o4)
     return value
 
   def __repr__(self):
@@ -40313,19 +40206,16 @@ class get_schema_version_result:
   Attributes:
    - success
    - o1
-   - o2
   """
 
   thrift_spec = (
     (0, TType.STRUCT, 'success', (SchemaVersion, SchemaVersion.thrift_spec), None, ), # 0
     (1, TType.STRUCT, 'o1', (MetaException, MetaException.thrift_spec), None, ), # 1
-    (2, TType.STRUCT, 'o2', (NoSuchObjectException, NoSuchObjectException.thrift_spec), None, ), # 2
   )
 
-  def __init__(self, success=None, o1=None, o2=None,):
+  def __init__(self, success=None, o1=None,):
     self.success = success
     self.o1 = o1
-    self.o2 = o2
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -40348,12 +40238,6 @@ class get_schema_version_result:
           self.o1.read(iprot)
         else:
           iprot.skip(ftype)
-      elif fid == 2:
-        if ftype == TType.STRUCT:
-          self.o2 = NoSuchObjectException()
-          self.o2.read(iprot)
-        else:
-          iprot.skip(ftype)
       else:
         iprot.skip(ftype)
       iprot.readFieldEnd()
@@ -40372,10 +40256,6 @@ class get_schema_version_result:
       oprot.writeFieldBegin('o1', TType.STRUCT, 1)
       self.o1.write(oprot)
       oprot.writeFieldEnd()
-    if self.o2 is not None:
-      oprot.writeFieldBegin('o2', TType.STRUCT, 2)
-      self.o2.write(oprot)
-      oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
 
@@ -40387,7 +40267,6 @@ class get_schema_version_result:
     value = 17
     value = (value * 31) ^ hash(self.success)
     value = (value * 31) ^ hash(self.o1)
-    value = (value * 31) ^ hash(self.o2)
     return value
 
   def __repr__(self):
@@ -40471,19 +40350,16 @@ class get_schema_latest_version_result:
   Attributes:
    - success
    - o1
-   - o2
   """
 
   thrift_spec = (
     (0, TType.STRUCT, 'success', (SchemaVersion, SchemaVersion.thrift_spec), None, ), # 0
     (1, TType.STRUCT, 'o1', (MetaException, MetaException.thrift_spec), None, ), # 1
-    (2, TType.STRUCT, 'o2', (NoSuchObjectException, NoSuchObjectException.thrift_spec), None, ), # 2
   )
 
-  def __init__(self, success=None, o1=None, o2=None,):
+  def __init__(self, success=None, o1=None,):
     self.success = success
     self.o1 = o1
-    self.o2 = o2
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -40506,12 +40382,6 @@ class get_schema_latest_version_result:
           self.o1.read(iprot)
         else:
           iprot.skip(ftype)
-      elif fid == 2:
-        if ftype == TType.STRUCT:
-          self.o2 = NoSuchObjectException()
-          self.o2.read(iprot)
-        else:
-          iprot.skip(ftype)
       else:
         iprot.skip(ftype)
       iprot.readFieldEnd()
@@ -40530,10 +40400,6 @@ class get_schema_latest_version_result:
       oprot.writeFieldBegin('o1', TType.STRUCT, 1)
       self.o1.write(oprot)
       oprot.writeFieldEnd()
-    if self.o2 is not None:
-      oprot.writeFieldBegin('o2', TType.STRUCT, 2)
-      self.o2.write(oprot)
-      oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
 
@@ -40545,7 +40411,6 @@ class get_schema_latest_version_result:
     value = 17
     value = (value * 31) ^ hash(self.success)
     value = (value * 31) ^ hash(self.o1)
-    value = (value * 31) ^ hash(self.o2)
     return value
 
   def __repr__(self):
@@ -40629,19 +40494,16 @@ class get_schema_all_versions_result:
   Attributes:
    - success
    - o1
-   - o2
   """
 
   thrift_spec = (
     (0, TType.LIST, 'success', (TType.STRUCT,(SchemaVersion, SchemaVersion.thrift_spec)), None, ), # 0
     (1, TType.STRUCT, 'o1', (MetaException, MetaException.thrift_spec), None, ), # 1
-    (2, TType.STRUCT, 'o2', (NoSuchObjectException, NoSuchObjectException.thrift_spec), None, ), # 2
   )
 
-  def __init__(self, success=None, o1=None, o2=None,):
+  def __init__(self, success=None, o1=None,):
     self.success = success
     self.o1 = o1
-    self.o2 = o2
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -40669,12 +40531,6 @@ class get_schema_all_versions_result:
           self.o1.read(iprot)
         else:
           iprot.skip(ftype)
-      elif fid == 2:
-        if ftype == TType.STRUCT:
-          self.o2 = NoSuchObjectException()
-          self.o2.read(iprot)
-        else:
-          iprot.skip(ftype)
       else:
         iprot.skip(ftype)
       iprot.readFieldEnd()
@@ -40696,10 +40552,6 @@ class get_schema_all_versions_result:
       oprot.writeFieldBegin('o1', TType.STRUCT, 1)
       self.o1.write(oprot)
       oprot.writeFieldEnd()
-    if self.o2 is not None:
-      oprot.writeFieldBegin('o2', TType.STRUCT, 2)
-      self.o2.write(oprot)
-      oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
 
@@ -40711,7 +40563,6 @@ class get_schema_all_versions_result:
     value = 17
     value = (value * 31) ^ hash(self.success)
     value = (value * 31) ^ hash(self.o1)
-    value = (value * 31) ^ hash(self.o2)
     return value
 
   def __repr__(self):

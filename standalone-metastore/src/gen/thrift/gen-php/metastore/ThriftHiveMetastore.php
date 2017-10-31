@@ -1250,7 +1250,6 @@ interface ThriftHiveMetastoreIf extends \FacebookServiceIf {
   /**
    * @param \metastore\ISchema $schema
    * @throws \metastore\AlreadyExistsException
-   * @throws \metastore\InvalidObjectException
    * @throws \metastore\MetaException
    */
   public function create_ischema(\metastore\ISchema $schema);
@@ -1258,7 +1257,6 @@ interface ThriftHiveMetastoreIf extends \FacebookServiceIf {
    * @param string $schemaName
    * @param \metastore\ISchema $newSchema
    * @throws \metastore\NoSuchObjectException
-   * @throws \metastore\InvalidObjectException
    * @throws \metastore\MetaException
    */
   public function alter_ischema($schemaName, \metastore\ISchema $newSchema);
@@ -1266,7 +1264,6 @@ interface ThriftHiveMetastoreIf extends \FacebookServiceIf {
    * @param string $schemaName
    * @return \metastore\ISchema
    * @throws \metastore\MetaException
-   * @throws \metastore\NoSuchObjectException
    */
   public function get_ischema($schemaName);
   /**
@@ -1277,34 +1274,29 @@ interface ThriftHiveMetastoreIf extends \FacebookServiceIf {
    */
   public function drop_ischema($schemaName);
   /**
-   * @param string $schemaName
    * @param \metastore\SchemaVersion $schemaVersion
    * @throws \metastore\AlreadyExistsException
-   * @throws \metastore\InvalidObjectException
    * @throws \metastore\NoSuchObjectException
    * @throws \metastore\MetaException
    */
-  public function add_schema_version($schemaName, \metastore\SchemaVersion $schemaVersion);
+  public function add_schema_version(\metastore\SchemaVersion $schemaVersion);
   /**
    * @param string $schemaName
    * @param int $version
    * @return \metastore\SchemaVersion
    * @throws \metastore\MetaException
-   * @throws \metastore\NoSuchObjectException
    */
   public function get_schema_version($schemaName, $version);
   /**
    * @param string $schemName
    * @return \metastore\SchemaVersion
    * @throws \metastore\MetaException
-   * @throws \metastore\NoSuchObjectException
    */
   public function get_schema_latest_version($schemName);
   /**
    * @param string $schemaName
    * @return \metastore\SchemaVersion[]
    * @throws \metastore\MetaException
-   * @throws \metastore\NoSuchObjectException
    */
   public function get_schema_all_versions($schemaName);
   /**
@@ -10576,9 +10568,6 @@ class ThriftHiveMetastoreClient extends \FacebookServiceClient implements \metas
     if ($result->o2 !== null) {
       throw $result->o2;
     }
-    if ($result->o3 !== null) {
-      throw $result->o3;
-    }
     return;
   }
 
@@ -10634,9 +10623,6 @@ class ThriftHiveMetastoreClient extends \FacebookServiceClient implements \metas
     if ($result->o2 !== null) {
       throw $result->o2;
     }
-    if ($result->o3 !== null) {
-      throw $result->o3;
-    }
     return;
   }
 
@@ -10690,9 +10676,6 @@ class ThriftHiveMetastoreClient extends \FacebookServiceClient implements \metas
     }
     if ($result->o1 !== null) {
       throw $result->o1;
-    }
-    if ($result->o2 !== null) {
-      throw $result->o2;
     }
     throw new \Exception("get_ischema failed: unknown result");
   }
@@ -10754,16 +10737,15 @@ class ThriftHiveMetastoreClient extends \FacebookServiceClient implements \metas
     return;
   }
 
-  public function add_schema_version($schemaName, \metastore\SchemaVersion $schemaVersion)
+  public function add_schema_version(\metastore\SchemaVersion $schemaVersion)
   {
-    $this->send_add_schema_version($schemaName, $schemaVersion);
+    $this->send_add_schema_version($schemaVersion);
     $this->recv_add_schema_version();
   }
 
-  public function send_add_schema_version($schemaName, \metastore\SchemaVersion $schemaVersion)
+  public function send_add_schema_version(\metastore\SchemaVersion $schemaVersion)
   {
     $args = new \metastore\ThriftHiveMetastore_add_schema_version_args();
-    $args->schemaName = $schemaName;
     $args->schemaVersion = $schemaVersion;
     $bin_accel = ($this->output_ instanceof TBinaryProtocolAccelerated) && function_exists('thrift_protocol_write_binary');
     if ($bin_accel)
@@ -10808,9 +10790,6 @@ class ThriftHiveMetastoreClient extends \FacebookServiceClient implements \metas
     }
     if ($result->o3 !== null) {
       throw $result->o3;
-    }
-    if ($result->o4 !== null) {
-      throw $result->o4;
     }
     return;
   }
@@ -10867,9 +10846,6 @@ class ThriftHiveMetastoreClient extends \FacebookServiceClient implements \metas
     if ($result->o1 !== null) {
       throw $result->o1;
     }
-    if ($result->o2 !== null) {
-      throw $result->o2;
-    }
     throw new \Exception("get_schema_version failed: unknown result");
   }
 
@@ -10924,9 +10900,6 @@ class ThriftHiveMetastoreClient extends \FacebookServiceClient implements \metas
     if ($result->o1 !== null) {
       throw $result->o1;
     }
-    if ($result->o2 !== null) {
-      throw $result->o2;
-    }
     throw new \Exception("get_schema_latest_version failed: unknown result");
   }
 
@@ -10980,9 +10953,6 @@ class ThriftHiveMetastoreClient extends \FacebookServiceClient implements \metas
     }
     if ($result->o1 !== null) {
       throw $result->o1;
-    }
-    if ($result->o2 !== null) {
-      throw $result->o2;
     }
     throw new \Exception("get_schema_all_versions failed: unknown result");
   }
@@ -48292,13 +48262,9 @@ class ThriftHiveMetastore_create_ischema_result {
    */
   public $o1 = null;
   /**
-   * @var \metastore\InvalidObjectException
-   */
-  public $o2 = null;
-  /**
    * @var \metastore\MetaException
    */
-  public $o3 = null;
+  public $o2 = null;
 
   public function __construct($vals=null) {
     if (!isset(self::$_TSPEC)) {
@@ -48311,11 +48277,6 @@ class ThriftHiveMetastore_create_ischema_result {
         2 => array(
           'var' => 'o2',
           'type' => TType::STRUCT,
-          'class' => '\metastore\InvalidObjectException',
-          ),
-        3 => array(
-          'var' => 'o3',
-          'type' => TType::STRUCT,
           'class' => '\metastore\MetaException',
           ),
         );
@@ -48326,9 +48287,6 @@ class ThriftHiveMetastore_create_ischema_result {
       }
       if (isset($vals['o2'])) {
         $this->o2 = $vals['o2'];
-      }
-      if (isset($vals['o3'])) {
-        $this->o3 = $vals['o3'];
       }
     }
   }
@@ -48362,16 +48320,8 @@ class ThriftHiveMetastore_create_ischema_result {
           break;
         case 2:
           if ($ftype == TType::STRUCT) {
-            $this->o2 = new \metastore\InvalidObjectException();
+            $this->o2 = new \metastore\MetaException();
             $xfer += $this->o2->read($input);
-          } else {
-            $xfer += $input->skip($ftype);
-          }
-          break;
-        case 3:
-          if ($ftype == TType::STRUCT) {
-            $this->o3 = new \metastore\MetaException();
-            $xfer += $this->o3->read($input);
           } else {
             $xfer += $input->skip($ftype);
           }
@@ -48397,11 +48347,6 @@ class ThriftHiveMetastore_create_ischema_result {
     if ($this->o2 !== null) {
       $xfer += $output->writeFieldBegin('o2', TType::STRUCT, 2);
       $xfer += $this->o2->write($output);
-      $xfer += $output->writeFieldEnd();
-    }
-    if ($this->o3 !== null) {
-      $xfer += $output->writeFieldBegin('o3', TType::STRUCT, 3);
-      $xfer += $this->o3->write($output);
       $xfer += $output->writeFieldEnd();
     }
     $xfer += $output->writeFieldStop();
@@ -48522,13 +48467,9 @@ class ThriftHiveMetastore_alter_ischema_result {
    */
   public $o1 = null;
   /**
-   * @var \metastore\InvalidObjectException
-   */
-  public $o2 = null;
-  /**
    * @var \metastore\MetaException
    */
-  public $o3 = null;
+  public $o2 = null;
 
   public function __construct($vals=null) {
     if (!isset(self::$_TSPEC)) {
@@ -48541,11 +48482,6 @@ class ThriftHiveMetastore_alter_ischema_result {
         2 => array(
           'var' => 'o2',
           'type' => TType::STRUCT,
-          'class' => '\metastore\InvalidObjectException',
-          ),
-        3 => array(
-          'var' => 'o3',
-          'type' => TType::STRUCT,
           'class' => '\metastore\MetaException',
           ),
         );
@@ -48556,9 +48492,6 @@ class ThriftHiveMetastore_alter_ischema_result {
       }
       if (isset($vals['o2'])) {
         $this->o2 = $vals['o2'];
-      }
-      if (isset($vals['o3'])) {
-        $this->o3 = $vals['o3'];
       }
     }
   }
@@ -48592,16 +48525,8 @@ class ThriftHiveMetastore_alter_ischema_result {
           break;
         case 2:
           if ($ftype == TType::STRUCT) {
-            $this->o2 = new \metastore\InvalidObjectException();
+            $this->o2 = new \metastore\MetaException();
             $xfer += $this->o2->read($input);
-          } else {
-            $xfer += $input->skip($ftype);
-          }
-          break;
-        case 3:
-          if ($ftype == TType::STRUCT) {
-            $this->o3 = new \metastore\MetaException();
-            $xfer += $this->o3->read($input);
           } else {
             $xfer += $input->skip($ftype);
           }
@@ -48627,11 +48552,6 @@ class ThriftHiveMetastore_alter_ischema_result {
     if ($this->o2 !== null) {
       $xfer += $output->writeFieldBegin('o2', TType::STRUCT, 2);
       $xfer += $this->o2->write($output);
-      $xfer += $output->writeFieldEnd();
-    }
-    if ($this->o3 !== null) {
-      $xfer += $output->writeFieldBegin('o3', TType::STRUCT, 3);
-      $xfer += $this->o3->write($output);
       $xfer += $output->writeFieldEnd();
     }
     $xfer += $output->writeFieldStop();
@@ -48727,10 +48647,6 @@ class ThriftHiveMetastore_get_ischema_result {
    * @var \metastore\MetaException
    */
   public $o1 = null;
-  /**
-   * @var \metastore\NoSuchObjectException
-   */
-  public $o2 = null;
 
   public function __construct($vals=null) {
     if (!isset(self::$_TSPEC)) {
@@ -48745,11 +48661,6 @@ class ThriftHiveMetastore_get_ischema_result {
           'type' => TType::STRUCT,
           'class' => '\metastore\MetaException',
           ),
-        2 => array(
-          'var' => 'o2',
-          'type' => TType::STRUCT,
-          'class' => '\metastore\NoSuchObjectException',
-          ),
         );
     }
     if (is_array($vals)) {
@@ -48758,9 +48669,6 @@ class ThriftHiveMetastore_get_ischema_result {
       }
       if (isset($vals['o1'])) {
         $this->o1 = $vals['o1'];
-      }
-      if (isset($vals['o2'])) {
-        $this->o2 = $vals['o2'];
       }
     }
   }
@@ -48800,14 +48708,6 @@ class ThriftHiveMetastore_get_ischema_result {
             $xfer += $input->skip($ftype);
           }
           break;
-        case 2:
-          if ($ftype == TType::STRUCT) {
-            $this->o2 = new \metastore\NoSuchObjectException();
-            $xfer += $this->o2->read($input);
-          } else {
-            $xfer += $input->skip($ftype);
-          }
-          break;
         default:
           $xfer += $input->skip($ftype);
           break;
@@ -48832,11 +48732,6 @@ class ThriftHiveMetastore_get_ischema_result {
     if ($this->o1 !== null) {
       $xfer += $output->writeFieldBegin('o1', TType::STRUCT, 1);
       $xfer += $this->o1->write($output);
-      $xfer += $output->writeFieldEnd();
-    }
-    if ($this->o2 !== null) {
-      $xfer += $output->writeFieldBegin('o2', TType::STRUCT, 2);
-      $xfer += $this->o2->write($output);
       $xfer += $output->writeFieldEnd();
     }
     $xfer += $output->writeFieldStop();
@@ -49052,10 +48947,6 @@ class ThriftHiveMetastore_add_schema_version_args {
   static $_TSPEC;
 
   /**
-   * @var string
-   */
-  public $schemaName = null;
-  /**
    * @var \metastore\SchemaVersion
    */
   public $schemaVersion = null;
@@ -49064,10 +48955,6 @@ class ThriftHiveMetastore_add_schema_version_args {
     if (!isset(self::$_TSPEC)) {
       self::$_TSPEC = array(
         1 => array(
-          'var' => 'schemaName',
-          'type' => TType::STRING,
-          ),
-        2 => array(
           'var' => 'schemaVersion',
           'type' => TType::STRUCT,
           'class' => '\metastore\SchemaVersion',
@@ -49075,9 +48962,6 @@ class ThriftHiveMetastore_add_schema_version_args {
         );
     }
     if (is_array($vals)) {
-      if (isset($vals['schemaName'])) {
-        $this->schemaName = $vals['schemaName'];
-      }
       if (isset($vals['schemaVersion'])) {
         $this->schemaVersion = $vals['schemaVersion'];
       }
@@ -49104,13 +48988,6 @@ class ThriftHiveMetastore_add_schema_version_args {
       switch ($fid)
       {
         case 1:
-          if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->schemaName);
-          } else {
-            $xfer += $input->skip($ftype);
-          }
-          break;
-        case 2:
           if ($ftype == TType::STRUCT) {
             $this->schemaVersion = new \metastore\SchemaVersion();
             $xfer += $this->schemaVersion->read($input);
@@ -49131,16 +49008,11 @@ class ThriftHiveMetastore_add_schema_version_args {
   public function write($output) {
     $xfer = 0;
     $xfer += $output->writeStructBegin('ThriftHiveMetastore_add_schema_version_args');
-    if ($this->schemaName !== null) {
-      $xfer += $output->writeFieldBegin('schemaName', TType::STRING, 1);
-      $xfer += $output->writeString($this->schemaName);
-      $xfer += $output->writeFieldEnd();
-    }
     if ($this->schemaVersion !== null) {
       if (!is_object($this->schemaVersion)) {
         throw new TProtocolException('Bad type in structure.', TProtocolException::INVALID_DATA);
       }
-      $xfer += $output->writeFieldBegin('schemaVersion', TType::STRUCT, 2);
+      $xfer += $output->writeFieldBegin('schemaVersion', TType::STRUCT, 1);
       $xfer += $this->schemaVersion->write($output);
       $xfer += $output->writeFieldEnd();
     }
@@ -49159,17 +49031,13 @@ class ThriftHiveMetastore_add_schema_version_result {
    */
   public $o1 = null;
   /**
-   * @var \metastore\InvalidObjectException
+   * @var \metastore\NoSuchObjectException
    */
   public $o2 = null;
   /**
-   * @var \metastore\NoSuchObjectException
-   */
-  public $o3 = null;
-  /**
    * @var \metastore\MetaException
    */
-  public $o4 = null;
+  public $o3 = null;
 
   public function __construct($vals=null) {
     if (!isset(self::$_TSPEC)) {
@@ -49182,15 +49050,10 @@ class ThriftHiveMetastore_add_schema_version_result {
         2 => array(
           'var' => 'o2',
           'type' => TType::STRUCT,
-          'class' => '\metastore\InvalidObjectException',
+          'class' => '\metastore\NoSuchObjectException',
           ),
         3 => array(
           'var' => 'o3',
-          'type' => TType::STRUCT,
-          'class' => '\metastore\NoSuchObjectException',
-          ),
-        4 => array(
-          'var' => 'o4',
           'type' => TType::STRUCT,
           'class' => '\metastore\MetaException',
           ),
@@ -49205,9 +49068,6 @@ class ThriftHiveMetastore_add_schema_version_result {
       }
       if (isset($vals['o3'])) {
         $this->o3 = $vals['o3'];
-      }
-      if (isset($vals['o4'])) {
-        $this->o4 = $vals['o4'];
       }
     }
   }
@@ -49241,7 +49101,7 @@ class ThriftHiveMetastore_add_schema_version_result {
           break;
         case 2:
           if ($ftype == TType::STRUCT) {
-            $this->o2 = new \metastore\InvalidObjectException();
+            $this->o2 = new \metastore\NoSuchObjectException();
             $xfer += $this->o2->read($input);
           } else {
             $xfer += $input->skip($ftype);
@@ -49249,16 +49109,8 @@ class ThriftHiveMetastore_add_schema_version_result {
           break;
         case 3:
           if ($ftype == TType::STRUCT) {
-            $this->o3 = new \metastore\NoSuchObjectException();
+            $this->o3 = new \metastore\MetaException();
             $xfer += $this->o3->read($input);
-          } else {
-            $xfer += $input->skip($ftype);
-          }
-          break;
-        case 4:
-          if ($ftype == TType::STRUCT) {
-            $this->o4 = new \metastore\MetaException();
-            $xfer += $this->o4->read($input);
           } else {
             $xfer += $input->skip($ftype);
           }
@@ -49289,11 +49141,6 @@ class ThriftHiveMetastore_add_schema_version_result {
     if ($this->o3 !== null) {
       $xfer += $output->writeFieldBegin('o3', TType::STRUCT, 3);
       $xfer += $this->o3->write($output);
-      $xfer += $output->writeFieldEnd();
-    }
-    if ($this->o4 !== null) {
-      $xfer += $output->writeFieldBegin('o4', TType::STRUCT, 4);
-      $xfer += $this->o4->write($output);
       $xfer += $output->writeFieldEnd();
     }
     $xfer += $output->writeFieldStop();
@@ -49412,10 +49259,6 @@ class ThriftHiveMetastore_get_schema_version_result {
    * @var \metastore\MetaException
    */
   public $o1 = null;
-  /**
-   * @var \metastore\NoSuchObjectException
-   */
-  public $o2 = null;
 
   public function __construct($vals=null) {
     if (!isset(self::$_TSPEC)) {
@@ -49430,11 +49273,6 @@ class ThriftHiveMetastore_get_schema_version_result {
           'type' => TType::STRUCT,
           'class' => '\metastore\MetaException',
           ),
-        2 => array(
-          'var' => 'o2',
-          'type' => TType::STRUCT,
-          'class' => '\metastore\NoSuchObjectException',
-          ),
         );
     }
     if (is_array($vals)) {
@@ -49443,9 +49281,6 @@ class ThriftHiveMetastore_get_schema_version_result {
       }
       if (isset($vals['o1'])) {
         $this->o1 = $vals['o1'];
-      }
-      if (isset($vals['o2'])) {
-        $this->o2 = $vals['o2'];
       }
     }
   }
@@ -49485,14 +49320,6 @@ class ThriftHiveMetastore_get_schema_version_result {
             $xfer += $input->skip($ftype);
           }
           break;
-        case 2:
-          if ($ftype == TType::STRUCT) {
-            $this->o2 = new \metastore\NoSuchObjectException();
-            $xfer += $this->o2->read($input);
-          } else {
-            $xfer += $input->skip($ftype);
-          }
-          break;
         default:
           $xfer += $input->skip($ftype);
           break;
@@ -49517,11 +49344,6 @@ class ThriftHiveMetastore_get_schema_version_result {
     if ($this->o1 !== null) {
       $xfer += $output->writeFieldBegin('o1', TType::STRUCT, 1);
       $xfer += $this->o1->write($output);
-      $xfer += $output->writeFieldEnd();
-    }
-    if ($this->o2 !== null) {
-      $xfer += $output->writeFieldBegin('o2', TType::STRUCT, 2);
-      $xfer += $this->o2->write($output);
       $xfer += $output->writeFieldEnd();
     }
     $xfer += $output->writeFieldStop();
@@ -49617,10 +49439,6 @@ class ThriftHiveMetastore_get_schema_latest_version_result {
    * @var \metastore\MetaException
    */
   public $o1 = null;
-  /**
-   * @var \metastore\NoSuchObjectException
-   */
-  public $o2 = null;
 
   public function __construct($vals=null) {
     if (!isset(self::$_TSPEC)) {
@@ -49635,11 +49453,6 @@ class ThriftHiveMetastore_get_schema_latest_version_result {
           'type' => TType::STRUCT,
           'class' => '\metastore\MetaException',
           ),
-        2 => array(
-          'var' => 'o2',
-          'type' => TType::STRUCT,
-          'class' => '\metastore\NoSuchObjectException',
-          ),
         );
     }
     if (is_array($vals)) {
@@ -49648,9 +49461,6 @@ class ThriftHiveMetastore_get_schema_latest_version_result {
       }
       if (isset($vals['o1'])) {
         $this->o1 = $vals['o1'];
-      }
-      if (isset($vals['o2'])) {
-        $this->o2 = $vals['o2'];
       }
     }
   }
@@ -49690,14 +49500,6 @@ class ThriftHiveMetastore_get_schema_latest_version_result {
             $xfer += $input->skip($ftype);
           }
           break;
-        case 2:
-          if ($ftype == TType::STRUCT) {
-            $this->o2 = new \metastore\NoSuchObjectException();
-            $xfer += $this->o2->read($input);
-          } else {
-            $xfer += $input->skip($ftype);
-          }
-          break;
         default:
           $xfer += $input->skip($ftype);
           break;
@@ -49722,11 +49524,6 @@ class ThriftHiveMetastore_get_schema_latest_version_result {
     if ($this->o1 !== null) {
       $xfer += $output->writeFieldBegin('o1', TType::STRUCT, 1);
       $xfer += $this->o1->write($output);
-      $xfer += $output->writeFieldEnd();
-    }
-    if ($this->o2 !== null) {
-      $xfer += $output->writeFieldBegin('o2', TType::STRUCT, 2);
-      $xfer += $this->o2->write($output);
       $xfer += $output->writeFieldEnd();
     }
     $xfer += $output->writeFieldStop();
@@ -49822,10 +49619,6 @@ class ThriftHiveMetastore_get_schema_all_versions_result {
    * @var \metastore\MetaException
    */
   public $o1 = null;
-  /**
-   * @var \metastore\NoSuchObjectException
-   */
-  public $o2 = null;
 
   public function __construct($vals=null) {
     if (!isset(self::$_TSPEC)) {
@@ -49844,11 +49637,6 @@ class ThriftHiveMetastore_get_schema_all_versions_result {
           'type' => TType::STRUCT,
           'class' => '\metastore\MetaException',
           ),
-        2 => array(
-          'var' => 'o2',
-          'type' => TType::STRUCT,
-          'class' => '\metastore\NoSuchObjectException',
-          ),
         );
     }
     if (is_array($vals)) {
@@ -49857,9 +49645,6 @@ class ThriftHiveMetastore_get_schema_all_versions_result {
       }
       if (isset($vals['o1'])) {
         $this->o1 = $vals['o1'];
-      }
-      if (isset($vals['o2'])) {
-        $this->o2 = $vals['o2'];
       }
     }
   }
@@ -49909,14 +49694,6 @@ class ThriftHiveMetastore_get_schema_all_versions_result {
             $xfer += $input->skip($ftype);
           }
           break;
-        case 2:
-          if ($ftype == TType::STRUCT) {
-            $this->o2 = new \metastore\NoSuchObjectException();
-            $xfer += $this->o2->read($input);
-          } else {
-            $xfer += $input->skip($ftype);
-          }
-          break;
         default:
           $xfer += $input->skip($ftype);
           break;
@@ -49950,11 +49727,6 @@ class ThriftHiveMetastore_get_schema_all_versions_result {
     if ($this->o1 !== null) {
       $xfer += $output->writeFieldBegin('o1', TType::STRUCT, 1);
       $xfer += $this->o1->write($output);
-      $xfer += $output->writeFieldEnd();
-    }
-    if ($this->o2 !== null) {
-      $xfer += $output->writeFieldBegin('o2', TType::STRUCT, 2);
-      $xfer += $this->o2->write($output);
       $xfer += $output->writeFieldEnd();
     }
     $xfer += $output->writeFieldStop();

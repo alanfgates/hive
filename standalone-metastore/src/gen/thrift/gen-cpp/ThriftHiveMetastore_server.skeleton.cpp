@@ -852,7 +852,7 @@ class ThriftHiveMetastoreHandler : virtual public ThriftHiveMetastoreIf {
     printf("drop_ischema\n");
   }
 
-  void add_schema_version(const std::string& schemaName, const SchemaVersion& schemaVersion) {
+  void add_schema_version(const SchemaVersion& schemaVersion) {
     // Your implementation goes here
     printf("add_schema_version\n");
   }
