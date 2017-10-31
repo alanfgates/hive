@@ -45,7 +45,13 @@ public abstract class PreEventContext {
     ADD_INDEX,
     ALTER_INDEX,
     DROP_INDEX,
-    ALTER_DATABASE
+    ALTER_DATABASE,
+    CREATE_ISCHEMA,
+    ALTER_ISCHEMA,
+    DROP_ISCHEMA,
+    ADD_SCHEMA_VERSION,
+    ALTER_SCHEMA_VERSION,
+    DROP_SCHEMA_VERSION
   }
 
   private final PreEventType eventType;

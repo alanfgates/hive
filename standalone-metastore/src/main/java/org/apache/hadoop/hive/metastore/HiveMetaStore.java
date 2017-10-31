@@ -84,6 +84,7 @@ import org.apache.hadoop.hive.metastore.events.AlterTableEvent;
 import org.apache.hadoop.hive.metastore.events.ConfigChangeEvent;
 import org.apache.hadoop.hive.metastore.events.CreateDatabaseEvent;
 import org.apache.hadoop.hive.metastore.events.CreateFunctionEvent;
+import org.apache.hadoop.hive.metastore.events.CreateISchemaEvent;
 import org.apache.hadoop.hive.metastore.events.CreateTableEvent;
 import org.apache.hadoop.hive.metastore.events.DropConstraintEvent;
 import org.apache.hadoop.hive.metastore.events.DropDatabaseEvent;
@@ -102,6 +103,7 @@ import org.apache.hadoop.hive.metastore.events.PreAlterPartitionEvent;
 import org.apache.hadoop.hive.metastore.events.PreAlterTableEvent;
 import org.apache.hadoop.hive.metastore.events.PreAuthorizationCallEvent;
 import org.apache.hadoop.hive.metastore.events.PreCreateDatabaseEvent;
+import org.apache.hadoop.hive.metastore.events.PreCreateISchemaEvent;
 import org.apache.hadoop.hive.metastore.events.PreCreateTableEvent;
 import org.apache.hadoop.hive.metastore.events.PreDropDatabaseEvent;
 import org.apache.hadoop.hive.metastore.events.PreDropIndexEvent;
@@ -7250,7 +7252,37 @@ public class HiveMetaStore extends ThriftHiveMetastore {
 
     @Override
     public void create_ischema(ISchema schema) throws TException {
+      startFunction("create_ischema", ": " + schema.toString());
+      boolean success = false;
+      Exception ex = null;
+      RawStore ms = getMS();
+      try {
+        firePreEvent(new PreCreateISchemaEvent(this, schema));
+        Map<String, String> transactionalListenersResponses = Collections.emptyMap();
+        ms.openTransaction();
+        try {
+          ms.createISchema(schema);
 
+          if (!transactionalListeners.isEmpty()) {
+            transactionalListenersResponses =
+                MetaStoreListenerNotifier.notifyEvent(transactionalListeners,
+                    EventType.CREATE_ISCHEMA, new CreateISchemaEvent(true, this, schema));
+          }
+          success = ms.commitTransaction();
+        } finally {
+          if (!success) ms.rollbackTransaction();
+          if (!listeners.isEmpty()) {
+            MetaStoreListenerNotifier.notifyEvent(listeners, EventType.CREATE_ISCHEMA,
+                new CreateISchemaEvent(success, this, schema), null,
+                transactionalListenersResponses, ms);
+          }
+        }
+      } catch (MetaException|AlreadyExistsException e) {
+        ex = e;
+        throw e;
+      } finally {
+        endFunction("create_ischema", success, ex);
+      }
     }
 
     @Override
