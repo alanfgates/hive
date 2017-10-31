@@ -1216,6 +1216,9 @@
       <field name="name">
         <column name="NAME" jdbc-type="varchar" length="256"/>
       </field>
+      <field name="db">
+        <column name="DB_ID"/>
+      </field>
       <field name="compatibility">
         <column name="COMPATIBILITY" jdbc-type="integer"/>
       </field>
@@ -1237,8 +1240,8 @@
       <datastore-identity>
         <column name="SCHEMA_VERSION_ID"/>
       </datastore-identity>
-      <field name="schemaName">
-        <column name="SCHEMA_NAME" jdbc-type="varchar" length="256"/>
+      <field name="iSchema">
+        <column name="SCHEMA_ID"/>
       </field>
       <field name="version">
         <column name="VERSION" jdbc-type="integer"/>
@@ -1255,8 +1258,8 @@
       <field name="description">
         <column name="DESCRIPTION" jdbc-type="varchar" length="4000" allows-null="true"/>
       </field>
-      <field name="schemaText">
-        <column name="SCHEMA_TEXT" jdbc-type="LONGVARCHAR" allows-null="true"/>
+      <field name="schemaText" default-fetch-group="false">
+        <column name="SCHEMA_TEXT" jdbc-type="LONGVARCHAR"/>
       </field>
       <field name="fingerprint">
         <column name="FINGERPRINT" jdbc-type="varchar" length="256" allows-null="true"/>

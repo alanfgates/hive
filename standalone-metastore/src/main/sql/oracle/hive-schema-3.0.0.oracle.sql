@@ -1016,6 +1016,7 @@ CREATE TABLE "I_SCHEMA" (
   "SCHEMA_ID" number primary key,
   "SCHEMA_TYPE" number not null,
   "NAME" varchar2(256) unique,
+  "DB_ID" number references "DBS" ("DB_ID"),
   "COMPATIBILITY" number not null,
   "VALIDATION_LEVEL" number not null,
   "CAN_EVOLVE" number(1) not null,
@@ -1025,7 +1026,7 @@ CREATE TABLE "I_SCHEMA" (
 
 CREATE TABLE "SCHEMA_VERSION" (
   "SCHEMA_VERSION_ID" number primary key,
-  "SCHEMA_NAME" varchar2(256) references "I_SCHEMA" ("NAME"),
+  "SCHEMA_ID" number references "I_SCHEMA" ("SCHEMA_ID"),
   "VERSION" number not null,
   "CREATED_AT" number not null,
   "CD_ID" number references "CDS" ("CD_ID"), 
@@ -1035,7 +1036,7 @@ CREATE TABLE "SCHEMA_VERSION" (
   "FINGERPRINT" varchar2(256),
   "SCHEMA_VERSION_NAME" varchar2(256),
   "SERDE_ID" number references "SERDES" ("SERDE_ID"), 
-  UNIQUE ("SCHEMA_NAME", "VERSION")
+  UNIQUE ("SCHEMA_ID", "VERSION")
 );
 
 

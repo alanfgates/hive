@@ -8826,9 +8826,10 @@ inline std::ostream& operator<<(std::ostream& out, const WMMapping& obj)
 }
 
 typedef struct _ISchema__isset {
-  _ISchema__isset() : schemaType(false), name(false), compatibility(false), validationLevel(false), canEvolve(false), schemaGroup(false), description(false) {}
+  _ISchema__isset() : schemaType(false), name(false), dbName(false), compatibility(false), validationLevel(false), canEvolve(false), schemaGroup(false), description(false) {}
   bool schemaType :1;
   bool name :1;
+  bool dbName :1;
   bool compatibility :1;
   bool validationLevel :1;
   bool canEvolve :1;
@@ -8841,12 +8842,13 @@ class ISchema {
 
   ISchema(const ISchema&);
   ISchema& operator=(const ISchema&);
-  ISchema() : schemaType((SchemaType::type)0), name(), compatibility((SchemaCompatibility::type)0), validationLevel((SchemaValidation::type)0), canEvolve(0), schemaGroup(), description() {
+  ISchema() : schemaType((SchemaType::type)0), name(), dbName(), compatibility((SchemaCompatibility::type)0), validationLevel((SchemaValidation::type)0), canEvolve(0), schemaGroup(), description() {
   }
 
   virtual ~ISchema() throw();
   SchemaType::type schemaType;
   std::string name;
+  std::string dbName;
   SchemaCompatibility::type compatibility;
   SchemaValidation::type validationLevel;
   bool canEvolve;
@@ -8858,6 +8860,8 @@ class ISchema {
   void __set_schemaType(const SchemaType::type val);
 
   void __set_name(const std::string& val);
+
+  void __set_dbName(const std::string& val);
 
   void __set_compatibility(const SchemaCompatibility::type val);
 
@@ -8874,6 +8878,8 @@ class ISchema {
     if (!(schemaType == rhs.schemaType))
       return false;
     if (!(name == rhs.name))
+      return false;
+    if (!(dbName == rhs.dbName))
       return false;
     if (!(compatibility == rhs.compatibility))
       return false;

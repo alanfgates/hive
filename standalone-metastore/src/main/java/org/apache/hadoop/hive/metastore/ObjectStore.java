@@ -9275,7 +9275,8 @@ public class ObjectStore implements RawStore, Configurable {
   }
 
   @Override
-  public void createISchema(ISchema schema) throws AlreadyExistsException, MetaException {
+  public void createISchema(ISchema schema) throws AlreadyExistsException, MetaException,
+      NoSuchObjectException {
     boolean committed = false;
     MISchema mSchema = convertToMISchema(schema);
     try {
@@ -9419,8 +9420,8 @@ public class ObjectStore implements RawStore, Configurable {
     Query query = null;
     try {
       schemaName = normalizeIdentifier(schemaName);
-      query = pm.newQuery(MSchemaVersion.class, "schemaName == name && version == schemaVersion");
-      query.declareParameters("java.lang.String name, java.lang.Integer schemaVersion");
+      query = pm.newQuery(MSchemaVersion.class, "iSchema.name == schemaName && version == schemaVersion");
+      query.declareParameters("java.lang.String schemaName, java.lang.Integer schemaVersion");
       query.setUnique(true);
       MSchemaVersion mSchemaVersion = (MSchemaVersion)query.execute(schemaName, version);
       pm.retrieve(mSchemaVersion);
@@ -9441,8 +9442,8 @@ public class ObjectStore implements RawStore, Configurable {
     try {
       openTransaction();
       schemaName = normalizeIdentifier(schemaName);
-      query = pm.newQuery(MSchemaVersion.class, "schemaName == name");
-      query.declareParameters("java.lang.String name");
+      query = pm.newQuery(MSchemaVersion.class, "iSchema.name == schemaName");
+      query.declareParameters("java.lang.String schemaName");
       query.setUnique(true);
       query.setOrdering("version descending");
       query.setRange(0, 1);
@@ -9466,8 +9467,8 @@ public class ObjectStore implements RawStore, Configurable {
     try {
       openTransaction();
       schemaName = normalizeIdentifier(schemaName);
-      query = pm.newQuery(MSchemaVersion.class, "schemaName == name");
-      query.declareParameters("java.lang.String name");
+      query = pm.newQuery(MSchemaVersion.class, "iSchema.name == schemaName");
+      query.declareParameters("java.lang.String schemaName");
       query.setOrdering("version descending");
       List<MSchemaVersion> mSchemaVersions = query.setParameters(schemaName).executeList();
       pm.retrieveAll(mSchemaVersions);
@@ -9611,9 +9612,10 @@ public class ObjectStore implements RawStore, Configurable {
     }
   }
 
-  private MISchema convertToMISchema(ISchema schema) {
+  private MISchema convertToMISchema(ISchema schema) throws NoSuchObjectException {
     return new MISchema(schema.getSchemaType().getValue(),
                         normalizeIdentifier(schema.getName()),
+                        getMDatabase(schema.getDbName()),
                         schema.getCompatibility().getValue(),
                         schema.getValidationLevel().getValue(),
                         schema.isCanEvolve(),
@@ -9625,6 +9627,7 @@ public class ObjectStore implements RawStore, Configurable {
     if (mSchema == null) return null;
     ISchema schema = new ISchema(SchemaType.findByValue(mSchema.getSchemaType()),
                                  mSchema.getName(),
+                                 mSchema.getDb().getName(),
                                  SchemaCompatibility.findByValue(mSchema.getCompatibility()),
                                  SchemaValidation.findByValue(mSchema.getValidationLevel()),
                                  mSchema.getCanEvolve());
@@ -9634,7 +9637,7 @@ public class ObjectStore implements RawStore, Configurable {
   }
 
   private MSchemaVersion convertToMSchemaVersion(SchemaVersion schemaVersion) throws MetaException {
-    return new MSchemaVersion(normalizeIdentifier(schemaVersion.getSchemaName()),
+    return new MSchemaVersion(getMISchema(normalizeIdentifier(schemaVersion.getSchemaName())),
                               schemaVersion.getVersion(),
                               schemaVersion.getCreatedAt(),
                               createNewMColumnDescriptor(convertToMFieldSchemas(schemaVersion.getCols())),
@@ -9648,7 +9651,7 @@ public class ObjectStore implements RawStore, Configurable {
 
   private SchemaVersion convertToSchemaVersion(MSchemaVersion mSchemaVersion) throws MetaException {
     if (mSchemaVersion == null) return null;
-    SchemaVersion schemaVersion = new SchemaVersion(mSchemaVersion.getSchemaName(),
+    SchemaVersion schemaVersion = new SchemaVersion(mSchemaVersion.getiSchema().getName(),
                                                     mSchemaVersion.getVersion(),
                                                     mSchemaVersion.getCreatedAt(),
                                                     convertToFieldSchemas(mSchemaVersion.getCols().getCols()));

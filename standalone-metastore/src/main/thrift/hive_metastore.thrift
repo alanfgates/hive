@@ -1103,11 +1103,12 @@ struct WMMapping {
 struct ISchema {
   1: SchemaType schemaType,
   2: string name,
-  3: SchemaCompatibility compatibility,
-  4: SchemaValidation validationLevel,
-  5: bool canEvolve,
-  6: optional string schemaGroup,
-  7: optional string description
+  3: string dbName,
+  4: SchemaCompatibility compatibility,
+  5: SchemaValidation validationLevel,
+  6: bool canEvolve,
+  7: optional string schemaGroup,
+  8: optional string description
 }
 
 struct SchemaVersion {
@@ -1702,7 +1703,8 @@ service ThriftHiveMetastore extends fb303.FacebookService
   string get_metastore_db_uuid() throws (1:MetaException o1)
 
   // Schema calls
-  void create_ischema(1:ISchema schema) throws(1:AlreadyExistsException o1, 2:MetaException o2)
+  void create_ischema(1:ISchema schema) throws(1:AlreadyExistsException o1,
+        NoSuchObjectException o2, 3:MetaException o3)
   void alter_ischema(1:string schemaName, 2:ISchema newSchema)
         throws(1:NoSuchObjectException o1, 2:MetaException o2)
   ISchema get_ischema(1:string schemaName) throws (1:MetaException o1)

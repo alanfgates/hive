@@ -506,6 +506,7 @@ CREATE TABLE "APP"."I_SCHEMA" (
   "SCHEMA_ID" bigint primary key,
   "SCHEMA_TYPE" integer not null,
   "NAME" varchar(256) unique,
+  "DB_ID" bigint references "APP"."DBS" ("DB_ID"),
   "COMPATIBILITY" integer not null,
   "VALIDATION_LEVEL" integer not null,
   "CAN_EVOLVE" char(1) not null,
@@ -515,7 +516,7 @@ CREATE TABLE "APP"."I_SCHEMA" (
 
 CREATE TABLE "APP"."SCHEMA_VERSION" (
   "SCHEMA_VERSION_ID" bigint primary key,
-  "SCHEMA_NAME" varchar(256) references "APP"."I_SCHEMA" ("NAME"),
+  "SCHEMA_ID" bigint references "APP"."I_SCHEMA" ("SCHEMA_ID"),
   "VERSION" integer not null,
   "CREATED_AT" bigint not null,
   "CD_ID" bigint references "APP"."CDS" ("CD_ID"),
@@ -527,8 +528,7 @@ CREATE TABLE "APP"."SCHEMA_VERSION" (
   "SERDE_ID" bigint references "APP"."SERDES" ("SERDE_ID")
 );
 
-CREATE UNIQUE INDEX "APP"."UNIQUE_SCHEMA_VERSION" ON "APP"."SCHEMA_VERSION" ("SCHEMA_NAME", "VERSION");
-
+CREATE UNIQUE INDEX "APP"."UNIQUE_SCHEMA_VERSION" ON "APP"."SCHEMA_VERSION" ("SCHEMA_ID", "VERSION");
 
 -- -----------------------------------------------------------------
 -- Record schema version. Should be the last step in the init script

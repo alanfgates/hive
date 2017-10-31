@@ -21598,6 +21598,10 @@ void ISchema::__set_name(const std::string& val) {
   this->name = val;
 }
 
+void ISchema::__set_dbName(const std::string& val) {
+  this->dbName = val;
+}
+
 void ISchema::__set_compatibility(const SchemaCompatibility::type val) {
   this->compatibility = val;
 }
@@ -21660,6 +21664,14 @@ uint32_t ISchema::read(::apache::thrift::protocol::TProtocol* iprot) {
         }
         break;
       case 3:
+        if (ftype == ::apache::thrift::protocol::T_STRING) {
+          xfer += iprot->readString(this->dbName);
+          this->__isset.dbName = true;
+        } else {
+          xfer += iprot->skip(ftype);
+        }
+        break;
+      case 4:
         if (ftype == ::apache::thrift::protocol::T_I32) {
           int32_t ecast873;
           xfer += iprot->readI32(ecast873);
@@ -21669,7 +21681,7 @@ uint32_t ISchema::read(::apache::thrift::protocol::TProtocol* iprot) {
           xfer += iprot->skip(ftype);
         }
         break;
-      case 4:
+      case 5:
         if (ftype == ::apache::thrift::protocol::T_I32) {
           int32_t ecast874;
           xfer += iprot->readI32(ecast874);
@@ -21679,7 +21691,7 @@ uint32_t ISchema::read(::apache::thrift::protocol::TProtocol* iprot) {
           xfer += iprot->skip(ftype);
         }
         break;
-      case 5:
+      case 6:
         if (ftype == ::apache::thrift::protocol::T_BOOL) {
           xfer += iprot->readBool(this->canEvolve);
           this->__isset.canEvolve = true;
@@ -21687,7 +21699,7 @@ uint32_t ISchema::read(::apache::thrift::protocol::TProtocol* iprot) {
           xfer += iprot->skip(ftype);
         }
         break;
-      case 6:
+      case 7:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->schemaGroup);
           this->__isset.schemaGroup = true;
@@ -21695,7 +21707,7 @@ uint32_t ISchema::read(::apache::thrift::protocol::TProtocol* iprot) {
           xfer += iprot->skip(ftype);
         }
         break;
-      case 7:
+      case 8:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->description);
           this->__isset.description = true;
@@ -21728,25 +21740,29 @@ uint32_t ISchema::write(::apache::thrift::protocol::TProtocol* oprot) const {
   xfer += oprot->writeString(this->name);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("compatibility", ::apache::thrift::protocol::T_I32, 3);
+  xfer += oprot->writeFieldBegin("dbName", ::apache::thrift::protocol::T_STRING, 3);
+  xfer += oprot->writeString(this->dbName);
+  xfer += oprot->writeFieldEnd();
+
+  xfer += oprot->writeFieldBegin("compatibility", ::apache::thrift::protocol::T_I32, 4);
   xfer += oprot->writeI32((int32_t)this->compatibility);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("validationLevel", ::apache::thrift::protocol::T_I32, 4);
+  xfer += oprot->writeFieldBegin("validationLevel", ::apache::thrift::protocol::T_I32, 5);
   xfer += oprot->writeI32((int32_t)this->validationLevel);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("canEvolve", ::apache::thrift::protocol::T_BOOL, 5);
+  xfer += oprot->writeFieldBegin("canEvolve", ::apache::thrift::protocol::T_BOOL, 6);
   xfer += oprot->writeBool(this->canEvolve);
   xfer += oprot->writeFieldEnd();
 
   if (this->__isset.schemaGroup) {
-    xfer += oprot->writeFieldBegin("schemaGroup", ::apache::thrift::protocol::T_STRING, 6);
+    xfer += oprot->writeFieldBegin("schemaGroup", ::apache::thrift::protocol::T_STRING, 7);
     xfer += oprot->writeString(this->schemaGroup);
     xfer += oprot->writeFieldEnd();
   }
   if (this->__isset.description) {
-    xfer += oprot->writeFieldBegin("description", ::apache::thrift::protocol::T_STRING, 7);
+    xfer += oprot->writeFieldBegin("description", ::apache::thrift::protocol::T_STRING, 8);
     xfer += oprot->writeString(this->description);
     xfer += oprot->writeFieldEnd();
   }
@@ -21759,6 +21775,7 @@ void swap(ISchema &a, ISchema &b) {
   using ::std::swap;
   swap(a.schemaType, b.schemaType);
   swap(a.name, b.name);
+  swap(a.dbName, b.dbName);
   swap(a.compatibility, b.compatibility);
   swap(a.validationLevel, b.validationLevel);
   swap(a.canEvolve, b.canEvolve);
@@ -21770,6 +21787,7 @@ void swap(ISchema &a, ISchema &b) {
 ISchema::ISchema(const ISchema& other875) {
   schemaType = other875.schemaType;
   name = other875.name;
+  dbName = other875.dbName;
   compatibility = other875.compatibility;
   validationLevel = other875.validationLevel;
   canEvolve = other875.canEvolve;
@@ -21780,6 +21798,7 @@ ISchema::ISchema(const ISchema& other875) {
 ISchema& ISchema::operator=(const ISchema& other876) {
   schemaType = other876.schemaType;
   name = other876.name;
+  dbName = other876.dbName;
   compatibility = other876.compatibility;
   validationLevel = other876.validationLevel;
   canEvolve = other876.canEvolve;
@@ -21793,6 +21812,7 @@ void ISchema::printTo(std::ostream& out) const {
   out << "ISchema(";
   out << "schemaType=" << to_string(schemaType);
   out << ", " << "name=" << to_string(name);
+  out << ", " << "dbName=" << to_string(dbName);
   out << ", " << "compatibility=" << to_string(compatibility);
   out << ", " << "validationLevel=" << to_string(validationLevel);
   out << ", " << "canEvolve=" << to_string(canEvolve);

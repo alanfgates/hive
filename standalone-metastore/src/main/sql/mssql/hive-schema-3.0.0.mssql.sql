@@ -1114,6 +1114,7 @@ CREATE TABLE "I_SCHEMA" (
   "SCHEMA_ID" bigint primary key,
   "SCHEMA_TYPE" int not null,
   "NAME" nvarchar(256) unique,
+  "DB_ID" bigint references "DBS" ("DB_ID"),
   "COMPATIBILITY" int not null,
   "VALIDATION_LEVEL" int not null,
   "CAN_EVOLVE" bit not null,
@@ -1123,7 +1124,7 @@ CREATE TABLE "I_SCHEMA" (
 
 CREATE TABLE "SCHEMA_VERSION" (
   "SCHEMA_VERSION_ID" bigint primary key,
-  "SCHEMA_NAME" nvarchar(256) references "I_SCHEMA" ("NAME"),
+  "SCHEMA_ID" bigint references "I_SCHEMA" ("SCHEMA_ID"),
   "VERSION" int not null,
   "CREATED_AT" bigint not null,
   "CD_ID" bigint references "CDS" ("CD_ID"),
@@ -1133,7 +1134,7 @@ CREATE TABLE "SCHEMA_VERSION" (
   "FINGERPRINT" nvarchar(256),
   "SCHEMA_VERSION_NAME" nvarchar(256),
   "SERDE_ID" bigint references "SERDES" ("SERDE_ID"),
-  unique ("SCHEMA_NAME", "VERSION")
+  unique ("SCHEMA_ID", "VERSION")
 );
 
 -- -----------------------------------------------------------------

@@ -15014,6 +15014,7 @@ class ISchema:
   Attributes:
    - schemaType
    - name
+   - dbName
    - compatibility
    - validationLevel
    - canEvolve
@@ -15025,16 +15026,18 @@ class ISchema:
     None, # 0
     (1, TType.I32, 'schemaType', None, None, ), # 1
     (2, TType.STRING, 'name', None, None, ), # 2
-    (3, TType.I32, 'compatibility', None, None, ), # 3
-    (4, TType.I32, 'validationLevel', None, None, ), # 4
-    (5, TType.BOOL, 'canEvolve', None, None, ), # 5
-    (6, TType.STRING, 'schemaGroup', None, None, ), # 6
-    (7, TType.STRING, 'description', None, None, ), # 7
+    (3, TType.STRING, 'dbName', None, None, ), # 3
+    (4, TType.I32, 'compatibility', None, None, ), # 4
+    (5, TType.I32, 'validationLevel', None, None, ), # 5
+    (6, TType.BOOL, 'canEvolve', None, None, ), # 6
+    (7, TType.STRING, 'schemaGroup', None, None, ), # 7
+    (8, TType.STRING, 'description', None, None, ), # 8
   )
 
-  def __init__(self, schemaType=None, name=None, compatibility=None, validationLevel=None, canEvolve=None, schemaGroup=None, description=None,):
+  def __init__(self, schemaType=None, name=None, dbName=None, compatibility=None, validationLevel=None, canEvolve=None, schemaGroup=None, description=None,):
     self.schemaType = schemaType
     self.name = name
+    self.dbName = dbName
     self.compatibility = compatibility
     self.validationLevel = validationLevel
     self.canEvolve = canEvolve
@@ -15061,26 +15064,31 @@ class ISchema:
         else:
           iprot.skip(ftype)
       elif fid == 3:
-        if ftype == TType.I32:
-          self.compatibility = iprot.readI32()
+        if ftype == TType.STRING:
+          self.dbName = iprot.readString()
         else:
           iprot.skip(ftype)
       elif fid == 4:
         if ftype == TType.I32:
-          self.validationLevel = iprot.readI32()
+          self.compatibility = iprot.readI32()
         else:
           iprot.skip(ftype)
       elif fid == 5:
+        if ftype == TType.I32:
+          self.validationLevel = iprot.readI32()
+        else:
+          iprot.skip(ftype)
+      elif fid == 6:
         if ftype == TType.BOOL:
           self.canEvolve = iprot.readBool()
         else:
           iprot.skip(ftype)
-      elif fid == 6:
+      elif fid == 7:
         if ftype == TType.STRING:
           self.schemaGroup = iprot.readString()
         else:
           iprot.skip(ftype)
-      elif fid == 7:
+      elif fid == 8:
         if ftype == TType.STRING:
           self.description = iprot.readString()
         else:
@@ -15103,24 +15111,28 @@ class ISchema:
       oprot.writeFieldBegin('name', TType.STRING, 2)
       oprot.writeString(self.name)
       oprot.writeFieldEnd()
+    if self.dbName is not None:
+      oprot.writeFieldBegin('dbName', TType.STRING, 3)
+      oprot.writeString(self.dbName)
+      oprot.writeFieldEnd()
     if self.compatibility is not None:
-      oprot.writeFieldBegin('compatibility', TType.I32, 3)
+      oprot.writeFieldBegin('compatibility', TType.I32, 4)
       oprot.writeI32(self.compatibility)
       oprot.writeFieldEnd()
     if self.validationLevel is not None:
-      oprot.writeFieldBegin('validationLevel', TType.I32, 4)
+      oprot.writeFieldBegin('validationLevel', TType.I32, 5)
       oprot.writeI32(self.validationLevel)
       oprot.writeFieldEnd()
     if self.canEvolve is not None:
-      oprot.writeFieldBegin('canEvolve', TType.BOOL, 5)
+      oprot.writeFieldBegin('canEvolve', TType.BOOL, 6)
       oprot.writeBool(self.canEvolve)
       oprot.writeFieldEnd()
     if self.schemaGroup is not None:
-      oprot.writeFieldBegin('schemaGroup', TType.STRING, 6)
+      oprot.writeFieldBegin('schemaGroup', TType.STRING, 7)
       oprot.writeString(self.schemaGroup)
       oprot.writeFieldEnd()
     if self.description is not None:
-      oprot.writeFieldBegin('description', TType.STRING, 7)
+      oprot.writeFieldBegin('description', TType.STRING, 8)
       oprot.writeString(self.description)
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
@@ -15134,6 +15146,7 @@ class ISchema:
     value = 17
     value = (value * 31) ^ hash(self.schemaType)
     value = (value * 31) ^ hash(self.name)
+    value = (value * 31) ^ hash(self.dbName)
     value = (value * 31) ^ hash(self.compatibility)
     value = (value * 31) ^ hash(self.validationLevel)
     value = (value * 31) ^ hash(self.canEvolve)

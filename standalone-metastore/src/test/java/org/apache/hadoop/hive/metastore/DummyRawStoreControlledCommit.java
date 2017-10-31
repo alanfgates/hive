@@ -939,7 +939,8 @@ public class DummyRawStoreControlledCommit implements RawStore, Configurable {
   }
 
   @Override
-  public void createISchema(ISchema schema) throws AlreadyExistsException, MetaException {
+  public void createISchema(ISchema schema) throws AlreadyExistsException, MetaException,
+      NoSuchObjectException {
     objectStore.createISchema(schema);
   }
 

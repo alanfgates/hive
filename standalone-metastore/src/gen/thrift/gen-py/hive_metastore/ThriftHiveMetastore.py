@@ -7249,6 +7249,8 @@ class Client(fb303.FacebookService.Client, Iface):
       raise result.o1
     if result.o2 is not None:
       raise result.o2
+    if result.o3 is not None:
+      raise result.o3
     return
 
   def alter_ischema(self, schemaName, newSchema):
@@ -11786,9 +11788,12 @@ class Processor(fb303.FacebookService.Processor, Iface, TProcessor):
     except AlreadyExistsException as o1:
       msg_type = TMessageType.REPLY
       result.o1 = o1
-    except MetaException as o2:
+    except NoSuchObjectException as o2:
       msg_type = TMessageType.REPLY
       result.o2 = o2
+    except MetaException as o3:
+      msg_type = TMessageType.REPLY
+      result.o3 = o3
     except Exception as ex:
       msg_type = TMessageType.EXCEPTION
       logging.exception(ex)
@@ -39426,17 +39431,14 @@ class create_ischema_result:
   Attributes:
    - o1
    - o2
+   - o3
   """
 
-  thrift_spec = (
-    None, # 0
-    (1, TType.STRUCT, 'o1', (AlreadyExistsException, AlreadyExistsException.thrift_spec), None, ), # 1
-    (2, TType.STRUCT, 'o2', (MetaException, MetaException.thrift_spec), None, ), # 2
-  )
-
-  def __init__(self, o1=None, o2=None,):
+  thrift_spec = None
+  def __init__(self, o1=None, o2=None, o3=None,):
     self.o1 = o1
     self.o2 = o2
+    self.o3 = o3
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -39453,10 +39455,16 @@ class create_ischema_result:
           self.o1.read(iprot)
         else:
           iprot.skip(ftype)
-      elif fid == 2:
+      elif fid == -1:
         if ftype == TType.STRUCT:
-          self.o2 = MetaException()
+          self.o2 = NoSuchObjectException()
           self.o2.read(iprot)
+        else:
+          iprot.skip(ftype)
+      elif fid == 3:
+        if ftype == TType.STRUCT:
+          self.o3 = MetaException()
+          self.o3.read(iprot)
         else:
           iprot.skip(ftype)
       else:
@@ -39469,13 +39477,17 @@ class create_ischema_result:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return
     oprot.writeStructBegin('create_ischema_result')
+    if self.o2 is not None:
+      oprot.writeFieldBegin('o2', TType.STRUCT, -1)
+      self.o2.write(oprot)
+      oprot.writeFieldEnd()
     if self.o1 is not None:
       oprot.writeFieldBegin('o1', TType.STRUCT, 1)
       self.o1.write(oprot)
       oprot.writeFieldEnd()
-    if self.o2 is not None:
-      oprot.writeFieldBegin('o2', TType.STRUCT, 2)
-      self.o2.write(oprot)
+    if self.o3 is not None:
+      oprot.writeFieldBegin('o3', TType.STRUCT, 3)
+      self.o3.write(oprot)
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
@@ -39488,6 +39500,7 @@ class create_ischema_result:
     value = 17
     value = (value * 31) ^ hash(self.o1)
     value = (value * 31) ^ hash(self.o2)
+    value = (value * 31) ^ hash(self.o3)
     return value
 
   def __repr__(self):

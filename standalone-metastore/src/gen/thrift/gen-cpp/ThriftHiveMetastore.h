@@ -20775,9 +20775,10 @@ class ThriftHiveMetastore_create_ischema_pargs {
 };
 
 typedef struct _ThriftHiveMetastore_create_ischema_result__isset {
-  _ThriftHiveMetastore_create_ischema_result__isset() : o1(false), o2(false) {}
+  _ThriftHiveMetastore_create_ischema_result__isset() : o1(false), o2(false), o3(false) {}
   bool o1 :1;
   bool o2 :1;
+  bool o3 :1;
 } _ThriftHiveMetastore_create_ischema_result__isset;
 
 class ThriftHiveMetastore_create_ischema_result {
@@ -20790,19 +20791,24 @@ class ThriftHiveMetastore_create_ischema_result {
 
   virtual ~ThriftHiveMetastore_create_ischema_result() throw();
   AlreadyExistsException o1;
-  MetaException o2;
+  NoSuchObjectException o2;
+  MetaException o3;
 
   _ThriftHiveMetastore_create_ischema_result__isset __isset;
 
   void __set_o1(const AlreadyExistsException& val);
 
-  void __set_o2(const MetaException& val);
+  void __set_o2(const NoSuchObjectException& val);
+
+  void __set_o3(const MetaException& val);
 
   bool operator == (const ThriftHiveMetastore_create_ischema_result & rhs) const
   {
     if (!(o1 == rhs.o1))
       return false;
     if (!(o2 == rhs.o2))
+      return false;
+    if (!(o3 == rhs.o3))
       return false;
     return true;
   }
@@ -20818,9 +20824,10 @@ class ThriftHiveMetastore_create_ischema_result {
 };
 
 typedef struct _ThriftHiveMetastore_create_ischema_presult__isset {
-  _ThriftHiveMetastore_create_ischema_presult__isset() : o1(false), o2(false) {}
+  _ThriftHiveMetastore_create_ischema_presult__isset() : o1(false), o2(false), o3(false) {}
   bool o1 :1;
   bool o2 :1;
+  bool o3 :1;
 } _ThriftHiveMetastore_create_ischema_presult__isset;
 
 class ThriftHiveMetastore_create_ischema_presult {
@@ -20829,7 +20836,8 @@ class ThriftHiveMetastore_create_ischema_presult {
 
   virtual ~ThriftHiveMetastore_create_ischema_presult() throw();
   AlreadyExistsException o1;
-  MetaException o2;
+  NoSuchObjectException o2;
+  MetaException o3;
 
   _ThriftHiveMetastore_create_ischema_presult__isset __isset;
 

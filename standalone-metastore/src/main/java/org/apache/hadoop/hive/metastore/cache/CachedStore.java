@@ -2133,7 +2133,8 @@ public class CachedStore implements RawStore, Configurable {
 
   // TODO - not clear if we should cache these or not.  For now, don't bother
   @Override
-  public void createISchema(ISchema schema) throws AlreadyExistsException, MetaException {
+  public void createISchema(ISchema schema)
+      throws AlreadyExistsException, NoSuchObjectException, MetaException {
     rawStore.createISchema(schema);
   }
 

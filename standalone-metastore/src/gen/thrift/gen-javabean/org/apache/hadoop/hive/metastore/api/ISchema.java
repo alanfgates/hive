@@ -40,11 +40,12 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
 
   private static final org.apache.thrift.protocol.TField SCHEMA_TYPE_FIELD_DESC = new org.apache.thrift.protocol.TField("schemaType", org.apache.thrift.protocol.TType.I32, (short)1);
   private static final org.apache.thrift.protocol.TField NAME_FIELD_DESC = new org.apache.thrift.protocol.TField("name", org.apache.thrift.protocol.TType.STRING, (short)2);
-  private static final org.apache.thrift.protocol.TField COMPATIBILITY_FIELD_DESC = new org.apache.thrift.protocol.TField("compatibility", org.apache.thrift.protocol.TType.I32, (short)3);
-  private static final org.apache.thrift.protocol.TField VALIDATION_LEVEL_FIELD_DESC = new org.apache.thrift.protocol.TField("validationLevel", org.apache.thrift.protocol.TType.I32, (short)4);
-  private static final org.apache.thrift.protocol.TField CAN_EVOLVE_FIELD_DESC = new org.apache.thrift.protocol.TField("canEvolve", org.apache.thrift.protocol.TType.BOOL, (short)5);
-  private static final org.apache.thrift.protocol.TField SCHEMA_GROUP_FIELD_DESC = new org.apache.thrift.protocol.TField("schemaGroup", org.apache.thrift.protocol.TType.STRING, (short)6);
-  private static final org.apache.thrift.protocol.TField DESCRIPTION_FIELD_DESC = new org.apache.thrift.protocol.TField("description", org.apache.thrift.protocol.TType.STRING, (short)7);
+  private static final org.apache.thrift.protocol.TField DB_NAME_FIELD_DESC = new org.apache.thrift.protocol.TField("dbName", org.apache.thrift.protocol.TType.STRING, (short)3);
+  private static final org.apache.thrift.protocol.TField COMPATIBILITY_FIELD_DESC = new org.apache.thrift.protocol.TField("compatibility", org.apache.thrift.protocol.TType.I32, (short)4);
+  private static final org.apache.thrift.protocol.TField VALIDATION_LEVEL_FIELD_DESC = new org.apache.thrift.protocol.TField("validationLevel", org.apache.thrift.protocol.TType.I32, (short)5);
+  private static final org.apache.thrift.protocol.TField CAN_EVOLVE_FIELD_DESC = new org.apache.thrift.protocol.TField("canEvolve", org.apache.thrift.protocol.TType.BOOL, (short)6);
+  private static final org.apache.thrift.protocol.TField SCHEMA_GROUP_FIELD_DESC = new org.apache.thrift.protocol.TField("schemaGroup", org.apache.thrift.protocol.TType.STRING, (short)7);
+  private static final org.apache.thrift.protocol.TField DESCRIPTION_FIELD_DESC = new org.apache.thrift.protocol.TField("description", org.apache.thrift.protocol.TType.STRING, (short)8);
 
   private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
   static {
@@ -54,6 +55,7 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
 
   private SchemaType schemaType; // required
   private String name; // required
+  private String dbName; // required
   private SchemaCompatibility compatibility; // required
   private SchemaValidation validationLevel; // required
   private boolean canEvolve; // required
@@ -68,19 +70,20 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
      */
     SCHEMA_TYPE((short)1, "schemaType"),
     NAME((short)2, "name"),
+    DB_NAME((short)3, "dbName"),
     /**
      * 
      * @see SchemaCompatibility
      */
-    COMPATIBILITY((short)3, "compatibility"),
+    COMPATIBILITY((short)4, "compatibility"),
     /**
      * 
      * @see SchemaValidation
      */
-    VALIDATION_LEVEL((short)4, "validationLevel"),
-    CAN_EVOLVE((short)5, "canEvolve"),
-    SCHEMA_GROUP((short)6, "schemaGroup"),
-    DESCRIPTION((short)7, "description");
+    VALIDATION_LEVEL((short)5, "validationLevel"),
+    CAN_EVOLVE((short)6, "canEvolve"),
+    SCHEMA_GROUP((short)7, "schemaGroup"),
+    DESCRIPTION((short)8, "description");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -99,15 +102,17 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
           return SCHEMA_TYPE;
         case 2: // NAME
           return NAME;
-        case 3: // COMPATIBILITY
+        case 3: // DB_NAME
+          return DB_NAME;
+        case 4: // COMPATIBILITY
           return COMPATIBILITY;
-        case 4: // VALIDATION_LEVEL
+        case 5: // VALIDATION_LEVEL
           return VALIDATION_LEVEL;
-        case 5: // CAN_EVOLVE
+        case 6: // CAN_EVOLVE
           return CAN_EVOLVE;
-        case 6: // SCHEMA_GROUP
+        case 7: // SCHEMA_GROUP
           return SCHEMA_GROUP;
-        case 7: // DESCRIPTION
+        case 8: // DESCRIPTION
           return DESCRIPTION;
         default:
           return null;
@@ -159,6 +164,8 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
         new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, SchemaType.class)));
     tmpMap.put(_Fields.NAME, new org.apache.thrift.meta_data.FieldMetaData("name", org.apache.thrift.TFieldRequirementType.DEFAULT, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
+    tmpMap.put(_Fields.DB_NAME, new org.apache.thrift.meta_data.FieldMetaData("dbName", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
     tmpMap.put(_Fields.COMPATIBILITY, new org.apache.thrift.meta_data.FieldMetaData("compatibility", org.apache.thrift.TFieldRequirementType.DEFAULT, 
         new org.apache.thrift.meta_data.EnumMetaData(org.apache.thrift.protocol.TType.ENUM, SchemaCompatibility.class)));
     tmpMap.put(_Fields.VALIDATION_LEVEL, new org.apache.thrift.meta_data.FieldMetaData("validationLevel", org.apache.thrift.TFieldRequirementType.DEFAULT, 
@@ -179,6 +186,7 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
   public ISchema(
     SchemaType schemaType,
     String name,
+    String dbName,
     SchemaCompatibility compatibility,
     SchemaValidation validationLevel,
     boolean canEvolve)
@@ -186,6 +194,7 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
     this();
     this.schemaType = schemaType;
     this.name = name;
+    this.dbName = dbName;
     this.compatibility = compatibility;
     this.validationLevel = validationLevel;
     this.canEvolve = canEvolve;
@@ -202,6 +211,9 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
     }
     if (other.isSetName()) {
       this.name = other.name;
+    }
+    if (other.isSetDbName()) {
+      this.dbName = other.dbName;
     }
     if (other.isSetCompatibility()) {
       this.compatibility = other.compatibility;
@@ -226,6 +238,7 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
   public void clear() {
     this.schemaType = null;
     this.name = null;
+    this.dbName = null;
     this.compatibility = null;
     this.validationLevel = null;
     setCanEvolveIsSet(false);
@@ -285,6 +298,29 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
   public void setNameIsSet(boolean value) {
     if (!value) {
       this.name = null;
+    }
+  }
+
+  public String getDbName() {
+    return this.dbName;
+  }
+
+  public void setDbName(String dbName) {
+    this.dbName = dbName;
+  }
+
+  public void unsetDbName() {
+    this.dbName = null;
+  }
+
+  /** Returns true if field dbName is set (has been assigned a value) and false otherwise */
+  public boolean isSetDbName() {
+    return this.dbName != null;
+  }
+
+  public void setDbNameIsSet(boolean value) {
+    if (!value) {
+      this.dbName = null;
     }
   }
 
@@ -436,6 +472,14 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
       }
       break;
 
+    case DB_NAME:
+      if (value == null) {
+        unsetDbName();
+      } else {
+        setDbName((String)value);
+      }
+      break;
+
     case COMPATIBILITY:
       if (value == null) {
         unsetCompatibility();
@@ -487,6 +531,9 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
     case NAME:
       return getName();
 
+    case DB_NAME:
+      return getDbName();
+
     case COMPATIBILITY:
       return getCompatibility();
 
@@ -517,6 +564,8 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
       return isSetSchemaType();
     case NAME:
       return isSetName();
+    case DB_NAME:
+      return isSetDbName();
     case COMPATIBILITY:
       return isSetCompatibility();
     case VALIDATION_LEVEL:
@@ -559,6 +608,15 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
       if (!(this_present_name && that_present_name))
         return false;
       if (!this.name.equals(that.name))
+        return false;
+    }
+
+    boolean this_present_dbName = true && this.isSetDbName();
+    boolean that_present_dbName = true && that.isSetDbName();
+    if (this_present_dbName || that_present_dbName) {
+      if (!(this_present_dbName && that_present_dbName))
+        return false;
+      if (!this.dbName.equals(that.dbName))
         return false;
     }
 
@@ -624,6 +682,11 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
     if (present_name)
       list.add(name);
 
+    boolean present_dbName = true && (isSetDbName());
+    list.add(present_dbName);
+    if (present_dbName)
+      list.add(dbName);
+
     boolean present_compatibility = true && (isSetCompatibility());
     list.add(present_compatibility);
     if (present_compatibility)
@@ -676,6 +739,16 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
     }
     if (isSetName()) {
       lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.name, other.name);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
+    lastComparison = Boolean.valueOf(isSetDbName()).compareTo(other.isSetDbName());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetDbName()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.dbName, other.dbName);
       if (lastComparison != 0) {
         return lastComparison;
       }
@@ -763,6 +836,14 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
       sb.append("null");
     } else {
       sb.append(this.name);
+    }
+    first = false;
+    if (!first) sb.append(", ");
+    sb.append("dbName:");
+    if (this.dbName == null) {
+      sb.append("null");
+    } else {
+      sb.append(this.dbName);
     }
     first = false;
     if (!first) sb.append(", ");
@@ -866,7 +947,15 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
             }
             break;
-          case 3: // COMPATIBILITY
+          case 3: // DB_NAME
+            if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
+              struct.dbName = iprot.readString();
+              struct.setDbNameIsSet(true);
+            } else { 
+              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+            }
+            break;
+          case 4: // COMPATIBILITY
             if (schemeField.type == org.apache.thrift.protocol.TType.I32) {
               struct.compatibility = org.apache.hadoop.hive.metastore.api.SchemaCompatibility.findByValue(iprot.readI32());
               struct.setCompatibilityIsSet(true);
@@ -874,7 +963,7 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
             }
             break;
-          case 4: // VALIDATION_LEVEL
+          case 5: // VALIDATION_LEVEL
             if (schemeField.type == org.apache.thrift.protocol.TType.I32) {
               struct.validationLevel = org.apache.hadoop.hive.metastore.api.SchemaValidation.findByValue(iprot.readI32());
               struct.setValidationLevelIsSet(true);
@@ -882,7 +971,7 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
             }
             break;
-          case 5: // CAN_EVOLVE
+          case 6: // CAN_EVOLVE
             if (schemeField.type == org.apache.thrift.protocol.TType.BOOL) {
               struct.canEvolve = iprot.readBool();
               struct.setCanEvolveIsSet(true);
@@ -890,7 +979,7 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
             }
             break;
-          case 6: // SCHEMA_GROUP
+          case 7: // SCHEMA_GROUP
             if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
               struct.schemaGroup = iprot.readString();
               struct.setSchemaGroupIsSet(true);
@@ -898,7 +987,7 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
             }
             break;
-          case 7: // DESCRIPTION
+          case 8: // DESCRIPTION
             if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
               struct.description = iprot.readString();
               struct.setDescriptionIsSet(true);
@@ -927,6 +1016,11 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
       if (struct.name != null) {
         oprot.writeFieldBegin(NAME_FIELD_DESC);
         oprot.writeString(struct.name);
+        oprot.writeFieldEnd();
+      }
+      if (struct.dbName != null) {
+        oprot.writeFieldBegin(DB_NAME_FIELD_DESC);
+        oprot.writeString(struct.dbName);
         oprot.writeFieldEnd();
       }
       if (struct.compatibility != null) {
@@ -980,27 +1074,33 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
       if (struct.isSetName()) {
         optionals.set(1);
       }
-      if (struct.isSetCompatibility()) {
+      if (struct.isSetDbName()) {
         optionals.set(2);
       }
-      if (struct.isSetValidationLevel()) {
+      if (struct.isSetCompatibility()) {
         optionals.set(3);
       }
-      if (struct.isSetCanEvolve()) {
+      if (struct.isSetValidationLevel()) {
         optionals.set(4);
       }
-      if (struct.isSetSchemaGroup()) {
+      if (struct.isSetCanEvolve()) {
         optionals.set(5);
       }
-      if (struct.isSetDescription()) {
+      if (struct.isSetSchemaGroup()) {
         optionals.set(6);
       }
-      oprot.writeBitSet(optionals, 7);
+      if (struct.isSetDescription()) {
+        optionals.set(7);
+      }
+      oprot.writeBitSet(optionals, 8);
       if (struct.isSetSchemaType()) {
         oprot.writeI32(struct.schemaType.getValue());
       }
       if (struct.isSetName()) {
         oprot.writeString(struct.name);
+      }
+      if (struct.isSetDbName()) {
+        oprot.writeString(struct.dbName);
       }
       if (struct.isSetCompatibility()) {
         oprot.writeI32(struct.compatibility.getValue());
@@ -1022,7 +1122,7 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
     @Override
     public void read(org.apache.thrift.protocol.TProtocol prot, ISchema struct) throws org.apache.thrift.TException {
       TTupleProtocol iprot = (TTupleProtocol) prot;
-      BitSet incoming = iprot.readBitSet(7);
+      BitSet incoming = iprot.readBitSet(8);
       if (incoming.get(0)) {
         struct.schemaType = org.apache.hadoop.hive.metastore.api.SchemaType.findByValue(iprot.readI32());
         struct.setSchemaTypeIsSet(true);
@@ -1032,22 +1132,26 @@ public class ISchema implements org.apache.thrift.TBase<ISchema, ISchema._Fields
         struct.setNameIsSet(true);
       }
       if (incoming.get(2)) {
+        struct.dbName = iprot.readString();
+        struct.setDbNameIsSet(true);
+      }
+      if (incoming.get(3)) {
         struct.compatibility = org.apache.hadoop.hive.metastore.api.SchemaCompatibility.findByValue(iprot.readI32());
         struct.setCompatibilityIsSet(true);
       }
-      if (incoming.get(3)) {
+      if (incoming.get(4)) {
         struct.validationLevel = org.apache.hadoop.hive.metastore.api.SchemaValidation.findByValue(iprot.readI32());
         struct.setValidationLevelIsSet(true);
       }
-      if (incoming.get(4)) {
+      if (incoming.get(5)) {
         struct.canEvolve = iprot.readBool();
         struct.setCanEvolveIsSet(true);
       }
-      if (incoming.get(5)) {
+      if (incoming.get(6)) {
         struct.schemaGroup = iprot.readString();
         struct.setSchemaGroupIsSet(true);
       }
-      if (incoming.get(6)) {
+      if (incoming.get(7)) {
         struct.description = iprot.readString();
         struct.setDescriptionIsSet(true);
       }

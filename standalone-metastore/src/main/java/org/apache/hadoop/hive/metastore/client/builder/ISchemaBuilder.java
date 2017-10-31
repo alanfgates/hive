@@ -26,6 +26,7 @@ import org.apache.hadoop.hive.metastore.api.SchemaValidation;
 public class ISchemaBuilder {
   private SchemaType schemaType; // required
   private String name; // required
+  private String dbName; // required
   private SchemaCompatibility compatibility; // required
   private SchemaValidation validationLevel; // required
   private boolean canEvolve; // required
@@ -36,6 +37,7 @@ public class ISchemaBuilder {
     compatibility = SchemaCompatibility.BACKWARD;
     validationLevel = SchemaValidation.ALL;
     canEvolve = true;
+    dbName = "default";
   }
 
   public ISchemaBuilder setSchemaType(SchemaType schemaType) {
@@ -45,6 +47,11 @@ public class ISchemaBuilder {
 
   public ISchemaBuilder setName(String name) {
     this.name = name;
+    return this;
+  }
+
+  public ISchemaBuilder setDbName(String dbName) {
+    this.dbName = dbName;
     return this;
   }
 
@@ -77,7 +84,8 @@ public class ISchemaBuilder {
     if (schemaType == null || name == null) {
       throw new MetaException("You must provide a schemaType and name");
     }
-    ISchema iSchema = new ISchema(schemaType, name, compatibility, validationLevel, canEvolve);
+    ISchema iSchema =
+        new ISchema(schemaType, name, dbName, compatibility, validationLevel, canEvolve);
     if (schemaGroup != null) iSchema.setSchemaGroup(schemaGroup);
     if (description != null) iSchema.setDescription(description);
     return iSchema;

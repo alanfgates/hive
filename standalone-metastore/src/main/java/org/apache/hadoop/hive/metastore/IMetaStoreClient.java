@@ -1775,6 +1775,7 @@ public interface IMetaStoreClient {
    * of the schema that have columns, etc.
    * @param schema schema to create
    * @throws AlreadyExistsException if a schema of this name already exists
+   * @throws NoSuchObjectException database references by this schema does not exist
    * @throws MetaException general metastore error
    * @throws TException general thrift error
    */

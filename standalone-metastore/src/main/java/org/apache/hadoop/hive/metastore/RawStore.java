@@ -755,7 +755,8 @@ public interface RawStore extends Configurable {
    * @throws AlreadyExistsException there's already a schema with this name
    * @throws MetaException general database exception
    */
-  void createISchema(ISchema schema) throws AlreadyExistsException, MetaException;
+  void createISchema(ISchema schema) throws AlreadyExistsException, MetaException,
+      NoSuchObjectException;
 
   /**
    * Alter an existing ISchema.  This assumes the caller has already checked that such a schema
