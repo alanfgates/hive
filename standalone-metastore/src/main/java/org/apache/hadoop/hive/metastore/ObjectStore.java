@@ -9472,7 +9472,7 @@ public class ObjectStore implements RawStore, Configurable {
       query.setOrdering("version descending");
       List<MSchemaVersion> mSchemaVersions = query.setParameters(schemaName).executeList();
       pm.retrieveAll(mSchemaVersions);
-      if (mSchemaVersions == null) return null;
+      if (mSchemaVersions == null || mSchemaVersions.isEmpty()) return null;
       List<SchemaVersion> schemaVersions = new ArrayList<>(mSchemaVersions.size());
       for (MSchemaVersion mSchemaVersion : mSchemaVersions) {
         pm.retrieveAll(mSchemaVersion.getCols());

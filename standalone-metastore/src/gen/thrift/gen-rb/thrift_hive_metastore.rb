@@ -2739,6 +2739,7 @@ module ThriftHiveMetastore
       result = receive_message(Get_ischema_result)
       return result.success unless result.success.nil?
       raise result.o1 unless result.o1.nil?
+      raise result.o2 unless result.o2.nil?
       raise ::Thrift::ApplicationException.new(::Thrift::ApplicationException::MISSING_RESULT, 'get_ischema failed: unknown result')
     end
 
@@ -2789,6 +2790,7 @@ module ThriftHiveMetastore
       result = receive_message(Get_schema_version_result)
       return result.success unless result.success.nil?
       raise result.o1 unless result.o1.nil?
+      raise result.o2 unless result.o2.nil?
       raise ::Thrift::ApplicationException.new(::Thrift::ApplicationException::MISSING_RESULT, 'get_schema_version failed: unknown result')
     end
 
@@ -2805,6 +2807,7 @@ module ThriftHiveMetastore
       result = receive_message(Get_schema_latest_version_result)
       return result.success unless result.success.nil?
       raise result.o1 unless result.o1.nil?
+      raise result.o2 unless result.o2.nil?
       raise ::Thrift::ApplicationException.new(::Thrift::ApplicationException::MISSING_RESULT, 'get_schema_latest_version failed: unknown result')
     end
 
@@ -2821,6 +2824,7 @@ module ThriftHiveMetastore
       result = receive_message(Get_schema_all_versions_result)
       return result.success unless result.success.nil?
       raise result.o1 unless result.o1.nil?
+      raise result.o2 unless result.o2.nil?
       raise ::Thrift::ApplicationException.new(::Thrift::ApplicationException::MISSING_RESULT, 'get_schema_all_versions failed: unknown result')
     end
 
@@ -4913,8 +4917,10 @@ module ThriftHiveMetastore
       result = Get_ischema_result.new()
       begin
         result.success = @handler.get_ischema(args.schemaName)
-      rescue ::MetaException => o1
+      rescue ::NoSuchObjectException => o1
         result.o1 = o1
+      rescue ::MetaException => o2
+        result.o2 = o2
       end
       write_result(result, oprot, 'get_ischema', seqid)
     end
@@ -4954,8 +4960,10 @@ module ThriftHiveMetastore
       result = Get_schema_version_result.new()
       begin
         result.success = @handler.get_schema_version(args.schemaName, args.version)
-      rescue ::MetaException => o1
+      rescue ::NoSuchObjectException => o1
         result.o1 = o1
+      rescue ::MetaException => o2
+        result.o2 = o2
       end
       write_result(result, oprot, 'get_schema_version', seqid)
     end
@@ -4965,8 +4973,10 @@ module ThriftHiveMetastore
       result = Get_schema_latest_version_result.new()
       begin
         result.success = @handler.get_schema_latest_version(args.schemaName)
-      rescue ::MetaException => o1
+      rescue ::NoSuchObjectException => o1
         result.o1 = o1
+      rescue ::MetaException => o2
+        result.o2 = o2
       end
       write_result(result, oprot, 'get_schema_latest_version', seqid)
     end
@@ -4976,8 +4986,10 @@ module ThriftHiveMetastore
       result = Get_schema_all_versions_result.new()
       begin
         result.success = @handler.get_schema_all_versions(args.schemaName)
-      rescue ::MetaException => o1
+      rescue ::NoSuchObjectException => o1
         result.o1 = o1
+      rescue ::MetaException => o2
+        result.o2 = o2
       end
       write_result(result, oprot, 'get_schema_all_versions', seqid)
     end
@@ -11181,10 +11193,12 @@ module ThriftHiveMetastore
     include ::Thrift::Struct, ::Thrift::Struct_Union
     SUCCESS = 0
     O1 = 1
+    O2 = 2
 
     FIELDS = {
       SUCCESS => {:type => ::Thrift::Types::STRUCT, :name => 'success', :class => ::ISchema},
-      O1 => {:type => ::Thrift::Types::STRUCT, :name => 'o1', :class => ::MetaException}
+      O1 => {:type => ::Thrift::Types::STRUCT, :name => 'o1', :class => ::NoSuchObjectException},
+      O2 => {:type => ::Thrift::Types::STRUCT, :name => 'o2', :class => ::MetaException}
     }
 
     def struct_fields; FIELDS; end
@@ -11289,10 +11303,12 @@ module ThriftHiveMetastore
     include ::Thrift::Struct, ::Thrift::Struct_Union
     SUCCESS = 0
     O1 = 1
+    O2 = 2
 
     FIELDS = {
       SUCCESS => {:type => ::Thrift::Types::STRUCT, :name => 'success', :class => ::SchemaVersion},
-      O1 => {:type => ::Thrift::Types::STRUCT, :name => 'o1', :class => ::MetaException}
+      O1 => {:type => ::Thrift::Types::STRUCT, :name => 'o1', :class => ::NoSuchObjectException},
+      O2 => {:type => ::Thrift::Types::STRUCT, :name => 'o2', :class => ::MetaException}
     }
 
     def struct_fields; FIELDS; end
@@ -11323,10 +11339,12 @@ module ThriftHiveMetastore
     include ::Thrift::Struct, ::Thrift::Struct_Union
     SUCCESS = 0
     O1 = 1
+    O2 = 2
 
     FIELDS = {
       SUCCESS => {:type => ::Thrift::Types::STRUCT, :name => 'success', :class => ::SchemaVersion},
-      O1 => {:type => ::Thrift::Types::STRUCT, :name => 'o1', :class => ::MetaException}
+      O1 => {:type => ::Thrift::Types::STRUCT, :name => 'o1', :class => ::NoSuchObjectException},
+      O2 => {:type => ::Thrift::Types::STRUCT, :name => 'o2', :class => ::MetaException}
     }
 
     def struct_fields; FIELDS; end
@@ -11357,10 +11375,12 @@ module ThriftHiveMetastore
     include ::Thrift::Struct, ::Thrift::Struct_Union
     SUCCESS = 0
     O1 = 1
+    O2 = 2
 
     FIELDS = {
       SUCCESS => {:type => ::Thrift::Types::LIST, :name => 'success', :element => {:type => ::Thrift::Types::STRUCT, :class => ::SchemaVersion}},
-      O1 => {:type => ::Thrift::Types::STRUCT, :name => 'o1', :class => ::MetaException}
+      O1 => {:type => ::Thrift::Types::STRUCT, :name => 'o1', :class => ::NoSuchObjectException},
+      O2 => {:type => ::Thrift::Types::STRUCT, :name => 'o2', :class => ::MetaException}
     }
 
     def struct_fields; FIELDS; end

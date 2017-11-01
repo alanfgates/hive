@@ -7290,6 +7290,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
           }
         }
       } catch (MetaException|AlreadyExistsException e) {
+        LOG.error("Caught exception creating schema", e);
         ex = e;
         throw e;
       } finally {
@@ -7328,6 +7329,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
           }
         }
       } catch (MetaException|NoSuchObjectException e) {
+        LOG.error("Caught exception altering schema", e);
         ex = e;
         throw e;
       } finally {
@@ -7342,9 +7344,13 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       ISchema schema = null;
       try {
         schema = getMS().getISchema(schemaName);
+        if (schema == null) {
+          throw new NoSuchObjectException("No schema named " + schemaName + " exists");
+        }
         firePreEvent(new PreReadISchemaEvent(this, schema));
         return schema;
       } catch (MetaException e) {
+        LOG.error("Caught exception getting schema", e);
         ex = e;
         throw e;
       } finally {
@@ -7388,6 +7394,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
           }
         }
       } catch (MetaException|NoSuchObjectException e) {
+        LOG.error("Caught exception dropping schema", e);
         ex = e;
         throw e;
       } finally {
@@ -7428,6 +7435,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
           }
         }
       } catch (MetaException|AlreadyExistsException e) {
+        LOG.error("Caught exception adding schema version", e);
         ex = e;
         throw e;
       } finally {
@@ -7442,9 +7450,14 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       SchemaVersion schemaVersion = null;
       try {
         schemaVersion = getMS().getSchemaVersion(schemaName, version);
+        if (schemaVersion == null) {
+          throw new NoSuchObjectException("No schema " + schemaName + " with version " + version
+              + "exists");
+        }
         firePreEvent(new PreReadhSchemaVersionEvent(this, Collections.singletonList(schemaVersion)));
         return schemaVersion;
       } catch (MetaException e) {
+        LOG.error("Caught exception getting schema version", e);
         ex = e;
         throw e;
       } finally {
@@ -7459,9 +7472,13 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       SchemaVersion schemaVersion = null;
       try {
         schemaVersion = getMS().getLatestSchemaVersion(schemaName);
+        if (schemaVersion == null) {
+          throw new NoSuchObjectException("No versions of schema " + schemaName + "exist");
+        }
         firePreEvent(new PreReadhSchemaVersionEvent(this, Collections.singletonList(schemaVersion)));
         return schemaVersion;
       } catch (MetaException e) {
+        LOG.error("Caught exception getting latest schema version", e);
         ex = e;
         throw e;
       } finally {
@@ -7473,16 +7490,20 @@ public class HiveMetaStore extends ThriftHiveMetastore {
     public List<SchemaVersion> get_schema_all_versions(String schemaName) throws TException {
       startFunction("get_all_schema_versions", ": " + schemaName);
       Exception ex = null;
-      List<SchemaVersion> schemaVersions = Collections.emptyList();
+      List<SchemaVersion> schemaVersions = null;
       try {
         schemaVersions = getMS().getAllSchemaVersion(schemaName);
+        if (schemaVersions == null) {
+          throw new NoSuchObjectException("No versions of schema " + schemaName + "exist");
+        }
         firePreEvent(new PreReadhSchemaVersionEvent(this, schemaVersions));
         return schemaVersions;
       } catch (MetaException e) {
+        LOG.error("Caught exception getting all schema versions", e);
         ex = e;
         throw e;
       } finally {
-        endFunction("get_all_schema_versions", !schemaVersions.isEmpty(), ex);
+        endFunction("get_all_schema_versions", schemaVersions != null, ex);
       }
     }
 
@@ -7517,6 +7538,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
           }
         }
       } catch (MetaException|NoSuchObjectException e) {
+        LOG.error("Caught exception dropping schema version", e);
         ex = e;
         throw e;
       } finally {
@@ -7538,6 +7560,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
             new FindSchemasByColsRespEntry(schemaVersion.getSchemaName(), schemaVersion.getVersion())));
         return new FindSchemasByColsResp(entries);
       } catch (MetaException e) {
+        LOG.error("Caught exception doing schema version query", e);
         ex = e;
         throw e;
       } finally {
@@ -7584,6 +7607,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
           }
         }
       } catch (MetaException|NoSuchObjectException e) {
+        LOG.error("Caught exception mapping schema version to serde", e);
         ex = e;
         throw e;
       } finally {
@@ -7626,6 +7650,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
           }
         }
       } catch (MetaException|NoSuchObjectException e) {
+        LOG.error("Caught exception changing schema version state", e);
         ex = e;
         throw e;
       } finally {
