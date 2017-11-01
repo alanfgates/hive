@@ -1714,7 +1714,7 @@ service ThriftHiveMetastore extends fb303.FacebookService
   void add_schema_version(1:SchemaVersion schemaVersion)
         throws(1:AlreadyExistsException o1, 2:NoSuchObjectException o2, 3:MetaException o3)
   SchemaVersion get_schema_version(1: string schemaName, 2: i32 version) throws (1:MetaException o1)
-  SchemaVersion get_schema_latest_version(1: string schemName) throws (1:MetaException o1)
+  SchemaVersion get_schema_latest_version(1: string schemaName) throws (1:MetaException o1)
   list<SchemaVersion> get_schema_all_versions(1: string schemaName) throws (1:MetaException o1)
   void drop_schema_version(1: string schemaName, 2: i32 version)
         throws(1:NoSuchObjectException o1, 2:MetaException o2)

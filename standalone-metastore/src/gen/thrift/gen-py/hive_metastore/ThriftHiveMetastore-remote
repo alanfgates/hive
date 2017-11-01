@@ -192,7 +192,7 @@ if len(sys.argv) <= 1 or sys.argv[1] == '--help':
   print('  void drop_ischema(string schemaName)')
   print('  void add_schema_version(SchemaVersion schemaVersion)')
   print('  SchemaVersion get_schema_version(string schemaName, i32 version)')
-  print('  SchemaVersion get_schema_latest_version(string schemName)')
+  print('  SchemaVersion get_schema_latest_version(string schemaName)')
   print('   get_schema_all_versions(string schemaName)')
   print('  void drop_schema_version(string schemaName, i32 version)')
   print('  FindSchemasByColsResp get_schemas_by_cols(FindSchemasByColsRqst rqst)')

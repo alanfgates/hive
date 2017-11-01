@@ -2792,13 +2792,13 @@ module ThriftHiveMetastore
       raise ::Thrift::ApplicationException.new(::Thrift::ApplicationException::MISSING_RESULT, 'get_schema_version failed: unknown result')
     end
 
-    def get_schema_latest_version(schemName)
-      send_get_schema_latest_version(schemName)
+    def get_schema_latest_version(schemaName)
+      send_get_schema_latest_version(schemaName)
       return recv_get_schema_latest_version()
     end
 
-    def send_get_schema_latest_version(schemName)
-      send_message('get_schema_latest_version', Get_schema_latest_version_args, :schemName => schemName)
+    def send_get_schema_latest_version(schemaName)
+      send_message('get_schema_latest_version', Get_schema_latest_version_args, :schemaName => schemaName)
     end
 
     def recv_get_schema_latest_version()
@@ -4964,7 +4964,7 @@ module ThriftHiveMetastore
       args = read_args(iprot, Get_schema_latest_version_args)
       result = Get_schema_latest_version_result.new()
       begin
-        result.success = @handler.get_schema_latest_version(args.schemName)
+        result.success = @handler.get_schema_latest_version(args.schemaName)
       rescue ::MetaException => o1
         result.o1 = o1
       end
@@ -11305,10 +11305,10 @@ module ThriftHiveMetastore
 
   class Get_schema_latest_version_args
     include ::Thrift::Struct, ::Thrift::Struct_Union
-    SCHEMNAME = 1
+    SCHEMANAME = 1
 
     FIELDS = {
-      SCHEMNAME => {:type => ::Thrift::Types::STRING, :name => 'schemName'}
+      SCHEMANAME => {:type => ::Thrift::Types::STRING, :name => 'schemaName'}
     }
 
     def struct_fields; FIELDS; end

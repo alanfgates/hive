@@ -1289,11 +1289,11 @@ interface ThriftHiveMetastoreIf extends \FacebookServiceIf {
    */
   public function get_schema_version($schemaName, $version);
   /**
-   * @param string $schemName
+   * @param string $schemaName
    * @return \metastore\SchemaVersion
    * @throws \metastore\MetaException
    */
-  public function get_schema_latest_version($schemName);
+  public function get_schema_latest_version($schemaName);
   /**
    * @param string $schemaName
    * @return \metastore\SchemaVersion[]
@@ -10853,16 +10853,16 @@ class ThriftHiveMetastoreClient extends \FacebookServiceClient implements \metas
     throw new \Exception("get_schema_version failed: unknown result");
   }
 
-  public function get_schema_latest_version($schemName)
+  public function get_schema_latest_version($schemaName)
   {
-    $this->send_get_schema_latest_version($schemName);
+    $this->send_get_schema_latest_version($schemaName);
     return $this->recv_get_schema_latest_version();
   }
 
-  public function send_get_schema_latest_version($schemName)
+  public function send_get_schema_latest_version($schemaName)
   {
     $args = new \metastore\ThriftHiveMetastore_get_schema_latest_version_args();
-    $args->schemName = $schemName;
+    $args->schemaName = $schemaName;
     $bin_accel = ($this->output_ instanceof TBinaryProtocolAccelerated) && function_exists('thrift_protocol_write_binary');
     if ($bin_accel)
     {
@@ -49388,20 +49388,20 @@ class ThriftHiveMetastore_get_schema_latest_version_args {
   /**
    * @var string
    */
-  public $schemName = null;
+  public $schemaName = null;
 
   public function __construct($vals=null) {
     if (!isset(self::$_TSPEC)) {
       self::$_TSPEC = array(
         1 => array(
-          'var' => 'schemName',
+          'var' => 'schemaName',
           'type' => TType::STRING,
           ),
         );
     }
     if (is_array($vals)) {
-      if (isset($vals['schemName'])) {
-        $this->schemName = $vals['schemName'];
+      if (isset($vals['schemaName'])) {
+        $this->schemaName = $vals['schemaName'];
       }
     }
   }
@@ -49427,7 +49427,7 @@ class ThriftHiveMetastore_get_schema_latest_version_args {
       {
         case 1:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->schemName);
+            $xfer += $input->readString($this->schemaName);
           } else {
             $xfer += $input->skip($ftype);
           }
@@ -49445,9 +49445,9 @@ class ThriftHiveMetastore_get_schema_latest_version_args {
   public function write($output) {
     $xfer = 0;
     $xfer += $output->writeStructBegin('ThriftHiveMetastore_get_schema_latest_version_args');
-    if ($this->schemName !== null) {
-      $xfer += $output->writeFieldBegin('schemName', TType::STRING, 1);
-      $xfer += $output->writeString($this->schemName);
+    if ($this->schemaName !== null) {
+      $xfer += $output->writeFieldBegin('schemaName', TType::STRING, 1);
+      $xfer += $output->writeString($this->schemaName);
       $xfer += $output->writeFieldEnd();
     }
     $xfer += $output->writeFieldStop();

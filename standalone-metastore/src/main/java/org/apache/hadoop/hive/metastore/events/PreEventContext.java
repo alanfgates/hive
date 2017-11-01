@@ -51,7 +51,9 @@ public abstract class PreEventContext {
     DROP_ISCHEMA,
     ADD_SCHEMA_VERSION,
     ALTER_SCHEMA_VERSION,
-    DROP_SCHEMA_VERSION
+    DROP_SCHEMA_VERSION,
+    READ_ISCHEMA,
+    READ_SCHEMA_VERSION
   }
 
   private final PreEventType eventType;

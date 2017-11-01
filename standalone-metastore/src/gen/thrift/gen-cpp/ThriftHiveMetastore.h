@@ -190,7 +190,7 @@ class ThriftHiveMetastoreIf : virtual public  ::facebook::fb303::FacebookService
   virtual void drop_ischema(const std::string& schemaName) = 0;
   virtual void add_schema_version(const SchemaVersion& schemaVersion) = 0;
   virtual void get_schema_version(SchemaVersion& _return, const std::string& schemaName, const int32_t version) = 0;
-  virtual void get_schema_latest_version(SchemaVersion& _return, const std::string& schemName) = 0;
+  virtual void get_schema_latest_version(SchemaVersion& _return, const std::string& schemaName) = 0;
   virtual void get_schema_all_versions(std::vector<SchemaVersion> & _return, const std::string& schemaName) = 0;
   virtual void drop_schema_version(const std::string& schemaName, const int32_t version) = 0;
   virtual void get_schemas_by_cols(FindSchemasByColsResp& _return, const FindSchemasByColsRqst& rqst) = 0;
@@ -757,7 +757,7 @@ class ThriftHiveMetastoreNull : virtual public ThriftHiveMetastoreIf , virtual p
   void get_schema_version(SchemaVersion& /* _return */, const std::string& /* schemaName */, const int32_t /* version */) {
     return;
   }
-  void get_schema_latest_version(SchemaVersion& /* _return */, const std::string& /* schemName */) {
+  void get_schema_latest_version(SchemaVersion& /* _return */, const std::string& /* schemaName */) {
     return;
   }
   void get_schema_all_versions(std::vector<SchemaVersion> & /* _return */, const std::string& /* schemaName */) {
@@ -21436,8 +21436,8 @@ class ThriftHiveMetastore_get_schema_version_presult {
 };
 
 typedef struct _ThriftHiveMetastore_get_schema_latest_version_args__isset {
-  _ThriftHiveMetastore_get_schema_latest_version_args__isset() : schemName(false) {}
-  bool schemName :1;
+  _ThriftHiveMetastore_get_schema_latest_version_args__isset() : schemaName(false) {}
+  bool schemaName :1;
 } _ThriftHiveMetastore_get_schema_latest_version_args__isset;
 
 class ThriftHiveMetastore_get_schema_latest_version_args {
@@ -21445,19 +21445,19 @@ class ThriftHiveMetastore_get_schema_latest_version_args {
 
   ThriftHiveMetastore_get_schema_latest_version_args(const ThriftHiveMetastore_get_schema_latest_version_args&);
   ThriftHiveMetastore_get_schema_latest_version_args& operator=(const ThriftHiveMetastore_get_schema_latest_version_args&);
-  ThriftHiveMetastore_get_schema_latest_version_args() : schemName() {
+  ThriftHiveMetastore_get_schema_latest_version_args() : schemaName() {
   }
 
   virtual ~ThriftHiveMetastore_get_schema_latest_version_args() throw();
-  std::string schemName;
+  std::string schemaName;
 
   _ThriftHiveMetastore_get_schema_latest_version_args__isset __isset;
 
-  void __set_schemName(const std::string& val);
+  void __set_schemaName(const std::string& val);
 
   bool operator == (const ThriftHiveMetastore_get_schema_latest_version_args & rhs) const
   {
-    if (!(schemName == rhs.schemName))
+    if (!(schemaName == rhs.schemaName))
       return false;
     return true;
   }
@@ -21478,7 +21478,7 @@ class ThriftHiveMetastore_get_schema_latest_version_pargs {
 
 
   virtual ~ThriftHiveMetastore_get_schema_latest_version_pargs() throw();
-  const std::string* schemName;
+  const std::string* schemaName;
 
   uint32_t write(::apache::thrift::protocol::TProtocol* oprot) const;
 
@@ -22665,8 +22665,8 @@ class ThriftHiveMetastoreClient : virtual public ThriftHiveMetastoreIf, public  
   void get_schema_version(SchemaVersion& _return, const std::string& schemaName, const int32_t version);
   void send_get_schema_version(const std::string& schemaName, const int32_t version);
   void recv_get_schema_version(SchemaVersion& _return);
-  void get_schema_latest_version(SchemaVersion& _return, const std::string& schemName);
-  void send_get_schema_latest_version(const std::string& schemName);
+  void get_schema_latest_version(SchemaVersion& _return, const std::string& schemaName);
+  void send_get_schema_latest_version(const std::string& schemaName);
   void recv_get_schema_latest_version(SchemaVersion& _return);
   void get_schema_all_versions(std::vector<SchemaVersion> & _return, const std::string& schemaName);
   void send_get_schema_all_versions(const std::string& schemaName);
@@ -24688,13 +24688,13 @@ class ThriftHiveMetastoreMultiface : virtual public ThriftHiveMetastoreIf, publi
     return;
   }
 
-  void get_schema_latest_version(SchemaVersion& _return, const std::string& schemName) {
+  void get_schema_latest_version(SchemaVersion& _return, const std::string& schemaName) {
     size_t sz = ifaces_.size();
     size_t i = 0;
     for (; i < (sz - 1); ++i) {
-      ifaces_[i]->get_schema_latest_version(_return, schemName);
+      ifaces_[i]->get_schema_latest_version(_return, schemaName);
     }
-    ifaces_[i]->get_schema_latest_version(_return, schemName);
+    ifaces_[i]->get_schema_latest_version(_return, schemaName);
     return;
   }
 
@@ -25265,8 +25265,8 @@ class ThriftHiveMetastoreConcurrentClient : virtual public ThriftHiveMetastoreIf
   void get_schema_version(SchemaVersion& _return, const std::string& schemaName, const int32_t version);
   int32_t send_get_schema_version(const std::string& schemaName, const int32_t version);
   void recv_get_schema_version(SchemaVersion& _return, const int32_t seqid);
-  void get_schema_latest_version(SchemaVersion& _return, const std::string& schemName);
-  int32_t send_get_schema_latest_version(const std::string& schemName);
+  void get_schema_latest_version(SchemaVersion& _return, const std::string& schemaName);
+  int32_t send_get_schema_latest_version(const std::string& schemaName);
   void recv_get_schema_latest_version(SchemaVersion& _return, const int32_t seqid);
   void get_schema_all_versions(std::vector<SchemaVersion> & _return, const std::string& schemaName);
   int32_t send_get_schema_all_versions(const std::string& schemaName);

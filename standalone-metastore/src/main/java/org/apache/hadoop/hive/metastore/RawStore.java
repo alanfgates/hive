@@ -64,6 +64,7 @@ import org.apache.hadoop.hive.metastore.api.SQLNotNullConstraint;
 import org.apache.hadoop.hive.metastore.api.SQLPrimaryKey;
 import org.apache.hadoop.hive.metastore.api.SQLUniqueConstraint;
 import org.apache.hadoop.hive.metastore.api.SchemaVersion;
+import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.TableMeta;
 import org.apache.hadoop.hive.metastore.api.Type;
@@ -863,4 +864,12 @@ public interface RawStore extends Configurable {
    * @throws MetaException general database exception
    */
   void dropSchemaVersion(String schemaName, int version) throws NoSuchObjectException, MetaException;
+
+  /**
+   * Get serde information
+   * @param serDeName name of the SerDe
+   * @return the SerDe, or null if there is no such serde
+   * @throws MetaException general database exception
+   */
+  SerDeInfo getSerDeInfo(String serDeName) throws MetaException;
 }

@@ -60,6 +60,7 @@ import org.apache.hadoop.hive.metastore.api.SQLNotNullConstraint;
 import org.apache.hadoop.hive.metastore.api.SQLPrimaryKey;
 import org.apache.hadoop.hive.metastore.api.SQLUniqueConstraint;
 import org.apache.hadoop.hive.metastore.api.SchemaVersion;
+import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.TableMeta;
 import org.apache.hadoop.hive.metastore.api.Type;
@@ -1008,5 +1009,10 @@ public class DummyRawStoreForJdoConnection implements RawStore {
   public void dropSchemaVersion(String schemaName, int version) throws NoSuchObjectException,
       MetaException {
 
+  }
+
+  @Override
+  public SerDeInfo getSerDeInfo(String serDeName) throws MetaException {
+    return null;
   }
 }

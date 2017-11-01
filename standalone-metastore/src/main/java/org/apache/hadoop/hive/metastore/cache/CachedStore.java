@@ -83,6 +83,7 @@ import org.apache.hadoop.hive.metastore.api.SQLNotNullConstraint;
 import org.apache.hadoop.hive.metastore.api.SQLPrimaryKey;
 import org.apache.hadoop.hive.metastore.api.SQLUniqueConstraint;
 import org.apache.hadoop.hive.metastore.api.SchemaVersion;
+import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.TableMeta;
@@ -2191,6 +2192,11 @@ public class CachedStore implements RawStore, Configurable {
   public void dropSchemaVersion(String schemaName, int version) throws NoSuchObjectException,
       MetaException {
     rawStore.dropSchemaVersion(schemaName, version);
+  }
+
+  @Override
+  public SerDeInfo getSerDeInfo(String serDeName) throws MetaException {
+    return rawStore.getSerDeInfo(serDeName);
   }
 
   public RawStore getRawStore() {

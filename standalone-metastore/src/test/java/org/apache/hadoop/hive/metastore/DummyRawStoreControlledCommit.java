@@ -62,6 +62,7 @@ import org.apache.hadoop.hive.metastore.api.SQLNotNullConstraint;
 import org.apache.hadoop.hive.metastore.api.SQLPrimaryKey;
 import org.apache.hadoop.hive.metastore.api.SQLUniqueConstraint;
 import org.apache.hadoop.hive.metastore.api.SchemaVersion;
+import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.TableMeta;
 import org.apache.hadoop.hive.metastore.api.Type;
@@ -997,5 +998,10 @@ public class DummyRawStoreControlledCommit implements RawStore, Configurable {
   public void dropSchemaVersion(String schemaName, int version) throws NoSuchObjectException,
       MetaException {
     objectStore.dropSchemaVersion(schemaName, version);
+  }
+
+  @Override
+  public SerDeInfo getSerDeInfo(String serDeName) throws MetaException {
+    return objectStore.getSerDeInfo(serDeName);
   }
 }

@@ -9486,58 +9486,6 @@ public class ObjectStore implements RawStore, Configurable {
     }
   }
 
-  /*
-  @Override
-  public List<SchemaVersion> getSchemaVersionsByColumns(String colName, String colNamespace,
-                                                        String type) throws MetaException {
-    boolean committed = false;
-    Query query = null;
-    try {
-      openTransaction();
-      if (colName != null) colName = normalizeIdentifier(colName);
-      if (type != null) type = normalizeIdentifier(type);
-      StringBuilder queryString = new StringBuilder();
-      StringBuilder parameterString = new StringBuilder();
-      List<String> parameters = new ArrayList<>(3);
-      if (colName != null) {
-        queryString.append("this.cols.cols.name == colName");
-        parameterString.append("java.lang.String colName");
-        parameters.add(colName);
-      }
-      if (colNamespace != null) {
-        if (queryString.length() != 0) queryString.append(" && ");
-        queryString.append("cols.cols.comment == colNamespace");
-        if (parameterString.length() != 0) parameterString.append(", ");
-        parameterString.append("java.lang.String colNamespace");
-        parameters.add(colNamespace);
-      }
-      if (type != null) {
-        if (queryString.length() != 0) queryString.append(" && ");
-        queryString.append("cols.cols.type == colType");
-        if (parameterString.length() != 0) parameterString.append(", ");
-        parameterString.append("java.lang.String colType");
-        parameters.add(type);
-      }
-      query = pm.newQuery(MSchemaVersion.class, queryString.toString());
-      query.declareParameters(parameterString.toString());
-      List<MSchemaVersion> mSchemaVersions =
-          query.setParameters(parameters.toArray(new String[parameters.size()])).executeList();
-      pm.retrieveAll(mSchemaVersions);
-      if (mSchemaVersions == null) return null;
-      List<SchemaVersion> schemaVersions = new ArrayList<>(mSchemaVersions.size());
-      for (MSchemaVersion mSchemaVersion : mSchemaVersions) {
-        pm.retrieveAll(mSchemaVersion.getCols());
-        if (mSchemaVersion.getSerDe() != null) pm.retrieve(mSchemaVersion.getSerDe());
-        schemaVersions.add(convertToSchemaVersion(mSchemaVersion));
-      }
-      committed = commitTransaction();
-      return schemaVersions;
-    } finally {
-      rollbackAndCleanup(committed, query);
-    }
-  }
-  */
-
   @Override
   public List<SchemaVersion> getSchemaVersionsByColumns(String colName, String colNamespace,
                                                         String type) throws MetaException {
@@ -9609,6 +9557,21 @@ public class ObjectStore implements RawStore, Configurable {
       committed = commitTransaction();
     } finally {
       if (!committed) rollbackTransaction();
+    }
+  }
+
+  @Override
+  public SerDeInfo getSerDeInfo(String serDeName) throws MetaException {
+    Query query = null;
+    try {
+      query = pm.newQuery(MSerDeInfo.class, "name == serDeName");
+      query.declareParameters("java.lang.String serDeName");
+      query.setUnique(true);
+      MSerDeInfo mSerDeInfo = (MSerDeInfo) query.execute(serDeName);
+      pm.retrieve(mSerDeInfo);
+      return convertToSerDeInfo(mSerDeInfo);
+    } finally {
+      if (query != null) query.closeAll();
     }
   }
 

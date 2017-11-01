@@ -1337,10 +1337,10 @@ class Iface(fb303.FacebookService.Iface):
     """
     pass
 
-  def get_schema_latest_version(self, schemName):
+  def get_schema_latest_version(self, schemaName):
     """
     Parameters:
-     - schemName
+     - schemaName
     """
     pass
 
@@ -7426,18 +7426,18 @@ class Client(fb303.FacebookService.Client, Iface):
       raise result.o1
     raise TApplicationException(TApplicationException.MISSING_RESULT, "get_schema_version failed: unknown result")
 
-  def get_schema_latest_version(self, schemName):
+  def get_schema_latest_version(self, schemaName):
     """
     Parameters:
-     - schemName
+     - schemaName
     """
-    self.send_get_schema_latest_version(schemName)
+    self.send_get_schema_latest_version(schemaName)
     return self.recv_get_schema_latest_version()
 
-  def send_get_schema_latest_version(self, schemName):
+  def send_get_schema_latest_version(self, schemaName):
     self._oprot.writeMessageBegin('get_schema_latest_version', TMessageType.CALL, self._seqid)
     args = get_schema_latest_version_args()
-    args.schemName = schemName
+    args.schemaName = schemaName
     args.write(self._oprot)
     self._oprot.writeMessageEnd()
     self._oprot.trans.flush()
@@ -11934,7 +11934,7 @@ class Processor(fb303.FacebookService.Processor, Iface, TProcessor):
     iprot.readMessageEnd()
     result = get_schema_latest_version_result()
     try:
-      result.success = self._handler.get_schema_latest_version(args.schemName)
+      result.success = self._handler.get_schema_latest_version(args.schemaName)
       msg_type = TMessageType.REPLY
     except (TTransport.TTransportException, KeyboardInterrupt, SystemExit):
       raise
@@ -40296,16 +40296,16 @@ class get_schema_version_result:
 class get_schema_latest_version_args:
   """
   Attributes:
-   - schemName
+   - schemaName
   """
 
   thrift_spec = (
     None, # 0
-    (1, TType.STRING, 'schemName', None, None, ), # 1
+    (1, TType.STRING, 'schemaName', None, None, ), # 1
   )
 
-  def __init__(self, schemName=None,):
-    self.schemName = schemName
+  def __init__(self, schemaName=None,):
+    self.schemaName = schemaName
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -40318,7 +40318,7 @@ class get_schema_latest_version_args:
         break
       if fid == 1:
         if ftype == TType.STRING:
-          self.schemName = iprot.readString()
+          self.schemaName = iprot.readString()
         else:
           iprot.skip(ftype)
       else:
@@ -40331,9 +40331,9 @@ class get_schema_latest_version_args:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return
     oprot.writeStructBegin('get_schema_latest_version_args')
-    if self.schemName is not None:
-      oprot.writeFieldBegin('schemName', TType.STRING, 1)
-      oprot.writeString(self.schemName)
+    if self.schemaName is not None:
+      oprot.writeFieldBegin('schemaName', TType.STRING, 1)
+      oprot.writeString(self.schemaName)
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
@@ -40344,7 +40344,7 @@ class get_schema_latest_version_args:
 
   def __hash__(self):
     value = 17
-    value = (value * 31) ^ hash(self.schemName)
+    value = (value * 31) ^ hash(self.schemaName)
     return value
 
   def __repr__(self):

@@ -41332,8 +41332,8 @@ uint32_t ThriftHiveMetastore_get_schema_latest_version_args::read(::apache::thri
     {
       case 1:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
-          xfer += iprot->readString(this->schemName);
-          this->__isset.schemName = true;
+          xfer += iprot->readString(this->schemaName);
+          this->__isset.schemaName = true;
         } else {
           xfer += iprot->skip(ftype);
         }
@@ -41355,8 +41355,8 @@ uint32_t ThriftHiveMetastore_get_schema_latest_version_args::write(::apache::thr
   apache::thrift::protocol::TOutputRecursionTracker tracker(*oprot);
   xfer += oprot->writeStructBegin("ThriftHiveMetastore_get_schema_latest_version_args");
 
-  xfer += oprot->writeFieldBegin("schemName", ::apache::thrift::protocol::T_STRING, 1);
-  xfer += oprot->writeString(this->schemName);
+  xfer += oprot->writeFieldBegin("schemaName", ::apache::thrift::protocol::T_STRING, 1);
+  xfer += oprot->writeString(this->schemaName);
   xfer += oprot->writeFieldEnd();
 
   xfer += oprot->writeFieldStop();
@@ -41374,8 +41374,8 @@ uint32_t ThriftHiveMetastore_get_schema_latest_version_pargs::write(::apache::th
   apache::thrift::protocol::TOutputRecursionTracker tracker(*oprot);
   xfer += oprot->writeStructBegin("ThriftHiveMetastore_get_schema_latest_version_pargs");
 
-  xfer += oprot->writeFieldBegin("schemName", ::apache::thrift::protocol::T_STRING, 1);
-  xfer += oprot->writeString((*(this->schemName)));
+  xfer += oprot->writeFieldBegin("schemaName", ::apache::thrift::protocol::T_STRING, 1);
+  xfer += oprot->writeString((*(this->schemaName)));
   xfer += oprot->writeFieldEnd();
 
   xfer += oprot->writeFieldStop();
@@ -53288,19 +53288,19 @@ void ThriftHiveMetastoreClient::recv_get_schema_version(SchemaVersion& _return)
   throw ::apache::thrift::TApplicationException(::apache::thrift::TApplicationException::MISSING_RESULT, "get_schema_version failed: unknown result");
 }
 
-void ThriftHiveMetastoreClient::get_schema_latest_version(SchemaVersion& _return, const std::string& schemName)
+void ThriftHiveMetastoreClient::get_schema_latest_version(SchemaVersion& _return, const std::string& schemaName)
 {
-  send_get_schema_latest_version(schemName);
+  send_get_schema_latest_version(schemaName);
   recv_get_schema_latest_version(_return);
 }
 
-void ThriftHiveMetastoreClient::send_get_schema_latest_version(const std::string& schemName)
+void ThriftHiveMetastoreClient::send_get_schema_latest_version(const std::string& schemaName)
 {
   int32_t cseqid = 0;
   oprot_->writeMessageBegin("get_schema_latest_version", ::apache::thrift::protocol::T_CALL, cseqid);
 
   ThriftHiveMetastore_get_schema_latest_version_pargs args;
-  args.schemName = &schemName;
+  args.schemaName = &schemaName;
   args.write(oprot_);
 
   oprot_->writeMessageEnd();
@@ -63625,7 +63625,7 @@ void ThriftHiveMetastoreProcessor::process_get_schema_latest_version(int32_t seq
 
   ThriftHiveMetastore_get_schema_latest_version_result result;
   try {
-    iface_->get_schema_latest_version(result.success, args.schemName);
+    iface_->get_schema_latest_version(result.success, args.schemaName);
     result.__isset.success = true;
   } catch (MetaException &o1) {
     result.o1 = o1;
@@ -79196,20 +79196,20 @@ void ThriftHiveMetastoreConcurrentClient::recv_get_schema_version(SchemaVersion&
   } // end while(true)
 }
 
-void ThriftHiveMetastoreConcurrentClient::get_schema_latest_version(SchemaVersion& _return, const std::string& schemName)
+void ThriftHiveMetastoreConcurrentClient::get_schema_latest_version(SchemaVersion& _return, const std::string& schemaName)
 {
-  int32_t seqid = send_get_schema_latest_version(schemName);
+  int32_t seqid = send_get_schema_latest_version(schemaName);
   recv_get_schema_latest_version(_return, seqid);
 }
 
-int32_t ThriftHiveMetastoreConcurrentClient::send_get_schema_latest_version(const std::string& schemName)
+int32_t ThriftHiveMetastoreConcurrentClient::send_get_schema_latest_version(const std::string& schemaName)
 {
   int32_t cseqid = this->sync_.generateSeqId();
   ::apache::thrift::async::TConcurrentSendSentry sentry(&this->sync_);
   oprot_->writeMessageBegin("get_schema_latest_version", ::apache::thrift::protocol::T_CALL, cseqid);
 
   ThriftHiveMetastore_get_schema_latest_version_pargs args;
-  args.schemName = &schemName;
+  args.schemaName = &schemaName;
   args.write(oprot_);
 
   oprot_->writeMessageEnd();
