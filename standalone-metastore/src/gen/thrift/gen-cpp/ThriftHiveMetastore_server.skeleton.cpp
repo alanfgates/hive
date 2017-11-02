@@ -892,6 +892,16 @@ class ThriftHiveMetastoreHandler : virtual public ThriftHiveMetastoreIf {
     printf("set_schema_version_state\n");
   }
 
+  void add_serde(const SerDeInfo& serde) {
+    // Your implementation goes here
+    printf("add_serde\n");
+  }
+
+  void get_serde(SerDeInfo& _return, const std::string& serdeName) {
+    // Your implementation goes here
+    printf("get_serde\n");
+  }
+
 };
 
 int main(int argc, char **argv) {

@@ -7657,6 +7657,46 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         endFunction("set_schema_version_state", success, ex);
       }
     }
+
+    @Override
+    public void add_serde(SerDeInfo serde) throws TException {
+      startFunction("create_serde", ": " + serde.getName());
+      Exception ex = null;
+      boolean success = false;
+      RawStore ms = getMS();
+      try {
+        ms.openTransaction();
+        ms.addSerde(serde);
+        success = ms.commitTransaction();
+      } catch (MetaException|AlreadyExistsException e) {
+        LOG.error("Caught exception creating serde", e);
+        ex = e;
+        throw e;
+      } finally {
+        if (!success) ms.rollbackTransaction();
+        endFunction("create_serde", success, ex);
+      }
+    }
+
+    @Override
+    public SerDeInfo get_serde(String serdeName) throws TException {
+      startFunction("get_serde", ": " + serdeName);
+      Exception ex = null;
+      SerDeInfo serde = null;
+      try {
+        serde = getMS().getSerDeInfo(serdeName);
+        if (serde == null) {
+          throw new NoSuchObjectException("No serde named " + serdeName + " exists");
+        }
+        return serde;
+      } catch (MetaException e) {
+        LOG.error("Caught exception getting serde", e);
+        ex = e;
+        throw e;
+      } finally {
+        endFunction("get_serde", serde != null, ex);
+      }
+    }
   }
 
   private static IHMSHandler newRetryingHMSHandler(IHMSHandler baseHandler, Configuration conf)

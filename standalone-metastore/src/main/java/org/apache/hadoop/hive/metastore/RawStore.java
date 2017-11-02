@@ -869,7 +869,16 @@ public interface RawStore extends Configurable {
    * Get serde information
    * @param serDeName name of the SerDe
    * @return the SerDe, or null if there is no such serde
+   * @throws NoSuchObjectException no serde with this name exists
    * @throws MetaException general database exception
    */
-  SerDeInfo getSerDeInfo(String serDeName) throws MetaException;
+  SerDeInfo getSerDeInfo(String serDeName) throws NoSuchObjectException, MetaException;
+
+  /**
+   * Add a serde
+   * @param serde serde to add
+   * @throws AlreadyExistsException a serde of this name already exists
+   * @throws MetaException general database exception
+   */
+  void addSerde(SerDeInfo serde) throws AlreadyExistsException, MetaException;
 }

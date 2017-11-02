@@ -9561,18 +9561,51 @@ public class ObjectStore implements RawStore, Configurable {
   }
 
   @Override
-  public SerDeInfo getSerDeInfo(String serDeName) throws MetaException {
+  public SerDeInfo getSerDeInfo(String serDeName) throws NoSuchObjectException, MetaException {
+    boolean committed = false;
+    try {
+      openTransaction();
+      MSerDeInfo mSerDeInfo = getMSerDeInfo(serDeName);
+      if (mSerDeInfo == null) {
+        throw new NoSuchObjectException("No SerDe named " + serDeName);
+      }
+      SerDeInfo serde = convertToSerDeInfo(mSerDeInfo);
+      committed = commitTransaction();
+      return serde;
+    } finally {
+      if (!committed) rollbackTransaction();;
+    }
+  }
+
+  private MSerDeInfo getMSerDeInfo(String serDeName) throws MetaException {
     Query query = null;
     try {
       query = pm.newQuery(MSerDeInfo.class, "name == serDeName");
       query.declareParameters("java.lang.String serDeName");
       query.setUnique(true);
-      MSerDeInfo mSerDeInfo = (MSerDeInfo) query.execute(serDeName);
+      MSerDeInfo mSerDeInfo = (MSerDeInfo)query.execute(serDeName);
       pm.retrieve(mSerDeInfo);
-      return convertToSerDeInfo(mSerDeInfo);
+      return mSerDeInfo;
     } finally {
       if (query != null) query.closeAll();
     }
+  }
+
+  @Override
+  public void addSerde(SerDeInfo serde) throws AlreadyExistsException, MetaException {
+    boolean committed = false;
+    try {
+      openTransaction();
+      if (getMSerDeInfo(serde.getName()) != null) {
+        throw new AlreadyExistsException("Serde with name " + serde.getName() + " already exists");
+      }
+      MSerDeInfo mSerde = convertToMSerDeInfo(serde);
+      pm.makePersistent(mSerde);
+      committed = commitTransaction();
+    } finally {
+      if (!committed) rollbackTransaction();
+    }
+
   }
 
   private MISchema convertToMISchema(ISchema schema) throws NoSuchObjectException {

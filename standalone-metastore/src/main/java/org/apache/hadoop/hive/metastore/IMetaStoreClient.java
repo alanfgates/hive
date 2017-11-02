@@ -94,6 +94,7 @@ import org.apache.hadoop.hive.metastore.api.SQLPrimaryKey;
 import org.apache.hadoop.hive.metastore.api.SQLUniqueConstraint;
 import org.apache.hadoop.hive.metastore.api.SchemaVersion;
 import org.apache.hadoop.hive.metastore.api.SchemaVersionState;
+import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.SetPartitionsStatsRequest;
 import org.apache.hadoop.hive.metastore.api.ShowCompactResponse;
 import org.apache.hadoop.hive.metastore.api.ShowLocksRequest;
@@ -1900,4 +1901,25 @@ public interface IMetaStoreClient {
    * @throws TException general thrift error
    */
   void setSchemaVersionState(String schemaName, int version, SchemaVersionState state) throws TException;
+
+  /**
+   * Add a serde.  This is primarily intended for use with SchemaRegistry objects, since serdes
+   * are automatically added when needed as part of creating and altering tables and partitions.
+   * @param serDeInfo serde to add
+   * @throws AlreadyExistsException serde of this name already exists
+   * @throws MetaException general metastore error
+   * @throws TException general thrift error
+   */
+  void addSerDe(SerDeInfo serDeInfo) throws TException;
+
+  /**
+   * Fetch a serde.  This is primarily intended for use with SchemaRegistry objects, since serdes
+   * are automatically fetched along with other information for tables and partitions.
+   * @param serDeName name of the serde
+   * @return the serde.
+   * @throws NoSuchObjectException no serde with this name exists.
+   * @throws MetaException general metastore error
+   * @throws TException general thrift error
+   */
+  SerDeInfo getSerDe(String serDeName) throws TException;
 }

@@ -1730,6 +1730,9 @@ service ThriftHiveMetastore extends fb303.FacebookService
   void set_schema_version_state(1: string schemaName, 2: i32 version, 3: SchemaVersionState state)
         throws(1:NoSuchObjectException o1, 2:InvalidOperationException o2, 3:MetaException o3)
 
+  void add_serde(1: SerDeInfo serde) throws(1:AlreadyExistsException o1, 2:MetaException o2)
+  SerDeInfo get_serde(1: string serdeName) throws(1:NoSuchObjectException o1, 2:MetaException o2)
+
 }
 
 // * Note about the DDL_TIME: When creating or altering a table or a partition,

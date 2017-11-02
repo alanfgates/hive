@@ -1001,7 +1001,12 @@ public class DummyRawStoreControlledCommit implements RawStore, Configurable {
   }
 
   @Override
-  public SerDeInfo getSerDeInfo(String serDeName) throws MetaException {
+  public SerDeInfo getSerDeInfo(String serDeName) throws NoSuchObjectException, MetaException {
     return objectStore.getSerDeInfo(serDeName);
+  }
+
+  @Override
+  public void addSerde(SerDeInfo serde) throws AlreadyExistsException, MetaException {
+    objectStore.addSerde(serde);
   }
 }

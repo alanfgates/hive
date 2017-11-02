@@ -2195,8 +2195,13 @@ public class CachedStore implements RawStore, Configurable {
   }
 
   @Override
-  public SerDeInfo getSerDeInfo(String serDeName) throws MetaException {
+  public SerDeInfo getSerDeInfo(String serDeName) throws NoSuchObjectException, MetaException {
     return rawStore.getSerDeInfo(serDeName);
+  }
+
+  @Override
+  public void addSerde(SerDeInfo serde) throws AlreadyExistsException, MetaException {
+    rawStore.addSerde(serde);
   }
 
   public RawStore getRawStore() {

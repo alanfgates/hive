@@ -298,7 +298,7 @@ public class TestObjectStoreSchemaMethods {
 
     List<SchemaVersion> versions =
         objectStore.getAllSchemaVersion("there.really.isnt.a.schema.named.this");
-    Assert.assertEquals(0, versions.size());
+    Assert.assertNull(versions);
 
     versions = objectStore.getAllSchemaVersion(schemaName);
     Assert.assertEquals(3, versions.size());

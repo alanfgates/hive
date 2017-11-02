@@ -2664,4 +2664,14 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
       throws TException {
     client.set_schema_version_state(schemaName, version, state);
   }
+
+  @Override
+  public void addSerDe(SerDeInfo serDeInfo) throws TException {
+    client.add_serde(serDeInfo);
+  }
+
+  @Override
+  public SerDeInfo getSerDe(String serDeName) throws TException {
+    return client.get_serde(serDeName);
+  }
 }

@@ -198,6 +198,8 @@ if len(sys.argv) <= 1 or sys.argv[1] == '--help':
   print('  FindSchemasByColsResp get_schemas_by_cols(FindSchemasByColsRqst rqst)')
   print('  void map_schema_version_to_serde(string schemaName, i32 version, string serdeName)')
   print('  void set_schema_version_state(string schemaName, i32 version, SchemaVersionState state)')
+  print('  void add_serde(SerDeInfo serde)')
+  print('  SerDeInfo get_serde(string serdeName)')
   print('  string getName()')
   print('  string getVersion()')
   print('  fb_status getStatus()')
@@ -1310,6 +1312,18 @@ elif cmd == 'set_schema_version_state':
     print('set_schema_version_state requires 3 args')
     sys.exit(1)
   pp.pprint(client.set_schema_version_state(args[0],eval(args[1]),eval(args[2]),))
+
+elif cmd == 'add_serde':
+  if len(args) != 1:
+    print('add_serde requires 1 args')
+    sys.exit(1)
+  pp.pprint(client.add_serde(eval(args[0]),))
+
+elif cmd == 'get_serde':
+  if len(args) != 1:
+    print('get_serde requires 1 args')
+    sys.exit(1)
+  pp.pprint(client.get_serde(args[0],))
 
 elif cmd == 'getName':
   if len(args) != 0:

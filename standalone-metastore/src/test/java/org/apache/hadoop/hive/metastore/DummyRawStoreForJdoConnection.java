@@ -1015,4 +1015,9 @@ public class DummyRawStoreForJdoConnection implements RawStore {
   public SerDeInfo getSerDeInfo(String serDeName) throws MetaException {
     return null;
   }
+
+  @Override
+  public void addSerde(SerDeInfo serde) throws AlreadyExistsException, MetaException {
+
+  }
 }

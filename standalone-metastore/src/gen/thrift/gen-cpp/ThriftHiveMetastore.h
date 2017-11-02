@@ -196,6 +196,8 @@ class ThriftHiveMetastoreIf : virtual public  ::facebook::fb303::FacebookService
   virtual void get_schemas_by_cols(FindSchemasByColsResp& _return, const FindSchemasByColsRqst& rqst) = 0;
   virtual void map_schema_version_to_serde(const std::string& schemaName, const int32_t version, const std::string& serdeName) = 0;
   virtual void set_schema_version_state(const std::string& schemaName, const int32_t version, const SchemaVersionState::type state) = 0;
+  virtual void add_serde(const SerDeInfo& serde) = 0;
+  virtual void get_serde(SerDeInfo& _return, const std::string& serdeName) = 0;
 };
 
 class ThriftHiveMetastoreIfFactory : virtual public  ::facebook::fb303::FacebookServiceIfFactory {
@@ -773,6 +775,12 @@ class ThriftHiveMetastoreNull : virtual public ThriftHiveMetastoreIf , virtual p
     return;
   }
   void set_schema_version_state(const std::string& /* schemaName */, const int32_t /* version */, const SchemaVersionState::type /* state */) {
+    return;
+  }
+  void add_serde(const SerDeInfo& /* serde */) {
+    return;
+  }
+  void get_serde(SerDeInfo& /* _return */, const std::string& /* serdeName */) {
     return;
   }
 };
@@ -22182,6 +22190,238 @@ class ThriftHiveMetastore_set_schema_version_state_presult {
 
 };
 
+typedef struct _ThriftHiveMetastore_add_serde_args__isset {
+  _ThriftHiveMetastore_add_serde_args__isset() : serde(false) {}
+  bool serde :1;
+} _ThriftHiveMetastore_add_serde_args__isset;
+
+class ThriftHiveMetastore_add_serde_args {
+ public:
+
+  ThriftHiveMetastore_add_serde_args(const ThriftHiveMetastore_add_serde_args&);
+  ThriftHiveMetastore_add_serde_args& operator=(const ThriftHiveMetastore_add_serde_args&);
+  ThriftHiveMetastore_add_serde_args() {
+  }
+
+  virtual ~ThriftHiveMetastore_add_serde_args() throw();
+  SerDeInfo serde;
+
+  _ThriftHiveMetastore_add_serde_args__isset __isset;
+
+  void __set_serde(const SerDeInfo& val);
+
+  bool operator == (const ThriftHiveMetastore_add_serde_args & rhs) const
+  {
+    if (!(serde == rhs.serde))
+      return false;
+    return true;
+  }
+  bool operator != (const ThriftHiveMetastore_add_serde_args &rhs) const {
+    return !(*this == rhs);
+  }
+
+  bool operator < (const ThriftHiveMetastore_add_serde_args & ) const;
+
+  uint32_t read(::apache::thrift::protocol::TProtocol* iprot);
+  uint32_t write(::apache::thrift::protocol::TProtocol* oprot) const;
+
+};
+
+
+class ThriftHiveMetastore_add_serde_pargs {
+ public:
+
+
+  virtual ~ThriftHiveMetastore_add_serde_pargs() throw();
+  const SerDeInfo* serde;
+
+  uint32_t write(::apache::thrift::protocol::TProtocol* oprot) const;
+
+};
+
+typedef struct _ThriftHiveMetastore_add_serde_result__isset {
+  _ThriftHiveMetastore_add_serde_result__isset() : o1(false), o2(false) {}
+  bool o1 :1;
+  bool o2 :1;
+} _ThriftHiveMetastore_add_serde_result__isset;
+
+class ThriftHiveMetastore_add_serde_result {
+ public:
+
+  ThriftHiveMetastore_add_serde_result(const ThriftHiveMetastore_add_serde_result&);
+  ThriftHiveMetastore_add_serde_result& operator=(const ThriftHiveMetastore_add_serde_result&);
+  ThriftHiveMetastore_add_serde_result() {
+  }
+
+  virtual ~ThriftHiveMetastore_add_serde_result() throw();
+  AlreadyExistsException o1;
+  MetaException o2;
+
+  _ThriftHiveMetastore_add_serde_result__isset __isset;
+
+  void __set_o1(const AlreadyExistsException& val);
+
+  void __set_o2(const MetaException& val);
+
+  bool operator == (const ThriftHiveMetastore_add_serde_result & rhs) const
+  {
+    if (!(o1 == rhs.o1))
+      return false;
+    if (!(o2 == rhs.o2))
+      return false;
+    return true;
+  }
+  bool operator != (const ThriftHiveMetastore_add_serde_result &rhs) const {
+    return !(*this == rhs);
+  }
+
+  bool operator < (const ThriftHiveMetastore_add_serde_result & ) const;
+
+  uint32_t read(::apache::thrift::protocol::TProtocol* iprot);
+  uint32_t write(::apache::thrift::protocol::TProtocol* oprot) const;
+
+};
+
+typedef struct _ThriftHiveMetastore_add_serde_presult__isset {
+  _ThriftHiveMetastore_add_serde_presult__isset() : o1(false), o2(false) {}
+  bool o1 :1;
+  bool o2 :1;
+} _ThriftHiveMetastore_add_serde_presult__isset;
+
+class ThriftHiveMetastore_add_serde_presult {
+ public:
+
+
+  virtual ~ThriftHiveMetastore_add_serde_presult() throw();
+  AlreadyExistsException o1;
+  MetaException o2;
+
+  _ThriftHiveMetastore_add_serde_presult__isset __isset;
+
+  uint32_t read(::apache::thrift::protocol::TProtocol* iprot);
+
+};
+
+typedef struct _ThriftHiveMetastore_get_serde_args__isset {
+  _ThriftHiveMetastore_get_serde_args__isset() : serdeName(false) {}
+  bool serdeName :1;
+} _ThriftHiveMetastore_get_serde_args__isset;
+
+class ThriftHiveMetastore_get_serde_args {
+ public:
+
+  ThriftHiveMetastore_get_serde_args(const ThriftHiveMetastore_get_serde_args&);
+  ThriftHiveMetastore_get_serde_args& operator=(const ThriftHiveMetastore_get_serde_args&);
+  ThriftHiveMetastore_get_serde_args() : serdeName() {
+  }
+
+  virtual ~ThriftHiveMetastore_get_serde_args() throw();
+  std::string serdeName;
+
+  _ThriftHiveMetastore_get_serde_args__isset __isset;
+
+  void __set_serdeName(const std::string& val);
+
+  bool operator == (const ThriftHiveMetastore_get_serde_args & rhs) const
+  {
+    if (!(serdeName == rhs.serdeName))
+      return false;
+    return true;
+  }
+  bool operator != (const ThriftHiveMetastore_get_serde_args &rhs) const {
+    return !(*this == rhs);
+  }
+
+  bool operator < (const ThriftHiveMetastore_get_serde_args & ) const;
+
+  uint32_t read(::apache::thrift::protocol::TProtocol* iprot);
+  uint32_t write(::apache::thrift::protocol::TProtocol* oprot) const;
+
+};
+
+
+class ThriftHiveMetastore_get_serde_pargs {
+ public:
+
+
+  virtual ~ThriftHiveMetastore_get_serde_pargs() throw();
+  const std::string* serdeName;
+
+  uint32_t write(::apache::thrift::protocol::TProtocol* oprot) const;
+
+};
+
+typedef struct _ThriftHiveMetastore_get_serde_result__isset {
+  _ThriftHiveMetastore_get_serde_result__isset() : success(false), o1(false), o2(false) {}
+  bool success :1;
+  bool o1 :1;
+  bool o2 :1;
+} _ThriftHiveMetastore_get_serde_result__isset;
+
+class ThriftHiveMetastore_get_serde_result {
+ public:
+
+  ThriftHiveMetastore_get_serde_result(const ThriftHiveMetastore_get_serde_result&);
+  ThriftHiveMetastore_get_serde_result& operator=(const ThriftHiveMetastore_get_serde_result&);
+  ThriftHiveMetastore_get_serde_result() {
+  }
+
+  virtual ~ThriftHiveMetastore_get_serde_result() throw();
+  SerDeInfo success;
+  NoSuchObjectException o1;
+  MetaException o2;
+
+  _ThriftHiveMetastore_get_serde_result__isset __isset;
+
+  void __set_success(const SerDeInfo& val);
+
+  void __set_o1(const NoSuchObjectException& val);
+
+  void __set_o2(const MetaException& val);
+
+  bool operator == (const ThriftHiveMetastore_get_serde_result & rhs) const
+  {
+    if (!(success == rhs.success))
+      return false;
+    if (!(o1 == rhs.o1))
+      return false;
+    if (!(o2 == rhs.o2))
+      return false;
+    return true;
+  }
+  bool operator != (const ThriftHiveMetastore_get_serde_result &rhs) const {
+    return !(*this == rhs);
+  }
+
+  bool operator < (const ThriftHiveMetastore_get_serde_result & ) const;
+
+  uint32_t read(::apache::thrift::protocol::TProtocol* iprot);
+  uint32_t write(::apache::thrift::protocol::TProtocol* oprot) const;
+
+};
+
+typedef struct _ThriftHiveMetastore_get_serde_presult__isset {
+  _ThriftHiveMetastore_get_serde_presult__isset() : success(false), o1(false), o2(false) {}
+  bool success :1;
+  bool o1 :1;
+  bool o2 :1;
+} _ThriftHiveMetastore_get_serde_presult__isset;
+
+class ThriftHiveMetastore_get_serde_presult {
+ public:
+
+
+  virtual ~ThriftHiveMetastore_get_serde_presult() throw();
+  SerDeInfo* success;
+  NoSuchObjectException o1;
+  MetaException o2;
+
+  _ThriftHiveMetastore_get_serde_presult__isset __isset;
+
+  uint32_t read(::apache::thrift::protocol::TProtocol* iprot);
+
+};
+
 class ThriftHiveMetastoreClient : virtual public ThriftHiveMetastoreIf, public  ::facebook::fb303::FacebookServiceClient {
  public:
   ThriftHiveMetastoreClient(boost::shared_ptr< ::apache::thrift::protocol::TProtocol> prot) :
@@ -22715,6 +22955,12 @@ class ThriftHiveMetastoreClient : virtual public ThriftHiveMetastoreIf, public  
   void set_schema_version_state(const std::string& schemaName, const int32_t version, const SchemaVersionState::type state);
   void send_set_schema_version_state(const std::string& schemaName, const int32_t version, const SchemaVersionState::type state);
   void recv_set_schema_version_state();
+  void add_serde(const SerDeInfo& serde);
+  void send_add_serde(const SerDeInfo& serde);
+  void recv_add_serde();
+  void get_serde(SerDeInfo& _return, const std::string& serdeName);
+  void send_get_serde(const std::string& serdeName);
+  void recv_get_serde(SerDeInfo& _return);
 };
 
 class ThriftHiveMetastoreProcessor : public  ::facebook::fb303::FacebookServiceProcessor {
@@ -22899,6 +23145,8 @@ class ThriftHiveMetastoreProcessor : public  ::facebook::fb303::FacebookServiceP
   void process_get_schemas_by_cols(int32_t seqid, ::apache::thrift::protocol::TProtocol* iprot, ::apache::thrift::protocol::TProtocol* oprot, void* callContext);
   void process_map_schema_version_to_serde(int32_t seqid, ::apache::thrift::protocol::TProtocol* iprot, ::apache::thrift::protocol::TProtocol* oprot, void* callContext);
   void process_set_schema_version_state(int32_t seqid, ::apache::thrift::protocol::TProtocol* iprot, ::apache::thrift::protocol::TProtocol* oprot, void* callContext);
+  void process_add_serde(int32_t seqid, ::apache::thrift::protocol::TProtocol* iprot, ::apache::thrift::protocol::TProtocol* oprot, void* callContext);
+  void process_get_serde(int32_t seqid, ::apache::thrift::protocol::TProtocol* iprot, ::apache::thrift::protocol::TProtocol* oprot, void* callContext);
  public:
   ThriftHiveMetastoreProcessor(boost::shared_ptr<ThriftHiveMetastoreIf> iface) :
      ::facebook::fb303::FacebookServiceProcessor(iface),
@@ -23077,6 +23325,8 @@ class ThriftHiveMetastoreProcessor : public  ::facebook::fb303::FacebookServiceP
     processMap_["get_schemas_by_cols"] = &ThriftHiveMetastoreProcessor::process_get_schemas_by_cols;
     processMap_["map_schema_version_to_serde"] = &ThriftHiveMetastoreProcessor::process_map_schema_version_to_serde;
     processMap_["set_schema_version_state"] = &ThriftHiveMetastoreProcessor::process_set_schema_version_state;
+    processMap_["add_serde"] = &ThriftHiveMetastoreProcessor::process_add_serde;
+    processMap_["get_serde"] = &ThriftHiveMetastoreProcessor::process_get_serde;
   }
 
   virtual ~ThriftHiveMetastoreProcessor() {}
@@ -24777,6 +25027,25 @@ class ThriftHiveMetastoreMultiface : virtual public ThriftHiveMetastoreIf, publi
     ifaces_[i]->set_schema_version_state(schemaName, version, state);
   }
 
+  void add_serde(const SerDeInfo& serde) {
+    size_t sz = ifaces_.size();
+    size_t i = 0;
+    for (; i < (sz - 1); ++i) {
+      ifaces_[i]->add_serde(serde);
+    }
+    ifaces_[i]->add_serde(serde);
+  }
+
+  void get_serde(SerDeInfo& _return, const std::string& serdeName) {
+    size_t sz = ifaces_.size();
+    size_t i = 0;
+    for (; i < (sz - 1); ++i) {
+      ifaces_[i]->get_serde(_return, serdeName);
+    }
+    ifaces_[i]->get_serde(_return, serdeName);
+    return;
+  }
+
 };
 
 // The 'concurrent' client is a thread safe client that correctly handles
@@ -25315,6 +25584,12 @@ class ThriftHiveMetastoreConcurrentClient : virtual public ThriftHiveMetastoreIf
   void set_schema_version_state(const std::string& schemaName, const int32_t version, const SchemaVersionState::type state);
   int32_t send_set_schema_version_state(const std::string& schemaName, const int32_t version, const SchemaVersionState::type state);
   void recv_set_schema_version_state(const int32_t seqid);
+  void add_serde(const SerDeInfo& serde);
+  int32_t send_add_serde(const SerDeInfo& serde);
+  void recv_add_serde(const int32_t seqid);
+  void get_serde(SerDeInfo& _return, const std::string& serdeName);
+  int32_t send_get_serde(const std::string& serdeName);
+  void recv_get_serde(SerDeInfo& _return, const int32_t seqid);
 };
 
 #ifdef _WIN32

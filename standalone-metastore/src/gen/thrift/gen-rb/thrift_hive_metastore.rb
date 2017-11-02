@@ -2893,6 +2893,39 @@ module ThriftHiveMetastore
       return
     end
 
+    def add_serde(serde)
+      send_add_serde(serde)
+      recv_add_serde()
+    end
+
+    def send_add_serde(serde)
+      send_message('add_serde', Add_serde_args, :serde => serde)
+    end
+
+    def recv_add_serde()
+      result = receive_message(Add_serde_result)
+      raise result.o1 unless result.o1.nil?
+      raise result.o2 unless result.o2.nil?
+      return
+    end
+
+    def get_serde(serdeName)
+      send_get_serde(serdeName)
+      return recv_get_serde()
+    end
+
+    def send_get_serde(serdeName)
+      send_message('get_serde', Get_serde_args, :serdeName => serdeName)
+    end
+
+    def recv_get_serde()
+      result = receive_message(Get_serde_result)
+      return result.success unless result.success.nil?
+      raise result.o1 unless result.o1.nil?
+      raise result.o2 unless result.o2.nil?
+      raise ::Thrift::ApplicationException.new(::Thrift::ApplicationException::MISSING_RESULT, 'get_serde failed: unknown result')
+    end
+
   end
 
   class Processor < ::FacebookService::Processor 
@@ -5044,6 +5077,32 @@ module ThriftHiveMetastore
         result.o3 = o3
       end
       write_result(result, oprot, 'set_schema_version_state', seqid)
+    end
+
+    def process_add_serde(seqid, iprot, oprot)
+      args = read_args(iprot, Add_serde_args)
+      result = Add_serde_result.new()
+      begin
+        @handler.add_serde(args.serde)
+      rescue ::AlreadyExistsException => o1
+        result.o1 = o1
+      rescue ::MetaException => o2
+        result.o2 = o2
+      end
+      write_result(result, oprot, 'add_serde', seqid)
+    end
+
+    def process_get_serde(seqid, iprot, oprot)
+      args = read_args(iprot, Get_serde_args)
+      result = Get_serde_result.new()
+      begin
+        result.success = @handler.get_serde(args.serdeName)
+      rescue ::NoSuchObjectException => o1
+        result.o1 = o1
+      rescue ::MetaException => o2
+        result.o2 = o2
+      end
+      write_result(result, oprot, 'get_serde', seqid)
     end
 
   end
@@ -11532,6 +11591,76 @@ module ThriftHiveMetastore
       O1 => {:type => ::Thrift::Types::STRUCT, :name => 'o1', :class => ::NoSuchObjectException},
       O2 => {:type => ::Thrift::Types::STRUCT, :name => 'o2', :class => ::InvalidOperationException},
       O3 => {:type => ::Thrift::Types::STRUCT, :name => 'o3', :class => ::MetaException}
+    }
+
+    def struct_fields; FIELDS; end
+
+    def validate
+    end
+
+    ::Thrift::Struct.generate_accessors self
+  end
+
+  class Add_serde_args
+    include ::Thrift::Struct, ::Thrift::Struct_Union
+    SERDE = 1
+
+    FIELDS = {
+      SERDE => {:type => ::Thrift::Types::STRUCT, :name => 'serde', :class => ::SerDeInfo}
+    }
+
+    def struct_fields; FIELDS; end
+
+    def validate
+    end
+
+    ::Thrift::Struct.generate_accessors self
+  end
+
+  class Add_serde_result
+    include ::Thrift::Struct, ::Thrift::Struct_Union
+    O1 = 1
+    O2 = 2
+
+    FIELDS = {
+      O1 => {:type => ::Thrift::Types::STRUCT, :name => 'o1', :class => ::AlreadyExistsException},
+      O2 => {:type => ::Thrift::Types::STRUCT, :name => 'o2', :class => ::MetaException}
+    }
+
+    def struct_fields; FIELDS; end
+
+    def validate
+    end
+
+    ::Thrift::Struct.generate_accessors self
+  end
+
+  class Get_serde_args
+    include ::Thrift::Struct, ::Thrift::Struct_Union
+    SERDENAME = 1
+
+    FIELDS = {
+      SERDENAME => {:type => ::Thrift::Types::STRING, :name => 'serdeName'}
+    }
+
+    def struct_fields; FIELDS; end
+
+    def validate
+    end
+
+    ::Thrift::Struct.generate_accessors self
+  end
+
+  class Get_serde_result
+    include ::Thrift::Struct, ::Thrift::Struct_Union
+    SUCCESS = 0
+    O1 = 1
+    O2 = 2
+
+    FIELDS = {
+      SUCCESS => {:type => ::Thrift::Types::STRUCT, :name => 'success', :class => ::SerDeInfo},
+      O1 => {:type => ::Thrift::Types::STRUCT, :name => 'o1', :class => ::NoSuchObjectException},
+      O2 => {:type => ::Thrift::Types::STRUCT, :name => 'o2', :class => ::MetaException}
     }
 
     def struct_fields; FIELDS; end

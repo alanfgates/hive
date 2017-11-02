@@ -33,6 +33,7 @@ import org.apache.hadoop.hive.metastore.api.SchemaValidation;
 import org.apache.hadoop.hive.metastore.api.SchemaVersion;
 import org.apache.hadoop.hive.metastore.api.SchemaVersionState;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
+import org.apache.hadoop.hive.metastore.api.SerdeType;
 import org.apache.hadoop.hive.metastore.client.builder.ISchemaBuilder;
 import org.apache.hadoop.hive.metastore.client.builder.SchemaVersionBuilder;
 import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
@@ -463,78 +464,118 @@ public class TestHiveMetaStoreSchemaMethods {
     client.addSchemaVersion(schemaVersion);
   }
 
-  /*
-  @Test
-  public void alterSchemaVersion() throws TException {
-    String dbName = createUniqueDatabaseForTest();
-    String schemaName = uniqueSchemaName();
-    int version = 1;
-    SchemaVersion schemaVersion = objectStore.getSchemaVersion(schemaName, version);
-    Assert.assertNull(schemaVersion);
-
-    ISchema schema = new ISchemaBuilder()
-        .setSchemaType(SchemaType.AVRO)
-        .setName(schemaName)
-        .setDbName(dbName)
-        .build();
-    objectStore.createISchema(schema);
-
-    schemaVersion = new SchemaVersionBuilder()
-        .setSchemaName(schemaName)
-        .setVersion(version)
-        .addCol("a", ColumnType.INT_TYPE_NAME)
-        .addCol("b", ColumnType.FLOAT_TYPE_NAME)
-        .setState(SchemaVersionState.INITIATED)
-        .build();
-    objectStore.addSchemaVersion(schemaVersion);
-
-    schemaVersion = objectStore.getSchemaVersion(schemaName, version);
-    Assert.assertNotNull(schemaVersion);
-    Assert.assertEquals(schemaName, schemaVersion.getSchemaName());
-    Assert.assertEquals(version, schemaVersion.getVersion());
-    Assert.assertEquals(SchemaVersionState.INITIATED, schemaVersion.getState());
-
-    schemaVersion.setState(SchemaVersionState.REVIEWED);
-    String serdeName = "serde for " + schemaName;
-    SerDeInfo serde = new SerDeInfo(serdeName, "", Collections.emptyMap());
-    String serializer = "org.apache.hadoop.hive.metastore.test.Serializer";
-    String deserializer = "org.apache.hadoop.hive.metastore.test.Deserializer";
-    serde.setSerializerClass(serializer);
-    serde.setDeserializerClass(deserializer);
-    schemaVersion.setSerDe(serde);
-    objectStore.alterSchemaVersion(schemaName, version, schemaVersion);
-
-    schemaVersion = objectStore.getSchemaVersion(schemaName, version);
-    Assert.assertNotNull(schemaVersion);
-    Assert.assertEquals(schemaName, schemaVersion.getSchemaName());
-    Assert.assertEquals(version, schemaVersion.getVersion());
-    Assert.assertEquals(SchemaVersionState.REVIEWED, schemaVersion.getState());
-    Assert.assertEquals(serdeName, schemaVersion.getSerDe().getName());
-    Assert.assertEquals(serializer, schemaVersion.getSerDe().getSerializerClass());
-    Assert.assertEquals(deserializer, schemaVersion.getSerDe().getDeserializerClass());
-  }
-
-
-  @Test(expected = NoSuchObjectException.class)
-  public void alterNonExistentSchemaVersion() throws MetaException, AlreadyExistsException,
-      NoSuchObjectException {
-    String schemaName = uniqueSchemaName();
-    int version = 37;
-    SchemaVersion schemaVersion = new SchemaVersionBuilder()
-        .setSchemaName(schemaName)
-        .setVersion(version)
-        .addCol("a", ColumnType.INT_TYPE_NAME)
-        .addCol("b", ColumnType.FLOAT_TYPE_NAME)
-        .setState(SchemaVersionState.INITIATED)
-        .build();
-    objectStore.alterSchemaVersion(schemaName, version, schemaVersion);
-  }
-
   @Test(expected = NoSuchObjectException.class)
   public void mapSerDeNoSuchSchema() throws TException {
-    SerDeInfo serDeInfo = new SerDeInfo("serde1", "lib", Collections.emptyMap());
+    SerDeInfo serDeInfo = new SerDeInfo(uniqueSerdeName(), "lib", Collections.emptyMap());
+    client.mapSchemaVersionToSerde(uniqueSchemaName(), 1, serDeInfo.getName());
   }
-  */
+
+  @Test(expected = NoSuchObjectException.class)
+  public void mapSerDeNoSuchSchemaVersion() throws TException {
+    SerDeInfo serDeInfo = new SerDeInfo(uniqueSerdeName(), "lib", Collections.emptyMap());
+    ISchema schema = new ISchemaBuilder()
+        .setSchemaType(SchemaType.AVRO)
+        .setName(uniqueSchemaName())
+        .build();
+    client.createISchema(schema);
+    client.mapSchemaVersionToSerde(schema.getName(), 3, serDeInfo.getName());
+  }
+
+  @Test(expected = NoSuchObjectException.class)
+  public void mapNonExistentSerdeToSchemaVersion() throws TException {
+    ISchema schema = new ISchemaBuilder()
+        .setSchemaType(SchemaType.AVRO)
+        .setName(uniqueSchemaName())
+        .build();
+    client.createISchema(schema);
+
+    SchemaVersion schemaVersion = new SchemaVersionBuilder()
+        .setSchemaName(schema.getName())
+        .setVersion(1)
+        .addCol("x", ColumnType.BOOLEAN_TYPE_NAME)
+        .build();
+    client.addSchemaVersion(schemaVersion);
+    client.mapSchemaVersionToSerde(schema.getName(), schemaVersion.getVersion(), uniqueSerdeName());
+  }
+
+  @Test
+  public void mapSerdeToSchemaVersion() throws TException {
+    ISchema schema = new ISchemaBuilder()
+        .setSchemaType(SchemaType.AVRO)
+        .setName(uniqueSchemaName())
+        .build();
+    client.createISchema(schema);
+
+    // Create schema with no serde, then map it
+    SchemaVersion schemaVersion = new SchemaVersionBuilder()
+        .setSchemaName(schema.getName())
+        .setVersion(1)
+        .addCol("x", ColumnType.BOOLEAN_TYPE_NAME)
+        .build();
+    client.addSchemaVersion(schemaVersion);
+
+    SerDeInfo serDeInfo = new SerDeInfo(uniqueSerdeName(), "lib", Collections.emptyMap());
+    client.addSerDe(serDeInfo);
+
+    client.mapSchemaVersionToSerde(schema.getName(), schemaVersion.getVersion(), serDeInfo.getName());
+    schemaVersion = client.getSchemaVersion(schema.getName(), schemaVersion.getVersion());
+    Assert.assertEquals(serDeInfo.getName(), schemaVersion.getSerDe().getName());
+
+    // Create schema with a serde, then remap it
+    String serDeName = uniqueSerdeName();
+    schemaVersion = new SchemaVersionBuilder()
+        .setSchemaName(schema.getName())
+        .setVersion(2)
+        .addCol("x", ColumnType.BOOLEAN_TYPE_NAME)
+        .setSerdeName(serDeName)
+        .setSerdeLib("x")
+        .build();
+    client.addSchemaVersion(schemaVersion);
+
+    schemaVersion = client.getSchemaVersion(schema.getName(), 2);
+    Assert.assertEquals(serDeName, schemaVersion.getSerDe().getName());
+
+    serDeInfo = new SerDeInfo(uniqueSerdeName(), "y", Collections.emptyMap());
+    client.addSerDe(serDeInfo);
+    client.mapSchemaVersionToSerde(schema.getName(), 2, serDeInfo.getName());
+    schemaVersion = client.getSchemaVersion(schema.getName(), 2);
+    Assert.assertEquals(serDeInfo.getName(), schemaVersion.getSerDe().getName());
+
+  }
+
+  @Test
+  public void addSerde() throws TException {
+    String serdeName = uniqueSerdeName();
+    SerDeInfo serDeInfo = new SerDeInfo(serdeName, "serdeLib", Collections.singletonMap("a", "b"));
+    serDeInfo.setSerializerClass("serializer");
+    serDeInfo.setDeserializerClass("deserializer");
+    serDeInfo.setDescription("description");
+    serDeInfo.setSerdeType(SerdeType.SCHEMA_REGISTRY);
+    client.addSerDe(serDeInfo);
+
+    serDeInfo = client.getSerDe(serdeName);
+    Assert.assertEquals(serdeName, serDeInfo.getName());
+    Assert.assertEquals("serdeLib", serDeInfo.getSerializationLib());
+    Assert.assertEquals(1, serDeInfo.getParametersSize());
+    Assert.assertEquals("b", serDeInfo.getParameters().get("a"));
+    Assert.assertEquals("serializer", serDeInfo.getSerializerClass());
+    Assert.assertEquals("deserializer", serDeInfo.getDeserializerClass());
+    Assert.assertEquals("description", serDeInfo.getDescription());
+    Assert.assertEquals(SerdeType.SCHEMA_REGISTRY, serDeInfo.getSerdeType());
+  }
+
+  @Test(expected = AlreadyExistsException.class)
+  public void duplicateSerde() throws TException {
+    String serdeName = uniqueSerdeName();
+    SerDeInfo serDeInfo = new SerDeInfo(serdeName, "x", Collections.emptyMap());
+    client.addSerDe(serDeInfo);
+    client.addSerDe(serDeInfo);
+  }
+
+  @Test(expected = NoSuchObjectException.class)
+  public void noSuchSerDe() throws TException {
+    client.getSerDe(uniqueSerdeName());
+  }
 
   @Test(expected = NoSuchObjectException.class)
   public void setVersionStateNoSuchSchema() throws TException {
@@ -730,6 +771,10 @@ public class TestHiveMetaStoreSchemaMethods {
   private String uniqueSchemaName() {
     return "uniqueschema" + nextSchemaNum++;
 
+  }
+
+  private String uniqueSerdeName() {
+    return "uniqueSerde" + nextSchemaNum++;
   }
 
   public static class SchemaEventListener extends MetaStoreEventListener {
