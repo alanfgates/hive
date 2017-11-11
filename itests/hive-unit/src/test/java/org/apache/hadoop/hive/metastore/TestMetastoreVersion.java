@@ -91,6 +91,7 @@ public class TestMetastoreVersion extends TestCase {
    * @throws Exception
    */
   public void testVersionRestriction () throws Exception {
+    System.setProperty(HiveConf.ConfVars.METASTORE_SCHEMA_VERIFICATION_RECORD_VERSION.toString(), "true");
     System.setProperty(HiveConf.ConfVars.METASTORE_SCHEMA_VERIFICATION.toString(), "true");
     hiveConf = new HiveConf(this.getClass());
     assertTrue(hiveConf.getBoolVar(HiveConf.ConfVars.METASTORE_SCHEMA_VERIFICATION));
@@ -134,6 +135,7 @@ public class TestMetastoreVersion extends TestCase {
    * @throws Exception
    */
   public void testVersionMatching () throws Exception {
+    System.setProperty(HiveConf.ConfVars.METASTORE_SCHEMA_VERIFICATION_RECORD_VERSION.toString(), "true");
     System.setProperty(HiveConf.ConfVars.METASTORE_SCHEMA_VERIFICATION.toString(), "false");
     hiveConf = new HiveConf(this.getClass());
     SessionState.start(new CliSessionState(hiveConf));
@@ -153,6 +155,7 @@ public class TestMetastoreVersion extends TestCase {
    * @throws Exception
    */
   public void testVersionMisMatch () throws Exception {
+    System.setProperty(HiveConf.ConfVars.METASTORE_SCHEMA_VERIFICATION_RECORD_VERSION.toString(), "true");
     System.setProperty(HiveConf.ConfVars.METASTORE_SCHEMA_VERIFICATION.toString(), "false");
     hiveConf = new HiveConf(this.getClass());
     SessionState.start(new CliSessionState(hiveConf));
@@ -175,6 +178,7 @@ public class TestMetastoreVersion extends TestCase {
    * @throws Exception
    */
   public void testVersionCompatibility () throws Exception {
+    System.setProperty(HiveConf.ConfVars.METASTORE_SCHEMA_VERIFICATION_RECORD_VERSION.toString(), "true");
     System.setProperty(HiveConf.ConfVars.METASTORE_SCHEMA_VERIFICATION.toString(), "false");
     hiveConf = new HiveConf(this.getClass());
     SessionState.start(new CliSessionState(hiveConf));

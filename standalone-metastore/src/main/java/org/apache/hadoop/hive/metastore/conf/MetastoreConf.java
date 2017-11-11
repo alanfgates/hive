@@ -64,7 +64,7 @@ public class MetastoreConf {
   private static final Logger LOG = LoggerFactory.getLogger(MetastoreConf.class);
   private static final Pattern TIME_UNIT_SUFFIX = Pattern.compile("([0-9]+)([a-zA-Z]+)");
 
-  private static final Map<String, ConfVars> metaConfs = new HashMap<>();
+  private static final Map<String, ConfVars> changableFromClient = new HashMap<>();
   private static final String NO_SUCH_KEY = "no.such.key"; // Used in config definitions when
                                                            // there is no matching Hive or
                                                            // metastore key for a value
@@ -95,87 +95,34 @@ public class MetastoreConf {
   }
 
   /**
-   * Metastore related options that the db is initialized against. When a conf
-   * var in this is list is changed, the metastore instance for the CLI will
-   * be recreated so that the change will take effect.
+   * When a conf var in this is list is changed and the metastore is remote the client will be
+   * told to reconnect to the metastore.
    */
-  public static final MetastoreConf.ConfVars[] metaVars = {
-      ConfVars.WAREHOUSE,
-      ConfVars.REPLDIR,
-      ConfVars.THRIFT_URIS,
-      ConfVars.SERVER_PORT,
-      ConfVars.THRIFT_CONNECTION_RETRIES,
-      ConfVars.THRIFT_FAILURE_RETRIES,
+  private static final MetastoreConf.ConfVars[] reconnectVars = {
+      ConfVars.BATCH_RETRIEVE_MAX,
       ConfVars.CLIENT_CONNECT_RETRY_DELAY,
-      ConfVars.CLIENT_SOCKET_TIMEOUT,
       ConfVars.CLIENT_SOCKET_LIFETIME,
-      ConfVars.PWD,
-      ConfVars.CONNECTURLHOOK,
-      ConfVars.CONNECTURLKEY,
-      ConfVars.SERVER_MIN_THREADS,
-      ConfVars.SERVER_MAX_THREADS,
-      ConfVars.TCP_KEEP_ALIVE,
+      ConfVars.CLIENT_SOCKET_TIMEOUT,
+      ConfVars.DISALLOW_INCOMPATIBLE_COL_TYPE_CHANGES,
+      ConfVars.EXECUTE_SET_UGI,
       ConfVars.KERBEROS_KEYTAB_FILE,
       ConfVars.KERBEROS_PRINCIPAL,
-      ConfVars.USE_THRIFT_SASL,
+      ConfVars.SSL_TRUSTSTORE_PASSWORD,
+      ConfVars.SSL_TRUSTSTORE_PATH,
+      ConfVars.THRIFT_CONNECTION_RETRIES,
+      ConfVars.THRIFT_FAILURE_RETRIES,
+      ConfVars.THRIFT_URIS,
       ConfVars.TOKEN_SIGNATURE,
-      ConfVars.CACHE_PINOBJTYPES,
-      ConfVars.CONNECTION_POOLING_TYPE,
-      ConfVars.VALIDATE_TABLES,
-      ConfVars.DATANUCLEUS_INIT_COL_INFO,
-      ConfVars.VALIDATE_COLUMNS,
-      ConfVars.VALIDATE_CONSTRAINTS,
-      ConfVars.STORE_MANAGER_TYPE,
-      ConfVars.AUTO_CREATE_ALL,
-      ConfVars.DATANUCLEUS_TRANSACTION_ISOLATION,
-      ConfVars.DATANUCLEUS_CACHE_LEVEL2,
-      ConfVars.DATANUCLEUS_CACHE_LEVEL2_TYPE,
-      ConfVars.IDENTIFIER_FACTORY,
-      ConfVars.DATANUCLEUS_PLUGIN_REGISTRY_BUNDLE_CHECK,
-      ConfVars.AUTHORIZATION_STORAGE_AUTH_CHECKS,
-      ConfVars.BATCH_RETRIEVE_MAX,
-      ConfVars.EVENT_LISTENERS,
-      ConfVars.TRANSACTIONAL_EVENT_LISTENERS,
-      ConfVars.EVENT_CLEAN_FREQ,
-      ConfVars.EVENT_EXPIRY_DURATION,
-      ConfVars.EVENT_MESSAGE_FACTORY,
-      ConfVars.FILTER_HOOK,
-      ConfVars.RAW_STORE_IMPL,
-      ConfVars.END_FUNCTION_LISTENERS,
-      ConfVars.PART_INHERIT_TBL_PROPS,
-      ConfVars.BATCH_RETRIEVE_OBJECTS_MAX,
-      ConfVars.INIT_HOOKS,
-      ConfVars.PRE_EVENT_LISTENERS,
-      ConfVars.HMSHANDLERATTEMPTS,
-      ConfVars.HMSHANDLERINTERVAL,
-      ConfVars.HMSHANDLERFORCERELOADCONF,
-      ConfVars.PARTITION_NAME_WHITELIST_PATTERN,
-      ConfVars.ORM_RETRIEVE_MAPNULLS_AS_EMPTY_STRINGS,
-      ConfVars.USERS_IN_ADMIN_ROLE,
-      ConfVars.HIVE_TXN_MANAGER,
-      ConfVars.TXN_TIMEOUT,
-      ConfVars.TXN_MAX_OPEN_BATCH,
-      ConfVars.TXN_RETRYABLE_SQLEX_REGEX,
-      ConfVars.STATS_NDV_TUNER,
-      ConfVars.STATS_NDV_DENSITY_FUNCTION,
-      ConfVars.AGGREGATE_STATS_CACHE_ENABLED,
-      ConfVars.AGGREGATE_STATS_CACHE_SIZE,
-      ConfVars.AGGREGATE_STATS_CACHE_MAX_PARTITIONS,
-      ConfVars.AGGREGATE_STATS_CACHE_FPP,
-      ConfVars.AGGREGATE_STATS_CACHE_MAX_VARIANCE,
-      ConfVars.AGGREGATE_STATS_CACHE_TTL,
-      ConfVars.AGGREGATE_STATS_CACHE_MAX_WRITER_WAIT,
-      ConfVars.AGGREGATE_STATS_CACHE_MAX_READER_WAIT,
-      ConfVars.AGGREGATE_STATS_CACHE_MAX_FULL,
-      ConfVars.AGGREGATE_STATS_CACHE_CLEAN_UNTIL,
-      ConfVars.DISALLOW_INCOMPATIBLE_COL_TYPE_CHANGES,
-      ConfVars.FILE_METADATA_THREADS
+      ConfVars.USE_SSL,
+      ConfVars.USE_THRIFT_COMPACT_PROTOCOL,
+      ConfVars.USE_THRIFT_FRAMED_TRANSPORT,
+      ConfVars.USE_THRIFT_SASL,
   };
 
   /**
    * User configurable Metastore vars
    */
-  private static final MetastoreConf.ConfVars[] metaConfVars = {
+  private static final MetastoreConf.ConfVars[] changableFromClientVars = {
       ConfVars.TRY_DIRECT_SQL,
       ConfVars.TRY_DIRECT_SQL_DDL,
       ConfVars.CLIENT_SOCKET_TIMEOUT,
@@ -185,9 +132,9 @@ public class MetastoreConf {
   };
 
   static {
-    for (ConfVars confVar : metaConfVars) {
-      metaConfs.put(confVar.varname, confVar);
-      metaConfs.put(confVar.hiveName, confVar);
+    for (ConfVars confVar : changableFromClientVars) {
+      changableFromClient.put(confVar.varname, confVar);
+      changableFromClient.put(confVar.hiveName, confVar);
     }
   }
 
@@ -203,8 +150,14 @@ public class MetastoreConf {
       ConfVars.SSL_TRUSTSTORE_PASSWORD.hiveName
   );
 
-  public static ConfVars getMetaConf(String name) {
-    return metaConfs.get(name);
+  /**
+   * Find whether a value is changable from the client.  If it is, return the configuration
+   * variable that corresponds to the string (can be the metastore. or hive. value).
+   * @param key Hive or metastore configuration key
+   * @return the associated ConfVars if this is a changable key, else null.
+   */
+  public static ConfVars isChangableFromClient(String key) {
+    return changableFromClient.get(key);
   }
 
   public enum ConfVars {
@@ -270,12 +223,12 @@ public class MetastoreConf {
     CACHE_PINOBJTYPES("metastore.cache.pinobjtypes", "hive.metastore.cache.pinobjtypes",
         "Table,StorageDescriptor,SerDeInfo,Partition,Database,Type,FieldSchema,Order",
         "List of comma separated metastore object types that should be pinned in the cache"),
-    CACHED_RAW_STORE_IMPL("metastore.cached.rawstore.impl",
-        "hive.metastore.cached.rawstore.impl", "org.apache.hadoop.hive.metastore.ObjectStore",
-        "Name of the wrapped RawStore class"),
     CACHED_RAW_STORE_CACHE_UPDATE_FREQUENCY("metastore.cached.rawstore.cache.update.frequency",
         "hive.metastore.cached.rawstore.cache.update.frequency", 60, TimeUnit.SECONDS,
         "The time after which metastore cache is updated from metastore DB."),
+    CACHED_RAW_STORE_IMPL("metastore.cached.rawstore.impl",
+        "hive.metastore.cached.rawstore.impl", "org.apache.hadoop.hive.metastore.ObjectStore",
+        "Name of the wrapped RawStore class"),
     CAPABILITY_CHECK("metastore.client.capability.check",
         "hive.metastore.client.capability.check", true,
         "Whether to check client capabilities for potentially breaking API usage."),
@@ -340,6 +293,13 @@ public class MetastoreConf {
             "configured with embedded metastore. To get optimal performance, set config to meet the following condition\n"+
             "(2 * pool_size * metastore_instances + 2 * pool_size * HS2_instances_with_embedded_metastore) = \n" +
             "(2 * physical_core_count + hard_disk_count)."),
+    CONNECTION_POOLING_TYPE("datanucleus.connectionPoolingType",
+        "datanucleus.connectionPoolingType", "HikariCP", new Validator.StringSet("BONECP", "DBCP",
+        "HikariCP", "NONE"),
+        "Specify connection pool library for datanucleus"),
+    CONNECTION_USER_NAME("javax.jdo.option.ConnectionUserName",
+        "javax.jdo.option.ConnectionUserName", "APP",
+        "Username to use against metastore database"),
     CONNECTURLHOOK("metastore.ds.connection.url.hook",
         "hive.metastore.ds.connection.url.hook", "",
         "Name of the hook to use for retrieving the JDO connection URL. If empty, the value in javax.jdo.option.ConnectionURL is used"),
@@ -349,13 +309,6 @@ public class MetastoreConf {
         "JDBC connect string for a JDBC metastore.\n" +
             "To use SSL to encrypt/authenticate the connection, provide database-specific SSL flag in the connection URL.\n" +
             "For example, jdbc:postgresql://myhost/db?ssl=true for postgres database."),
-    CONNECTION_POOLING_TYPE("datanucleus.connectionPoolingType",
-        "datanucleus.connectionPoolingType", "HikariCP", new Validator.StringSet("BONECP", "DBCP",
-        "HikariCP", "NONE"),
-        "Specify connection pool library for datanucleus"),
-    CONNECTION_USER_NAME("javax.jdo.option.ConnectionUserName",
-        "javax.jdo.option.ConnectionUserName", "APP",
-        "Username to use against metastore database"),
     COUNT_OPEN_TXNS_INTERVAL("metastore.count.open.txns.interval", "hive.count.open.txns.interval",
         1, TimeUnit.SECONDS, "Time in seconds between checks to count open transactions."),
     DATANUCLEUS_AUTOSTART("datanucleus.autoStartMechanismMode",
@@ -734,9 +687,6 @@ public class MetastoreConf {
             "class is used to store and retrieve transactions and locks"),
     TXN_TIMEOUT("metastore.txn.timeout", "hive.txn.timeout", 300, TimeUnit.SECONDS,
         "time after which transactions are declared aborted if the client has not sent a heartbeat."),
-    USERS_IN_ADMIN_ROLE("metastore.users.in.admin.role", "hive.users.in.admin.role", "", false,
-        "Comma separated list of users who are in admin role for bootstrapping.\n" +
-            "More users can be added in ADMIN role later."),
     USE_SSL("metastore.use.SSL", "hive.metastore.use.SSL", false,
         "Set this to true for using SSL encryption in HMS server."),
     USE_THRIFT_SASL("metastore.sasl.enabled", "hive.metastore.sasl.enabled", false,
@@ -748,6 +698,9 @@ public class MetastoreConf {
         "hive.metastore.thrift.compact.protocol.enabled", false,
         "If true, the metastore Thrift interface will use TCompactProtocol. When false (default) TBinaryProtocol will be used.\n" +
             "Setting it to true will break compatibility with older clients running TBinaryProtocol."),
+    USERS_IN_ADMIN_ROLE("metastore.users.in.admin.role", "hive.users.in.admin.role", "", false,
+        "Comma separated list of users who are in admin role for bootstrapping.\n" +
+            "More users can be added in ADMIN role later."),
     VALIDATE_COLUMNS("datanucleus.schema.validateColumns", "datanucleus.schema.validateColumns", false,
         "validates existing schema against code. turn this on if you want to verify existing schema"),
     VALIDATE_CONSTRAINTS("datanucleus.schema.validateConstraints",
@@ -1450,10 +1403,11 @@ public class MetastoreConf {
    * Check if metastore is being used in embedded mode.
    * This utility function exists so that the logic for determining the mode is same
    * in HiveConf and HiveMetaStoreClient
-   * @param msUri - metastore server uri
+   * @param conf configuration instance
    * @return true if the metastore is embedded
    */
-  public static boolean isEmbeddedMetaStore(String msUri) {
+  public static boolean isEmbeddedMetaStore(Configuration conf) {
+    String msUri = getVar(conf, ConfVars.THRIFT_URIS);
     return (msUri == null) || msUri.trim().isEmpty();
   }
 
@@ -1464,7 +1418,7 @@ public class MetastoreConf {
    * @param conf Configuration file to dump
    * @return String containing dumped config file.
    */
-  public static String dumpConfig(Configuration conf) {
+  static String dumpConfig(Configuration conf) {
     StringBuilder buf = new StringBuilder("MetastoreConf object:\n");
     if (hiveSiteURL != null) {
       buf.append("Used hive-site file: ")
@@ -1494,6 +1448,34 @@ public class MetastoreConf {
     }
     buf.append("Finished MetastoreConf object.\n");
     return buf.toString();
+  }
+
+  /**
+   * Check if a client should reconnect.  This will act differently depending on whether the
+   * metastore is running in remote or embedded mode.  In embedded mode it will return true if
+   * any value has changed.  In remote mode, it will only return true if
+   * connection configuration values have changed (e.g. connection timeout, url to connect to,
+   * etc.).  It will also return true if the configurations force a switch from embedded to
+   * remote or vice versa.
+   * @param original configuration object the client previously had
+   * @param current current configuration
+   * @return true if a reconnection or recreation is required, false otherwise.
+   */
+  public static boolean reconnectRequired(Configuration original, Configuration current) {
+    boolean originalEmbedded = isEmbeddedMetaStore(original);
+    if (originalEmbedded != isEmbeddedMetaStore(current)) return true;
+    ConfVars[] varsToCheck = originalEmbedded ? ConfVars.values() : reconnectVars;
+    for (ConfVars var : varsToCheck) {
+      String oldVar = original.get(var.getVarname());
+      String newVar = MetastoreConf.getAsString(current, var);
+      if (oldVar == null ||
+          (var.isCaseSensitive() ? !oldVar.equals(newVar) : !oldVar.equalsIgnoreCase(newVar))) {
+        LOG.info("Mestastore configuration " + var.toString() +
+            " changed from " + oldVar + " to " + newVar);
+        return true;
+      }
+    }
+    return false;
   }
 
   /**

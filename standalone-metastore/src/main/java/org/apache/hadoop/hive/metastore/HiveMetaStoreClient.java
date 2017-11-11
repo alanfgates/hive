@@ -115,7 +115,9 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   private final MetaStoreFilterHook filterHook;
   private final int fileMetadataBatchSize;
 
-  private Map<String, String> currentMetaVars;
+  // Keep a snapshot of the configuration we used last time we connected.  This can be used to
+  // tell use whether we need to reconnect next time we are asked.
+  private Configuration snapshotConf;
 
   private static final AtomicInteger connCount = new AtomicInteger(0);
 
@@ -149,10 +151,10 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
     fileMetadataBatchSize = MetastoreConf.getIntVar(
         conf, ConfVars.BATCH_RETRIEVE_OBJECTS_MAX);
 
-    String msUri = MetastoreConf.getVar(conf, ConfVars.THRIFT_URIS);
-    localMetaStore = MetastoreConf.isEmbeddedMetaStore(msUri);
+    localMetaStore = MetastoreConf.isEmbeddedMetaStore(conf);
     if (localMetaStore) {
       if (!allowEmbedded) {
+        String msUri = MetastoreConf.getVar(conf, ConfVars.THRIFT_URIS);
         throw new MetaException("Embedded metastore is not allowed here. Please configure "
             + ConfVars.THRIFT_URIS.toString() + "; it is currently set to [" + msUri + "]");
       }
@@ -287,25 +289,10 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
 
   @Override
   public boolean isCompatibleWith(Configuration conf) {
-    // Make a copy of currentMetaVars, there is a race condition that
-	// currentMetaVars might be changed during the execution of the method
-    Map<String, String> currentMetaVarsCopy = currentMetaVars;
-    if (currentMetaVarsCopy == null) {
-      return false; // recreate
-    }
-    boolean compatible = true;
-    for (ConfVars oneVar : MetastoreConf.metaVars) {
-      // Since metaVars are all of different types, use string for comparison
-      String oldVar = currentMetaVarsCopy.get(oneVar.getVarname());
-      String newVar = MetastoreConf.getAsString(conf, oneVar);
-      if (oldVar == null ||
-          (oneVar.isCaseSensitive() ? !oldVar.equals(newVar) : !oldVar.equalsIgnoreCase(newVar))) {
-        LOG.info("Mestastore configuration " + oneVar.toString() +
-            " changed from " + oldVar + " to " + newVar);
-        compatible = false;
-      }
-    }
-    return compatible;
+    // Make a copy of snapshotConf as there is a race condition that
+	  // it might be changed during the execution of this method
+    Configuration snapshotCopy = snapshotConf;
+    return snapshotCopy != null && !MetastoreConf.reconnectRequired(snapshotCopy, conf);
   }
 
   @Override
@@ -525,10 +512,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   }
 
   private void snapshotActiveConf() {
-    currentMetaVars = new HashMap<>(MetastoreConf.metaVars.length);
-    for (ConfVars oneVar : MetastoreConf.metaVars) {
-      currentMetaVars.put(oneVar.getVarname(), MetastoreConf.getAsString(conf, oneVar));
-    }
+    snapshotConf = new Configuration(conf);
   }
 
   @Override
@@ -539,7 +523,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   @Override
   public void close() {
     isConnected = false;
-    currentMetaVars = null;
+    snapshotConf = null;
     try {
       if (null != client) {
         client.shutdown();

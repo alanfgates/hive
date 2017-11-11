@@ -52,7 +52,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 import javax.jdo.JDOException;
@@ -612,7 +611,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
 
     @Override
     public void setMetaConf(String key, String value) throws MetaException {
-      ConfVars confVar = MetastoreConf.getMetaConf(key);
+      ConfVars confVar = MetastoreConf.isChangableFromClient(key);
       if (confVar == null) {
         throw new MetaException("Invalid configuration key " + key);
       }
@@ -638,7 +637,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
 
     @Override
     public String getMetaConf(String key) throws MetaException {
-      ConfVars confVar = MetastoreConf.getMetaConf(key);
+      ConfVars confVar = MetastoreConf.isChangableFromClient(key);
       if (confVar == null) {
         throw new MetaException("Invalid configuration key " + key);
       }
