@@ -162,8 +162,6 @@ public class MetastoreConf {
 
   public enum ConfVars {
     // alpha order, PLEASE!
-    ADDED_JARS("metastore.added.jars.path", "hive.added.jars.path", "",
-        "This an internal parameter."),
     AGGREGATE_STATS_CACHE_CLEAN_UNTIL("metastore.aggregate.stats.cache.clean.until",
         "hive.metastore.aggregate.stats.cache.clean.until", 0.8,
         "The cleaner thread cleans until cache reaches this % full size."),
@@ -196,12 +194,6 @@ public class MetastoreConf {
         "Number of seconds for a cached node to be active in the cache before they become stale."),
     ALTER_HANDLER("metastore.alter.handler", NO_SUCH_KEY, HiveAlterHandler.class.getName(),
         "Alter handler.  For now defaults to the Hive one.  Really need a better default option"),
-    ASYNC_LOG_ENABLED("metastore.async.log.enabled", "hive.async.log.enabled", true,
-        "Whether to enable Log4j2's asynchronous logging. Asynchronous logging can give\n" +
-            " significant performance improvement as logging will be handled in separate thread\n" +
-            " that uses LMAX disruptor queue for buffering log messages.\n" +
-            " Refer https://logging.apache.org/log4j/2.x/manual/async.html for benefits and\n" +
-            " drawbacks."),
     AUTHORIZATION_STORAGE_AUTH_CHECKS("metastore.authorization.storage.checks",
         "hive.metastore.authorization.storage.checks", false,
         "Should the metastore do authorization checks against the underlying storage (usually hdfs) \n" +
@@ -328,11 +320,6 @@ public class MetastoreConf {
     DBACCESS_SSL_PROPS("metastore.dbaccess.ssl.properties", "hive.metastore.dbaccess.ssl.properties", "",
         "Comma-separated SSL properties for metastore to access database when JDO connection URL\n" +
             "enables SSL access. e.g. javax.net.ssl.trustStore=/tmp/truststore,javax.net.ssl.trustStorePassword=pwd."),
-    DEFAULTPARTITIONNAME("metastore.default.partition.name",
-        "hive.exec.default.partition.name", "__HIVE_DEFAULT_PARTITION__",
-        "The default partition name in case the dynamic partition column value is null/empty string or any other values that cannot be escaped. \n" +
-            "This value must not contain any special character used in HDFS URI (e.g., ':', '%', '/' etc). \n" +
-            "The user has to be aware that the dynamic partition value should not contain this value to avoid confusions."),
     DELEGATION_KEY_UPDATE_INTERVAL("metastore.cluster.delegation.key.update-interval",
         "hive.cluster.delegation.key.update-interval", 1, TimeUnit.DAYS, ""),
     DELEGATION_TOKEN_GC_INTERVAL("metastore.cluster.delegation.token.gc-interval",
@@ -456,13 +443,12 @@ public class MetastoreConf {
         "hive.metastore.limit.partition.request", -1,
         "This limits the number of partitions that can be requested from the metastore for a given table.\n" +
             "The default value \"-1\" means no limit."),
-    // TODO - This could be a problem.  We don't really want this reading hive.log4j.file because
-    // it will end up competing with Hive.
-    LOG4J_FILE("metastore.log4j.file", "hive.log4j.file", "",
-        "Hive log4j configuration file.\n" +
-            "If the property is not set, then logging will be initialized using hive-log4j2.properties found on the classpath.\n" +
-            "If the property is set, the value must be a valid URI (java.net.URI, e.g. \"file:///tmp/my-logging.xml\"), \n" +
-            "which you can then extract a URL from and pass to PropertyConfigurator.configure(URL)."),
+    LOG4J_FILE("metastore.log4j.file", NO_SUCH_KEY, "",
+        "Metastore log4j configuration file.\nIf the property is not set, then logging will be " +
+            "initialized using metastore-log4j2.properties found on the classpath.\nIf the " +
+            "property is set, the value must be a valid URI (java.net.URI, e.g. " +
+            "\"file:///tmp/my-logging.xml\"), \nwhich you can then extract a URL from and pass to" +
+            " PropertyConfigurator.configure(URL)."),
     MANAGER_FACTORY_CLASS("javax.jdo.PersistenceManagerFactoryClass",
         "javax.jdo.PersistenceManagerFactoryClass",
         "org.datanucleus.api.jdo.JDOPersistenceManagerFactory",
@@ -598,8 +584,6 @@ public class MetastoreConf {
         "Metastore SSL certificate truststore password."),
     SSL_TRUSTSTORE_PATH("metastore.truststore.path", "hive.metastore.truststore.path", "",
         "Metastore SSL certificate truststore location."),
-    STATS_AUTO_GATHER("metastore.stats.autogather", "hive.stats.autogather", true,
-        "A flag to gather statistics (only basic) automatically during the INSERT OVERWRITE command."),
     STATS_DEFAULT_AGGREGATOR("metastore.stats.default.aggregator", "hive.stats.default.aggregator",
         "",
         "The Java class (implementing the StatsAggregator interface) that is used by default if hive.stats.dbclass is custom type."),
@@ -696,9 +680,6 @@ public class MetastoreConf {
         "If true, the metastore Thrift interface will use TFramedTransport. When false (default) a standard TTransport is used."),
     USE_THRIFT_SASL("metastore.sasl.enabled", "hive.metastore.sasl.enabled", false,
         "If true, the metastore Thrift interface will be secured with SASL. Clients must authenticate with Kerberos."),
-    USERS_IN_ADMIN_ROLE("metastore.users.in.admin.role", "hive.users.in.admin.role", "", false,
-        "Comma separated list of users who are in admin role for bootstrapping.\n" +
-            "More users can be added in ADMIN role later."),
     VALIDATE_COLUMNS("datanucleus.schema.validateColumns", "datanucleus.schema.validateColumns", false,
         "validates existing schema against code. turn this on if you want to verify existing schema"),
     VALIDATE_CONSTRAINTS("datanucleus.schema.validateConstraints",
@@ -713,6 +694,26 @@ public class MetastoreConf {
         "hive.writeset.reaper.interval", 60, TimeUnit.SECONDS,
         "Frequency of WriteSet reaper runs"),
 
+    // Values shared with Hive.  These are duplicated because metastore needs them, but they
+    // really belong primarily in Hive.
+    ADDED_JARS("hive.added.jars.path", "hive.added.jars.path", "",
+        "This an internal parameter."),
+    ASYNC_LOG_ENABLED("hive.async.log.enabled", "hive.async.log.enabled", true,
+        "Whether to enable Log4j2's asynchronous logging. Asynchronous logging can give\n" +
+            " significant performance improvement as logging will be handled in separate thread\n" +
+            " that uses LMAX disruptor queue for buffering log messages.\n" +
+            " Refer https://logging.apache.org/log4j/2.x/manual/async.html for benefits and\n" +
+            " drawbacks."),
+    DEFAULTPARTITIONNAME("hive.exec.default.partition.name",
+        "hive.exec.default.partition.name", "__HIVE_DEFAULT_PARTITION__",
+        "The default partition name in case the dynamic partition column value is null/empty string or any other values that cannot be escaped. \n" +
+            "This value must not contain any special character used in HDFS URI (e.g., ':', '%', '/' etc). \n" +
+            "The user has to be aware that the dynamic partition value should not contain this value to avoid confusions."),
+    STATS_AUTO_GATHER("hive.stats.autogather", "hive.stats.autogather", true,
+        "A flag to gather statistics (only basic) automatically during the INSERT OVERWRITE command."),
+    USERS_IN_ADMIN_ROLE("hive.users.in.admin.role", "hive.users.in.admin.role", "", false,
+        "Comma separated list of users who are in admin role for bootstrapping.\n" +
+            "More users can be added in ADMIN role later."),
     // Hive values we have copied and use as is
     // These two are used to indicate that we are running tests
     HIVE_IN_TEST("hive.in.test", "hive.in.test", false, "internal usage only, true in test mode"),
