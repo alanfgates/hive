@@ -15,11 +15,11 @@
 package org.apache.hive.storage.jdbc.conf;
 
 import java.io.IOException;
-import org.apache.hadoop.hive.shims.ShimLoader;
+
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf.ConfVars;
 import org.apache.hadoop.hive.ql.metadata.Hive;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
-import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hive.storage.jdbc.conf.DatabaseType;
 
 import org.apache.hadoop.conf.Configuration;
 
@@ -140,44 +140,43 @@ public class JdbcStorageConfigManager {
     LOGGER.debug("Resolving db type: {}", dbType.toString());
 
     if (dbType == DatabaseType.METASTORE) {
-      HiveConf hconf = Hive.get().getConf();
+      Configuration conf = Hive.get().getConf();
       props.setProperty(JdbcStorageConfig.JDBC_URL.getPropertyName(),
-          getMetastoreConnectionURL(hconf));
+          getMetastoreConnectionURL(conf));
       props.setProperty(JdbcStorageConfig.JDBC_DRIVER_CLASS.getPropertyName(),
-          getMetastoreDriver(hconf));
+          getMetastoreDriver(conf));
 
-      String user = getMetastoreJdbcUser(hconf);
+      String user = getMetastoreJdbcUser(conf);
       if (user != null) {
         props.setProperty(CONFIG_USERNAME, user);
       }
 
-      String pwd = getMetastoreJdbcPasswd(hconf);
+      String pwd = getMetastoreJdbcPasswd(conf);
       if (pwd != null) {
         props.setProperty(CONFIG_PWD, pwd);
       }
       props.setProperty(JdbcStorageConfig.DATABASE_TYPE.getPropertyName(),
-          getMetastoreDatabaseType(hconf));
+          getMetastoreDatabaseType(conf));
     }
   }
 
-  private static String getMetastoreDatabaseType(HiveConf conf) {
-    return conf.getVar(HiveConf.ConfVars.METASTOREDBTYPE);
+  private static String getMetastoreDatabaseType(Configuration conf) {
+    return MetastoreConf.getVar(conf, ConfVars.DB_TYPE);
   }
 
-  private static String getMetastoreConnectionURL(HiveConf conf) {
-    return conf.getVar(HiveConf.ConfVars.METASTORECONNECTURLKEY);
+  private static String getMetastoreConnectionURL(Configuration conf) {
+    return MetastoreConf.getVar(conf, ConfVars.CONNECTURLKEY);
   }
 
-  private static String getMetastoreDriver(HiveConf conf) {
-    return conf.getVar(HiveConf.ConfVars.METASTORE_CONNECTION_DRIVER);
+  private static String getMetastoreDriver(Configuration conf) {
+    return MetastoreConf.getVar(conf, ConfVars.CONNECTION_DRIVER);
   }
 
-  private static String getMetastoreJdbcUser(HiveConf conf) {
-    return conf.getVar(HiveConf.ConfVars.METASTORE_CONNECTION_USER_NAME);
+  private static String getMetastoreJdbcUser(Configuration conf) {
+    return MetastoreConf.getVar(conf, ConfVars.CONNECTION_USER_NAME);
   }
 
-  private static String getMetastoreJdbcPasswd(HiveConf conf) throws IOException {
-    return ShimLoader.getHadoopShims().getPassword(conf,
-        HiveConf.ConfVars.METASTOREPWD.varname);
+  private static String getMetastoreJdbcPasswd(Configuration conf) throws IOException {
+    return MetastoreConf.getPassword(conf, ConfVars.PWD);
   }
 }
