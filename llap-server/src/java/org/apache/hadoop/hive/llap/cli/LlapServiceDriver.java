@@ -50,6 +50,7 @@ import org.apache.hadoop.hive.llap.daemon.impl.LlapConstants;
 import org.apache.hadoop.hive.llap.daemon.impl.StaticPermanentFunctionChecker;
 import org.apache.hadoop.hive.llap.daemon.rpc.LlapDaemonProtocolProtos;
 import org.apache.hadoop.hive.llap.tezplugins.LlapTezUtils;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.registry.client.binding.RegistryUtils;
 import org.apache.tez.dag.api.TezConfiguration;
 import org.codehaus.jettison.json.JSONException;
@@ -696,8 +697,8 @@ public class LlapServiceDriver {
     Map<String,String> udfs = new HashMap<String, String>();
     HiveConf hiveConf = new HiveConf();
     // disable expensive operations on the metastore
-    hiveConf.setBoolVar(HiveConf.ConfVars.METASTORE_INIT_METADATA_COUNT_ENABLED, false);
-    hiveConf.setBoolVar(HiveConf.ConfVars.METASTORE_METRICS, false);
+    MetastoreConf.setBoolVar(hiveConf, MetastoreConf.ConfVars.INIT_METADATA_COUNT_ENABLED, false);
+    MetastoreConf.setBoolVar(hiveConf, MetastoreConf.ConfVars.METRICS_ENABLED, false);
     // performance problem: ObjectStore does its own new HiveConf()
     Hive hive = Hive.getWithFastCheck(hiveConf, false);
     ResourceDownloader resourceDownloader =

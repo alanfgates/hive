@@ -375,6 +375,9 @@ public class MetastoreConf {
         "List of comma separated listeners for the end of metastore functions."),
     EVENT_CLEAN_FREQ("metastore.event.clean.freq", "hive.metastore.event.clean.freq", 0,
         TimeUnit.SECONDS, "Frequency at which timer task runs to purge expired events in metastore."),
+    EVENT_DB_LISTENER_TTL("metastore.event.db.listener.timetolive",
+        "hive.metastore.event.db.listener.timetolive", 86400, TimeUnit.SECONDS,
+        "time after which events will be removed from the database listener queue"),
     EVENT_DB_NOTIFICATION_API_AUTH("metastore.metastore.event.db.notification.api.auth",
         "hive.metastore.event.db.notification.api.auth", true,
         "Should metastore do authorization against database notification related APIs such as get_next_notification.\n" +
