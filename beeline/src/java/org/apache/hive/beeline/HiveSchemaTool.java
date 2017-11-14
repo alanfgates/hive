@@ -32,7 +32,6 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.hive.metastore.HiveMetaException;
 import org.apache.hadoop.hive.metastore.IMetaStoreSchemaInfo;
 import org.apache.hadoop.hive.metastore.MetaStoreSchemaInfoFactory;
@@ -1134,22 +1133,22 @@ public class HiveSchemaTool {
     }
 
 
-    System.setProperty(HiveConf.ConfVars.METASTORE_SCHEMA_VERIFICATION.varname, "true");
+    System.setProperty(MetastoreConf.ConfVars.SCHEMA_VERIFICATION.toString(), "true");
     try {
       HiveSchemaTool schemaTool = new HiveSchemaTool(dbType, metaDbType);
 
       if (line.hasOption("userName")) {
         schemaTool.setUserName(line.getOptionValue("userName"));
       } else {
-        schemaTool.setUserName(
-            schemaTool.getHiveConf().get(ConfVars.METASTORE_CONNECTION_USER_NAME.varname));
+        schemaTool.setUserName(MetastoreConf.getVar(schemaTool.getHiveConf(),
+            MetastoreConf.ConfVars.CONNECTION_USER_NAME));
       }
       if (line.hasOption("passWord")) {
         schemaTool.setPassWord(line.getOptionValue("passWord"));
       } else {
         try {
-          schemaTool.setPassWord(ShimLoader.getHadoopShims().getPassword(schemaTool.getHiveConf(),
-              HiveConf.ConfVars.METASTOREPWD.varname));
+          schemaTool.setPassWord(MetastoreConf.getPassword(schemaTool.getHiveConf(),
+              MetastoreConf.ConfVars.PWD));
         } catch (IOException err) {
           throw new HiveMetaException("Error getting metastore password", err);
         }
