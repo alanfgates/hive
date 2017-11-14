@@ -35,6 +35,7 @@ import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.PrimaryKeysRequest;
 import org.apache.hadoop.hive.metastore.api.SQLPrimaryKey;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.ql.metadata.TableIterable;
 import org.apache.hadoop.hive.ql.security.authorization.plugin.HiveOperationType;
 import org.apache.hadoop.hive.ql.security.authorization.plugin.HivePrivilegeObject;
@@ -159,7 +160,8 @@ public class GetColumnsOperation extends MetadataOperation {
         authorizeMetaGets(HiveOperationType.GET_COLUMNS, privObjs, cmdStr);
       }
 
-      int maxBatchSize = SessionState.get().getConf().getIntVar(ConfVars.METASTORE_BATCH_RETRIEVE_MAX);
+      int maxBatchSize = MetastoreConf.getIntVar(SessionState.get().getConf(),
+          MetastoreConf.ConfVars.BATCH_RETRIEVE_MAX);
       for (Entry<String, List<String>> dbTabs : db2Tabs.entrySet()) {
         String dbName = dbTabs.getKey();
         List<String> tableNames = dbTabs.getValue();

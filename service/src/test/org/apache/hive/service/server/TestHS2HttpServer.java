@@ -29,6 +29,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.hive.metastore.MetaStoreTestUtils;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -59,7 +60,7 @@ public class TestHS2HttpServer {
     webUIPort = MetaStoreTestUtils.findFreePortExcepting(
         Integer.valueOf(ConfVars.HIVE_SERVER2_WEBUI_PORT.getDefaultValue()));
     hiveConf = new HiveConf();
-    hiveConf.set(ConfVars.METASTOREPWD.varname, metastorePasswd);
+    MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.PWD, metastorePasswd);
     hiveConf.set(ConfVars.HIVE_SERVER2_WEBUI_PORT.varname, webUIPort.toString());
     hiveConf
     .setVar(HiveConf.ConfVars.HIVE_AUTHORIZATION_MANAGER,
@@ -122,7 +123,7 @@ public class TestHS2HttpServer {
           if (line.contains(metastorePasswd)){
             pwdValFound = line;
           }
-          if (line.contains(ConfVars.METASTOREPWD.varname)){
+          if (line.contains(MetastoreConf.ConfVars.PWD.getHiveName())){
             pwdKeyFound = line;
           }
         }
