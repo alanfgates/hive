@@ -42,6 +42,7 @@ import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.security.HadoopThriftAuthBridge;
 import org.apache.hadoop.hive.ql.io.RCFileInputFormat;
 import org.apache.hadoop.hive.ql.io.RCFileOutputFormat;
@@ -113,11 +114,10 @@ public class TestHCatPartitionPublish {
     System.setSecurityManager(new NoExitSecurityManager());
 
     hcatConf = new HiveConf(TestHCatPartitionPublish.class);
-    hcatConf.setVar(HiveConf.ConfVars.METASTOREURIS, "thrift://localhost:"
-        + msPort);
-    hcatConf.setIntVar(HiveConf.ConfVars.METASTORETHRIFTCONNECTIONRETRIES, 3);
-    hcatConf.setIntVar(HiveConf.ConfVars.METASTORETHRIFTFAILURERETRIES, 3);
-    hcatConf.setTimeVar(HiveConf.ConfVars.METASTORE_CLIENT_SOCKET_TIMEOUT, 120, TimeUnit.SECONDS);
+    MetastoreConf.setVar(hcatConf, MetastoreConf.ConfVars.THRIFT_URIS, "thrift://localhost:" + msPort);
+    MetastoreConf.setLongVar(hcatConf, MetastoreConf.ConfVars.THRIFT_CONNECTION_RETRIES, 3);
+    MetastoreConf.setLongVar(hcatConf, MetastoreConf.ConfVars.THRIFT_FAILURE_RETRIES, 3);
+    MetastoreConf.setTimeVar(hcatConf, MetastoreConf.ConfVars.CLIENT_SOCKET_TIMEOUT, 120, TimeUnit.SECONDS);
     hcatConf.set(HiveConf.ConfVars.SEMANTIC_ANALYZER_HOOK.varname,
         HCatSemanticAnalyzer.class.getName());
     hcatConf.set(HiveConf.ConfVars.PREEXECHOOKS.varname, "");

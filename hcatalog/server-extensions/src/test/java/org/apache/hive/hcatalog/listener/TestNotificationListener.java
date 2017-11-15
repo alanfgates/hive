@@ -42,8 +42,10 @@ import org.apache.hadoop.hive.cli.CliSessionState;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
+import org.apache.hadoop.hive.metastore.MetaStoreEventListener;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.PartitionEventType;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.ql.Driver;
 import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hive.hcatalog.common.HCatConstants;
@@ -108,8 +110,8 @@ public class TestNotificationListener extends HCatBaseTest implements MessageLis
     consumer3.setMessageListener(this);
 
     setUpHiveConf();
-    hiveConf.set(ConfVars.METASTORE_EVENT_LISTENERS.varname,
-        NotificationListener.class.getName());
+    MetastoreConf.setClass(hiveConf, MetastoreConf.ConfVars.EVENT_LISTENERS,
+        NotificationListener.class, MetaStoreEventListener.class);
     hiveConf
     .setVar(HiveConf.ConfVars.HIVE_AUTHORIZATION_MANAGER,
         "org.apache.hadoop.hive.ql.security.authorization.plugin.sqlstd.SQLStdHiveAuthorizerFactory");

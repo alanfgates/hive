@@ -18,10 +18,12 @@
 
 package org.apache.hive.hcatalog.streaming;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.hive.common.JavaUtils;
 import org.apache.hadoop.hive.metastore.api.DataOperationType;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.hive.cli.CliSessionState;
@@ -538,10 +540,10 @@ public class HiveEndPoint {
             throws ConnectionError {
 
       if (endPoint.metaStoreUri!= null) {
-        conf.setVar(HiveConf.ConfVars.METASTOREURIS, endPoint.metaStoreUri);
+        MetastoreConf.setVar(conf, MetastoreConf.ConfVars.THRIFT_URIS, endPoint.metaStoreUri);
       }
       if(secureMode) {
-        conf.setBoolVar(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL,true);
+        MetastoreConf.setBoolVar(conf, MetastoreConf.ConfVars.USE_THRIFT_SASL,true);
       }
       try {
         return HCatUtil.getHiveMetastoreClient(conf);
@@ -1059,7 +1061,7 @@ public class HiveEndPoint {
   static HiveConf createHiveConf(Class<?> clazz, String metaStoreUri) {
     HiveConf conf = new HiveConf(clazz);
     if (metaStoreUri!= null) {
-      setHiveConf(conf, HiveConf.ConfVars.METASTOREURIS, metaStoreUri);
+      setMetastoreConf(conf, MetastoreConf.ConfVars.THRIFT_URIS, metaStoreUri);
     }
     HiveEndPoint.overrideConfSettings(conf);
     return conf;
@@ -1069,7 +1071,7 @@ public class HiveEndPoint {
     setHiveConf(conf, HiveConf.ConfVars.HIVE_TXN_MANAGER,
             "org.apache.hadoop.hive.ql.lockmgr.DbTxnManager");
     setHiveConf(conf, HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY, true);
-    setHiveConf(conf, HiveConf.ConfVars.METASTORE_EXECUTE_SET_UGI, true);
+    setMetastoreConf(conf, MetastoreConf.ConfVars.EXECUTE_SET_UGI, true);
     // Avoids creating Tez Client sessions internally as it takes much longer currently
     setHiveConf(conf, HiveConf.ConfVars.HIVE_EXECUTION_ENGINE, "mr");
   }
@@ -1079,6 +1081,24 @@ public class HiveEndPoint {
       LOG.debug("Overriding HiveConf setting : " + var + " = " + value);
     }
     conf.setVar(var, value);
+  }
+
+  private static void setMetastoreConf(Configuration conf, MetastoreConf.ConfVars var,
+                                       String value) {
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Overriding HiveConf setting : " + var.toString() + " = " + value);
+    }
+    MetastoreConf.setVar(conf, var, value);
+
+  }
+
+  private static void setMetastoreConf(Configuration conf, MetastoreConf.ConfVars var,
+                                       boolean value) {
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Overriding HiveConf setting : " + var.toString() + " = " + value);
+    }
+    MetastoreConf.setBoolVar(conf, var, value);
+
   }
 
   private static void setHiveConf(HiveConf conf, HiveConf.ConfVars var, boolean value) {

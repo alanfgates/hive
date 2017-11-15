@@ -44,6 +44,7 @@ import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.Type;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.security.HadoopThriftAuthBridge;
 import org.apache.hadoop.hive.ql.io.HiveInputFormat;
 import org.apache.hadoop.hive.ql.io.HiveOutputFormat;
@@ -89,14 +90,14 @@ public class TestPermsGrp extends TestCase {
     System.setSecurityManager(new NoExitSecurityManager());
 
     hcatConf = new HiveConf(this.getClass());
-    hcatConf.setVar(HiveConf.ConfVars.METASTOREURIS, "thrift://127.0.0.1:" + msPort);
-    hcatConf.setIntVar(HiveConf.ConfVars.METASTORETHRIFTCONNECTIONRETRIES, 3);
-    hcatConf.setIntVar(HiveConf.ConfVars.METASTORETHRIFTFAILURERETRIES, 3);
+    MetastoreConf.setVar(hcatConf, MetastoreConf.ConfVars.THRIFT_URIS, "thrift://127.0.0.1:" + msPort);
+    MetastoreConf.setLongVar(hcatConf, MetastoreConf.ConfVars.THRIFT_CONNECTION_RETRIES, 3);
+    MetastoreConf.setLongVar(hcatConf, MetastoreConf.ConfVars.THRIFT_FAILURE_RETRIES, 3);
 
     hcatConf.set(HiveConf.ConfVars.SEMANTIC_ANALYZER_HOOK.varname, HCatSemanticAnalyzer.class.getName());
     hcatConf.set(HiveConf.ConfVars.PREEXECHOOKS.varname, "");
     hcatConf.set(HiveConf.ConfVars.POSTEXECHOOKS.varname, "");
-    hcatConf.setTimeVar(HiveConf.ConfVars.METASTORE_CLIENT_SOCKET_TIMEOUT, 60, TimeUnit.SECONDS);
+    MetastoreConf.setTimeVar(hcatConf, MetastoreConf.ConfVars.CLIENT_SOCKET_TIMEOUT, 60, TimeUnit.SECONDS);
     hcatConf.setBoolVar(HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY, false);
     clientWH = new Warehouse(hcatConf);
     msc = new HiveMetaStoreClient(hcatConf);

@@ -28,6 +28,8 @@ import org.apache.hadoop.hive.metastore.api.Function;
 import org.apache.hadoop.hive.metastore.api.Index;
 import org.apache.hadoop.hive.metastore.api.Partition;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf.ConfVars;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.hive.hcatalog.messaging.json.JSONMessageFactory;
 
@@ -57,8 +59,8 @@ public abstract class MessageFactory {
                                      + HCAT_MESSAGE_FORMAT,
                                      DEFAULT_MESSAGE_FACTORY_IMPL);
 
-  protected static final String HCAT_SERVER_URL = hiveConf.get(HiveConf.ConfVars.METASTOREURIS.name(), "");
-  protected static final String HCAT_SERVICE_PRINCIPAL = hiveConf.get(HiveConf.ConfVars.METASTORE_KERBEROS_PRINCIPAL.name(), "");
+  protected static final String HCAT_SERVER_URL = MetastoreConf.getVar(hiveConf, ConfVars.THRIFT_URIS);
+  protected static final String HCAT_SERVICE_PRINCIPAL = MetastoreConf.getVar(hiveConf, ConfVars.KERBEROS_PRINCIPAL);
 
   /**
    * Getter for MessageFactory instance.

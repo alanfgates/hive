@@ -37,6 +37,7 @@ import org.apache.hadoop.hive.metastore.api.LockRequest;
 import org.apache.hadoop.hive.metastore.api.LockResponse;
 import org.apache.hadoop.hive.metastore.api.LockState;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -206,7 +207,7 @@ public class Lock {
     int heartbeatPeriod = DEFAULT_HEARTBEAT_PERIOD;
     if (hiveConf != null) {
       // This value is always in seconds and includes an 's' suffix.
-      String txTimeoutSeconds = hiveConf.getVar(HiveConf.ConfVars.HIVE_TXN_TIMEOUT);
+      String txTimeoutSeconds = MetastoreConf.getVar(hiveConf, MetastoreConf.ConfVars.TXN_TIMEOUT);
       if (txTimeoutSeconds != null) {
         // We want to send the heartbeat at an interval that is less than the timeout.
         heartbeatPeriod = Math.max(1,

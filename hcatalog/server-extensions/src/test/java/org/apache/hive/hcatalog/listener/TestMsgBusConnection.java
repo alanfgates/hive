@@ -35,8 +35,10 @@ import org.apache.activemq.broker.BrokerService;
 import org.apache.hadoop.hive.cli.CliSessionState;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
+import org.apache.hadoop.hive.metastore.MetaStoreEventListener;
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.ql.Driver;
 import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hive.hcatalog.common.HCatConstants;
@@ -64,11 +66,11 @@ public class TestMsgBusConnection extends TestCase {
     System.setProperty("java.naming.provider.url", "tcp://localhost:61616");
     connectClient();
     HiveConf hiveConf = new HiveConf(this.getClass());
-    hiveConf.set(ConfVars.METASTORE_EVENT_LISTENERS.varname,
-        NotificationListener.class.getName());
+    MetastoreConf.setClass(hiveConf, MetastoreConf.ConfVars.EVENT_LISTENERS,
+        NotificationListener.class, MetaStoreEventListener.class);
     hiveConf.set(HiveConf.ConfVars.PREEXECHOOKS.varname, "");
     hiveConf.set(HiveConf.ConfVars.POSTEXECHOOKS.varname, "");
-    hiveConf.set(HiveConf.ConfVars.METASTOREURIS.varname, "");
+    MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.THRIFT_URIS, "");
     hiveConf.set(HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY.varname, "false");
     hiveConf.setVar(HiveConf.ConfVars.HIVE_AUTHORIZATION_MANAGER,
     "org.apache.hadoop.hive.ql.security.authorization.plugin.sqlstd.SQLStdHiveAuthorizerFactory");

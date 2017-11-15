@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -242,13 +243,18 @@ public class AppConfig extends Configuration {
    * the hive config to the webhcat config if not defined there.
    * Note that the user may choose to set the same keys in HIVE_PROPS_NAME directly, in which case
    * those values should take precedence.
+   * For MetastoreConf values, we put in both the old hive.metastore.bla key and the new
+   * metastore.bla key.
    */
   private void handleHiveProperties() {
     HiveConf hiveConf = new HiveConf();//load hive-site.xml from classpath
     List<String> interestingPropNames = Arrays.asList(
-        HiveConf.ConfVars.METASTOREURIS.varname,
-        HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL.varname,
-        HiveConf.ConfVars.METASTORE_EXECUTE_SET_UGI.varname,
+        MetastoreConf.ConfVars.THRIFT_URIS.getVarname(),
+        MetastoreConf.ConfVars.THRIFT_URIS.getHiveName(),
+        MetastoreConf.ConfVars.USE_THRIFT_SASL.getVarname(),
+        MetastoreConf.ConfVars.USE_THRIFT_SASL.getHiveName(),
+        MetastoreConf.ConfVars.EXECUTE_SET_UGI.getVarname(),
+        MetastoreConf.ConfVars.EXECUTE_SET_UGI.getHiveName(),
         HiveConf.ConfVars.HIVE_EXECUTION_ENGINE.varname,
         HiveConf.ConfVars.HIVE_CONF_HIDDEN_LIST.varname);
 

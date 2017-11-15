@@ -46,6 +46,7 @@ import org.apache.hadoop.hive.metastore.api.SQLNotNullConstraint;
 import org.apache.hadoop.hive.metastore.api.SQLPrimaryKey;
 import org.apache.hadoop.hive.metastore.api.SQLUniqueConstraint;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.events.AddForeignKeyEvent;
 import org.apache.hadoop.hive.metastore.events.AddIndexEvent;
 import org.apache.hadoop.hive.metastore.events.AddNotNullConstraintEvent;
@@ -101,7 +102,7 @@ public class DbNotificationListener extends TransactionalMetaStoreEventListener 
     if (cleaner == null) {
       cleaner =
           new CleanerThread(conf, RawStoreProxy.getProxy(conf, conf,
-              conf.getVar(HiveConf.ConfVars.METASTORE_RAW_STORE_IMPL), 999999));
+              MetastoreConf.getVar(conf, MetastoreConf.ConfVars.RAW_STORE_IMPL), 999999));
       cleaner.start();
     }
   }
@@ -123,14 +124,16 @@ public class DbNotificationListener extends TransactionalMetaStoreEventListener 
   @Override
   public void onConfigChange(ConfigChangeEvent tableEvent) throws MetaException {
     String key = tableEvent.getKey();
-    if (key.equals(HiveConf.ConfVars.METASTORE_EVENT_DB_LISTENER_TTL.toString())) {
+    if (key.equals(MetastoreConf.ConfVars.EVENT_DB_LISTENER_TTL.toString())) {
       // This weirdness of setting it in our conf and then reading back does two things.
       // One, it handles the conversion of the TimeUnit.  Two, it keeps the value around for
       // later in case we need it again.
-      hiveConf.set(HiveConf.ConfVars.METASTORE_EVENT_DB_LISTENER_TTL.name(),
-          tableEvent.getNewValue());
-      cleaner.setTimeToLive(hiveConf.getTimeVar(HiveConf.ConfVars.METASTORE_EVENT_DB_LISTENER_TTL,
-          TimeUnit.SECONDS));
+      long time = MetastoreConf.convertTimeStr(tableEvent.getNewValue(), TimeUnit.SECONDS,
+          TimeUnit.SECONDS);
+      MetastoreConf.setTimeVar(hiveConf, MetastoreConf.ConfVars.EVENT_DB_LISTENER_TTL, time,
+          TimeUnit.SECONDS);
+      cleaner.setTimeToLive(MetastoreConf.getTimeVar(hiveConf,
+          MetastoreConf.ConfVars.EVENT_DB_LISTENER_TTL, TimeUnit.SECONDS));
     }
   }
 
@@ -591,7 +594,7 @@ public class DbNotificationListener extends TransactionalMetaStoreEventListener 
     CleanerThread(HiveConf conf, RawStore rs) {
       super("CleanerThread");
       this.rs = rs;
-      setTimeToLive(conf.getTimeVar(HiveConf.ConfVars.METASTORE_EVENT_DB_LISTENER_TTL,
+      setTimeToLive(MetastoreConf.getTimeVar(conf, MetastoreConf.ConfVars.EVENT_DB_LISTENER_TTL,
           TimeUnit.SECONDS));
       setDaemon(true);
     }

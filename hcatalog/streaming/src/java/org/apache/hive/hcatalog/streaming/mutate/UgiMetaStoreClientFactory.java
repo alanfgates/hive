@@ -32,6 +32,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.MetaException;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.thrift.TException;
 
@@ -59,10 +60,10 @@ public class UgiMetaStoreClientFactory {
     this.user = user;
     this.secureMode = secureMode;
     if (metaStoreUri != null) {
-      conf.setVar(HiveConf.ConfVars.METASTOREURIS, metaStoreUri);
+      MetastoreConf.setVar(conf, MetastoreConf.ConfVars.THRIFT_URIS, metaStoreUri);
     }
     if (secureMode) {
-      conf.setBoolVar(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL, true);
+      MetastoreConf.setBoolVar(conf, MetastoreConf.ConfVars.USE_THRIFT_SASL, true);
     }
   }
 

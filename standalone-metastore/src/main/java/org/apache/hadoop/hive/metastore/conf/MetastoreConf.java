@@ -160,6 +160,25 @@ public class MetastoreConf {
     return changableFromClient.get(key);
   }
 
+  private static final Map<String, ConfVars> metastoreConfKeys;
+  static {
+    metastoreConfKeys = new HashMap<>(ConfVars.values().length);
+    for (ConfVars confVar : ConfVars.values()) {
+      metastoreConfKeys.put(confVar.varname, confVar);
+      metastoreConfKeys.put(confVar.hiveName, confVar);
+    }
+  }
+
+  /**
+   * Determine if a key has an associated ConfVars.
+   * @param key key string, can be the new metastore.bla key or an older hive.bla key.
+   * @return the associated ConvVars, or null if this does not correspond to any key managed by
+   * MetastoreConf.
+   */
+  public static ConfVars getVarFromKey(String key) {
+    return metastoreConfKeys.get(key);
+  }
+
   public enum ConfVars {
     // alpha order, PLEASE!
     AGGREGATE_STATS_CACHE_CLEAN_UNTIL("metastore.aggregate.stats.cache.clean.until",
@@ -1363,7 +1382,7 @@ public class MetastoreConf {
    * the default time unit appended with an appropriate abbreviation (eg s for seconds, ...)
    * @param conf configuration to read
    * @param var variable to read
-   * @return value as an object
+   * @return value as a string
    */
   public static String getAsString(Configuration conf, ConfVars var) {
     if (var.defaultVal.getClass() == String.class) {
@@ -1470,11 +1489,11 @@ public class MetastoreConf {
     if (originalEmbedded != isEmbeddedMetaStore(current)) return true;
     ConfVars[] varsToCheck = originalEmbedded ? ConfVars.values() : reconnectVars;
     for (ConfVars var : varsToCheck) {
-      String oldVar = original.get(var.getVarname());
+      String oldVar = MetastoreConf.getAsString(original, var);
       String newVar = MetastoreConf.getAsString(current, var);
       if (oldVar == null ||
           (var.isCaseSensitive() ? !oldVar.equals(newVar) : !oldVar.equalsIgnoreCase(newVar))) {
-        LOG.info("Mestastore configuration " + var.toString() +
+        LOG.info("Metastore configuration " + var.toString() +
             " changed from " + oldVar + " to " + newVar);
         return true;
       }
@@ -1516,13 +1535,13 @@ public class MetastoreConf {
     class StringSet implements Validator {
 
       private final boolean caseSensitive;
-      private final Set<String> expected = new LinkedHashSet<String>();
+      private final Set<String> expected = new LinkedHashSet<>();
 
-      public StringSet(String... values) {
+      StringSet(String... values) {
         this(false, values);
       }
 
-      public StringSet(boolean caseSensitive, String... values) {
+      StringSet(boolean caseSensitive, String... values) {
         this.caseSensitive = caseSensitive;
         for (String value : values) {
           expected.add(caseSensitive ? value : value.toLowerCase());
@@ -1530,7 +1549,7 @@ public class MetastoreConf {
       }
 
       public Set<String> getExpected() {
-        return new HashSet<String>(expected);
+        return new HashSet<>(expected);
       }
 
       @Override
@@ -1602,7 +1621,7 @@ public class MetastoreConf {
       private final TYPE type;
       private final Object lower, upper;
 
-      public RangeValidator(Object lower, Object upper) {
+      RangeValidator(Object lower, Object upper) {
         this.lower = lower;
         this.upper = upper;
         this.type = TYPE.valueOf(lower, upper);
@@ -1626,11 +1645,11 @@ public class MetastoreConf {
       private final Long max;
       private final boolean maxInclusive;
 
-      public TimeValidator(TimeUnit unit) {
+      TimeValidator(TimeUnit unit) {
         this(unit, null, false, null, false);
       }
 
-      public TimeValidator(TimeUnit unit, Long min, boolean minInclusive, Long max,
+      TimeValidator(TimeUnit unit, Long min, boolean minInclusive, Long max,
                            boolean maxInclusive) {
         this.unit = unit;
         this.min = min;

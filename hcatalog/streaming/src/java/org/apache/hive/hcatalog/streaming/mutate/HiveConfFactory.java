@@ -19,6 +19,7 @@ package org.apache.hive.hcatalog.streaming.mutate;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,7 +50,7 @@ public class HiveConfFactory {
   public static HiveConf newInstance(Class<?> clazz, String metaStoreUri) {
     HiveConf conf = new HiveConf(clazz);
     if (metaStoreUri != null) {
-      setHiveConf(conf, HiveConf.ConfVars.METASTOREURIS, metaStoreUri);
+      setMetastoreConf(conf, MetastoreConf.ConfVars.THRIFT_URIS, metaStoreUri);
     }
     overrideSettings(conf);
     return conf;
@@ -58,7 +59,7 @@ public class HiveConfFactory {
   public static void overrideSettings(HiveConf conf) {
     setHiveConf(conf, HiveConf.ConfVars.HIVE_TXN_MANAGER, TRANSACTION_MANAGER);
     setHiveConf(conf, HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY, true);
-    setHiveConf(conf, HiveConf.ConfVars.METASTORE_EXECUTE_SET_UGI, true);
+    setMetastoreConf(conf, MetastoreConf.ConfVars.EXECUTE_SET_UGI, true);
     // Avoids creating Tez Client sessions internally as it takes much longer currently
     setHiveConf(conf, HiveConf.ConfVars.HIVE_EXECUTION_ENGINE, "mr");
   }
@@ -77,4 +78,17 @@ public class HiveConfFactory {
     conf.setBoolVar(var, value);
   }
 
+  private static void setMetastoreConf(Configuration conf, MetastoreConf.ConfVars var, String value) {
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Overriding HiveConf setting : {} = {}", var, value);
+    }
+    MetastoreConf.setVar(conf, var, value);
+  }
+
+  private static void setMetastoreConf(Configuration conf, MetastoreConf.ConfVars var, boolean value) {
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("Overriding HiveConf setting : {} = {}", var, value);
+    }
+    MetastoreConf.setBoolVar(conf, var, value);
+  }
 }

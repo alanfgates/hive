@@ -30,6 +30,7 @@ import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hive.hcatalog.NoExitSecurityManager;
 import org.apache.hive.hcatalog.cli.SemanticAnalysis.HCatSemanticAnalyzer;
@@ -98,7 +99,8 @@ public class TestHiveClientCache {
     assertNotNull(client);
 
     // Set different uri as it is one of the criteria deciding whether to return the same client or not
-    hiveConf.setVar(HiveConf.ConfVars.METASTOREURIS, " "); // URIs are checked for string equivalence, even spaces make them different
+    // URIs are checked for string equivalence, even spaces make them different
+    MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.THRIFT_URIS, " ");
     IMetaStoreClient client2 = cache.get(hiveConf);
     assertNotNull(client2);
     assertNotSame(client, client2);
@@ -157,7 +159,7 @@ public class TestHiveClientCache {
   public void testCloseAllClients() throws IOException, MetaException, LoginException {
     final HiveClientCache cache = new HiveClientCache(1000);
     HiveClientCache.ICacheableMetaStoreClient client1 = (HiveClientCache.ICacheableMetaStoreClient) cache.get(hiveConf);
-    hiveConf.setVar(HiveConf.ConfVars.METASTOREURIS, " "); // URIs are checked for string equivalence, even spaces make them different
+    MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.THRIFT_URIS, " "); // URIs are checked for string equivalence, even spaces make them different
     HiveClientCache.ICacheableMetaStoreClient client2 = (HiveClientCache.ICacheableMetaStoreClient) cache.get(hiveConf);
     cache.closeAllClientsQuietly();
     assertTrue(client1.isClosed());
@@ -227,10 +229,10 @@ public class TestHiveClientCache {
       securityManager = System.getSecurityManager();
       System.setSecurityManager(new NoExitSecurityManager());
       hiveConf = new HiveConf(TestHiveClientCache.class);
-      hiveConf.setVar(HiveConf.ConfVars.METASTOREURIS, "thrift://localhost:"
+      MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.THRIFT_URIS, "thrift://localhost:"
           + MS_PORT);
-      hiveConf.setIntVar(HiveConf.ConfVars.METASTORETHRIFTCONNECTIONRETRIES, 3);
-      hiveConf.setIntVar(HiveConf.ConfVars.METASTORETHRIFTFAILURERETRIES, 3);
+      MetastoreConf.setLongVar(hiveConf, MetastoreConf.ConfVars.THRIFT_CONNECTION_RETRIES, 3);
+      MetastoreConf.setLongVar(hiveConf, MetastoreConf.ConfVars.THRIFT_FAILURE_RETRIES, 3);
       hiveConf.set(HiveConf.ConfVars.SEMANTIC_ANALYZER_HOOK.varname,
           HCatSemanticAnalyzer.class.getName());
       hiveConf.set(HiveConf.ConfVars.PREEXECHOOKS.varname, "");

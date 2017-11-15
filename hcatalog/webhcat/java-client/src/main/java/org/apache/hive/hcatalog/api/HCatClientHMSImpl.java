@@ -51,6 +51,7 @@ import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.UnknownDBException;
 import org.apache.hadoop.hive.metastore.api.UnknownTableException;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.utils.ObjectPair;
 import org.apache.hadoop.hive.ql.exec.FunctionRegistry;
 import org.apache.hadoop.hive.ql.exec.SerializationUtilities;
@@ -832,7 +833,12 @@ public class HCatClientHMSImpl extends HCatClient {
 
   @Override
   public String getConfVal(String key, String defaultVal) {
-    return hiveConfig.get(key,defaultVal);
+    // If this key is managed by MetastoreConf we need to ask MetastoreConf for it, otherwise the
+    // magic MetastoreConf does to map hive.metastore and metastore. keys back and forth will be
+    // missed and this call might get the wrong answer.
+    MetastoreConf.ConfVars msVar = MetastoreConf.getVarFromKey(key);
+    return msVar == null ? hiveConfig.get(key,defaultVal) :
+        MetastoreConf.getAsString(hiveConfig, msVar);
   }
 
   private Table getHiveTableLike(String dbName, String existingTblName,

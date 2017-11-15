@@ -30,6 +30,7 @@ import java.util.Set;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.hive.cli.CliSessionState;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.ql.CommandNeedRetryException;
 import org.apache.hadoop.hive.ql.Driver;
 import org.apache.hadoop.hive.ql.io.StorageFormats;
@@ -108,7 +109,7 @@ public class TestHCatStorerMulti {
       hiveConf.set(HiveConf.ConfVars.PREEXECHOOKS.varname, "");
       hiveConf.set(HiveConf.ConfVars.POSTEXECHOOKS.varname, "");
       hiveConf.set(HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY.varname, "false");
-      hiveConf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, TEST_WAREHOUSE_DIR);
+      MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.WAREHOUSE, TEST_WAREHOUSE_DIR);
       hiveConf.setVar(HiveConf.ConfVars.HIVEMAPREDMODE, "nonstrict");
       hiveConf
       .setVar(HiveConf.ConfVars.HIVE_AUTHORIZATION_MANAGER,

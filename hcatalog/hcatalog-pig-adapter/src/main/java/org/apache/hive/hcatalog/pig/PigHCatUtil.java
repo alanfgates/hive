@@ -38,6 +38,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.Warehouse;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hive.hcatalog.common.HCatConstants;
@@ -131,7 +132,7 @@ class PigHCatUtil {
 
   static public String getHCatServerUri(Job job) {
 
-    return job.getConfiguration().get(HiveConf.ConfVars.METASTOREURIS.varname);
+    return MetastoreConf.getVar(job.getConfiguration(), MetastoreConf.ConfVars.THRIFT_URIS);
   }
 
   static public String getHCatServerPrincipal(Job job) {
@@ -152,12 +153,12 @@ class PigHCatUtil {
     HiveConf hiveConf = new HiveConf(job.getConfiguration(), clazz);
 
     if (serverUri != null) {
-      hiveConf.setVar(HiveConf.ConfVars.METASTOREURIS, serverUri.trim());
+      MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.THRIFT_URIS, serverUri.trim());
     }
 
     if (serverKerberosPrincipal != null) {
-      hiveConf.setBoolVar(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL, true);
-      hiveConf.setVar(HiveConf.ConfVars.METASTORE_KERBEROS_PRINCIPAL, serverKerberosPrincipal);
+      MetastoreConf.setBoolVar(hiveConf, MetastoreConf.ConfVars.USE_THRIFT_SASL, true);
+      MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.KERBEROS_PRINCIPAL, serverKerberosPrincipal);
     }
 
     try {

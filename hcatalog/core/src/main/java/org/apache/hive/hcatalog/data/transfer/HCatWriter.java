@@ -26,6 +26,7 @@ import java.util.Map.Entry;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.classification.InterfaceAudience;
 import org.apache.hadoop.hive.common.classification.InterfaceStability;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hive.hcatalog.common.HCatException;
 import org.apache.hive.hcatalog.data.HCatRecord;
 import org.apache.hive.hcatalog.data.transfer.state.StateProvider;
@@ -108,7 +109,12 @@ public abstract class HCatWriter {
     if (config != null) {
       // user is providing config, so it could be null.
       for (Entry<String, String> kv : config.entrySet()) {
-        conf.set(kv.getKey(), kv.getValue());
+        // If this is a key managed by MetastoreConf we must set it using MetastoreConf.
+        // Otherwise we may have a situation where this sets the hive.metastore. key but
+        // something else sets the metastore. key and silently overrides it.
+        MetastoreConf.ConfVars msVar = MetastoreConf.getVarFromKey(kv.getKey());
+        if (msVar != null) MetastoreConf.setVar(conf, msVar, kv.getValue());
+        else conf.set(kv.getKey(), kv.getValue());
       }
     }
 

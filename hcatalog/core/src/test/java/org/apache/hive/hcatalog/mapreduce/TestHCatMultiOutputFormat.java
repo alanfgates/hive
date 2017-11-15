@@ -40,6 +40,7 @@ import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.ql.CompilationOpContext;
 import org.apache.hadoop.hive.ql.QueryState;
 import org.apache.hadoop.hive.ql.exec.FetchTask;
@@ -158,7 +159,7 @@ public class TestHCatMultiOutputFormat {
     warehousedir = new Path(System.getProperty("test.warehouse.dir"));
 
     HiveConf metastoreConf = new HiveConf();
-    metastoreConf.setVar(HiveConf.ConfVars.METASTOREWAREHOUSE, warehousedir.toString());
+    MetastoreConf.setVar(metastoreConf, MetastoreConf.ConfVars.WAREHOUSE, warehousedir.toString());
 
     // Run hive metastore server
     msPort = MetaStoreTestUtils.startMetaStore(metastoreConf);
@@ -182,9 +183,9 @@ public class TestHCatMultiOutputFormat {
   private static void initializeSetup() throws Exception {
 
     hiveConf = new HiveConf(mrConf, TestHCatMultiOutputFormat.class);
-    hiveConf.setVar(HiveConf.ConfVars.METASTOREURIS, "thrift://localhost:" + msPort);
-    hiveConf.setIntVar(HiveConf.ConfVars.METASTORETHRIFTCONNECTIONRETRIES, 3);
-    hiveConf.setIntVar(HiveConf.ConfVars.METASTORETHRIFTFAILURERETRIES, 3);
+    MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.THRIFT_URIS, "thrift://localhost:" + msPort);
+    MetastoreConf.setLongVar(hiveConf, MetastoreConf.ConfVars.THRIFT_CONNECTION_RETRIES, 3);
+    MetastoreConf.setLongVar(hiveConf, MetastoreConf.ConfVars.THRIFT_FAILURE_RETRIES, 3);
     hiveConf.set(HiveConf.ConfVars.SEMANTIC_ANALYZER_HOOK.varname,
       HCatSemanticAnalyzer.class.getName());
     hiveConf.set(HiveConf.ConfVars.PREEXECHOOKS.varname, "");
@@ -193,7 +194,7 @@ public class TestHCatMultiOutputFormat {
     System.setProperty(HiveConf.ConfVars.PREEXECHOOKS.varname, " ");
     System.setProperty(HiveConf.ConfVars.POSTEXECHOOKS.varname, " ");
 
-    hiveConf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, warehousedir.toString());
+    MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.WAREHOUSE, warehousedir.toString());
     try {
       hmsc = new HiveMetaStoreClient(hiveConf);
       initalizeTables();

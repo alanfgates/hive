@@ -64,6 +64,7 @@ import org.apache.hadoop.hive.metastore.api.TxnAbortedException;
 import org.apache.hadoop.hive.metastore.api.TxnInfo;
 import org.apache.hadoop.hive.metastore.api.TxnState;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.txn.AcidHouseKeeperService;
 import org.apache.hadoop.hive.metastore.txn.TxnDbUtil;
 import org.apache.hadoop.hive.ql.CommandNeedRetryException;
@@ -203,9 +204,9 @@ public class TestStreaming {
         "org.apache.hadoop.hive.ql.security.authorization.plugin.sqlstd.SQLStdHiveAuthorizerFactory");
     TxnDbUtil.setConfValues(conf);
     if (metaStoreURI!=null) {
-      conf.setVar(HiveConf.ConfVars.METASTOREURIS, metaStoreURI);
+      MetastoreConf.setVar(conf, MetastoreConf.ConfVars.THRIFT_URIS, metaStoreURI);
     }
-    conf.setBoolVar(HiveConf.ConfVars.METASTORE_EXECUTE_SET_UGI, true);
+    MetastoreConf.setBoolVar(conf, MetastoreConf.ConfVars.EXECUTE_SET_UGI, true);
     conf.setBoolVar(HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY, true);
     dbFolder.create();
 
@@ -736,9 +737,9 @@ public class TestStreaming {
 
     TransactionBatch txnBatch =  connection.fetchTransactionBatch(5, writer);
     txnBatch.beginNextTransaction();
-    conf.setTimeVar(HiveConf.ConfVars.HIVE_TIMEDOUT_TXN_REAPER_START, 0, TimeUnit.SECONDS);
+    MetastoreConf.setTimeVar(conf, MetastoreConf.ConfVars.TIMEDOUT_TXN_REAPER_START, 0, TimeUnit.SECONDS);
     //ensure txn timesout
-    conf.setTimeVar(HiveConf.ConfVars.HIVE_TXN_TIMEOUT, 1, TimeUnit.MILLISECONDS);
+    MetastoreConf.setTimeVar(conf, MetastoreConf.ConfVars.TXN_TIMEOUT, 1, TimeUnit.MILLISECONDS);
     AcidHouseKeeperService houseKeeperService = new AcidHouseKeeperService();
     houseKeeperService.setConf(conf);
     houseKeeperService.run();
