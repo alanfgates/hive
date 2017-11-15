@@ -133,6 +133,7 @@ import org.apache.hadoop.hive.metastore.api.SkewedInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.UniqueConstraintsRequest;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.utils.MetaStoreUtils;
 import org.apache.hadoop.hive.ql.ErrorMsg;
 import org.apache.hadoop.hive.ql.exec.AbstractFileMergeOperator;
@@ -2096,7 +2097,7 @@ private void constructOneLBLocationMap(FileStatus fSta,
    * @param partSpec
    * @param loadFileType
    * @param numDP number of dynamic partitions
-   * @param listBucketingEnabled
+   * @param numLB
    * @param isAcid true if this is an ACID operation
    * @param txnId txnId, can be 0 unless isAcid == true
    * @return partition map details (PartitionSpec and Partition)
@@ -2895,7 +2896,7 @@ private void constructOneLBLocationMap(FileStatus fSta,
     }
     List<Partition> partitions = new ArrayList<Partition>(partNames.size());
 
-    int batchSize = HiveConf.getIntVar(conf, HiveConf.ConfVars.METASTORE_BATCH_RETRIEVE_MAX);
+    int batchSize = MetastoreConf.getIntVar(conf, MetastoreConf.ConfVars.BATCH_RETRIEVE_MAX);
     // TODO: might want to increase the default batch size. 1024 is viable; MS gets OOM if too high.
     int nParts = partNames.size();
     int nBatches = nParts / batchSize;
@@ -4046,12 +4047,8 @@ private void constructOneLBLocationMap(FileStatus fSta,
         }
       };
 
-    if (conf.getBoolVar(ConfVars.METASTORE_FASTPATH)) {
-      return new SessionHiveMetaStoreClient(conf, hookLoader, allowEmbedded);
-    } else {
-      return RetryingMetaStoreClient.getProxy(conf, hookLoader, metaCallTimeMap,
-          SessionHiveMetaStoreClient.class.getName(), allowEmbedded);
-    }
+    return RetryingMetaStoreClient.getProxy(conf, hookLoader, metaCallTimeMap,
+        SessionHiveMetaStoreClient.class.getName(), allowEmbedded);
   }
 
   public static class SchemaException extends MetaException {
@@ -4118,7 +4115,7 @@ private void constructOneLBLocationMap(FileStatus fSta,
         }
         throw ex;
       }
-      String metaStoreUris = conf.getVar(HiveConf.ConfVars.METASTOREURIS);
+      String metaStoreUris = MetastoreConf.getVar(conf, MetastoreConf.ConfVars.THRIFT_URIS);
       if (!org.apache.commons.lang3.StringUtils.isEmpty(metaStoreUris)) {
         // get a synchronized wrapper if the meta store is remote.
         metaStoreClient = HiveMetaStoreClient.newSynchronizedClient(metaStoreClient);

@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.hive.ql.exec;
 
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -201,10 +202,10 @@ public class TestFileSinkOperator {
   @Before
   public void setup() throws Exception {
     jc = new JobConf();
-    jc.set(HiveConf.ConfVars.HIVE_STATS_DEFAULT_PUBLISHER.varname,
-        TFSOStatsPublisher.class.getName());
-    jc.set(HiveConf.ConfVars.HIVE_STATS_DEFAULT_AGGREGATOR.varname,
-        TFSOStatsAggregator.class.getName());
+    MetastoreConf.setClass(jc, MetastoreConf.ConfVars.STATS_DEFAULT_PUBLISHER,
+        TFSOStatsPublisher.class, StatsPublisher.class);
+    MetastoreConf.setClass(jc, MetastoreConf.ConfVars.STATS_DEFAULT_AGGREGATOR,
+        TFSOStatsAggregator.class, StatsAggregator.class);
     jc.set(HiveConf.ConfVars.HIVESTATSDBCLASS.varname, "custom");
   }
 

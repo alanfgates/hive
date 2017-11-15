@@ -37,6 +37,7 @@ import org.apache.hadoop.hive.metastore.api.OpenTxnsResponse;
 import org.apache.hadoop.hive.metastore.api.ShowCompactRequest;
 import org.apache.hadoop.hive.metastore.api.ShowCompactResponse;
 import org.apache.hadoop.hive.metastore.api.ShowCompactResponseElement;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -67,8 +68,8 @@ public class TestCompactionTxnHandler {
     TxnDbUtil.setConfValues(conf);
     // Set config so that TxnUtils.buildQueryWithINClauseStrings() will
     // produce multiple queries
-    conf.setIntVar(HiveConf.ConfVars.METASTORE_DIRECT_SQL_MAX_QUERY_LENGTH, 1);
-    conf.setIntVar(HiveConf.ConfVars.METASTORE_DIRECT_SQL_MAX_ELEMENTS_IN_CLAUSE, 10);
+    MetastoreConf.setLongVar(conf, MetastoreConf.ConfVars.DIRECT_SQL_MAX_QUERY_LENGTH, 1);
+    MetastoreConf.setLongVar(conf, MetastoreConf.ConfVars.DIRECT_SQL_MAX_ELEMENTS_IN_CLAUSE, 10);
     tearDown();
   }
 
@@ -258,7 +259,9 @@ public class TestCompactionTxnHandler {
     assertFalse(txnHandler.checkFailedCompactions(ci));
 
     // Add more failed compactions so that the total is exactly COMPACTOR_INITIATOR_FAILED_THRESHOLD
-    for (int i = 1 ; i <  conf.getIntVar(HiveConf.ConfVars.COMPACTOR_INITIATOR_FAILED_THRESHOLD); i++) {
+    for (int i = 1 ;
+         i <  MetastoreConf.getIntVar(conf, MetastoreConf.ConfVars.COMPACTOR_INITIATOR_FAILED_THRESHOLD);
+         i++) {
       addFailedCompaction("foo", "bar", CompactionType.MINOR, "ds=today");
     }
     // Now checkFailedCompactions() will return true

@@ -34,6 +34,7 @@ import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.mapred.TextInputFormat;
@@ -66,7 +67,7 @@ public class TestHiveMetaStoreChecker {
   @Before
   public void setUp() throws Exception {
     hive = Hive.get();
-    hive.getConf().setIntVar(HiveConf.ConfVars.METASTORE_FS_HANDLER_THREADS_COUNT, 15);
+    MetastoreConf.setLongVar(hive.getConf(), MetastoreConf.ConfVars.FS_HANDLER_THREADS_COUNT, 15);
     hive.getConf().set(HiveConf.ConfVars.HIVE_MSCK_PATH_VALIDATION.varname, "throw");
     checker = new HiveMetaStoreChecker(hive);
 
@@ -400,7 +401,7 @@ public class TestHiveMetaStoreChecker {
   public void testSingleThreadedCheckMetastore()
       throws HiveException, AlreadyExistsException, IOException {
     // set num of threads to 0 so that single-threaded checkMetastore is called
-    hive.getConf().setIntVar(HiveConf.ConfVars.METASTORE_FS_HANDLER_THREADS_COUNT, 0);
+    MetastoreConf.setLongVar(hive.getConf(), MetastoreConf.ConfVars.FS_HANDLER_THREADS_COUNT, 0);
     Table testTable = createPartitionedTestTable(dbName, tableName, 2, 0);
     // add 10 partitions on the filesystem
     createPartitionsDirectoriesOnFS(testTable, 10);
@@ -423,7 +424,7 @@ public class TestHiveMetaStoreChecker {
   public void testSingleThreadedDeeplyNestedTables()
       throws HiveException, AlreadyExistsException, IOException {
     // set num of threads to 0 so that single-threaded checkMetastore is called
-    hive.getConf().setIntVar(HiveConf.ConfVars.METASTORE_FS_HANDLER_THREADS_COUNT, 0);
+    MetastoreConf.setLongVar(hive.getConf(), MetastoreConf.ConfVars.FS_HANDLER_THREADS_COUNT, 0);
     int poolSize = 2;
     // create a deeply nested table which has more partition keys than the pool size
     Table testTable = createPartitionedTestTable(dbName, tableName, poolSize + 2, 0);
@@ -447,7 +448,7 @@ public class TestHiveMetaStoreChecker {
   @Test
   public void testDeeplyNestedPartitionedTables()
       throws HiveException, AlreadyExistsException, IOException {
-    hive.getConf().setIntVar(HiveConf.ConfVars.METASTORE_FS_HANDLER_THREADS_COUNT, 2);
+    MetastoreConf.setLongVar(hive.getConf(), MetastoreConf.ConfVars.FS_HANDLER_THREADS_COUNT, 2);
     int poolSize = 2;
     // create a deeply nested table which has more partition keys than the pool size
     Table testTable = createPartitionedTestTable(dbName, tableName, poolSize + 2, 0);
@@ -547,7 +548,7 @@ public class TestHiveMetaStoreChecker {
   public void testErrorForMissingPartitionsSingleThreaded()
       throws AlreadyExistsException, HiveException, IOException {
     // set num of threads to 0 so that single-threaded checkMetastore is called
-    hive.getConf().setIntVar(HiveConf.ConfVars.METASTORE_FS_HANDLER_THREADS_COUNT, 0);
+    MetastoreConf.setLongVar(hive.getConf(), MetastoreConf.ConfVars.FS_HANDLER_THREADS_COUNT, 0);
     Table testTable = createPartitionedTestTable(dbName, tableName, 2, 0);
     // add 10 partitions on the filesystem
     createPartitionsDirectoriesOnFS(testTable, 10);

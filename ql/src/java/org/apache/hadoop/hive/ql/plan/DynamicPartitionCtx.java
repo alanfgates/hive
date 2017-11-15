@@ -26,6 +26,7 @@ import java.util.regex.Pattern;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.hive.metastore.Warehouse;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.ql.metadata.Hive;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.Table;
@@ -79,7 +80,8 @@ public class DynamicPartitionCtx implements Serializable {
     }
     String confVal;
     try {
-      confVal = Hive.get().getMetaConf(ConfVars.METASTORE_PARTITION_NAME_WHITELIST_PATTERN.varname);
+      confVal =
+          Hive.get().getMetaConf(MetastoreConf.ConfVars.PARTITION_NAME_WHITELIST_PATTERN.toString());
     } catch (HiveException e) {
       throw new SemanticException(e);
     }

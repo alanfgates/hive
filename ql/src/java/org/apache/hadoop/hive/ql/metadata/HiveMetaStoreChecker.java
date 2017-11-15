@@ -38,6 +38,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import com.google.common.collect.Sets;
 import org.apache.hadoop.hive.common.StringInternUtils;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.ql.log.PerfLogger;
 import org.apache.hadoop.hive.ql.session.SessionState;
 import org.slf4j.Logger;
@@ -217,8 +218,8 @@ public class HiveMetaStoreChecker {
       if (partitions == null || partitions.isEmpty()) {
         String mode = HiveConf.getVar(conf, ConfVars.HIVEMAPREDMODE, (String) null);
         if ("strict".equalsIgnoreCase(mode)) {
-          parts = new PartitionIterable(hive, table, null, conf.getIntVar(
-              HiveConf.ConfVars.METASTORE_BATCH_RETRIEVE_MAX));
+          parts = new PartitionIterable(hive, table, null, MetastoreConf.getIntVar(
+              conf, MetastoreConf.ConfVars.BATCH_RETRIEVE_MAX));
         } else {
           List<Partition> loadedPartitions = new ArrayList<>();
           PerfLogger perfLogger = SessionState.getPerfLogger();
@@ -414,7 +415,7 @@ public class HiveMetaStoreChecker {
    *          Start directory
    * @param allDirs
    *          This set will contain the leaf paths at the end.
-   * @param list
+   * @param partColNames
    *          Specify how deep the search goes.
    * @throws IOException
    *           Thrown if we can't get lists from the fs.
@@ -423,11 +424,11 @@ public class HiveMetaStoreChecker {
 
   private void checkPartitionDirs(Path basePath, Set<Path> allDirs, final List<String> partColNames) throws IOException, HiveException {
     // Here we just reuse the THREAD_COUNT configuration for
-    // METASTORE_FS_HANDLER_THREADS_COUNT since this results in better performance
+    // FS_HANDLER_THREADS_COUNT since this results in better performance
     // The number of missing partitions discovered are later added by metastore using a
-    // threadpool of size METASTORE_FS_HANDLER_THREADS_COUNT. If we have different sized
+    // threadpool of size FS_HANDLER_THREADS_COUNT. If we have different sized
     // pool here the smaller sized pool of the two becomes a bottleneck
-    int poolSize = conf.getInt(ConfVars.METASTORE_FS_HANDLER_THREADS_COUNT.varname, 15);
+    int poolSize = MetastoreConf.getIntVar(conf, MetastoreConf.ConfVars.FS_HANDLER_THREADS_COUNT);
 
     ExecutorService executor;
     if (poolSize <= 1) {

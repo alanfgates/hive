@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.hive.ql.io.merge;
 
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.ql.exec.mr.ExecDriver;
 
 import org.apache.commons.lang.StringUtils;
@@ -134,10 +135,7 @@ public class MergeFileTask extends Task<MergeFileWork> implements Serializable,
       Utilities.setMapWork(job, work, ctx.getMRTmpPath(), true);
 
       // remove pwd from conf file so that job tracker doesn't show this logs
-      String pwd = HiveConf.getVar(job, HiveConf.ConfVars.METASTOREPWD);
-      if (pwd != null) {
-        HiveConf.setVar(job, HiveConf.ConfVars.METASTOREPWD, "HIVE");
-      }
+      MetastoreConf.obfuscatePassword(job, "HIVE");
 
       // submit the job
       JobClient jc = new JobClient(job);

@@ -426,35 +426,15 @@ public class HiveConf extends Configuration {
         "HDFS root scratch dir for Hive jobs which gets created with write all (733) permission. " +
         "For each connecting user, an HDFS scratch dir: ${hive.exec.scratchdir}/<username> is created, " +
         "with ${hive.scratch.dir.permission}."),
-    /**
-     * @deprecated use MetastoreConf REPLDIR
-     */
-    @Deprecated
     REPLDIR("hive.repl.rootdir","/user/hive/repl/",
         "HDFS root dir for all replication dumps."),
-    /**
-     * @deprecated use MetastoreConf REPLCMENABLED
-     */
-    @Deprecated
     REPLCMENABLED("hive.repl.cm.enabled", false,
         "Turn on ChangeManager, so delete files will go to cmrootdir."),
-    /**
-     * @deprecated use MetastoreConf REPLCMDIR
-     */
-    @Deprecated
     REPLCMDIR("hive.repl.cmrootdir","/user/hive/cmroot/",
         "Root dir for ChangeManager, used for deleted files."),
-    /**
-     * @deprecated use MetastoreConf REPLCMRETIAN
-     */
-    @Deprecated
     REPLCMRETIAN("hive.repl.cm.retain","24h",
         new TimeValidator(TimeUnit.HOURS),
         "Time to retain removed files in cmrootdir."),
-    /**
-     * @deprecated use MetastoreConf REPLCMINTERVAL
-     */
-    @Deprecated
     REPLCMINTERVAL("hive.repl.cm.interval","3600s",
         new TimeValidator(TimeUnit.SECONDS),
         "Inteval for cmroot cleanup thread."),
@@ -467,17 +447,9 @@ public class HiveConf extends Configuration {
             + "task increment that would cross the specified limit."),
     REPL_PARTITIONS_DUMP_PARALLELISM("hive.repl.partitions.dump.parallelism",100,
         "Number of threads that will be used to dump partition data information during repl dump."),
-    /**
-     * @deprecated Use MetastoreConf REPL_DUMPDIR_CLEAN_FREQ
-     */
-    @Deprecated
     REPL_DUMPDIR_CLEAN_FREQ("hive.repl.dumpdir.clean.freq", "0s",
         new TimeValidator(TimeUnit.SECONDS),
         "Frequency at which timer task runs to purge expired dump dirs."),
-    /**
-     * @deprecated Use MetastoreConf REPL_DUMPDIR_TTL
-     */
-    @Deprecated
     REPL_DUMPDIR_TTL("hive.repl.dumpdir.ttl", "7d",
         new TimeValidator(TimeUnit.DAYS),
         "TTL of dump dirs before cleanup."),

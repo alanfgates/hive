@@ -59,6 +59,7 @@ import org.apache.hadoop.hive.conf.HiveConfUtil;
 import org.apache.hadoop.hive.metastore.ObjectStore;
 import org.apache.hadoop.hive.metastore.api.ColumnStatisticsObj;
 import org.apache.hadoop.hive.metastore.cache.CachedStore;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.ql.MapRedStats;
 import org.apache.hadoop.hive.ql.exec.Registry;
 import org.apache.hadoop.hive.ql.exec.Utilities;
@@ -926,14 +927,15 @@ public class SessionState {
     if (sessionConf.get(CONFIG_AUTHZ_SETTINGS_APPLIED_MARKER, "").equals(Boolean.TRUE.toString())) {
       return;
     }
-    String metastoreHook = sessionConf.get(ConfVars.METASTORE_FILTER_HOOK.name());
-    if (!ConfVars.METASTORE_FILTER_HOOK.getDefaultValue().equals(metastoreHook) &&
+    String metastoreHook =
+        MetastoreConf.getVar(sessionConf, MetastoreConf.ConfVars.FILTER_HOOK);
+    if (!MetastoreConf.ConfVars.FILTER_HOOK.getDefaultVal().equals(metastoreHook) &&
         !AuthorizationMetaStoreFilterHook.class.getName().equals(metastoreHook)) {
-      LOG.warn(ConfVars.METASTORE_FILTER_HOOK.name() +
+      LOG.warn(MetastoreConf.ConfVars.FILTER_HOOK.toString() +
           " will be ignored, since hive.security.authorization.manager" +
           " is set to instance of HiveAuthorizerFactory.");
     }
-    sessionConf.setVar(ConfVars.METASTORE_FILTER_HOOK,
+    MetastoreConf.setVar(sessionConf, MetastoreConf.ConfVars.FILTER_HOOK,
         AuthorizationMetaStoreFilterHook.class.getName());
 
     authorizerV2.applyAuthorizationConfigPolicy(sessionConf);
@@ -1755,14 +1757,14 @@ public class SessionState {
 
   private void unCacheDataNucleusClassLoaders() {
     try {
-      boolean isLocalMetastore =
-          HiveConfUtil.isEmbeddedMetaStore(sessionConf.getVar(HiveConf.ConfVars.METASTOREURIS));
+      boolean isLocalMetastore = HiveConfUtil.isEmbeddedMetaStore(
+          MetastoreConf.getVar(sessionConf, MetastoreConf.ConfVars.THRIFT_URIS));
       if (isLocalMetastore) {
-        if (sessionConf.getVar(ConfVars.METASTORE_RAW_STORE_IMPL)
+        if (MetastoreConf.getVar(sessionConf, MetastoreConf.ConfVars.RAW_STORE_IMPL)
             .equals(ObjectStore.class.getName()) ||
-            sessionConf.getVar(ConfVars.METASTORE_RAW_STORE_IMPL)
-                .equals(CachedStore.class.getName()) && sessionConf
-                .getVar(ConfVars.METASTORE_CACHED_RAW_STORE_IMPL)
+            MetastoreConf.getVar(sessionConf, MetastoreConf.ConfVars.RAW_STORE_IMPL)
+                .equals(CachedStore.class.getName()) &&
+                MetastoreConf.getVar(sessionConf, MetastoreConf.ConfVars.CACHED_RAW_STORE_IMPL)
                 .equals(ObjectStore.class.getName())) {
           ObjectStore.unCacheDataNucleusClassLoaders();
         }

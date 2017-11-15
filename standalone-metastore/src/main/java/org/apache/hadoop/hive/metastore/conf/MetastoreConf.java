@@ -522,28 +522,6 @@ public class MetastoreConf {
         "org.apache.hadoop.hive.metastore.ObjectStore",
         "Name of the class that implements org.apache.riven.rawstore interface. \n" +
             "This class is used to store and retrieval of raw metadata objects such as table, database"),
-    REPL_COPYFILE_MAXNUMFILES("metastore.repl.copyfile.maxnumfiles",
-        "hive.exec.copyfile.maxnumfiles", 1L,
-        "Maximum number of files Hive uses to do sequential HDFS copies between directories." +
-            "Distributed copies (distcp) will be used instead for larger numbers of files so that copies can be done faster."),
-    REPL_COPYFILE_MAXSIZE("metastore.repl.copyfile.maxsize",
-        "hive.exec.copyfile.maxsize", 32L * 1024 * 1024 /*32M*/,
-        "Maximum file size (in bytes) that Hive uses to do single HDFS copies between directories." +
-            "Distributed copies (distcp) will be used instead for bigger files so that copies can be done faster."),
-    REPL_DUMPDIR_CLEAN_FREQ("metastore.repl.dumpdir.clean.freq", "hive.repl.dumpdir.clean.freq",
-        0, TimeUnit.SECONDS, "Frequency at which timer task runs to purge expired dump dirs."),
-    REPL_DUMPDIR_TTL("metastore.repl.dumpdir.ttl", "hive.repl.dumpdir.ttl", 7, TimeUnit.DAYS,
-        "TTL of dump dirs before cleanup."),
-    REPLCMDIR("metastore.repl.cmrootdir", "hive.repl.cmrootdir", "/user/hive/cmroot/",
-        "Root dir for ChangeManager, used for deleted files."),
-    REPLCMRETIAN("metastore.repl.cm.retain", "hive.repl.cm.retain",  24, TimeUnit.HOURS,
-        "Time to retain removed files in cmrootdir."),
-    REPLCMINTERVAL("metastore.repl.cm.interval", "hive.repl.cm.interval", 3600, TimeUnit.SECONDS,
-        "Inteval for cmroot cleanup thread."),
-    REPLCMENABLED("metastore.repl.cm.enabled", "hive.repl.cm.enabled", false,
-        "Turn on ChangeManager, so delete files will go to cmrootdir."),
-    REPLDIR("metastore.repl.rootdir", "hive.repl.rootdir", "/user/hive/repl/",
-        "HDFS root dir for all replication dumps."),
     SCHEMA_INFO_CLASS("metastore.schema.info.class", "hive.metastore.schema.info.class",
         "org.apache.hadoop.hive.metastore.MetaStoreSchemaInfo",
         "Fully qualified class name for the metastore schema information class \n"
@@ -584,8 +562,6 @@ public class MetastoreConf {
         "Metastore SSL certificate keystore password."),
     SSL_KEYSTORE_PATH("metastore.keystore.path", "hive.metastore.keystore.path", "",
         "Metastore SSL certificate keystore location."),
-    SSL_PROTOCOL_BLACKLIST("metastore.ssl.protocol.blacklist", "hive.ssl.protocol.blacklist",
-        "SSLv2,SSLv3", "SSL Versions to disable for all Hive Servers"),
     SSL_TRUSTSTORE_PASSWORD("metastore.truststore.password", "hive.metastore.truststore.password", "",
         "Metastore SSL certificate truststore password."),
     SSL_TRUSTSTORE_PATH("metastore.truststore.path", "hive.metastore.truststore.path", "",
@@ -701,7 +677,7 @@ public class MetastoreConf {
         "Frequency of WriteSet reaper runs"),
 
     // Values shared with Hive.  These are duplicated because metastore needs them, but they
-    // really belong primarily in Hive.
+    // either belong primarily in Hive or are used equally by both.
     ADDED_JARS("hive.added.jars.path", "hive.added.jars.path", "",
         "This an internal parameter."),
     ASYNC_LOG_ENABLED("hive.async.log.enabled", "hive.async.log.enabled", true,
@@ -715,6 +691,30 @@ public class MetastoreConf {
         "The default partition name in case the dynamic partition column value is null/empty string or any other values that cannot be escaped. \n" +
             "This value must not contain any special character used in HDFS URI (e.g., ':', '%', '/' etc). \n" +
             "The user has to be aware that the dynamic partition value should not contain this value to avoid confusions."),
+    REPL_COPYFILE_MAXNUMFILES("metastore.repl.copyfile.maxnumfiles",
+        "hive.exec.copyfile.maxnumfiles", 1L,
+        "Maximum number of files Hive uses to do sequential HDFS copies between directories." +
+            "Distributed copies (distcp) will be used instead for larger numbers of files so that copies can be done faster."),
+    REPL_COPYFILE_MAXSIZE("metastore.repl.copyfile.maxsize",
+        "hive.exec.copyfile.maxsize", 32L * 1024 * 1024 /*32M*/,
+        "Maximum file size (in bytes) that Hive uses to do single HDFS copies between directories." +
+            "Distributed copies (distcp) will be used instead for bigger files so that copies can be done faster."),
+    REPL_DUMPDIR_CLEAN_FREQ("metastore.repl.dumpdir.clean.freq", "hive.repl.dumpdir.clean.freq",
+        0, TimeUnit.SECONDS, "Frequency at which timer task runs to purge expired dump dirs."),
+    REPL_DUMPDIR_TTL("metastore.repl.dumpdir.ttl", "hive.repl.dumpdir.ttl", 7, TimeUnit.DAYS,
+        "TTL of dump dirs before cleanup."),
+    REPLCMDIR("metastore.repl.cmrootdir", "hive.repl.cmrootdir", "/user/hive/cmroot/",
+        "Root dir for ChangeManager, used for deleted files."),
+    REPLCMRETIAN("metastore.repl.cm.retain", "hive.repl.cm.retain",  24, TimeUnit.HOURS,
+        "Time to retain removed files in cmrootdir."),
+    REPLCMINTERVAL("metastore.repl.cm.interval", "hive.repl.cm.interval", 3600, TimeUnit.SECONDS,
+        "Inteval for cmroot cleanup thread."),
+    REPLCMENABLED("metastore.repl.cm.enabled", "hive.repl.cm.enabled", false,
+        "Turn on ChangeManager, so delete files will go to cmrootdir."),
+    REPLDIR("metastore.repl.rootdir", "hive.repl.rootdir", "/user/hive/repl/",
+        "HDFS root dir for all replication dumps."),
+    SSL_PROTOCOL_BLACKLIST("metastore.ssl.protocol.blacklist", "hive.ssl.protocol.blacklist",
+        "SSLv2,SSLv3", "SSL Versions to disable for all Hive Servers"),
     STATS_AUTO_GATHER("hive.stats.autogather", "hive.stats.autogather", true,
         "A flag to gather statistics (only basic) automatically during the INSERT OVERWRITE command."),
     USERS_IN_ADMIN_ROLE("hive.users.in.admin.role", "hive.users.in.admin.role", "", false,
@@ -1480,6 +1480,25 @@ public class MetastoreConf {
       }
     }
     return false;
+  }
+
+  /**
+   * Obfuscate the PWD entry in a conf file.  This is useful if you are going to pass the file to
+   * another entity (like MR) that might mindlessly log the entire conf file.
+   * @param conf configuration object
+   * @param obfuscatedPassword value to substitute for the password.  This can be left null in
+   *                           which case a suitably amusing alternative will be chosen.
+   * @return old password, in case you want to switch it back at some point.
+   * @throws IOException if thrown by getPassword underneath.
+   */
+  public static String obfuscatePassword(Configuration conf, String obfuscatedPassword)
+      throws IOException {
+    String oldPassword = getPassword(conf, ConfVars.PWD);
+    String newPasswd = obfuscatedPassword == null ? "this password intentionally left blank" :
+        obfuscatedPassword;
+    conf.set(ConfVars.PWD.varname, newPasswd);
+    conf.set(ConfVars.PWD.hiveName, newPasswd);
+    return oldPassword;
   }
 
   /**

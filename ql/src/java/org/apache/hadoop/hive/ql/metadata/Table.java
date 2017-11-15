@@ -49,6 +49,7 @@ import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.SkewedInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.utils.MetaStoreUtils;
 import org.apache.hadoop.hive.ql.exec.Utilities;
 import org.apache.hadoop.hive.ql.io.HiveFileFormatUtils;
@@ -966,8 +967,8 @@ public class Table implements Serializable {
   }
 
   public static boolean hasMetastoreBasedSchema(HiveConf conf, String serdeLib) {
-    return StringUtils.isEmpty(serdeLib) ||
-        conf.getStringCollection(ConfVars.SERDESUSINGMETASTOREFORSCHEMA.varname).contains(serdeLib);
+    return StringUtils.isEmpty(serdeLib) || MetastoreConf.getStringCollection(conf,
+        MetastoreConf.ConfVars.SERDES_USING_METASTORE_FOR_SCHEMA).contains(serdeLib);
   }
 
   public static boolean shouldStoreFieldsInMetastore(

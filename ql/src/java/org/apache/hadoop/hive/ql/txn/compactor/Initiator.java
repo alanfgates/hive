@@ -34,6 +34,7 @@ import org.apache.hadoop.hive.metastore.api.ShowCompactResponseElement;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.txn.CompactionInfo;
 import org.apache.hadoop.hive.metastore.txn.TxnStore;
 import org.apache.hadoop.hive.metastore.txn.TxnUtils;
@@ -131,7 +132,8 @@ public class Initiator extends CompactorThread {
               }
               if(txnHandler.checkFailedCompactions(ci)) {
                 LOG.warn("Will not initiate compaction for " + ci.getFullPartitionName() + " since last "
-                  + HiveConf.ConfVars.COMPACTOR_INITIATOR_FAILED_THRESHOLD + " attempts to compact it failed.");
+                  + MetastoreConf.ConfVars.COMPACTOR_INITIATOR_FAILED_THRESHOLD.toString() +
+                    " attempts to compact it failed.");
                 txnHandler.markFailed(ci);
                 continue;
               }

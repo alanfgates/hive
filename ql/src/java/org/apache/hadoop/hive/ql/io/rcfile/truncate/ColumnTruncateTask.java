@@ -26,6 +26,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.common.JavaUtils;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.ql.CompilationOpContext;
 import org.apache.hadoop.hive.ql.Context;
 import org.apache.hadoop.hive.ql.DriverContext;
@@ -170,10 +171,7 @@ public class ColumnTruncateTask extends Task<ColumnTruncateWork> implements Seri
 
       // remove the pwd from conf file so that job tracker doesn't show this
       // logs
-      String pwd = HiveConf.getVar(job, HiveConf.ConfVars.METASTOREPWD);
-      if (pwd != null) {
-        HiveConf.setVar(job, HiveConf.ConfVars.METASTOREPWD, "HIVE");
-      }
+      MetastoreConf.obfuscatePassword(job, "HIVE");
       JobClient jc = new JobClient(job);
 
       String addedJars = Utilities.getResourceFiles(job, SessionState.ResourceType.JAR);

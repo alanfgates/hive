@@ -102,6 +102,7 @@ import org.apache.hadoop.hive.metastore.api.ShowLocksResponseElement;
 import org.apache.hadoop.hive.metastore.api.SkewedInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.TxnInfo;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.txn.TxnStore;
 import org.apache.hadoop.hive.metastore.utils.MetaStoreUtils;
 import org.apache.hadoop.hive.ql.CompilationOpContext;
@@ -3541,7 +3542,8 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
             valueMap.put(stat, 0L);
             stateMap.put(stat, true);
           }
-          PartitionIterable parts = new PartitionIterable(db, tbl, null, conf.getIntVar(HiveConf.ConfVars.METASTORE_BATCH_RETRIEVE_MAX));
+          PartitionIterable parts = new PartitionIterable(db, tbl, null,
+              MetastoreConf.getIntVar(conf, MetastoreConf.ConfVars.BATCH_RETRIEVE_MAX));
           int numParts = 0;
           for (Partition partition : parts) {
             Map<String, String> props = partition.getParameters();
@@ -3575,7 +3577,8 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
               if (tbl.isPartitionKey(colNames.get(0))) {
                 FieldSchema partCol = tbl.getPartColByName(colNames.get(0));
                 cols = Collections.singletonList(partCol);
-                PartitionIterable parts = new PartitionIterable(db, tbl, null, conf.getIntVar(HiveConf.ConfVars.METASTORE_BATCH_RETRIEVE_MAX));
+                PartitionIterable parts = new PartitionIterable(db, tbl, null,
+                    MetastoreConf.getIntVar(conf, MetastoreConf.ConfVars.BATCH_RETRIEVE_MAX));
                 ColumnInfo ci = new ColumnInfo(partCol.getName(),TypeInfoUtils.getTypeInfoFromTypeString(partCol.getType()),null,false);
                 ColStatistics cs = StatsUtils.getColStatsForPartCol(ci, parts, conf);
                 ColumnStatisticsData data = new ColumnStatisticsData();
@@ -4319,7 +4322,7 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
     Hive db = getHive();
     if (tbl.getPartitionKeys().size() > 0) {
       PartitionIterable parts = new PartitionIterable(db, tbl, null,
-          HiveConf.getIntVar(conf, ConfVars.METASTORE_BATCH_RETRIEVE_MAX));
+          MetastoreConf.getIntVar(conf, MetastoreConf.ConfVars.BATCH_RETRIEVE_MAX));
       Iterator<Partition> partIter = parts.iterator();
       while (partIter.hasNext()) {
         Partition part = partIter.next();
@@ -4569,7 +4572,7 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
         if (tbl.isPartitioned()){
 
           PartitionIterable partitions = new PartitionIterable(db,tbl,null,
-                  conf.getIntVar(HiveConf.ConfVars.METASTORE_BATCH_RETRIEVE_MAX));
+                  MetastoreConf.getIntVar(conf, MetastoreConf.ConfVars.BATCH_RETRIEVE_MAX));
 
           for (Partition p : Iterables.filter(partitions, replicationSpec.allowEventReplacementInto())){
             db.dropPartition(tbl.getDbName(),tbl.getTableName(),p.getValues(),true);
@@ -5162,9 +5165,10 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
       // Location is not set, leave it as-is if this is not a default DB
       if (databaseName.equalsIgnoreCase(Warehouse.DEFAULT_DATABASE_NAME))
       {
-        // Default database name path is always ignored, use METASTOREWAREHOUSE and object name
+        // Default database name path is always ignored, use WAREHOUSE and object name
         // instead
-        path = new Path(HiveConf.getVar(conf, HiveConf.ConfVars.METASTOREWAREHOUSE), org.apache.hadoop.hive.metastore.utils.MetaStoreUtils.encodeTableName(name.toLowerCase()));
+        path = new Path(MetastoreConf.getVar(conf, MetastoreConf.ConfVars.WAREHOUSE),
+            org.apache.hadoop.hive.metastore.utils.MetaStoreUtils.encodeTableName(name.toLowerCase()));
       }
     }
     else
@@ -5193,9 +5197,9 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
       // Location is not set, leave it as-is if index doesn't belong to default DB
       // Currently all indexes are created in current DB only
       if (Utilities.getDatabaseName(name).equalsIgnoreCase(Warehouse.DEFAULT_DATABASE_NAME)) {
-        // Default database name path is always ignored, use METASTOREWAREHOUSE and object name
+        // Default database name path is always ignored, use WAREHOUSE and object name
         // instead
-        String warehouse = HiveConf.getVar(conf, ConfVars.METASTOREWAREHOUSE);
+        String warehouse = MetastoreConf.getVar(conf, MetastoreConf.ConfVars.WAREHOUSE);
         String tableName = Utilities.getTableName(name);
         path = new Path(warehouse, tableName.toLowerCase());
       }
@@ -5221,9 +5225,9 @@ public class DDLTask extends Task<DDLWork> implements Serializable {
       database.setLocationUri(Utilities.getQualifiedPath(conf, new Path(database.getLocationUri())));
     }
     else {
-      // Location is not set we utilize METASTOREWAREHOUSE together with database name
-      database.setLocationUri(
-          Utilities.getQualifiedPath(conf, new Path(HiveConf.getVar(conf, HiveConf.ConfVars.METASTOREWAREHOUSE),
+      // Location is not set we utilize WAREHOUSE together with database name
+      database.setLocationUri(Utilities.getQualifiedPath(conf,
+          new Path(MetastoreConf.getVar(conf, MetastoreConf.ConfVars.WAREHOUSE),
               database.getName().toLowerCase() + DATABASE_PATH_SUFFIX)));
     }
   }

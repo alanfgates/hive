@@ -20,6 +20,7 @@ package org.apache.hadoop.hive.ql.lockmgr;
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.ql.io.AcidUtils;
 import org.apache.hadoop.hive.ql.plan.HiveOperation;
 import org.apache.hadoop.hive.ql.plan.LockDatabaseDesc;
@@ -830,10 +831,10 @@ public final class DbTxnManager extends HiveTxnManagerImpl {
   }
 
   private static long getHeartbeatInterval(Configuration conf) throws LockException {
-    // Retrieve HIVE_TXN_TIMEOUT in MILLISECONDS (it's defined as SECONDS),
+    // Retrieve TXN_TIMEOUT in MILLISECONDS (it's defined as SECONDS),
     // then divide it by 2 to give us a safety factor.
     long interval =
-        HiveConf.getTimeVar(conf, HiveConf.ConfVars.HIVE_TXN_TIMEOUT, TimeUnit.MILLISECONDS) / 2;
+        MetastoreConf.getTimeVar(conf, MetastoreConf.ConfVars.TXN_TIMEOUT, TimeUnit.MILLISECONDS) / 2;
     if (interval == 0) {
       throw new LockException(HiveConf.ConfVars.HIVE_TXN_MANAGER.toString() + " not set," +
           " heartbeats won't be sent");

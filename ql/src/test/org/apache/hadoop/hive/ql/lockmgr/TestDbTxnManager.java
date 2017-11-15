@@ -26,6 +26,7 @@ import org.apache.hadoop.hive.metastore.api.ShowLocksResponse;
 import org.apache.hadoop.hive.metastore.api.ShowLocksResponseElement;
 import org.apache.hadoop.hive.metastore.api.TxnState;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.txn.AcidHouseKeeperService;
 import org.apache.hadoop.hive.metastore.txn.TxnDbUtil;
 import org.apache.hadoop.hive.metastore.txn.TxnStore;
@@ -210,8 +211,8 @@ public class TestDbTxnManager {
   public void testExceptions() throws Exception {
     addPartitionOutput(newTable(true), WriteEntity.WriteType.INSERT);
     QueryPlan qp = new MockQueryPlan(this, HiveOperation.QUERY);
-    ((DbTxnManager) txnMgr).openTxn(ctx, "NicholasII", HiveConf.getTimeVar(conf, HiveConf.ConfVars.HIVE_TXN_TIMEOUT, TimeUnit.MILLISECONDS) * 2);
-    Thread.sleep(HiveConf.getTimeVar(conf, HiveConf.ConfVars.HIVE_TXN_TIMEOUT, TimeUnit.MILLISECONDS));
+    ((DbTxnManager) txnMgr).openTxn(ctx, "NicholasII", MetastoreConf.getTimeVar(conf, MetastoreConf.ConfVars.TXN_TIMEOUT, TimeUnit.MILLISECONDS) * 2);
+    Thread.sleep(MetastoreConf.getTimeVar(conf, MetastoreConf.ConfVars.TXN_TIMEOUT, TimeUnit.MILLISECONDS));
     runReaper();
     LockException exception = null;
     try {
@@ -224,8 +225,8 @@ public class TestDbTxnManager {
     Assert.assertEquals("Wrong Exception1", ErrorMsg.TXN_ABORTED, exception.getCanonicalErrorMsg());
 
     exception = null;
-    ((DbTxnManager) txnMgr).openTxn(ctx, "AlexanderIII", HiveConf.getTimeVar(conf, HiveConf.ConfVars.HIVE_TXN_TIMEOUT, TimeUnit.MILLISECONDS) * 2);
-    Thread.sleep(HiveConf.getTimeVar(conf, HiveConf.ConfVars.HIVE_TXN_TIMEOUT, TimeUnit.MILLISECONDS));
+    ((DbTxnManager) txnMgr).openTxn(ctx, "AlexanderIII", MetastoreConf.getTimeVar(conf, MetastoreConf.ConfVars.TXN_TIMEOUT, TimeUnit.MILLISECONDS) * 2);
+    Thread.sleep(MetastoreConf.getTimeVar(conf, MetastoreConf.ConfVars.TXN_TIMEOUT, TimeUnit.MILLISECONDS));
     runReaper();//this will abort the txn
     TxnStore txnHandler = TxnUtils.getTxnStore(conf);
     GetOpenTxnsInfoResponse txnsInfo = txnHandler.getOpenTxnsInfo();
@@ -257,7 +258,7 @@ public class TestDbTxnManager {
 
     // Create a lock, but send the heartbeat with a long delay. The lock will get expired.
     ((DbTxnManager)txnMgr).acquireLocksWithHeartbeatDelay(qp, ctx, "bob",
-        HiveConf.getTimeVar(conf, HiveConf.ConfVars.HIVE_TXN_TIMEOUT, TimeUnit.MILLISECONDS) * 10);
+        MetastoreConf.getTimeVar(conf, MetastoreConf.ConfVars.TXN_TIMEOUT, TimeUnit.MILLISECONDS) * 10);
     testLockExpiration(txnMgr, 1, true);
 
     // Create a lock and trigger a heartbeat. With heartbeat, the lock won't expire.
@@ -269,7 +270,7 @@ public class TestDbTxnManager {
     DbLockManager lockManager = (DbLockManager)txnMgr.getLockManager();
     ShowLocksResponse resp = lockManager.getLocks();
     Assert.assertEquals("Wrong number of locks before expire", numLocksBefore, resp.getLocks().size());
-    Thread.sleep(HiveConf.getTimeVar(conf, HiveConf.ConfVars.HIVE_TXN_TIMEOUT, TimeUnit.MILLISECONDS));
+    Thread.sleep(MetastoreConf.getTimeVar(conf, MetastoreConf.ConfVars.TXN_TIMEOUT, TimeUnit.MILLISECONDS));
     runReaper();
     resp = lockManager.getLocks();
     if (shouldExpire) {
@@ -435,9 +436,9 @@ public class TestDbTxnManager {
 
     // Case 2: If there's delay for the heartbeat, but the delay is within the reaper's tolerance,
     //         then txt should be able to commit
-    // Start the heartbeat after a delay, which is shorter than  the HIVE_TXN_TIMEOUT
+    // Start the heartbeat after a delay, which is shorter than  the TXN_TIMEOUT
     ((DbTxnManager) txnMgr).openTxn(ctx, "tom",
-        HiveConf.getTimeVar(conf, HiveConf.ConfVars.HIVE_TXN_TIMEOUT, TimeUnit.MILLISECONDS) / 2);
+        MetastoreConf.getTimeVar(conf, MetastoreConf.ConfVars.TXN_TIMEOUT, TimeUnit.MILLISECONDS) / 2);
     txnMgr.acquireLocks(qp, ctx, "tom");
     runReaper();
     try {
@@ -451,10 +452,10 @@ public class TestDbTxnManager {
     // Case 3: If there's delay for the heartbeat, and the delay is long enough to trigger the reaper,
     //         then the txn will time out and be aborted.
     //         Here we just don't send the heartbeat at all - an infinite delay.
-    // Start the heartbeat after a delay, which exceeds the HIVE_TXN_TIMEOUT
-    ((DbTxnManager) txnMgr).openTxn(ctx, "jerry", HiveConf.getTimeVar(conf, HiveConf.ConfVars.HIVE_TXN_TIMEOUT, TimeUnit.MILLISECONDS) * 2);
+    // Start the heartbeat after a delay, which exceeds the TXN_TIMEOUT
+    ((DbTxnManager) txnMgr).openTxn(ctx, "jerry", MetastoreConf.getTimeVar(conf, MetastoreConf.ConfVars.TXN_TIMEOUT, TimeUnit.MILLISECONDS) * 2);
     txnMgr.acquireLocks(qp, ctx, "jerry");
-    Thread.sleep(HiveConf.getTimeVar(conf, HiveConf.ConfVars.HIVE_TXN_TIMEOUT, TimeUnit.MILLISECONDS));
+    Thread.sleep(MetastoreConf.getTimeVar(conf, MetastoreConf.ConfVars.TXN_TIMEOUT, TimeUnit.MILLISECONDS));
     runReaper();
     try {
       txnMgr.commitTxn();
@@ -474,8 +475,8 @@ public class TestDbTxnManager {
     nextInput = 1;
     readEntities = new HashSet<ReadEntity>();
     writeEntities = new HashSet<WriteEntity>();
-    conf.setTimeVar(HiveConf.ConfVars.HIVE_TIMEDOUT_TXN_REAPER_START, 0, TimeUnit.SECONDS);
-    conf.setTimeVar(HiveConf.ConfVars.HIVE_TXN_TIMEOUT, 10, TimeUnit.SECONDS);
+    MetastoreConf.setTimeVar(conf, MetastoreConf.ConfVars.TIMEDOUT_TXN_REAPER_START, 0, TimeUnit.SECONDS);
+    MetastoreConf.setTimeVar(conf, MetastoreConf.ConfVars.TXN_TIMEOUT, 10, TimeUnit.SECONDS);
     houseKeeperService = new AcidHouseKeeperService();
     houseKeeperService.setConf(conf);
   }

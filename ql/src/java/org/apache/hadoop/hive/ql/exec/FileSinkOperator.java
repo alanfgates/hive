@@ -42,6 +42,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.conf.HiveConfUtil;
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.ql.CompilationOpContext;
 import org.apache.hadoop.hive.ql.ErrorMsg;
 import org.apache.hadoop.hive.ql.exec.Utilities.MissingBucketsContext;
@@ -914,7 +915,7 @@ public class FileSinkOperator extends TerminalOperator<FileSinkDesc> implements
           throw new HiveFatalException("Partition value '" + invalidPartitionVal +
               "' contains a character not matched by whitelist pattern '" +
               dpCtx.getWhiteListPattern().toString() + "'.  " + "(configure with " +
-              HiveConf.ConfVars.METASTORE_PARTITION_NAME_WHITELIST_PATTERN.varname + ")");
+              MetastoreConf.ConfVars.PARTITION_NAME_WHITELIST_PATTERN.toString() + ")");
         }
         fpaths = getDynOutPaths(dpVals, lbDirName);
 

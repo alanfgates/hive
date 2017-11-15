@@ -40,6 +40,7 @@ import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.Index;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.ql.index.HiveIndex;
 import org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat;
 import org.apache.hadoop.hive.ql.session.SessionState;
@@ -827,8 +828,8 @@ public class TestHive extends TestCase {
     prevHiveObj.getDatabaseCurrent();
     //change value of a metavar config param in new hive conf
     newHconf = new HiveConf(hiveConf);
-    newHconf.setIntVar(ConfVars.METASTORETHRIFTCONNECTIONRETRIES,
-        newHconf.getIntVar(ConfVars.METASTORETHRIFTCONNECTIONRETRIES) + 1);
+    MetastoreConf.setLongVar(newHconf, MetastoreConf.ConfVars.THRIFT_CONNECTION_RETRIES,
+        MetastoreConf.getIntVar(newHconf, MetastoreConf.ConfVars.THRIFT_CONNECTION_RETRIES) + 1);
     newHiveObj = Hive.get(newHconf);
     assertTrue(prevHiveObj != newHiveObj);
   }

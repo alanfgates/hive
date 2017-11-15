@@ -428,4 +428,22 @@ public class TestMetastoreConf {
     // Make sure the hidden keys didn't get published
     Assert.assertThat(dump, CoreMatchers.not(new StringContains(ConfVars.PWD.getVarname())));
   }
+
+  @Test
+  public void obfuscatePassword() throws IOException {
+    String originalPasswd = "super-secret";
+    createConfFile("metastore-site.xml", true, "METASTORE_HOME", instaMap(
+        ConfVars.PWD.getVarname(), originalPasswd
+    ));
+    conf = MetastoreConf.newMetastoreConf();
+    Assert.assertEquals(originalPasswd, MetastoreConf.getPassword(conf, ConfVars.PWD));
+
+    String hopeThisIsTheOriginal = MetastoreConf.obfuscatePassword(conf, "bla");
+    Assert.assertEquals(originalPasswd, hopeThisIsTheOriginal);
+    Assert.assertEquals("bla", MetastoreConf.getPassword(conf, ConfVars.PWD));
+
+    MetastoreConf.obfuscatePassword(conf, null);
+    Assert.assertEquals("this password intentionally left blank",
+        MetastoreConf.getPassword(conf, ConfVars.PWD));
+  }
 }

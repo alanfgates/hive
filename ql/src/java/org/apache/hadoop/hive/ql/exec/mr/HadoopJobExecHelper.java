@@ -546,6 +546,12 @@ public class HadoopJobExecHelper {
     }
 
     // replace it back
+    // TODO
+    // Alan 11/14/17, I can't begin to conceive how this code makes an ounce of sense.  Setting
+    // the value of the pwd in the job conf to HIVE and then immediately setting back to its
+    // original surely isn't going to hide it from the job tracker logs.  I'm not going to touch
+    // this in case it's important, but I'm not going to switch it to use the new MetastoreConf
+    // stuff either.
     if (pwd != null) {
       HiveConf.setVar(job, HiveConf.ConfVars.METASTOREPWD, pwd);
     }

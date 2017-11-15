@@ -37,6 +37,7 @@ import org.apache.hadoop.hive.llap.LlapOutputFormat;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreUtils;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.utils.MetaStoreUtils;
 import org.apache.hadoop.hive.ql.exec.ColumnInfo;
 import org.apache.hadoop.hive.ql.exec.RowSchema;
@@ -990,7 +991,8 @@ public final class PlanUtils {
    * @return
    */
   public static String removePrefixFromWarehouseConfig(String origiKey) {
-    String prefix = SessionState.get().getConf().getVar(HiveConf.ConfVars.METASTOREWAREHOUSE);
+    String prefix =
+        MetastoreConf.getVar(SessionState.get().getConf(), MetastoreConf.ConfVars.WAREHOUSE);
     if ((prefix != null) && (prefix.length() > 0)) {
       //Local file system is using pfile:/// {@link ProxyLocalFileSystem}
       prefix = prefix.replace("pfile:///", "pfile:/");
