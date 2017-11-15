@@ -111,9 +111,10 @@ public abstract class HCatWriter {
       for (Entry<String, String> kv : config.entrySet()) {
         // If this is a key managed by MetastoreConf we must set it using MetastoreConf.
         // Otherwise we may have a situation where this sets the hive.metastore. key but
-        // something else sets the metastore. key and silently overrides it.
+        // something else sets the metastore. key and silently overrides it.  Also, we have to
+        // set it using conf.set rather than MetastoreConf because we have the value as a string.
         MetastoreConf.ConfVars msVar = MetastoreConf.getVarFromKey(kv.getKey());
-        if (msVar != null) MetastoreConf.setVar(conf, msVar, kv.getValue());
+        if (msVar != null) conf.set(msVar.getVarname(), kv.getValue());
         else conf.set(kv.getKey(), kv.getValue());
       }
     }

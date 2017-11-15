@@ -67,6 +67,7 @@ import org.apache.hive.hcatalog.NoExitSecurityManager;
 import org.apache.hive.hcatalog.data.schema.HCatSchemaUtils;
 import org.apache.hive.hcatalog.listener.DbNotificationListener;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -1336,6 +1337,23 @@ public class TestHCatClient {
       LOG.error( "Unexpected exception! ",  unexpected);
       assertTrue("Unexpected exception! " + unexpected.getMessage(), false);
     }
+  }
+
+  @Test
+  public void hiveAndMetatoreConfValues() throws HCatException {
+    // Make sure that calls to HCatClient.getConfValue properly handle the difference between
+    // MetastoreConf and HiveConf values.
+    // These expected values are pulled from the values set in startMetaStoreServer
+    HCatClient client = HCatClient.create(new Configuration(hcatConf));
+    String value = client.getConfVal(HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY.varname, null);
+    Assert.assertEquals("false", value);
+    String expectedUri = "thrift://localhost:" + msPort;
+    value = client.getConfVal(MetastoreConf.ConfVars.THRIFT_URIS.toString(), null);
+    Assert.assertEquals(expectedUri, value);
+    value = client.getConfVal(MetastoreConf.ConfVars.THRIFT_URIS.getHiveName(), null);
+    Assert.assertEquals(expectedUri, value);
+    value = client.getConfVal("x.y.z", "a");
+    Assert.assertEquals("a", value);
   }
 
 }

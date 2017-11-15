@@ -164,8 +164,8 @@ public class MetastoreConf {
   static {
     metastoreConfKeys = new HashMap<>(ConfVars.values().length);
     for (ConfVars confVar : ConfVars.values()) {
-      metastoreConfKeys.put(confVar.varname, confVar);
-      metastoreConfKeys.put(confVar.hiveName, confVar);
+      if (!confVar.varname.equals(NO_SUCH_KEY)) metastoreConfKeys.put(confVar.varname, confVar);
+      if (!confVar.hiveName.equals(NO_SUCH_KEY)) metastoreConfKeys.put(confVar.hiveName, confVar);
     }
   }
 
