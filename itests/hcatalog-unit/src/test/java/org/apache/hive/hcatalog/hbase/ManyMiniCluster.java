@@ -31,6 +31,7 @@ import org.apache.hadoop.hbase.zookeeper.MiniZooKeeperCluster;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.MiniMRCluster;
 
@@ -281,9 +282,9 @@ public class ManyMiniCluster {
     hiveConf.set(HiveConf.ConfVars.PREEXECHOOKS.varname, "");
     hiveConf.set(HiveConf.ConfVars.POSTEXECHOOKS.varname, "");
     hiveConf.set(HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY.varname, "false");
-    hiveConf.set(HiveConf.ConfVars.METASTORECONNECTURLKEY.varname,
+    MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.CONNECTURLKEY,
       "jdbc:derby:" + new File(workDir + "/metastore_db") + ";create=true");
-    hiveConf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.toString(),
+    MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.WAREHOUSE,
       new File(workDir, "warehouse").toString());
     //set where derby logs
     File derbyLogFile = new File(workDir + "/derby.log");

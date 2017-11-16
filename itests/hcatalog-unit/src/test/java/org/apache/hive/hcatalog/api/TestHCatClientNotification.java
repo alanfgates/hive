@@ -25,6 +25,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import org.apache.hadoop.hive.metastore.TableType;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hive.hcatalog.messaging.AddPartitionMessage;
 import org.apache.hive.hcatalog.messaging.CreateDatabaseMessage;
 import org.apache.hive.hcatalog.messaging.CreateTableMessage;
@@ -66,7 +67,8 @@ public class TestHCatClientNotification {
 
   @BeforeClass
   public static void setupClient() throws Exception {
-    HiveConf conf = new HiveConf(); conf.setVar(HiveConf.ConfVars.METASTORE_EVENT_LISTENERS,
+    HiveConf conf = new HiveConf();
+    MetastoreConf.setVar(conf, MetastoreConf.ConfVars.EVENT_LISTENERS,
         DbNotificationListener.class.getName());
     hCatClient = HCatClient.create(conf);
     md = MessageFactory.getInstance().getDeserializer();

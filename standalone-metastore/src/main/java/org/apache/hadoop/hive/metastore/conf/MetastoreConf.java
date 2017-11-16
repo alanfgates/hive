@@ -18,10 +18,23 @@
 package org.apache.hadoop.hive.metastore.conf;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.apache.derby.jdbc.EmbeddedDriver;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.metastore.AlterHandler;
 import org.apache.hadoop.hive.metastore.DefaultStorageSchemaReader;
 import org.apache.hadoop.hive.metastore.HiveAlterHandler;
+import org.apache.hadoop.hive.metastore.HiveMetaStoreFsImpl;
+import org.apache.hadoop.hive.metastore.IMetaStoreSchemaInfo;
+import org.apache.hadoop.hive.metastore.MetaStoreEventListener;
+import org.apache.hadoop.hive.metastore.MetaStoreInitListener;
+import org.apache.hadoop.hive.metastore.MetaStoreSchemaInfo;
+import org.apache.hadoop.hive.metastore.ObjectStore;
+import org.apache.hadoop.hive.metastore.RawStore;
+import org.apache.hadoop.hive.metastore.StorageSchemaReader;
+import org.apache.hadoop.hive.metastore.messaging.json.JSONMessageFactory;
 import org.apache.hadoop.hive.metastore.security.MetastoreDelegationTokenManager;
+import org.apache.hadoop.hive.metastore.txn.CompactionTxnHandler;
+import org.apache.hadoop.hive.metastore.txn.TxnStore;
 import org.apache.hadoop.hive.metastore.utils.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -212,7 +225,7 @@ public class MetastoreConf {
         "hive.metastore.aggregate.stats.cache.ttl", 600, TimeUnit.SECONDS,
         "Number of seconds for a cached node to be active in the cache before they become stale."),
     ALTER_HANDLER("metastore.alter.handler", NO_SUCH_KEY, HiveAlterHandler.class.getName(),
-        "Alter handler.  For now defaults to the Hive one.  Really need a better default option"),
+        "Alter handler, must extend " + AlterHandler.class.getName()),
     AUTHORIZATION_STORAGE_AUTH_CHECKS("metastore.authorization.storage.checks",
         "hive.metastore.authorization.storage.checks", false,
         "Should the metastore do authorization checks against the underlying storage (usually hdfs) \n" +
@@ -237,8 +250,8 @@ public class MetastoreConf {
         "hive.metastore.cached.rawstore.cache.update.frequency", 60, TimeUnit.SECONDS,
         "The time after which metastore cache is updated from metastore DB."),
     CACHED_RAW_STORE_IMPL("metastore.cached.rawstore.impl",
-        "hive.metastore.cached.rawstore.impl", "org.apache.hadoop.hive.metastore.ObjectStore",
-        "Name of the wrapped RawStore class"),
+        "hive.metastore.cached.rawstore.impl", ObjectStore.class.getName(),
+        "Name of the wrapped RawStore class, must implement " + RawStore.class.getName()),
     CAPABILITY_CHECK("metastore.client.capability.check",
         "hive.metastore.client.capability.check", true,
         "Whether to check client capabilities for potentially breaking API usage."),
@@ -293,7 +306,7 @@ public class MetastoreConf {
             "It will also increase the background load on the Hadoop cluster as more MapReduce jobs\n" +
             "will be running in the background."),
     CONNECTION_DRIVER("javax.jdo.option.ConnectionDriverName",
-        "javax.jdo.option.ConnectionDriverName", "org.apache.derby.jdbc.EmbeddedDriver",
+        "javax.jdo.option.ConnectionDriverName", EmbeddedDriver.class.getName(),
         "Driver class name for a JDBC metastore"),
     CONNECTION_POOLING_MAX_CONNECTIONS("datanucleus.connectionPool.maxPoolSize",
         "datanucleus.connectionPool.maxPoolSize", 10,
@@ -404,12 +417,12 @@ public class MetastoreConf {
     EVENT_EXPIRY_DURATION("metastore.event.expiry.duration", "hive.metastore.event.expiry.duration",
         0, TimeUnit.SECONDS, "Duration after which events expire from events table"),
     EVENT_LISTENERS("metastore.event.listeners", "hive.metastore.event.listeners", "",
-        "A comma separated list of Java classes that implement the org.apache.riven.MetaStoreEventListener" +
+        "A comma separated list of Java classes that implement the " + MetaStoreEventListener.class.getName() +
             " interface. The metastore event and corresponding listener method will be invoked in separate JDO transactions. " +
             "Alternatively, configure hive.metastore.transactional.event.listeners to ensure both are invoked in same JDO transaction."),
     EVENT_MESSAGE_FACTORY("metastore.event.message.factory",
         "hive.metastore.event.message.factory",
-        "org.apache.hadoop.hive.metastore.messaging.json.JSONMessageFactory",
+        JSONMessageFactory.class.getName(),
         "Factory class for making encoding and decoding messages in the events generated."),
     EXECUTE_SET_UGI("metastore.execute.setugi", "hive.metastore.execute.setugi", true,
         "In unsecure mode, setting this property to true will cause the metastore to execute DFS operations using \n" +
@@ -427,7 +440,7 @@ public class MetastoreConf {
         "Metastore hook class for filtering the metadata read results. If hive.security.authorization.manager"
             + "is set to instance of HiveAuthorizerFactory, then this value is ignored."),
     FS_HANDLER_CLS("metastore.fs.handler.class", "hive.metastore.fs.handler.class",
-        "org.apache.hadoop.hive.metastore.HiveMetaStoreFsImpl", ""),
+        HiveMetaStoreFsImpl.class.getName(), ""),
     FS_HANDLER_THREADS_COUNT("metastore.fshandler.threads", "hive.metastore.fshandler.threads", 15,
         "Number of threads to be allocated for metastore handler for fs operations."),
     HMSHANDLERATTEMPTS("metastore.hmshandler.retry.attempts", "hive.hmshandler.retry.attempts", 10,
@@ -446,7 +459,8 @@ public class MetastoreConf {
             "'datanucleus1' is used for backward compatibility with DataNucleus v1"),
     INIT_HOOKS("metastore.init.hooks", "hive.metastore.init.hooks", "",
         "A comma separated list of hooks to be invoked at the beginning of HMSHandler initialization. \n" +
-            "An init hook is specified as the name of Java class which extends org.apache.riven.MetaStoreInitListener."),
+            "An init hook is specified as the name of Java class which extends " +
+            MetaStoreInitListener.class.getName()),
     INIT_METADATA_COUNT_ENABLED("metastore.initial.metadata.count.enabled",
         "hive.metastore.initial.metadata.count.enabled", true,
         "Enable a metadata count at metastore startup for metrics."),
@@ -538,14 +552,14 @@ public class MetastoreConf {
     PWD("javax.jdo.option.ConnectionPassword", "javax.jdo.option.ConnectionPassword", "mine",
         "password to use against metastore database"),
     RAW_STORE_IMPL("metastore.rawstore.impl", "hive.metastore.rawstore.impl",
-        "org.apache.hadoop.hive.metastore.ObjectStore",
-        "Name of the class that implements org.apache.riven.rawstore interface. \n" +
-            "This class is used to store and retrieval of raw metadata objects such as table, database"),
+        ObjectStore.class.getName(),
+        "Name of the class that implements " + RawStore.class.getName() + " interface.  This " +
+            "class is used to store and retrieval of raw metadata objects such as table, database"),
     SCHEMA_INFO_CLASS("metastore.schema.info.class", "hive.metastore.schema.info.class",
-        "org.apache.hadoop.hive.metastore.MetaStoreSchemaInfo",
+        MetaStoreSchemaInfo.class.getName(),
         "Fully qualified class name for the metastore schema information class \n"
             + "which is used by schematool to fetch the schema information.\n"
-            + " This class should implement the IMetaStoreSchemaInfo interface"),
+            + " This class should implement the " + IMetaStoreSchemaInfo.class.getName() + " interface"),
     SCHEMA_VERIFICATION("metastore.schema.verification", "hive.metastore.schema.verification", true,
         "Enforce metastore schema version consistency.\n" +
         "True: Verify that version information stored in is compatible with one from Hive jars.  Also disable automatic\n" +
@@ -602,7 +616,7 @@ public class MetastoreConf {
     STORAGE_SCHEMA_READER_IMPL("metastore.storage.schema.reader.impl", NO_SUCH_KEY,
         DefaultStorageSchemaReader.class.getName(),
         "The class to use to read schemas from storage.  It must implement " +
-        "org.apache.hadoop.hive.metastore.StorageSchemaReader"),
+            StorageSchemaReader.class.getName()),
     STORE_MANAGER_TYPE("datanucleus.storeManagerType", "datanucleus.storeManagerType", "rdbms", "metadata store type"),
     SUPPORT_SPECICAL_CHARACTERS_IN_TABLE_NAMES("metastore.support.special.characters.tablename",
         "hive.support.special.characters.tablename", true,
@@ -632,7 +646,8 @@ public class MetastoreConf {
         "The delegation token service name to match when selecting a token from the current user's tokens."),
     TRANSACTIONAL_EVENT_LISTENERS("metastore.transactional.event.listeners",
         "hive.metastore.transactional.event.listeners", "",
-        "A comma separated list of Java classes that implement the org.apache.riven.MetaStoreEventListener" +
+        "A comma separated list of Java classes that implement the " +
+            MetaStoreEventListener.class.getName() +
             " interface. Both the metastore event and corresponding listener method will be invoked in the same JDO transaction."),
     TRY_DIRECT_SQL("metastore.try.direct.sql", "hive.metastore.try.direct.sql", true,
         "Whether the metastore should try to use direct SQL queries instead of the\n" +
@@ -665,9 +680,9 @@ public class MetastoreConf {
         "The string that the regex will be matched against is of the following form, where ex is a SQLException:\n" +
         "ex.getMessage() + \" (SQLState=\" + ex.getSQLState() + \", ErrorCode=\" + ex.getErrorCode() + \")\""),
     TXN_STORE_IMPL("metastore.txn.store.impl", "hive.metastore.txn.store.impl",
-        "org.apache.hadoop.hive.metastore.txn.CompactionTxnHandler",
-        "Name of class that implements org.apache.riven.txn.TxnStore.  This " +
-            "class is used to store and retrieve transactions and locks"),
+        CompactionTxnHandler.class.getName(),
+        "Name of class that implements " + TxnStore.class.getName() +
+            ".  This class is used to store and retrieve transactions and locks"),
     TXN_TIMEOUT("metastore.txn.timeout", "hive.txn.timeout", 300, TimeUnit.SECONDS,
         "time after which transactions are declared aborted if the client has not sent a heartbeat."),
     USE_SSL("metastore.use.SSL", "hive.metastore.use.SSL", false,
