@@ -78,9 +78,6 @@ public class MetastoreConf {
   private static final Pattern TIME_UNIT_SUFFIX = Pattern.compile("([0-9]+)([a-zA-Z]+)");
 
   private static final Map<String, ConfVars> changableFromClient = new HashMap<>();
-  private static final String NO_SUCH_KEY = "no.such.key"; // Used in config definitions when
-                                                           // there is no matching Hive or
-                                                           // metastore key for a value
   private static URL hiveDefaultURL = null;
   private static URL hiveSiteURL = null;
   private static URL hiveMetastoreSiteURL = null;
@@ -177,8 +174,12 @@ public class MetastoreConf {
   static {
     metastoreConfKeys = new HashMap<>(ConfVars.values().length);
     for (ConfVars confVar : ConfVars.values()) {
-      if (!confVar.varname.equals(NO_SUCH_KEY)) metastoreConfKeys.put(confVar.varname, confVar);
-      if (!confVar.hiveName.equals(NO_SUCH_KEY)) metastoreConfKeys.put(confVar.hiveName, confVar);
+      if (!confVar.varname.startsWith("hive.") && !confVar.varname.startsWith("test.")) {
+        metastoreConfKeys.put(confVar.varname, confVar);
+        if (confVar.hiveName != null) {
+          metastoreConfKeys.put(confVar.hiveName, confVar);
+        }
+      }
     }
   }
 
@@ -224,7 +225,8 @@ public class MetastoreConf {
     AGGREGATE_STATS_CACHE_TTL("metastore.aggregate.stats.cache.ttl",
         "hive.metastore.aggregate.stats.cache.ttl", 600, TimeUnit.SECONDS,
         "Number of seconds for a cached node to be active in the cache before they become stale."),
-    ALTER_HANDLER("metastore.alter.handler", NO_SUCH_KEY, HiveAlterHandler.class.getName(),
+    ALTER_HANDLER("metastore.alter.handler", "metastore.alter.handler",
+        HiveAlterHandler.class.getName(),
         "Alter handler, must extend " + AlterHandler.class.getName()),
     AUTHORIZATION_STORAGE_AUTH_CHECKS("metastore.authorization.storage.checks",
         "hive.metastore.authorization.storage.checks", false,
@@ -399,7 +401,8 @@ public class MetastoreConf {
             "not blocked.\n" +
             "\n" +
             "See HIVE-4409 for more details."),
-    DUMP_CONFIG_ON_CREATION("metastore.dump.config.on.creation", NO_SUCH_KEY, true,
+    DUMP_CONFIG_ON_CREATION("metastore.dump.config.on.creation", "metastore.dump.config.on.creation",
+        true,
         "If true, a printout of the config file (minus sensitive values) will be dumped to the " +
             "log whenever newMetastoreConf() is called.  Can produce a lot of logs"),
     END_FUNCTION_LISTENERS("metastore.end.function.listeners",
@@ -482,7 +485,7 @@ public class MetastoreConf {
         "hive.metastore.limit.partition.request", -1,
         "This limits the number of partitions that can be requested from the metastore for a given table.\n" +
             "The default value \"-1\" means no limit."),
-    LOG4J_FILE("metastore.log4j.file", NO_SUCH_KEY, "",
+    LOG4J_FILE("metastore.log4j.file", "metastore.log4j.file", "",
         "Metastore log4j configuration file.\nIf the property is not set, then logging will be " +
             "initialized using metastore-log4j2.properties found on the classpath.\nIf the " +
             "property is set, the value must be a valid URI (java.net.URI, e.g. " +
@@ -512,7 +515,7 @@ public class MetastoreConf {
         "hive.service.metrics.file.location", "/tmp/report.json",
         "For metric class json metric reporter, the location of local JSON metrics file.  " +
             "This file will get overwritten at every interval."),
-    METRICS_REPORTERS("metastore.metrics.reporters", NO_SUCH_KEY, "json,jmx",
+    METRICS_REPORTERS("metastore.metrics.reporters", "metastore.metrics.reporters", "json,jmx",
         new Validator.StringSet("json", "jmx", "console", "hadoop"),
         "A comma separated list of metrics reporters to start"),
     MOVE_EXPORTED_METADATA_TO_TRASH("metastore.metadata.move.exported.metadata.to.trash",
@@ -613,7 +616,7 @@ public class MetastoreConf {
         "Provides a tunable parameter between the lower bound and the higher bound of ndv for aggregate ndv across all the partitions. \n" +
             "The lower bound is equal to the maximum of ndv of all the partitions. The higher bound is equal to the sum of ndv of all the partitions.\n" +
             "Its value should be between 0.0 (i.e., choose lower bound) and 1.0 (i.e., choose higher bound)"),
-    STORAGE_SCHEMA_READER_IMPL("metastore.storage.schema.reader.impl", NO_SUCH_KEY,
+    STORAGE_SCHEMA_READER_IMPL("metastore.storage.schema.reader.impl", "metastore.storage.schema.reader.impl",
         DefaultStorageSchemaReader.class.getName(),
         "The class to use to read schemas from storage.  It must implement " +
             StorageSchemaReader.class.getName()),
@@ -627,7 +630,7 @@ public class MetastoreConf {
     TCP_KEEP_ALIVE("metastore.server.tcp.keepalive",
         "hive.metastore.server.tcp.keepalive", true,
         "Whether to enable TCP keepalive for the metastore server. Keepalive will prevent accumulation of half-open connections."),
-    THREAD_POOL_SIZE("metastore.thread.pool.size", NO_SUCH_KEY, 10,
+    THREAD_POOL_SIZE("metastore.thread.pool.size", "metastore.thread.pool.size", 10,
         "Number of threads in the thread pool.  These will be used to execute all background " +
             "processes."),
     THRIFT_CONNECTION_RETRIES("metastore.connect.retries", "hive.metastore.connect.retries", 3,
@@ -725,29 +728,29 @@ public class MetastoreConf {
         "The default partition name in case the dynamic partition column value is null/empty string or any other values that cannot be escaped. \n" +
             "This value must not contain any special character used in HDFS URI (e.g., ':', '%', '/' etc). \n" +
             "The user has to be aware that the dynamic partition value should not contain this value to avoid confusions."),
-    REPL_COPYFILE_MAXNUMFILES("metastore.repl.copyfile.maxnumfiles",
+    REPL_COPYFILE_MAXNUMFILES("hive.exec.copyfile.maxnumfiles",
         "hive.exec.copyfile.maxnumfiles", 1L,
         "Maximum number of files Hive uses to do sequential HDFS copies between directories." +
             "Distributed copies (distcp) will be used instead for larger numbers of files so that copies can be done faster."),
-    REPL_COPYFILE_MAXSIZE("metastore.repl.copyfile.maxsize",
+    REPL_COPYFILE_MAXSIZE("hive.exec.copyfile.maxsize",
         "hive.exec.copyfile.maxsize", 32L * 1024 * 1024 /*32M*/,
         "Maximum file size (in bytes) that Hive uses to do single HDFS copies between directories." +
             "Distributed copies (distcp) will be used instead for bigger files so that copies can be done faster."),
-    REPL_DUMPDIR_CLEAN_FREQ("metastore.repl.dumpdir.clean.freq", "hive.repl.dumpdir.clean.freq",
+    REPL_DUMPDIR_CLEAN_FREQ("hive.repl.dumpdir.clean.freq", "hive.repl.dumpdir.clean.freq",
         0, TimeUnit.SECONDS, "Frequency at which timer task runs to purge expired dump dirs."),
-    REPL_DUMPDIR_TTL("metastore.repl.dumpdir.ttl", "hive.repl.dumpdir.ttl", 7, TimeUnit.DAYS,
+    REPL_DUMPDIR_TTL("hive.repl.dumpdir.ttl", "hive.repl.dumpdir.ttl", 7, TimeUnit.DAYS,
         "TTL of dump dirs before cleanup."),
-    REPLCMDIR("metastore.repl.cmrootdir", "hive.repl.cmrootdir", "/user/hive/cmroot/",
+    REPLCMDIR("hive.repl.cmrootdir", "hive.repl.cmrootdir", "/user/hive/cmroot/",
         "Root dir for ChangeManager, used for deleted files."),
-    REPLCMRETIAN("metastore.repl.cm.retain", "hive.repl.cm.retain",  24, TimeUnit.HOURS,
+    REPLCMRETIAN("hive.repl.cm.retain", "hive.repl.cm.retain",  24, TimeUnit.HOURS,
         "Time to retain removed files in cmrootdir."),
-    REPLCMINTERVAL("metastore.repl.cm.interval", "hive.repl.cm.interval", 3600, TimeUnit.SECONDS,
+    REPLCMINTERVAL("hive.repl.cm.interval", "hive.repl.cm.interval", 3600, TimeUnit.SECONDS,
         "Inteval for cmroot cleanup thread."),
-    REPLCMENABLED("metastore.repl.cm.enabled", "hive.repl.cm.enabled", false,
+    REPLCMENABLED("hive.repl.cm.enabled", "hive.repl.cm.enabled", false,
         "Turn on ChangeManager, so delete files will go to cmrootdir."),
-    REPLDIR("metastore.repl.rootdir", "hive.repl.rootdir", "/user/hive/repl/",
+    REPLDIR("hive.repl.rootdir", "hive.repl.rootdir", "/user/hive/repl/",
         "HDFS root dir for all replication dumps."),
-    SSL_PROTOCOL_BLACKLIST("metastore.ssl.protocol.blacklist", "hive.ssl.protocol.blacklist",
+    SSL_PROTOCOL_BLACKLIST("hive.ssl.protocol.blacklist", "hive.ssl.protocol.blacklist",
         "SSLv2,SSLv3", "SSL Versions to disable for all Hive Servers"),
     STATS_AUTO_GATHER("hive.stats.autogather", "hive.stats.autogather", true,
         "A flag to gather statistics (only basic) automatically during the INSERT OVERWRITE command."),
@@ -761,7 +764,7 @@ public class MetastoreConf {
         "internal use only, true when in testing tez"),
     // We need to track this as some listeners pass it through our config and we need to honor
     // the system properties.
-    HIVE_METASTORE_AUTHORIZATION_MANAGER(NO_SUCH_KEY,
+    HIVE_METASTORE_AUTHORIZATION_MANAGER("hive.security.metastore.authorization.manager",
         "hive.security.metastore.authorization.manager",
         "org.apache.hadoop.hive.ql.security.authorization.DefaultHiveMetastoreAuthorizationProvider",
         "Names of authorization manager classes (comma separated) to be used in the metastore\n" +
@@ -787,14 +790,14 @@ public class MetastoreConf {
 
     // Deprecated Hive values that we are keeping for backwards compatibility.
     @Deprecated
-    HIVE_CODAHALE_METRICS_REPORTER_CLASSES(NO_SUCH_KEY,
+    HIVE_CODAHALE_METRICS_REPORTER_CLASSES("hive.service.metrics.codahale.reporter.classes",
         "hive.service.metrics.codahale.reporter.classes", "",
         "Use METRICS_REPORTERS instead.  Comma separated list of reporter implementation classes " +
             "for metric class org.apache.hadoop.hive.common.metrics.metrics2.CodahaleMetrics. Overrides "
             + "HIVE_METRICS_REPORTER conf if present.  This will be overridden by " +
             "METRICS_REPORTERS if it is present"),
     @Deprecated
-    HIVE_METRICS_REPORTER(NO_SUCH_KEY, "hive.service.metrics.reporter", "",
+    HIVE_METRICS_REPORTER("hive.service.metrics.reporter", "hive.service.metrics.reporter", "",
         "Reporter implementations for metric class "
             + "org.apache.hadoop.hive.common.metrics.metrics2.CodahaleMetrics;" +
             "Deprecated, use METRICS_REPORTERS instead. This configuraiton will be"
@@ -803,16 +806,16 @@ public class MetastoreConf {
 
     // These are all values that we put here just for testing
     STR_TEST_ENTRY("test.str", "hive.test.str", "defaultval", "comment"),
-    STR_SET_ENTRY("test.str.set", NO_SUCH_KEY, "a", new Validator.StringSet("a", "b", "c"), ""),
+    STR_SET_ENTRY("test.str.set", "test.str.set", "a", new Validator.StringSet("a", "b", "c"), ""),
     STR_LIST_ENTRY("test.str.list", "hive.test.str.list", "a,b,c", "no comment"),
     LONG_TEST_ENTRY("test.long", "hive.test.long", 42, "comment"),
     DOUBLE_TEST_ENTRY("test.double", "hive.test.double", 3.141592654, "comment"),
     TIME_TEST_ENTRY("test.time", "hive.test.time", 1, TimeUnit.SECONDS, "comment"),
-    TIME_VALIDATOR_ENTRY_INCLUSIVE("test.time.validator.inclusive", NO_SUCH_KEY, 1,
-        TimeUnit.SECONDS,
+    TIME_VALIDATOR_ENTRY_INCLUSIVE("test.time.validator.inclusive",
+        "test.time.validator.inclusive", 1, TimeUnit.SECONDS,
         new Validator.TimeValidator(TimeUnit.MILLISECONDS, 500L, true, 1500L, true), "comment"),
-    TIME_VALIDATOR_ENTRY_EXCLUSIVE("test.time.validator.exclusive", NO_SUCH_KEY, 1,
-        TimeUnit.SECONDS,
+    TIME_VALIDATOR_ENTRY_EXCLUSIVE("test.time.validator.exclusive", "test.time.validator.exclusive",
+        1, TimeUnit.SECONDS,
         new Validator.TimeValidator(TimeUnit.MILLISECONDS, 500L, false, 1500L, false), "comment"),
     BOOLEAN_TEST_ENTRY("test.bool", "hive.test.bool", true, "comment"),
     CLASS_TEST_ENTRY("test.class", "hive.test.class", "", "comment");

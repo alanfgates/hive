@@ -207,12 +207,9 @@ public class Lock {
     int heartbeatPeriod = DEFAULT_HEARTBEAT_PERIOD;
     if (hiveConf != null) {
       // This value is always in seconds and includes an 's' suffix.
-      String txTimeoutSeconds = MetastoreConf.getVar(hiveConf, MetastoreConf.ConfVars.TXN_TIMEOUT);
-      if (txTimeoutSeconds != null) {
-        // We want to send the heartbeat at an interval that is less than the timeout.
-        heartbeatPeriod = Math.max(1,
-            (int) (Integer.parseInt(txTimeoutSeconds.substring(0, txTimeoutSeconds.length() - 1)) * HEARTBEAT_FACTOR));
-      }
+      long txTimeoutSeconds =
+          MetastoreConf.getTimeVar(hiveConf, MetastoreConf.ConfVars.TXN_TIMEOUT, TimeUnit.SECONDS);
+      heartbeatPeriod = Math.max(1, (int)(txTimeoutSeconds * HEARTBEAT_FACTOR));
     }
     return heartbeatPeriod;
   }
