@@ -31,6 +31,7 @@ import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.hadoop.hive.metastore.api.PrivilegeBag;
 import org.apache.hadoop.hive.metastore.api.Role;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.security.HadoopThriftAuthBridge;
 import org.apache.hadoop.hive.metastore.utils.MetaStoreUtils;
 import org.apache.hadoop.hive.ql.security.authorization.MetaStoreAuthzAPIAuthorizerEmbedOnly;
@@ -60,9 +61,9 @@ public abstract class AbstractTestAuthorizationApiAuthorizer {
     if (isRemoteMetastoreMode) {
       int port = MetaStoreTestUtils.findFreePort();
       MetaStoreTestUtils.startMetaStore(port, HadoopThriftAuthBridge.getBridge());
-      hiveConf.setVar(HiveConf.ConfVars.METASTOREURIS, "thrift://localhost:" + port);
+      MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.THRIFT_URIS, "thrift://localhost:" + port);
     }
-    hiveConf.setIntVar(HiveConf.ConfVars.METASTORETHRIFTCONNECTIONRETRIES, 3);
+    MetastoreConf.setLongVar(hiveConf, MetastoreConf.ConfVars.THRIFT_CONNECTION_RETRIES, 3);
     hiveConf.set(HiveConf.ConfVars.PREEXECHOOKS.varname, "");
     hiveConf.set(HiveConf.ConfVars.POSTEXECHOOKS.varname, "");
     hiveConf.set(HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY.varname, "false");

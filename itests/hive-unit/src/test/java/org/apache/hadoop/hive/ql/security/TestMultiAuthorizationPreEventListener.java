@@ -27,6 +27,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.MetaStoreTestUtils;
 import org.apache.hadoop.hive.metastore.api.Database;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.security.HadoopThriftAuthBridge;
 import org.apache.hadoop.hive.ql.Driver;
 import org.apache.hadoop.hive.ql.security.DummyHiveMetastoreAuthorizationProvider.AuthCallContext;
@@ -51,7 +52,7 @@ public class TestMultiAuthorizationPreEventListener {
 
     int port = MetaStoreTestUtils.findFreePort();
 
-    System.setProperty(HiveConf.ConfVars.METASTORE_PRE_EVENT_LISTENERS.varname,
+    System.setProperty(MetastoreConf.ConfVars.PRE_EVENT_LISTENERS.toString(),
         AuthorizationPreEventListener.class.getName());
 
     // Set two dummy classes as authorizatin managers. Two instances should get created.
@@ -66,7 +67,7 @@ public class TestMultiAuthorizationPreEventListener {
 
     clientHiveConf = new HiveConf();
 
-    clientHiveConf.setVar(HiveConf.ConfVars.METASTOREURIS, "thrift://localhost:" + port);
+    MetastoreConf.setVar(clientHiveConf, MetastoreConf.ConfVars.THRIFT_URIS, "thrift://localhost:" + port);
     clientHiveConf.set(HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY.varname, "false");
 
     SessionState.start(new CliSessionState(clientHiveConf));

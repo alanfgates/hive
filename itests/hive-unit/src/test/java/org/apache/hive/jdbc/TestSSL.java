@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.util.Shell;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
@@ -470,7 +471,7 @@ public class TestSSL {
   @Test
   public void testMetastoreConnectionWrongCertCN() throws Exception {
     SSLTestUtils.setMetastoreSslConf(conf);
-    conf.setVar(ConfVars.HIVE_METASTORE_SSL_KEYSTORE_PATH,
+    MetastoreConf.setVar(conf, MetastoreConf.ConfVars.SSL_KEYSTORE_PATH,
         dataFileDir + File.separator +  EXAMPLEDOTCOM_KEY_STORE_NAME);
     miniHS2 = new MiniHS2.Builder().withRemoteMetastore().withConf(conf).cleanupLocalDirOnStartup(false).build();
     try {

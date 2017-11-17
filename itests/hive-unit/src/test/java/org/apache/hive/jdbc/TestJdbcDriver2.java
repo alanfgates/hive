@@ -26,6 +26,7 @@ import org.apache.hadoop.hive.common.type.HiveIntervalYearMonth;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.hive.metastore.TableType;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.ql.exec.UDF;
 import org.apache.hadoop.hive.ql.processors.DfsProcessor;
 import org.apache.hadoop.hive.ql.stats.StatsUtils;
@@ -1952,7 +1953,7 @@ public class TestJdbcDriver2 {
       String rline = res.getString(1);
       assertFalse(
           "set output must not contain hidden variables such as the metastore password:" + rline,
-          rline.contains(HiveConf.ConfVars.METASTOREPWD.varname)
+          rline.contains(MetastoreConf.ConfVars.PWD.toString())
               && !(rline.contains(HiveConf.ConfVars.HIVE_CONF_HIDDEN_LIST.varname)));
       // the only conf allowed to have the metastore pwd keyname is the hidden list configuration
       // value
@@ -2199,7 +2200,7 @@ public class TestJdbcDriver2 {
    */
   @Test
   public void testFetchFirstDfsCmds() throws Exception {
-    String wareHouseDir = conf.get(HiveConf.ConfVars.METASTOREWAREHOUSE.varname);
+    String wareHouseDir = MetastoreConf.getVar(conf, MetastoreConf.ConfVars.WAREHOUSE);
     execFetchFirst("dfs -ls " + wareHouseDir, DfsProcessor.DFS_RESULT_HEADER, false);
   }
 

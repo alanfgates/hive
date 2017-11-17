@@ -27,6 +27,7 @@ import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.MetaStoreTestUtils;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.MetaException;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.security.SaslRpcServer;
 import org.apache.hadoop.security.SaslRpcServer.AuthMethod;
@@ -141,13 +142,13 @@ public class TestHadoopAuthBridge23 {
   public void setup() throws Exception {
     isMetastoreTokenManagerInited = false;
     int port = findFreePort();
-    System.setProperty(HiveConf.ConfVars.METASTORE_USE_THRIFT_SASL.varname,
+    System.setProperty(MetastoreConf.ConfVars.USE_THRIFT_SASL.toString(),
         "true");
-    System.setProperty(HiveConf.ConfVars.METASTOREURIS.varname,
+    System.setProperty(MetastoreConf.ConfVars.THRIFT_URIS.toString(),
         "thrift://localhost:" + port);
-    System.setProperty(HiveConf.ConfVars.METASTOREWAREHOUSE.varname, new Path(
+    System.setProperty(MetastoreConf.ConfVars.WAREHOUSE.toString(), new Path(
         System.getProperty("test.build.data", "/tmp")).toString());
-    System.setProperty(HiveConf.ConfVars.METASTORE_CLUSTER_DELEGATION_TOKEN_STORE_CLS.varname,
+    System.setProperty(MetastoreConf.ConfVars.DELEGATION_TOKEN_STORE_CLS.toString(),
         MyTokenStore.class.getName());
     conf = new HiveConf(TestHadoopAuthBridge23.class);
     MetaStoreTestUtils.startMetaStore(port, new MyHadoopThriftAuthBridge23());
@@ -356,7 +357,7 @@ public class TestHadoopAuthBridge23 {
         clientUgi.getShortUserName().equals(d.getUser().getShortUserName()));
 
     if (tokenSig != null) {
-      conf.setVar(HiveConf.ConfVars.METASTORE_TOKEN_SIGNATURE, tokenSig);
+      MetastoreConf.setVar(conf, MetastoreConf.ConfVars.TOKEN_SIGNATURE, tokenSig);
       t.setService(new Text(tokenSig));
     }
     //add the token to the clientUgi for securely talking to the metastore

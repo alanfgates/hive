@@ -19,7 +19,7 @@
 package org.apache.hadoop.hive;
 
 import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 
 /**
  * Test utilities
@@ -34,8 +34,8 @@ public class UtilsForTest {
   public static void setNewDerbyDbLocation(HiveConf conf, String newloc) {
     String newDbLoc = System.getProperty("test.tmp.dir") + newloc + "metastore_db";
 
-    conf.setVar(ConfVars.METASTORECONNECTURLKEY, "jdbc:derby:;databaseName=" + newDbLoc
-        + ";create=true");
+    MetastoreConf.setVar(conf, MetastoreConf.ConfVars.CONNECTURLKEY,
+        "jdbc:derby:;databaseName=" + newDbLoc + ";create=true");
   }
 
 }

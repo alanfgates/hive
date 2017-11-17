@@ -69,9 +69,9 @@ public class TestMetaStoreLimitPartitionRequest {
     DriverManager.setLoginTimeout(0);
 
     conf.setBoolVar(HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY, false);
-    conf.setIntVar(HiveConf.ConfVars.METASTORE_LIMIT_PARTITION_REQUEST, PARTITION_REQUEST_LIMIT);
-    conf.setBoolVar(HiveConf.ConfVars.METASTORE_INTEGER_JDO_PUSHDOWN, true);
-    conf.setBoolVar(HiveConf.ConfVars.METASTORE_TRY_DIRECT_SQL, true);
+    MetastoreConf.setLongVar(conf, MetastoreConf.ConfVars.LIMIT_PARTITION_REQUEST, PARTITION_REQUEST_LIMIT);
+    MetastoreConf.setBoolVar(conf, MetastoreConf.ConfVars.INTEGER_JDO_PUSHDOWN, true);
+    MetastoreConf.setBoolVar(conf, MetastoreConf.ConfVars.TRY_DIRECT_SQL, true);
     conf.setBoolVar(HiveConf.ConfVars.DYNAMICPARTITIONING, true);
     conf.setVar(HiveConf.ConfVars.DYNAMICPARTITIONINGMODE, "nonstrict");
     conf.setBoolVar(HiveConf.ConfVars.HIVE_CBO_ENABLED, false);

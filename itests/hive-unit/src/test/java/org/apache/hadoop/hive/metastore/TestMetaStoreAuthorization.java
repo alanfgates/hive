@@ -32,6 +32,7 @@ import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.security.HadoopThriftAuthBridge;
 import org.apache.hadoop.hive.metastore.utils.MetaStoreUtils;
 
@@ -43,11 +44,11 @@ public class TestMetaStoreAuthorization extends TestCase {
 
   public void setup() throws Exception {
     port = findFreePort();
-    System.setProperty(HiveConf.ConfVars.METASTORE_AUTHORIZATION_STORAGE_AUTH_CHECKS.varname,
+    System.setProperty(MetastoreConf.ConfVars.AUTHORIZATION_STORAGE_AUTH_CHECKS.toString(),
         "true");
-    conf.setVar(HiveConf.ConfVars.METASTOREURIS, "thrift://localhost:" + port);
-    conf.setIntVar(HiveConf.ConfVars.METASTORETHRIFTCONNECTIONRETRIES, 3);
-    conf.setTimeVar(ConfVars.METASTORE_CLIENT_CONNECT_RETRY_DELAY, 60, TimeUnit.SECONDS);
+    MetastoreConf.setVar(conf, MetastoreConf.ConfVars.THRIFT_URIS, "thrift://localhost:" + port);
+    MetastoreConf.setLongVar(conf, MetastoreConf.ConfVars.THRIFT_CONNECTION_RETRIES, 3);
+    MetastoreConf.setTimeVar(conf, MetastoreConf.ConfVars.CLIENT_CONNECT_RETRY_DELAY, 60, TimeUnit.SECONDS);
   }
 
   public void testIsWritable() throws Exception {

@@ -28,7 +28,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.util.Shell;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -49,9 +49,9 @@ public class TestClearDanglingScratchDir {
     m_dfs = new MiniDFSCluster.Builder(new Configuration()).numDataNodes(1).format(true).build();
     conf = new HiveConf();
     conf.set(HiveConf.ConfVars.HIVE_SCRATCH_DIR_LOCK.toString(), "true");
-    conf.set(HiveConf.ConfVars.METASTORE_AUTO_CREATE_ALL.toString(), "true");
+    MetastoreConf.setBoolVar(conf, MetastoreConf.ConfVars.AUTO_CREATE_ALL, true);
     LoggerFactory.getLogger("SessionState");
-    conf.setVar(HiveConf.ConfVars.METASTOREWAREHOUSE,
+    MetastoreConf.setVar(conf, MetastoreConf.ConfVars.WAREHOUSE,
         new Path(System.getProperty("test.tmp.dir"), "warehouse").toString());
     conf.set(CommonConfigurationKeysPublic.FS_DEFAULT_NAME_KEY,
         m_dfs.getFileSystem().getUri().toString());

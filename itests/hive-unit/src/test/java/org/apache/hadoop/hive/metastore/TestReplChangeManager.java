@@ -39,6 +39,7 @@ import org.apache.hadoop.hive.metastore.api.Partition;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.serde2.columnar.LazyBinaryColumnarSerDe;
 import org.apache.hadoop.util.StringUtils;
 import org.junit.AfterClass;
@@ -63,8 +64,9 @@ public class TestReplChangeManager {
   public static void setUp() throws Exception {
     m_dfs = new MiniDFSCluster.Builder(new Configuration()).numDataNodes(1).format(true).build();
     hiveConf = new HiveConf(TestReplChangeManager.class);
-    hiveConf.set(HiveConf.ConfVars.METASTOREWAREHOUSE.varname,
-        "hdfs://" + m_dfs.getNameNode().getHostAndPort() + HiveConf.ConfVars.METASTOREWAREHOUSE.defaultStrVal);
+    MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.WAREHOUSE,
+        "hdfs://" + m_dfs.getNameNode().getHostAndPort() +
+            MetastoreConf.ConfVars.WAREHOUSE.getDefaultVal().toString());
     hiveConf.setBoolean(HiveConf.ConfVars.REPLCMENABLED.varname, true);
     cmroot = "hdfs://" + m_dfs.getNameNode().getHostAndPort() + "/cmroot";
     hiveConf.set(HiveConf.ConfVars.REPLCMDIR.varname, cmroot);

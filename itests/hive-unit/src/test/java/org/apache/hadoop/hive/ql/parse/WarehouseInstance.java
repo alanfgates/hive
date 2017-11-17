@@ -30,6 +30,7 @@ import org.apache.hadoop.hive.common.FileUtils;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.MetaStoreTestUtils;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.ql.CommandNeedRetryException;
 import org.apache.hadoop.hive.ql.Driver;
 import org.apache.hadoop.hive.ql.exec.repl.ReplDumpWork;
@@ -94,31 +95,31 @@ class WarehouseInstance implements Closeable {
     for (Map.Entry<String, String> entry : overridesForHiveConf.entrySet()) {
       hiveConf.set(entry.getKey(), entry.getValue());
     }
-    String metaStoreUri = System.getProperty("test." + HiveConf.ConfVars.METASTOREURIS.varname);
+    String metaStoreUri = System.getProperty("test." + MetastoreConf.ConfVars.THRIFT_URIS.toString());
     String hiveWarehouseLocation = System.getProperty("test.warehouse.dir", "/tmp")
         + Path.SEPARATOR
         + TestReplicationScenarios.class.getCanonicalName().replace('.', '_')
         + "_"
         + System.nanoTime();
     if (metaStoreUri != null) {
-      hiveConf.setVar(HiveConf.ConfVars.METASTOREURIS, metaStoreUri);
+      MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.THRIFT_URIS, metaStoreUri);
       return;
     }
 
     //    hiveConf.setBoolVar(HiveConf.ConfVars.HIVE_IN_TEST, hiveInTest);
     // turn on db notification listener on meta store
-    hiveConf.setVar(HiveConf.ConfVars.METASTOREWAREHOUSE, warehouseRoot);
-    hiveConf.setVar(HiveConf.ConfVars.METASTORE_TRANSACTIONAL_EVENT_LISTENERS, LISTENER_CLASS);
+    MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.WAREHOUSE, warehouseRoot);
+    MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.TRANSACTIONAL_EVENT_LISTENERS, LISTENER_CLASS);
     hiveConf.setBoolVar(HiveConf.ConfVars.REPLCMENABLED, true);
     hiveConf.setBoolVar(HiveConf.ConfVars.FIRE_EVENTS_FOR_DML, true);
     hiveConf.setVar(HiveConf.ConfVars.REPLCMDIR, cmRoot);
     hiveConf.setVar(HiveConf.ConfVars.REPL_FUNCTIONS_ROOT_DIR, functionsRoot);
     System.setProperty("datanucleus.mapping.Schema", "APP");
-    hiveConf.setVar(HiveConf.ConfVars.METASTORECONNECTURLKEY,
+    MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.CONNECTURLKEY,
         "jdbc:derby:memory:${test.tmp.dir}/APP;create=true");
     hiveConf.setVar(HiveConf.ConfVars.REPLDIR,
         hiveWarehouseLocation + "/hrepl" + uniqueIdentifier + "/");
-    hiveConf.setIntVar(HiveConf.ConfVars.METASTORETHRIFTCONNECTIONRETRIES, 3);
+    MetastoreConf.setLongVar(hiveConf, MetastoreConf.ConfVars.THRIFT_CONNECTION_RETRIES, 3);
     hiveConf.set(HiveConf.ConfVars.PREEXECHOOKS.varname, "");
     hiveConf.set(HiveConf.ConfVars.POSTEXECHOOKS.varname, "");
     hiveConf.set(HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY.varname, "false");
@@ -126,7 +127,7 @@ class WarehouseInstance implements Closeable {
     System.setProperty(HiveConf.ConfVars.POSTEXECHOOKS.varname, " ");
 
     int metaStorePort = MetaStoreTestUtils.startMetaStore(hiveConf);
-    hiveConf.setVar(HiveConf.ConfVars.METASTOREURIS, "thrift://localhost:" + metaStorePort);
+    MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.THRIFT_URIS, "thrift://localhost:" + metaStorePort);
 
     Path testPath = new Path(hiveWarehouseLocation);
     FileSystem testPathFileSystem = FileSystem.get(testPath.toUri(), hiveConf);

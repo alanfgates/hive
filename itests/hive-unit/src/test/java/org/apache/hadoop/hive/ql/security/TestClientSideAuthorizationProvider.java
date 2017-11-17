@@ -29,6 +29,7 @@ import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.MetaStoreTestUtils;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.security.HadoopThriftAuthBridge;
 import org.apache.hadoop.hive.ql.Driver;
 import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse;
@@ -61,7 +62,7 @@ public class TestClientSideAuthorizationProvider extends TestCase {
     int port = MetaStoreTestUtils.findFreePort();
 
     // Turn off metastore-side authorization
-    System.setProperty(HiveConf.ConfVars.METASTORE_PRE_EVENT_LISTENERS.varname,
+    System.setProperty(MetastoreConf.ConfVars.PRE_EVENT_LISTENERS.toString(),
         "");
 
     MetaStoreTestUtils.startMetaStore(port, HadoopThriftAuthBridge.getBridge());
@@ -76,8 +77,8 @@ public class TestClientSideAuthorizationProvider extends TestCase {
         InjectableDummyAuthenticator.class.getName());
     clientHiveConf.set(HiveConf.ConfVars.HIVE_AUTHORIZATION_TABLE_OWNER_GRANTS.varname, "");
     clientHiveConf.setVar(HiveConf.ConfVars.HIVEMAPREDMODE, "nonstrict");
-    clientHiveConf.setVar(HiveConf.ConfVars.METASTOREURIS, "thrift://localhost:" + port);
-    clientHiveConf.setIntVar(HiveConf.ConfVars.METASTORETHRIFTCONNECTIONRETRIES, 3);
+    MetastoreConf.setVar(clientHiveConf, MetastoreConf.ConfVars.THRIFT_URIS, "thrift://localhost:" + port);
+    MetastoreConf.setLongVar(clientHiveConf, MetastoreConf.ConfVars.THRIFT_CONNECTION_RETRIES, 3);
     clientHiveConf.set(HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY.varname, "false");
 
     clientHiveConf.set(HiveConf.ConfVars.PREEXECHOOKS.varname, "");

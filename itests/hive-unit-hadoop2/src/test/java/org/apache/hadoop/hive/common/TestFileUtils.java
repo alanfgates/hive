@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.shims.HadoopShims;
 import org.apache.hadoop.hive.shims.ShimLoader;
 
@@ -91,8 +92,8 @@ public class TestFileUtils {
       os2.write(new byte[]{1, 2, 3});
       os2.close();
 
-      conf.set(HiveConf.ConfVars.HIVE_EXEC_COPYFILE_MAXNUMFILES.varname, "1");
-      conf.set(HiveConf.ConfVars.HIVE_EXEC_COPYFILE_MAXSIZE.varname, "1");
+      MetastoreConf.setLongVar(conf, MetastoreConf.ConfVars.REPL_COPYFILE_MAXNUMFILES, 1);
+      MetastoreConf.setLongVar(conf, MetastoreConf.ConfVars.REPL_COPYFILE_MAXSIZE, 1);
       Assert.assertTrue("FileUtils.copy failed to copy data",
               FileUtils.copy(fs, copySrc, fs, copyDst, false, false, conf));
 

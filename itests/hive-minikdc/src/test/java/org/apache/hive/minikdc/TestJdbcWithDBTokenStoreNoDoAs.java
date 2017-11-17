@@ -20,6 +20,7 @@ package org.apache.hive.minikdc;
 
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hive.jdbc.miniHS2.MiniHS2;
 import org.junit.BeforeClass;
 
@@ -37,12 +38,14 @@ public class TestJdbcWithDBTokenStoreNoDoAs extends TestJdbcWithMiniKdc{
         SessionHookTest.class.getName());
 
     HiveConf hiveConf = new HiveConf();
-    hiveConf.setVar(ConfVars.METASTORE_CLUSTER_DELEGATION_TOKEN_STORE_CLS, "org.apache.hadoop.hive.thrift.DBTokenStore");
+    MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.DELEGATION_TOKEN_STORE_CLS,
+        "org.apache.hadoop.hive.thrift.DBTokenStore");
     hiveConf.setBoolVar(ConfVars.HIVE_SERVER2_ENABLE_DOAS, false);
     miniHiveKdc = MiniHiveKdc.getMiniHiveKdc(hiveConf);
     miniHS2 = MiniHiveKdc.getMiniHS2WithKerbWithRemoteHMS(miniHiveKdc, hiveConf);
     miniHS2.start(confOverlay);
-    String metastorePrincipal = miniHS2.getConfProperty(ConfVars.METASTORE_KERBEROS_PRINCIPAL.varname);
+    String metastorePrincipal =
+        miniHS2.getConfProperty(MetastoreConf.ConfVars.KERBEROS_PRINCIPAL.toString());
     String hs2Principal = miniHS2.getConfProperty(ConfVars.HIVE_SERVER2_KERBEROS_PRINCIPAL.varname);
     String hs2KeyTab = miniHS2.getConfProperty(ConfVars.HIVE_SERVER2_KERBEROS_KEYTAB.varname);
     System.out.println("HS2 principal : " + hs2Principal + " HS2 keytab : " + hs2KeyTab + " Metastore principal : " + metastorePrincipal);

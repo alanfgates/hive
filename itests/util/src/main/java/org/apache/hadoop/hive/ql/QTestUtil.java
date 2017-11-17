@@ -103,6 +103,7 @@ import org.apache.hadoop.hive.llap.daemon.MiniLlapCluster;
 import org.apache.hadoop.hive.llap.io.api.LlapProxy;
 import org.apache.hadoop.hive.metastore.Warehouse;
 import org.apache.hadoop.hive.metastore.api.Index;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.ql.exec.FunctionRegistry;
 import org.apache.hadoop.hive.ql.exec.Task;
 import org.apache.hadoop.hive.ql.exec.Utilities;
@@ -346,7 +347,7 @@ public class QTestUtil {
     }
 
     // Plug verifying metastore in for testing DirectSQL.
-    conf.setVar(ConfVars.METASTORE_RAW_STORE_IMPL,
+    MetastoreConf.setVar(conf, MetastoreConf.ConfVars.RAW_STORE_IMPL,
         "org.apache.hadoop.hive.metastore.VerifyingObjectStore");
 
     if (mr != null) {
@@ -396,7 +397,7 @@ public class QTestUtil {
     conf.set(CommonConfigurationKeysPublic.FS_DEFAULT_NAME_KEY, fsUriString);
 
     // Remote dirs
-    conf.setVar(ConfVars.METASTOREWAREHOUSE, warehousePath.toString());
+    MetastoreConf.setVar(conf, MetastoreConf.ConfVars.WAREHOUSE, warehousePath.toString());
     conf.setVar(ConfVars.HIVE_JAR_DIRECTORY, jarPath.toString());
     conf.setVar(ConfVars.HIVE_USER_INSTALL_DIR, userInstallPath.toString());
     // ConfVars.SCRATCHDIR - {test.tmp.dir}/scratchdir
@@ -409,7 +410,7 @@ public class QTestUtil {
 
   private void createRemoteDirs() {
     assert fs != null;
-    Path warehousePath = fs.makeQualified(new Path(conf.getVar(ConfVars.METASTOREWAREHOUSE)));
+    Path warehousePath = fs.makeQualified(new Path(MetastoreConf.getVar(conf, MetastoreConf.ConfVars.WAREHOUSE)));
     assert warehousePath != null;
     Path hiveJarPath = fs.makeQualified(new Path(conf.getVar(ConfVars.HIVE_JAR_DIRECTORY)));
     assert hiveJarPath != null;
@@ -1085,7 +1086,7 @@ public class QTestUtil {
       createRemoteDirs();
     }
 
-    testWarehouse = conf.getVar(HiveConf.ConfVars.METASTOREWAREHOUSE);
+    testWarehouse = MetastoreConf.getVar(conf, MetastoreConf.ConfVars.WAREHOUSE);
     String execEngine = conf.get("hive.execution.engine");
     conf.set("hive.execution.engine", "mr");
     SessionState.start(conf);
@@ -1327,7 +1328,8 @@ public class QTestUtil {
 
     //replace ${hiveconf:hive.metastore.warehouse.dir} with actual dir if existed.
     //we only want the absolute path, so remove the header, such as hdfs://localhost:57145
-    String wareHouseDir = SessionState.get().getConf().getVar(ConfVars.METASTOREWAREHOUSE)
+    String wareHouseDir = MetastoreConf.getVar(SessionState.get().getConf(),
+        MetastoreConf.ConfVars.WAREHOUSE)
         .replaceAll("^[a-zA-Z]+://.*?:\\d+", "");
     commandArgs = commandArgs.replaceAll("\\$\\{hiveconf:hive\\.metastore\\.warehouse\\.dir\\}",
       wareHouseDir);
@@ -1415,7 +1417,7 @@ public class QTestUtil {
 
   public void convertSequenceFileToTextFile() throws Exception {
     // Create an instance of hive in order to create the tables
-    testWarehouse = conf.getVar(HiveConf.ConfVars.METASTOREWAREHOUSE);
+    testWarehouse = MetastoreConf.getVar(conf, MetastoreConf.ConfVars.WAREHOUSE);
     db = Hive.get(conf);
 
     // Move all data from dest4_sequencefile to dest4

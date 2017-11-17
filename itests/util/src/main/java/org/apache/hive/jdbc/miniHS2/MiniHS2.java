@@ -36,6 +36,7 @@ import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.hive.llap.LlapItUtils;
 import org.apache.hadoop.hive.llap.daemon.MiniLlapCluster;
 import org.apache.hadoop.hive.metastore.MetaStoreTestUtils;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.security.HadoopThriftAuthBridge;
 import org.apache.hadoop.hive.ql.exec.Utilities;
 import org.apache.hadoop.hive.ql.util.ZooKeeperHiveHelper;
@@ -284,9 +285,9 @@ public class MiniHS2 extends AbstractHiveService {
         + "test_metastore;create=true";
 
     if (isMetastoreSecure) {
-      hiveConf.setVar(ConfVars.METASTORE_KERBEROS_PRINCIPAL, metastoreServerPrincipal);
-      hiveConf.setVar(ConfVars.METASTORE_KERBEROS_KEYTAB_FILE, metastoreKeyTab);
-      hiveConf.setBoolVar(ConfVars.METASTORE_USE_THRIFT_SASL, true);
+      MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.KERBEROS_PRINCIPAL, metastoreServerPrincipal);
+      MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.KERBEROS_KEYTAB_FILE, metastoreKeyTab);
+      MetastoreConf.setBoolVar(hiveConf, MetastoreConf.ConfVars.USE_THRIFT_SASL, true);
     }
 
     fs.mkdirs(baseFsDir);
@@ -296,8 +297,8 @@ public class MiniHS2 extends AbstractHiveService {
 
     fs.mkdirs(wareHouseDir);
     setWareHouseDir(wareHouseDir.toString());
-    System.setProperty(HiveConf.ConfVars.METASTORECONNECTURLKEY.varname, metaStoreURL);
-    hiveConf.setVar(HiveConf.ConfVars.METASTORECONNECTURLKEY, metaStoreURL);
+    System.setProperty(MetastoreConf.ConfVars.CONNECTURLKEY.toString(), metaStoreURL);
+    MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.CONNECTURLKEY, metaStoreURL);
     if (!usePortsFromConf) {
       // reassign a new port, just in case if one of the MR services grabbed the last one
       setBinaryPort(MetaStoreTestUtils.findFreePort());
@@ -335,7 +336,8 @@ public class MiniHS2 extends AbstractHiveService {
   public void start(Map<String, String> confOverlay) throws Exception {
     if (isMetastoreRemote) {
       int metaStorePort = MetaStoreTestUtils.findFreePort();
-      getHiveConf().setVar(ConfVars.METASTOREURIS, "thrift://localhost:" + metaStorePort);
+      MetastoreConf.setVar(getHiveConf(), MetastoreConf.ConfVars.THRIFT_URIS, "thrift://localhost:" +
+          metaStorePort);
       MetaStoreTestUtils.startMetaStore(metaStorePort, HadoopThriftAuthBridge.getBridge(), getHiveConf());
     }
 

@@ -19,6 +19,7 @@ package org.apache.hadoop.hive.metastore;
 
 import org.apache.hadoop.hive.cli.CliSessionState;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.metrics.Metrics;
 import org.apache.hadoop.hive.metastore.metrics.MetricsConstants;
 import org.apache.hadoop.hive.metastore.security.HadoopThriftAuthBridge;
@@ -44,9 +45,9 @@ public class TestMetaStoreMetrics {
     int port = MetaStoreTestUtils.findFreePort();
 
     hiveConf = new HiveConf(TestMetaStoreMetrics.class);
-    hiveConf.setVar(HiveConf.ConfVars.METASTOREURIS, "thrift://localhost:" + port);
-    hiveConf.setIntVar(HiveConf.ConfVars.METASTORETHRIFTCONNECTIONRETRIES, 3);
-    hiveConf.setBoolVar(HiveConf.ConfVars.METASTORE_METRICS, true);
+    MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.THRIFT_URIS, "thrift://localhost:" + port);
+    MetastoreConf.setLongVar(hiveConf, MetastoreConf.ConfVars.THRIFT_CONNECTION_RETRIES, 3);
+    MetastoreConf.setBoolVar(hiveConf, MetastoreConf.ConfVars.METRICS_ENABLED, true);
     hiveConf.setBoolVar(HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY, false);
     hiveConf
         .setVar(HiveConf.ConfVars.HIVE_AUTHORIZATION_MANAGER,

@@ -35,6 +35,7 @@ import org.apache.hadoop.fs.permission.AclEntryScope;
 import org.apache.hadoop.fs.permission.AclEntryType;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.shims.ShimLoader;
 import org.apache.hadoop.hive.shims.Utils;
 import org.apache.hadoop.hive.shims.HadoopShims.MiniDFSShim;
@@ -83,7 +84,7 @@ public class TestStorageBasedMetastoreAuthorizationProviderWithACL
 
     warehouseDir = new Path(new Path(fs.getUri()), "/warehouse");
     fs.mkdirs(warehouseDir);
-    conf.setVar(HiveConf.ConfVars.METASTOREWAREHOUSE, warehouseDir.toString());
+    MetastoreConf.setVar(conf, MetastoreConf.ConfVars.WAREHOUSE, warehouseDir.toString());
 
     // Set up scratch directory
     Path scratchDir = new Path(new Path(fs.getUri()), "/scratchdir");

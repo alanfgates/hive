@@ -43,6 +43,7 @@ import org.apache.hadoop.hive.metastore.api.SQLPrimaryKey;
 import org.apache.hadoop.hive.metastore.api.SQLUniqueConstraint;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.UniqueConstraintsRequest;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.messaging.MessageFactory;
 import org.apache.hadoop.hive.metastore.messaging.event.filters.AndFilter;
 import org.apache.hadoop.hive.metastore.messaging.event.filters.DatabaseAndTableFilter;
@@ -127,13 +128,13 @@ public class TestReplicationScenarios {
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
     hconf = new HiveConf(TestReplicationScenarios.class);
-    String metastoreUri = System.getProperty("test."+HiveConf.ConfVars.METASTOREURIS.varname);
+    String metastoreUri = System.getProperty("test."+ MetastoreConf.ConfVars.THRIFT_URIS.toString());
     if (metastoreUri != null) {
-      hconf.setVar(HiveConf.ConfVars.METASTOREURIS, metastoreUri);
+      MetastoreConf.setVar(hconf, MetastoreConf.ConfVars.THRIFT_URIS, metastoreUri);
       return;
     }
 
-    hconf.setVar(HiveConf.ConfVars.METASTORE_TRANSACTIONAL_EVENT_LISTENERS,
+    MetastoreConf.setVar(hconf, MetastoreConf.ConfVars.TRANSACTIONAL_EVENT_LISTENERS,
         DBNOTIF_LISTENER_CLASSNAME); // turn on db notification listener on metastore
     hconf.setBoolVar(HiveConf.ConfVars.REPLCMENABLED, true);
     hconf.setBoolVar(HiveConf.ConfVars.FIRE_EVENTS_FOR_DML, true);
@@ -142,13 +143,13 @@ public class TestReplicationScenarios {
     hconf.set(proxySettingName, "*");
     msPort = MetaStoreTestUtils.startMetaStore(hconf);
     hconf.setVar(HiveConf.ConfVars.REPLDIR,TEST_PATH + "/hrepl/");
-    hconf.setVar(HiveConf.ConfVars.METASTOREURIS, "thrift://localhost:"
+    MetastoreConf.setVar(hconf, MetastoreConf.ConfVars.THRIFT_URIS, "thrift://localhost:"
         + msPort);
-    hconf.setIntVar(HiveConf.ConfVars.METASTORETHRIFTCONNECTIONRETRIES, 3);
+    MetastoreConf.setLongVar(hconf, MetastoreConf.ConfVars.THRIFT_CONNECTION_RETRIES, 3);
     hconf.set(HiveConf.ConfVars.PREEXECHOOKS.varname, "");
     hconf.set(HiveConf.ConfVars.POSTEXECHOOKS.varname, "");
     hconf.set(HiveConf.ConfVars.HIVE_SUPPORT_CONCURRENCY.varname, "false");
-    hconf.set(HiveConf.ConfVars.METASTORE_RAW_STORE_IMPL.varname,
+    MetastoreConf.setVar(hconf, MetastoreConf.ConfVars.RAW_STORE_IMPL,
               "org.apache.hadoop.hive.metastore.InjectableBehaviourObjectStore");
     hconf.setBoolVar(HiveConf.ConfVars.HIVEOPTIMIZEMETADATAQUERIES, true);
     System.setProperty(HiveConf.ConfVars.PREEXECHOOKS.varname, " ");
@@ -164,10 +165,11 @@ public class TestReplicationScenarios {
 
     FileUtils.deleteDirectory(new File("metastore_db2"));
     HiveConf hconfMirrorServer = new HiveConf();
-    hconfMirrorServer.set(HiveConf.ConfVars.METASTORECONNECTURLKEY.varname, "jdbc:derby:;databaseName=metastore_db2;create=true");
+    MetastoreConf.setVar(hconfMirrorServer, MetastoreConf.ConfVars.CONNECTURLKEY,
+        "jdbc:derby:;databaseName=metastore_db2;create=true");
     msPortMirror = MetaStoreTestUtils.startMetaStore(hconfMirrorServer);
     hconfMirror = new HiveConf(hconf);
-    hconfMirror.setVar(HiveConf.ConfVars.METASTOREURIS, "thrift://localhost:"
+    MetastoreConf.setVar(hconfMirror, MetastoreConf.ConfVars.THRIFT_URIS, "thrift://localhost:"
         + msPortMirror);
     driverMirror = new Driver(hconfMirror);
     metaStoreClientMirror = new HiveMetaStoreClient(hconfMirror);
@@ -3378,13 +3380,13 @@ public class TestReplicationScenarios {
     }
     assertNotNull(ex);
     // Disable auth so the call should succeed
-    hconf.setBoolVar(HiveConf.ConfVars.METASTORE_EVENT_DB_NOTIFICATION_API_AUTH, false);
+    MetastoreConf.setBoolVar(hconf, MetastoreConf.ConfVars.EVENT_DB_NOTIFICATION_API_AUTH, false);
     try {
       rsp = metaStoreClient.getNextNotification(firstEventId, 0, null);
       assertEquals(1, rsp.getEventsSize());
     } finally {
       // Restore the settings
-      hconf.setBoolVar(HiveConf.ConfVars.METASTORE_EVENT_DB_NOTIFICATION_API_AUTH, true);
+      MetastoreConf.setBoolVar(hconf, MetastoreConf.ConfVars.EVENT_DB_NOTIFICATION_API_AUTH, true);
       hconf.set(proxySettingName, "*");
       ProxyUsers.refreshSuperUserGroupsConfiguration(hconf);
     }

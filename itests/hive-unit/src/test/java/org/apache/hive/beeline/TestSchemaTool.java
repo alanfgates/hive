@@ -37,6 +37,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaException;
 import org.apache.hadoop.hive.metastore.IMetaStoreSchemaInfo;
 import org.apache.hadoop.hive.metastore.MetaStoreSchemaInfoFactory;
+import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.tools.HiveSchemaHelper;
 import org.apache.hadoop.hive.metastore.tools.HiveSchemaHelper.NestedScriptParser;
 import org.apache.hadoop.hive.metastore.tools.HiveSchemaHelper.PostgresCommandParser;
@@ -55,15 +56,15 @@ public class TestSchemaTool extends TestCase {
     super.setUp();
     testMetastoreDB = System.getProperty("java.io.tmpdir") +
         File.separator + "test_metastore-" + new Random().nextInt();
-    System.setProperty(HiveConf.ConfVars.METASTORECONNECTURLKEY.varname,
+    System.setProperty(MetastoreConf.ConfVars.CONNECTURLKEY.toString(),
         "jdbc:derby:" + testMetastoreDB + ";create=true");
     hiveConf = new HiveConf(this.getClass());
     schemaTool = new HiveSchemaTool(
         System.getProperty("test.tmp.dir", "target/tmp"), hiveConf, "derby", null);
-    schemaTool.setUserName(
-        schemaTool.getHiveConf().get(HiveConf.ConfVars.METASTORE_CONNECTION_USER_NAME.varname));
-    schemaTool.setPassWord(ShimLoader.getHadoopShims().getPassword(schemaTool.getHiveConf(),
-          HiveConf.ConfVars.METASTOREPWD.varname));
+    schemaTool.setUserName(MetastoreConf.getVar(schemaTool.getHiveConf(),
+        MetastoreConf.ConfVars.CONNECTION_USER_NAME));
+    schemaTool.setPassWord(MetastoreConf.getPassword(schemaTool.getHiveConf(),
+        MetastoreConf.ConfVars.PWD));
     System.setProperty("beeLine.system.exit", "true");
     errStream = System.err;
     outStream = System.out;
