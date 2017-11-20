@@ -62,7 +62,7 @@ public class TestClientSideAuthorizationProvider extends TestCase {
     int port = MetaStoreTestUtils.findFreePort();
 
     // Turn off metastore-side authorization
-    System.setProperty(MetastoreConf.ConfVars.PRE_EVENT_LISTENERS.toString(),
+    System.setProperty(MetastoreConf.ConfVars.PRE_EVENT_LISTENERS.getHiveName(),
         "");
 
     MetaStoreTestUtils.startMetaStore(port, HadoopThriftAuthBridge.getBridge());

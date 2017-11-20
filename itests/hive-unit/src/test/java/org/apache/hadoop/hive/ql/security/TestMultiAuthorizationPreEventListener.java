@@ -52,7 +52,7 @@ public class TestMultiAuthorizationPreEventListener {
 
     int port = MetaStoreTestUtils.findFreePort();
 
-    System.setProperty(MetastoreConf.ConfVars.PRE_EVENT_LISTENERS.toString(),
+    System.setProperty(MetastoreConf.ConfVars.PRE_EVENT_LISTENERS.getHiveName(),
         AuthorizationPreEventListener.class.getName());
 
     // Set two dummy classes as authorizatin managers. Two instances should get created.

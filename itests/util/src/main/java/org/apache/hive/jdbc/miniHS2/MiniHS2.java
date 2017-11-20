@@ -297,7 +297,7 @@ public class MiniHS2 extends AbstractHiveService {
 
     fs.mkdirs(wareHouseDir);
     setWareHouseDir(wareHouseDir.toString());
-    System.setProperty(MetastoreConf.ConfVars.CONNECTURLKEY.toString(), metaStoreURL);
+    System.setProperty(MetastoreConf.ConfVars.CONNECTURLKEY.getHiveName(), metaStoreURL);
     MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.CONNECTURLKEY, metaStoreURL);
     if (!usePortsFromConf) {
       // reassign a new port, just in case if one of the MR services grabbed the last one

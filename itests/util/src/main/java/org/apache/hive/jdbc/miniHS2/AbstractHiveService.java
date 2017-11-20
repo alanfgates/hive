@@ -94,7 +94,7 @@ public abstract class AbstractHiveService {
 
   public void setWareHouseDir(String wareHouseURI) {
     verifyNotStarted();
-    System.setProperty(MetastoreConf.ConfVars.WAREHOUSE.toString(), wareHouseURI);
+    System.setProperty(MetastoreConf.ConfVars.WAREHOUSE.getHiveName(), wareHouseURI);
     MetastoreConf.setVar(hiveConf, MetastoreConf.ConfVars.WAREHOUSE, wareHouseURI);
   }
 

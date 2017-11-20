@@ -67,7 +67,7 @@ public class StorageBasedMetastoreTestBase {
     int port = MetaStoreTestUtils.findFreePort();
 
     // Turn on metastore-side authorization
-    System.setProperty(MetastoreConf.ConfVars.PRE_EVENT_LISTENERS.toString(),
+    System.setProperty(MetastoreConf.ConfVars.PRE_EVENT_LISTENERS.getHiveName(),
         AuthorizationPreEventListener.class.getName());
     System.setProperty(HiveConf.ConfVars.HIVE_METASTORE_AUTHORIZATION_MANAGER.varname,
         getAuthorizationProvider());

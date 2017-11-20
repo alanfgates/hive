@@ -44,7 +44,7 @@ public class TestMetaStoreAuthorization extends TestCase {
 
   public void setup() throws Exception {
     port = findFreePort();
-    System.setProperty(MetastoreConf.ConfVars.AUTHORIZATION_STORAGE_AUTH_CHECKS.toString(),
+    System.setProperty(MetastoreConf.ConfVars.AUTHORIZATION_STORAGE_AUTH_CHECKS.getHiveName(),
         "true");
     MetastoreConf.setVar(conf, MetastoreConf.ConfVars.THRIFT_URIS, "thrift://localhost:" + port);
     MetastoreConf.setLongVar(conf, MetastoreConf.ConfVars.THRIFT_CONNECTION_RETRIES, 3);

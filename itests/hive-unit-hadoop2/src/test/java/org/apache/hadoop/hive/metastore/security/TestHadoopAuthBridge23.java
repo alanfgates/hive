@@ -142,13 +142,13 @@ public class TestHadoopAuthBridge23 {
   public void setup() throws Exception {
     isMetastoreTokenManagerInited = false;
     int port = findFreePort();
-    System.setProperty(MetastoreConf.ConfVars.USE_THRIFT_SASL.toString(),
+    System.setProperty(MetastoreConf.ConfVars.USE_THRIFT_SASL.getHiveName(),
         "true");
-    System.setProperty(MetastoreConf.ConfVars.THRIFT_URIS.toString(),
+    System.setProperty(MetastoreConf.ConfVars.THRIFT_URIS.getHiveName(),
         "thrift://localhost:" + port);
-    System.setProperty(MetastoreConf.ConfVars.WAREHOUSE.toString(), new Path(
+    System.setProperty(MetastoreConf.ConfVars.WAREHOUSE.getHiveName(), new Path(
         System.getProperty("test.build.data", "/tmp")).toString());
-    System.setProperty(MetastoreConf.ConfVars.DELEGATION_TOKEN_STORE_CLS.toString(),
+    System.setProperty(MetastoreConf.ConfVars.DELEGATION_TOKEN_STORE_CLS.getHiveName(),
         MyTokenStore.class.getName());
     conf = new HiveConf(TestHadoopAuthBridge23.class);
     MetaStoreTestUtils.startMetaStore(port, new MyHadoopThriftAuthBridge23());

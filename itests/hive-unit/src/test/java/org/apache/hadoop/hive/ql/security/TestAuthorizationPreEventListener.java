@@ -56,7 +56,7 @@ public class TestAuthorizationPreEventListener extends TestCase {
 
     int port = MetaStoreTestUtils.findFreePort();
 
-    System.setProperty(MetastoreConf.ConfVars.PRE_EVENT_LISTENERS.toString(),
+    System.setProperty(MetastoreConf.ConfVars.PRE_EVENT_LISTENERS.getHiveName(),
         AuthorizationPreEventListener.class.getName());
     System.setProperty(HiveConf.ConfVars.HIVE_METASTORE_AUTHORIZATION_MANAGER.varname,
         DummyHiveMetastoreAuthorizationProvider.class.getName());

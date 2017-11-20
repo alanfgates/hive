@@ -1133,7 +1133,7 @@ public class HiveSchemaTool {
     }
 
 
-    System.setProperty(MetastoreConf.ConfVars.SCHEMA_VERIFICATION.toString(), "true");
+    System.setProperty(MetastoreConf.ConfVars.SCHEMA_VERIFICATION.getHiveName(), "true");
     try {
       HiveSchemaTool schemaTool = new HiveSchemaTool(dbType, metaDbType);
 

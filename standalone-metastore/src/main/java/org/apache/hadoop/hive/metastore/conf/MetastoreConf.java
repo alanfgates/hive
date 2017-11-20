@@ -917,7 +917,7 @@ public class MetastoreConf {
      * underlying variable name.  Use one of the getVar methods instead.  Only use this if you
      * are 100% sure you know you're doing.  The reason for this is that MetastoreConf goes to a
      * lot of trouble to make sure it checks both Hive and Metastore values for config keys.  If
-     * you call conf.get(varname) you are undermining that.
+     * you call {@link Configuration#get(String)} you are undermining that.
      * @return variable name
      */
     public String getVarname() {
@@ -925,12 +925,14 @@ public class MetastoreConf {
     }
 
     /**
-     * If you are calling this, you're probably doing it wrong.  You shouldn't need to use the
-     * underlying variable name.  Use one of the getVar methods instead.  Only use this if you
-     * are 100% sure you know you're doing.  The reason for this is that MetastoreConf goes to a
+     * Use this method if you need to set a system property and are going to instantiate the
+     * configuration file via HiveConf.  This is because HiveConf only looks for values it knows,
+     * so it will miss all of the metastore.* ones.  Do not use this to explicitly set or get the
+     * underlying config value unless you are 100% sure you know what you're doing.
+     * The reason for this is that MetastoreConf goes to a
      * lot of trouble to make sure it checks both Hive and Metastore values for config keys.  If
-     * you call conf.get(hivename) you are undermining that.
-     * @return variable hive name
+     * you call {@link Configuration#get(String)} you are undermining that.
+     * @return hive.* configuration key
      */
     public String getHiveName() {
       return hiveName;
@@ -940,6 +942,14 @@ public class MetastoreConf {
       return defaultVal;
     }
 
+    /**
+     * This is useful if you need the variable name for a LOG message or
+     * {@link System#setProperty(String, String)}, beware however that you should only use this
+     * with setProperty if you're going to create a configuration via
+     * {@link MetastoreConf#newMetastoreConf()}.  If you are going to create it with HiveConf,
+     * then use {@link #getHiveName()}.
+     * @return metastore.* configuration key
+     */
     @Override
     public String toString() {
       return varname;

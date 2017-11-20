@@ -56,7 +56,7 @@ public class TestSchemaTool extends TestCase {
     super.setUp();
     testMetastoreDB = System.getProperty("java.io.tmpdir") +
         File.separator + "test_metastore-" + new Random().nextInt();
-    System.setProperty(MetastoreConf.ConfVars.CONNECTURLKEY.toString(),
+    System.setProperty(MetastoreConf.ConfVars.CONNECTURLKEY.getHiveName(),
         "jdbc:derby:" + testMetastoreDB + ";create=true");
     hiveConf = new HiveConf(this.getClass());
     schemaTool = new HiveSchemaTool(
