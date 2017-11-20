@@ -4856,6 +4856,14 @@ public class HiveConf extends Configuration {
     // if embedded metastore is to be used as per config so far
     // then this is considered like the metastore server case
     String msUri = this.getVar(HiveConf.ConfVars.METASTOREURIS);
+    // This is hackery, but having hive-common depend on standalone-metastore is really bad
+    // because it will pull all of the metastore code into every module.  We need to check that
+    // we aren't using the standalone metastore.  If we are, we should treat it the same as a
+    // remote metastore situation.
+    if (msUri == null || msUri.isEmpty()) {
+      msUri = this.get("metastore.thrift.uris");
+    }
+    LOG.debug("Found metastore URI of " + msUri);
     if(HiveConfUtil.isEmbeddedMetaStore(msUri)){
       setLoadMetastoreConfig(true);
     }
