@@ -29,7 +29,6 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.Progressable;
 
-import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URI;
@@ -49,12 +48,12 @@ public class InMemoryFs extends FileSystem {
   // Note that this can be null.  Access to this should be synchronized on 'this'
   private InMemoryFile cwd;
 
-  public InMemoryFs() {
+  public InMemoryFs() throws IOException {
     synchronized (InMemoryFs.class) {
       if (root == null) {
         files = new HashMap<>();
         FsPermission perms = new FsPermission(FsAction.ALL, FsAction.ALL, FsAction.ALL);
-        root = new InMemoryDirectory(new Path("/"), perms, "root", "root");
+        root = new InMemoryDirectory(null, new Path("/"), perms, "root", "root");
         files.put(root.getPath(), root);
       }
     }
@@ -106,8 +105,7 @@ public class InMemoryFs extends FileSystem {
         }
         InMemoryDirectory parentDir = resolveSymLink(parentFile).asDirectory();
         checkCanCreateIn(parentDir);
-        toWriteTo = new InMemoryRegularFile(absolutePath, fsPermission, getOwner(), getGroup());
-        parentDir.addFile(absolutePath.getName(), toWriteTo);
+        toWriteTo = new InMemoryRegularFile(parentDir, absolutePath, fsPermission, getOwner(), getGroup());
         files.put(absolutePath, toWriteTo);
       }
     }
@@ -131,9 +129,93 @@ public class InMemoryFs extends FileSystem {
   }
 
   @Override
-  public boolean rename(Path path, Path path1) throws IOException {
-    return false;
-    // TODO
+  public boolean rename(Path src, Path dest) throws IOException {
+    if (src.toString().equals("/")) throw new IOException("No no no!");
+    Path absoluteSrc = makePathAbsolute(src);
+    Path absoluteDest = makePathAbsolute(dest);
+    synchronized (InMemoryFs.class) {
+      InMemoryFile srcFile = files.get(absoluteSrc);
+      if (srcFile == null) {
+        throw new FileNotFoundException(src.toString() + ", no such file");
+      }
+      // Resolve whether we're moving to a file or directory
+      InMemoryFile destFile = files.get(absoluteDest);
+      InMemoryDirectory destDir;
+      if (destFile != null) {
+        if (destFile.stat().isDirectory()) {
+          destDir = destFile.asDirectory();
+        } else {
+          throw new IOException(dest.toString() + " already exists");
+        }
+      } else {
+        InMemoryFile destParent = files.get(absoluteDest.getParent());
+        if (destParent == null) {
+          throw new FileNotFoundException(absoluteDest.getParent().getName() +
+              ", no such directory");
+        }
+        destDir = destParent.asDirectory();
+      }
+      checkCanCreateIn(destDir);
+
+      if (srcFile.stat().isDirectory()) {
+        moveDirectory(srcFile.asDirectory(), destDir);
+      } else {
+        if (destFile != null) {
+          moveFile(absoluteSrc, new Path(absoluteDest, srcFile.getPath().getName()), destDir);
+        } else {
+          moveFile(absoluteSrc, absoluteDest, destDir);
+        }
+      }
+    }
+    return true;
+  }
+
+  // Assumes you hold the class lock
+  private void moveDirectory(InMemoryDirectory srcDir, InMemoryDirectory destDir) throws IOException {
+    // Walk down, collect all of the directories to move and move them, then move all the files
+    Map<InMemoryFile, InMemoryDirectory> dirsToMove = new HashMap<>();
+    Map<InMemoryFile, InMemoryDirectory> filesToMove = new HashMap<>();
+    moveDirectory(srcDir, destDir, dirsToMove, filesToMove);
+    for (Map.Entry<InMemoryFile, InMemoryDirectory> e : dirsToMove.entrySet()) {
+      changePath(e.getKey().getPath(),
+          new Path(e.getValue().getPath(), e.getKey().getPath().getName()));
+    }
+    for (Map.Entry<InMemoryFile, InMemoryDirectory> e : filesToMove.entrySet()) {
+      changePath(e.getKey().getPath(),
+          new Path(e.getValue().getPath(), e.getKey().getPath().getName()));
+    }
+  }
+
+  private void moveDirectory(InMemoryDirectory srcDir, InMemoryDirectory destDir,
+                             Map<InMemoryFile, InMemoryDirectory> dirsToMove,
+                             Map<InMemoryFile, InMemoryDirectory> filesToMove) throws IOException {
+    // Construct a destination directory for each file in this directory.  We don't add this to
+    // the file system yet, we'll do that later.
+    dirsToMove.put(srcDir, destDir);
+    InMemoryDirectory newDestDir =
+        new InMemoryDirectory(destDir, new Path(destDir.getPath(), srcDir.getPath().getName()),
+        srcDir.getPerms(), srcDir.getOwner(), srcDir.getGroup());
+    for (InMemoryFile f : srcDir.getFiles()) {
+      if (f.stat().isDirectory()) {
+        moveDirectory(f.asDirectory(), newDestDir, dirsToMove, filesToMove);
+      } else {
+        filesToMove.put(f, newDestDir);
+      }
+    }
+  }
+
+  private void moveFile(Path srcFile, Path destFile, InMemoryDirectory parent) throws IOException {
+    InMemoryFile file = files.remove(srcFile);
+    assert file != null;
+    file.move(destFile, parent);
+    files.put(destFile, file);
+  }
+
+  private void changePath(Path srcFile, Path destFile) {
+    InMemoryFile file = files.remove(srcFile);
+    assert file != null;
+    file.setPath(destFile);
+    files.put(destFile, file);
   }
 
   @Override
@@ -235,10 +317,8 @@ public class InMemoryFs extends FileSystem {
         Path toCreate = pathsToCreate.pop();
         LOG.debug("Going to create path " + toCreate.toString());
         checkCanCreateIn(currFile.asDirectory());
-        InMemoryDirectory newDir =
-            new InMemoryDirectory(toCreate, fsPermission, getOwner(), getGroup());
-        currFile.asDirectory().addFile(toCreate.getName(), newDir);
-        currFile = newDir;
+        currFile = new InMemoryDirectory(currFile.asDirectory(), toCreate, fsPermission,
+            getOwner(), getGroup());
         assert toCreate.isAbsolute();
         files.put(toCreate, currFile);
       }

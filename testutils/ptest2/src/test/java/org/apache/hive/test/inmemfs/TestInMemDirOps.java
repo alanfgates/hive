@@ -36,10 +36,13 @@ import java.util.Comparator;
 
 public class TestInMemDirOps {
 
+  private static final Path root = new Path("/");
+  private static final Path noSuchFile = new Path("/no_such_file");
+
   private FileSystem fs;
 
   @Before
-  public void createFs() {
+  public void createFs() throws IOException {
     InMemoryFs.reset();
     fs = new InMemoryFs();
   }
@@ -52,25 +55,25 @@ public class TestInMemDirOps {
   @Test
   public void cwd() {
     Assert.assertNull(fs.getWorkingDirectory());
-    fs.setWorkingDirectory(new Path("/"));
+    fs.setWorkingDirectory(root);
     Assert.assertEquals("/", fs.getWorkingDirectory().toString());
   }
 
   @Test
   public void makeSingleDir() throws IOException {
-    FileStatus[] stats = fs.listStatus(new Path("/"));
+    FileStatus[] stats = fs.listStatus(root);
     Assert.assertNotNull(stats);
     Assert.assertEquals(0, stats.length);
 
     fs.mkdirs(new Path("/a"));
-    stats = fs.listStatus(new Path("/"));
+    stats = fs.listStatus(root);
     Assert.assertNotNull(stats);
     Assert.assertEquals(1, stats.length);
     Assert.assertEquals("/a", stats[0].getPath().toString());
     fs.setWorkingDirectory(new Path("/a"));
 
     fs.mkdirs(new Path("b"));
-    stats = fs.listStatus(new Path("/"));
+    stats = fs.listStatus(root);
     Assert.assertNotNull(stats);
     Assert.assertEquals(1, stats.length);
     Assert.assertEquals("/a", stats[0].getPath().toString());
@@ -84,7 +87,7 @@ public class TestInMemDirOps {
   public void makeMultiDirs() throws IOException {
     fs.mkdirs(new Path("/a/b/c"));
 
-    FileStatus[] stats = fs.listStatus(new Path("/"));
+    FileStatus[] stats = fs.listStatus(root);
     Assert.assertNotNull(stats);
     Assert.assertEquals(1, stats.length);
     Assert.assertEquals("/a", stats[0].getPath().toString());
@@ -143,7 +146,7 @@ public class TestInMemDirOps {
     Assert.assertTrue(stat.isDirectory());
     Assert.assertEquals("/a", stat.getPath().toString());
 
-    fs.setWorkingDirectory(new Path("/"));
+    fs.setWorkingDirectory(root);
     stat = fs.getFileStatus(new Path("a"));
     Assert.assertTrue(stat.isDirectory());
     Assert.assertEquals("/a", stat.getPath().toString());
@@ -156,7 +159,7 @@ public class TestInMemDirOps {
 
   @Test(expected = IOException.class)
   public void getFileStatusNoSuchFile() throws IOException {
-    fs.getFileStatus(new Path("/no_such_file"));
+    fs.getFileStatus(noSuchFile);
   }
 
   @Test
@@ -198,7 +201,7 @@ public class TestInMemDirOps {
     final String line = "When in the course of human events";
     final String line2 = "it becomes necessary for one people to disolve";
 
-    fs.setWorkingDirectory(new Path("/"));
+    fs.setWorkingDirectory(root);
     FSDataOutputStream out = fs.create(new Path("declaration"));
     out.writeBytes(line);
     out.writeBytes(line2);
@@ -286,7 +289,7 @@ public class TestInMemDirOps {
 
   @Test(expected = FileNotFoundException.class)
   public void noSuchFile() throws IOException {
-    FSDataInputStream in = fs.open(new Path("/no_such_file"));
+    FSDataInputStream in = fs.open(noSuchFile);
   }
 
   @Test(expected = IOException.class)
@@ -337,7 +340,7 @@ public class TestInMemDirOps {
 
   @Test(expected = FileNotFoundException.class)
   public void appendNoSuchFile() throws IOException {
-    fs.append(new Path("/no_such_file"));
+    fs.append(noSuchFile);
   }
 
   @Test(expected = IOException.class)
@@ -353,7 +356,7 @@ public class TestInMemDirOps {
 
   @Test
   public void deleteNonExistentFile() throws IOException {
-    Assert.assertFalse(fs.delete(new Path("/no_such"), false));
+    Assert.assertFalse(fs.delete(noSuchFile, false));
   }
 
   @Test(expected = IOException.class)
@@ -370,19 +373,19 @@ public class TestInMemDirOps {
     out.close();
 
     Assert.assertTrue(fs.delete(new Path("/alphabet"), true));
-    Assert.assertEquals(0, fs.listStatus(new Path("/")).length);
+    Assert.assertEquals(0, fs.listStatus(root).length);
   }
 
   @Test
   public void relativePath() throws IOException {
     final String line = "abc";
-    fs.setWorkingDirectory(new Path("/"));
+    fs.setWorkingDirectory(root);
     FSDataOutputStream out = fs.create(new Path("alphabet"));
     out.writeBytes(line);
     out.close();
 
     Assert.assertTrue(fs.delete(new Path("alphabet"), true));
-    Assert.assertEquals(0, fs.listStatus(new Path("/")).length);
+    Assert.assertEquals(0, fs.listStatus(root).length);
   }
 
   @Test
@@ -401,11 +404,159 @@ public class TestInMemDirOps {
     out.close();
 
     Assert.assertTrue(fs.delete(new Path("/a"), true));
-    FileStatus[] stats = fs.listStatus(new Path("/"));
+    FileStatus[] stats = fs.listStatus(root);
     Assert.assertEquals(1, stats.length);
     Assert.assertEquals("/alphabet", stats[0].getPath().toString());
 
     Assert.assertEquals(2, ((InMemoryFs)fs).getFiles().size());
+  }
+
+  @Test(expected = FileNotFoundException.class)
+  public void renameToNoSuchFile() throws IOException {
+    final String line = "abc";
+    FSDataOutputStream out = fs.create(new Path("/alphabet"));
+    out.writeBytes(line);
+    out.close();
+
+    fs.rename(new Path("/alphabet"), new Path("/no/such/file"));
+  }
+
+  @Test(expected = FileNotFoundException.class)
+  public void renameNoSuchFile() throws IOException {
+    fs.rename(noSuchFile, root);
+  }
+
+  @Test
+  public void renameFile() throws IOException {
+    final String line = "abc";
+    Path alphabet = new Path("/alphabet");
+    Path newAlphabet = new Path("/newalphabet");
+    FSDataOutputStream out = fs.create(alphabet);
+    out.writeBytes(line);
+    out.close();
+
+    fs.rename(alphabet, newAlphabet);
+
+    FileStatus[] stats = fs.listStatus(root);
+    Assert.assertEquals(1, stats.length);
+    Assert.assertEquals(newAlphabet, stats[0].getPath());
+
+    FSDataInputStream in = fs.open(newAlphabet);
+    byte[] buf = new byte[3];
+    in.readFully(buf);
+    Assert.assertEquals(line, new String(buf));
+  }
+
+  @Test
+  public void renameRelativeFile() throws IOException {
+    fs.setWorkingDirectory(root);
+    final String line = "abc";
+    Path alphabet = new Path("alphabet");
+    Path newAlphabet = new Path("newalphabet");
+    FSDataOutputStream out = fs.create(alphabet);
+    out.writeBytes(line);
+    out.close();
+
+    fs.rename(alphabet, newAlphabet);
+
+    FileStatus[] stats = fs.listStatus(root);
+    Assert.assertEquals(1, stats.length);
+    Assert.assertEquals(new Path(root, newAlphabet), stats[0].getPath());
+
+    FSDataInputStream in = fs.open(newAlphabet);
+    byte[] buf = new byte[3];
+    in.readFully(buf);
+    Assert.assertEquals(line, new String(buf));
+  }
+
+  @Test
+  public void renameBetweenDirs() throws IOException {
+    Path latin = new Path("/latin");
+    Path greek = new Path("/greek");
+    fs.mkdirs(latin);
+    fs.mkdirs(greek);
+    final String line = "abc";
+    Path alphabet = new Path(greek, "alphabet");
+    Path newAlphabet = new Path(latin, "alphabet");
+    FSDataOutputStream out = fs.create(alphabet);
+    out.writeBytes(line);
+    out.close();
+
+    fs.rename(alphabet, newAlphabet);
+
+    FileStatus[] stats = fs.listStatus(latin);
+    Assert.assertEquals(1, stats.length);
+    Assert.assertEquals(newAlphabet, stats[0].getPath());
+
+    FSDataInputStream in = fs.open(newAlphabet);
+    byte[] buf = new byte[3];
+    in.readFully(buf);
+    Assert.assertEquals(line, new String(buf));
+  }
+
+  @Test
+  public void renameToDir() throws IOException {
+    Path latin = new Path("/latin");
+    fs.mkdirs(latin);
+    final String line = "abc";
+    Path alphabet = new Path("/alphabet");
+    FSDataOutputStream out = fs.create(alphabet);
+    out.writeBytes(line);
+    out.close();
+
+    fs.rename(alphabet, latin);
+
+    Path newAlphabet = new Path(latin, "alphabet");
+    FileStatus[] stats = fs.listStatus(latin);
+    Assert.assertEquals(1, stats.length);
+    Assert.assertEquals(newAlphabet, stats[0].getPath());
+
+    FSDataInputStream in = fs.open(newAlphabet);
+    byte[] buf = new byte[3];
+    in.readFully(buf);
+    Assert.assertEquals(line, new String(buf));
+  }
+
+  @Test
+  public void renameDirTree() throws IOException {
+    Path abc = new Path("/a/b/c");
+    fs.mkdirs(abc);
+    final String line = "O say can you see";
+    Path d = new Path(abc, "d");
+    FSDataOutputStream out = fs.create(d);
+    out.writeBytes(line);
+    out.close();
+
+    Path alpha = new Path("/alpha");
+    fs.mkdirs(alpha);
+
+    fs.rename(new Path("/a/b"), alpha);
+
+    FileStatus[] stats = fs.listStatus(alpha);
+    Assert.assertEquals(1, stats.length);
+    Assert.assertEquals("/alpha/b", stats[0].getPath().toString());
+
+    stats = fs.listStatus(stats[0].getPath());
+    Assert.assertEquals(1, stats.length);
+    Assert.assertEquals("/alpha/b/c", stats[0].getPath().toString());
+
+    stats = fs.listStatus(stats[0].getPath());
+    Assert.assertEquals(1, stats.length);
+    Assert.assertEquals("/alpha/b/c/d", stats[0].getPath().toString());
+
+    FSDataInputStream in = fs.open(new Path("/alpha/b/c/d"));
+    byte[] buf = new byte[line.length()];
+    in.readFully(buf);
+    Assert.assertEquals(line, new String(buf));
+  }
+
+  @Test(expected = IOException.class)
+  public void renameNoPermission() throws IOException {
+    Path a = new Path("/a");
+    fs.mkdirs(a, new FsPermission(FsAction.NONE, FsAction.ALL, FsAction.ALL));
+    Path b = new Path("/b");
+    fs.mkdirs(b);
+    fs.rename(b, a);
   }
 
   private void sortStats(FileStatus[] stats) {

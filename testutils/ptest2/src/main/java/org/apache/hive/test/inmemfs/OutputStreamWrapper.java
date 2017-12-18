@@ -33,5 +33,6 @@ public class OutputStreamWrapper extends ByteArrayOutputStream {
   public void close() throws IOException {
     super.close();
     file.writeData(super.toByteArray(), append);
+    file.updateModificationTime();
   }
 }

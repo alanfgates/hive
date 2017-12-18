@@ -25,7 +25,8 @@ import java.io.IOException;
 
 abstract class InMemoryFile {
 
-  private final Path path;
+  private InMemoryDirectory parent;
+  private Path path;
   private long lastModificationTime;
   private long lastAccessTime;
   private FsPermission perms;
@@ -33,7 +34,10 @@ abstract class InMemoryFile {
   private String group;
 
 
-  InMemoryFile(Path path, FsPermission perms, String owner, String group) {
+  InMemoryFile(InMemoryDirectory parent, Path path, FsPermission perms, String owner,
+               String group) throws IOException {
+    this.parent = parent;
+    if (parent != null) parent.addFile(path.getName(), this);
     this.path = path;
     assert path.isAbsolute();
     lastModificationTime = lastAccessTime = System.currentTimeMillis();
@@ -58,6 +62,19 @@ abstract class InMemoryFile {
 
   Path getPath() {
     return path;
+  }
+
+  void move(Path newPath, InMemoryDirectory newParent) throws IOException {
+    parent.removeFile(this.getPath().getName());
+    this.path = newPath;
+    this.parent = newParent;
+    parent.addFile(this.getPath().getName(), this);
+    updateModificationTime();
+  }
+
+  void setPath(Path newPath) {
+    this.path = newPath;
+    updateModificationTime();
   }
 
   long getLastModificationTime() {

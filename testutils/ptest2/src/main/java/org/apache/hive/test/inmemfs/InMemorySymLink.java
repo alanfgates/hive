@@ -26,9 +26,9 @@ import java.io.IOException;
 public class InMemorySymLink extends InMemoryFile {
   private final InMemoryFile linkTo;
 
-  public InMemorySymLink(Path path, InMemoryFile linkTo, FsPermission perms, String owner,
-                         String group) {
-    super(path, perms, owner, group);
+  public InMemorySymLink(InMemoryDirectory parent, Path path, InMemoryFile linkTo,
+                         FsPermission perms, String owner, String group) throws IOException {
+    super(parent, path, perms, owner, group);
     this.linkTo = linkTo;
   }
 

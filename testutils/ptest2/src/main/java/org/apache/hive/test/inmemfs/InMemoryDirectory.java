@@ -30,8 +30,9 @@ class InMemoryDirectory extends InMemoryFile {
 
   private Map<String, InMemoryFile> files;
 
-  InMemoryDirectory(Path path, FsPermission perms, String owner, String group) {
-    super(path, perms, owner, group);
+  InMemoryDirectory(InMemoryDirectory parent, Path path, FsPermission perms, String owner,
+                    String group) throws IOException {
+    super(parent, path, perms, owner, group);
     files = new HashMap<>();
   }
 

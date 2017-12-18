@@ -27,8 +27,9 @@ import java.util.Arrays;
 class InMemoryRegularFile extends InMemoryFile {
   private byte[] data;
 
-  InMemoryRegularFile(Path path, FsPermission perms, String owner, String group) {
-    super(path, perms, owner, group);
+  InMemoryRegularFile(InMemoryDirectory parent, Path path, FsPermission perms, String owner,
+                      String group) throws IOException {
+    super(parent, path, perms, owner, group);
   }
 
   @Override
