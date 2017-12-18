@@ -19,11 +19,13 @@ package org.apache.hive.test.inmemfs;
 
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.security.AccessControlException;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -50,6 +52,7 @@ public class TestInMemDirOps {
   @Test
   public void uri() {
     fs.getUri();
+    Assert.assertFalse(fs.supportsSymlinks());
   }
 
   @Test
@@ -131,13 +134,14 @@ public class TestInMemDirOps {
     fs.mkdirs(new Path("/a/b"));
   }
 
-  @Test(expected = IOException.class)
+  @Test(expected = AccessControlException.class)
   public void mkdirPermsNoUserPerms() throws IOException {
     fs.mkdirs(new Path("/a"), new FsPermission(FsAction.NONE, FsAction.EXECUTE, FsAction.EXECUTE));
     fs.mkdirs(new Path("/a/b"));
   }
 
   // TODO figure out how to test group and other
+  // TODO mkdir in non-directory
 
   @Test
   public void gettingFileStatus() throws IOException {
@@ -157,7 +161,7 @@ public class TestInMemDirOps {
 
   }
 
-  @Test(expected = IOException.class)
+  @Test(expected = FileNotFoundException.class)
   public void getFileStatusNoSuchFile() throws IOException {
     fs.getFileStatus(noSuchFile);
   }
@@ -195,6 +199,8 @@ public class TestInMemDirOps {
     Assert.assertArrayEquals(line4.getBytes(), buf);
     in.close();
   }
+
+  // TODO create file in non-directory
 
   @Test
   public void readAndWriteRelativePath() throws IOException {
@@ -264,7 +270,7 @@ public class TestInMemDirOps {
     Assert.assertEquals("disolve", new String(Arrays.copyOf(buf, 7)));
   }
 
-  @Test(expected = IOException.class)
+  @Test(expected = AccessControlException.class)
   public void noReadPermissions() throws IOException {
     FSDataOutputStream out = fs.create(new Path("/unreadable"),
         new FsPermission(FsAction.NONE, FsAction.ALL, FsAction.ALL), false, 1, (short)1, 1L, null);
@@ -292,7 +298,7 @@ public class TestInMemDirOps {
     FSDataInputStream in = fs.open(noSuchFile);
   }
 
-  @Test(expected = IOException.class)
+  @Test(expected = FileAlreadyExistsException.class)
   public void overwriteOverwriteNotSet() throws IOException {
     final String line = "abc";
     FSDataOutputStream out = fs.create(new Path("/alphabet"));
@@ -343,7 +349,7 @@ public class TestInMemDirOps {
     fs.append(noSuchFile);
   }
 
-  @Test(expected = IOException.class)
+  @Test(expected = AccessControlException.class)
   public void appendNoWritePerms() throws IOException {
     final String line = "abc";
     FSDataOutputStream out = fs.create(new Path("/unwritable"),
@@ -425,6 +431,8 @@ public class TestInMemDirOps {
   public void renameNoSuchFile() throws IOException {
     fs.rename(noSuchFile, root);
   }
+
+  // TODO test rename onto exisitng file
 
   @Test
   public void renameFile() throws IOException {
@@ -550,7 +558,7 @@ public class TestInMemDirOps {
     Assert.assertEquals(line, new String(buf));
   }
 
-  @Test(expected = IOException.class)
+  @Test(expected = AccessControlException.class)
   public void renameNoPermission() throws IOException {
     Path a = new Path("/a");
     fs.mkdirs(a, new FsPermission(FsAction.NONE, FsAction.ALL, FsAction.ALL));

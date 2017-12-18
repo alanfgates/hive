@@ -18,6 +18,7 @@
 package org.apache.hive.test.inmemfs;
 
 import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.ParentNotDirectoryException;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
 
@@ -49,7 +50,7 @@ abstract class InMemoryFile {
   abstract FileStatus stat();
 
   InMemoryDirectory asDirectory() throws IOException {
-    throw new IOException(path.toString() + " is not a directory");
+    throw new ParentNotDirectoryException(path.toString() + " is not a directory");
   }
 
   InMemorySymLink asSymLink() throws IOException {

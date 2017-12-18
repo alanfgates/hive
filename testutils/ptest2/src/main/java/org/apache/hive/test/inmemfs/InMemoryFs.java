@@ -21,11 +21,14 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.ParentNotDirectoryException;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.Progressable;
 
@@ -95,7 +98,7 @@ public class InMemoryFs extends FileSystem {
     synchronized (InMemoryFs.class) {
       InMemoryFile target = files.get(absolutePath);
       if (target != null) {
-        if (!overwrite) throw new IOException(path.toString() + " already exists");
+        if (!overwrite) throw new FileAlreadyExistsException(path.toString() + " already exists");
         toWriteTo = target.asRegularFile();
 
       } else {
@@ -145,7 +148,7 @@ public class InMemoryFs extends FileSystem {
         if (destFile.stat().isDirectory()) {
           destDir = destFile.asDirectory();
         } else {
-          throw new IOException(dest.toString() + " already exists");
+          throw new FileAlreadyExistsException(dest.toString() + " already exists");
         }
       } else {
         InMemoryFile destParent = files.get(absoluteDest.getParent());
@@ -309,7 +312,7 @@ public class InMemoryFs extends FileSystem {
 
       // The end point better be a directory
       if (!currFile.stat().isDirectory()) {
-        throw new IOException("Attempt to create a file in " + currPath +
+        throw new ParentNotDirectoryException("Attempt to create a file in " + currPath +
             " which isn't a directory");
       }
 
@@ -355,8 +358,8 @@ public class InMemoryFs extends FileSystem {
   private void checkCan(FileStatus stat, FsAction action, String verb) throws IOException {
     if (stat.getOwner().equals(getOwner())) {
       if (stat.getPermission().getUserAction().and(action) != action) {
-        throw new IOException("User " + getOwner() + " does not have permission to " + verb +
-            " " + stat.getPath().toString());
+        throw new AccessControlException("User " + getOwner() + " does not have permission to " +
+            verb + " " + stat.getPath().toString());
       }
       return;
     }
@@ -364,7 +367,7 @@ public class InMemoryFs extends FileSystem {
     for (String group : getGroups()) {
       if (stat.getGroup().equals(group)) {
         if (stat.getPermission().getGroupAction().and(action) != action) {
-          throw new IOException("Group " + getGroup() + " does not have permission to " +
+          throw new AccessControlException("Group " + getGroup() + " does not have permission to " +
               verb + " " + stat.getPath().toString());
         }
         return;
@@ -372,7 +375,7 @@ public class InMemoryFs extends FileSystem {
     }
 
     if (stat.getPermission().getOtherAction().and(action) != action) {
-      throw new IOException("World does not have permission to " + verb +
+      throw new AccessControlException("World does not have permission to " + verb +
           " " + stat.getPath().toString());
     }
 
@@ -406,6 +409,9 @@ public class InMemoryFs extends FileSystem {
 
   // This assumes you are holding the class level lock
   private InMemoryFile resolveSymLink(InMemoryFile file) throws IOException {
+    // Symlinks not yet supported
+    return file;
+    /*
     if (file instanceof InMemorySymLink) {
       checkCanRead(file);
       InMemorySymLink symLink = file.asSymLink();
@@ -419,6 +425,7 @@ public class InMemoryFs extends FileSystem {
     } else {
       return file;
     }
+    */
   }
 
   @VisibleForTesting
