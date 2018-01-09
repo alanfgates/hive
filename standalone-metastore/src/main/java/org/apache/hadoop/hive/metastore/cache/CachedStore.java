@@ -391,6 +391,11 @@ public class CachedStore implements RawStore, Configurable {
       }
     }
 
+    @VisibleForTesting
+    void setFirstRun(boolean isFirstRun) {
+      this.isFirstRun = isFirstRun;
+    }
+
     @Override
     public void run() {
       if (isFirstRun) {

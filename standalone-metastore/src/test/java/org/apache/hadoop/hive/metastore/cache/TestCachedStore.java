@@ -54,10 +54,11 @@ public class TestCachedStore {
   private ObjectStore objectStore;
   private CachedStore cachedStore;
   private SharedCache sharedCache;
+  private Configuration conf;
 
   @Before
   public void setUp() throws Exception {
-    Configuration conf = MetastoreConf.newMetastoreConf();
+    conf = MetastoreConf.newMetastoreConf();
     MetastoreConf.setBoolVar(conf, MetastoreConf.ConfVars.HIVE_IN_TEST, true);
     MetaStoreTestUtils.setConfForStandloneMode(conf);
     objectStore = new ObjectStore();
@@ -484,6 +485,10 @@ public class TestCachedStore {
 
   private void updateCache(CachedStore cachedStore, long frequency, long sleepTime,
       long shutdownTimeout) throws InterruptedException {
+    CachedStore.CacheUpdateMasterWork updater = new CachedStore.CacheUpdateMasterWork(conf);
+    updater.setFirstRun(false);
+    updater.run();
+    /*
     // Set cache refresh period to 100 milliseconds
     CachedStore.setCacheRefreshPeriod(100);
     // Start the CachedStore update service
@@ -492,6 +497,7 @@ public class TestCachedStore {
     Thread.sleep(500);
     // Stop cache update service
     CachedStore.stopCacheUpdateService(100);
+    */
   }
 
   /**********************************************************************************************
