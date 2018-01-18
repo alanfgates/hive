@@ -24,4 +24,9 @@
     <name>yarn.app.mapreduce.am.job.node-blacklisting.enable</name>
     <value>false</value>
   </property>
+  <property>
+    <name>fs.defaultFS</name>
+    <value>memfs:///</value>
+    <description>Use the in memory file sytem for tests</description>
+  </property>
 </configuration>
