@@ -26,6 +26,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.ndv.hll.HyperLogLog;
 import org.apache.hadoop.hive.metastore.annotation.MetastoreUnitTest;
 import org.apache.hadoop.hive.metastore.api.AggrStats;
+import org.apache.hadoop.hive.metastore.api.Catalog;
 import org.apache.hadoop.hive.metastore.api.ColumnStatistics;
 import org.apache.hadoop.hive.metastore.api.ColumnStatisticsData;
 import org.apache.hadoop.hive.metastore.api.ColumnStatisticsDesc;
@@ -42,6 +43,7 @@ import org.apache.hadoop.hive.metastore.api.Partition;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.client.builder.DatabaseBuilder;
 import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
 import org.junit.After;
@@ -51,6 +53,8 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_CATALOG_NAME;
 
 @Category(MetastoreUnitTest.class)
 public class TestOldSchema {
@@ -98,6 +102,7 @@ public class TestOldSchema {
     store = new ObjectStore();
     store.setConf(conf);
     dropAllStoreObjects(store);
+    HiveMetaStore.HMSHandler.createDefaultCatalog(store, new Warehouse(conf));
 
     HyperLogLog hll = HyperLogLog.builder().build();
     hll.addLong(1);
@@ -121,7 +126,11 @@ public class TestOldSchema {
   public void testPartitionOps() throws Exception {
     String dbName = "default";
     String tableName = "snp";
-    Database db1 = new Database(dbName, "description", "locationurl", null);
+    Database db1 = new DatabaseBuilder()
+        .setName(dbName)
+        .setDescription("description")
+        .setLocation("locationurl")
+        .build();
     store.createDatabase(db1);
     long now = System.currentTimeMillis();
     List<FieldSchema> cols = new ArrayList<>();
@@ -185,7 +194,7 @@ public class TestOldSchema {
     for (int i = 0; i < 10; i++) {
       partNames.add("ds=" + i);
     }
-    AggrStats aggrStats = store.get_aggr_stats_for(dbName, tableName, partNames,
+    AggrStats aggrStats = store.get_aggr_stats_for(DEFAULT_CATALOG_NAME, dbName, tableName, partNames,
         Arrays.asList("col1"));
     statChecker.checkStats(aggrStats);
 
@@ -200,18 +209,18 @@ public class TestOldSchema {
     try {
       Deadline.registerIfNot(100000);
       Deadline.startTimer("getPartition");
-      List<String> dbs = store.getAllDatabases();
+      List<String> dbs = store.getAllDatabases(DEFAULT_CATALOG_NAME);
       for (int i = 0; i < dbs.size(); i++) {
         String db = dbs.get(i);
-        List<String> tbls = store.getAllTables(db);
+        List<String> tbls = store.getAllTables(DEFAULT_CATALOG_NAME, db);
         for (String tbl : tbls) {
-          List<Partition> parts = store.getPartitions(db, tbl, 100);
+          List<Partition> parts = store.getPartitions(DEFAULT_CATALOG_NAME, db, tbl, 100);
           for (Partition part : parts) {
-            store.dropPartition(db, tbl, part.getValues());
+            store.dropPartition(DEFAULT_CATALOG_NAME, db, tbl, part.getValues());
           }
-          store.dropTable(db, tbl);
+          store.dropTable(DEFAULT_CATALOG_NAME, db, tbl);
         }
-        store.dropDatabase(db);
+        store.dropDatabase(DEFAULT_CATALOG_NAME, db);
       }
     } catch (NoSuchObjectException e) {
     }

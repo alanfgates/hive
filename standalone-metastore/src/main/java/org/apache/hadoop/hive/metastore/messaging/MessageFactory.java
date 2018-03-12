@@ -20,6 +20,7 @@
 package org.apache.hadoop.hive.metastore.messaging;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.metastore.api.Catalog;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.Function;
 import org.apache.hadoop.hive.metastore.api.MetaException;
@@ -59,6 +60,15 @@ public abstract class MessageFactory {
   public static final String ADD_UNIQUECONSTRAINT_EVENT = "ADD_UNIQUECONSTRAINT";
   public static final String ADD_NOTNULLCONSTRAINT_EVENT = "ADD_NOTNULLCONSTRAINT";
   public static final String DROP_CONSTRAINT_EVENT = "DROP_CONSTRAINT";
+  public static final String CREATE_ISCHEMA_EVENT = "CREATE_ISCHEMA";
+  public static final String ALTER_ISCHEMA_EVENT = "ALTER_ISCHEMA";
+  public static final String DROP_ISCHEMA_EVENT = "DROP_ISCHEMA";
+  public static final String ADD_SCHEMA_VERSION_EVENT = "ADD_SCHEMA_VERSION";
+  public static final String ALTER_SCHEMA_VERSION_EVENT = "ALTER_SCHEMA_VERSION";
+  public static final String DROP_SCHEMA_VERSION_EVENT = "DROP_SCHEMA_VERSION";
+  public static final String CREATE_CATALOG_EVENT = "CREATE_CATALOG";
+  public static final String DROP_CATALOG_EVENT = "DROP_CATALOG";
+
 
   private static MessageFactory instance = null;
 
@@ -269,4 +279,8 @@ public abstract class MessageFactory {
    */
   public abstract DropConstraintMessage buildDropConstraintMessage(String dbName, String tableName,
       String constraintName);
+
+  public abstract CreateCatalogMessage buildCreateCatalogMessage(Catalog catalog);
+
+  public abstract DropCatalogMessage buildDropCatalogMessage(Catalog catalog);
 }

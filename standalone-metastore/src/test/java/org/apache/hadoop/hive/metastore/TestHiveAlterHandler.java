@@ -50,7 +50,7 @@ public class TestHiveAlterHandler {
 
     RawStore msdb = Mockito.mock(RawStore.class);
     Mockito.doThrow(new RuntimeException("shouldn't be called")).when(msdb).getTableColumnStatistics(
-        oldTable.getDbName(), oldTable.getTableName(), Arrays.asList("col1", "col2", "col3"));
+        oldTable.getCatName(), oldTable.getDbName(), oldTable.getTableName(), Arrays.asList("col1", "col2", "col3"));
     HiveAlterHandler handler = new HiveAlterHandler();
     handler.alterTableUpdateTableColumnStats(msdb, oldTable, newTable);
   }
@@ -78,7 +78,7 @@ public class TestHiveAlterHandler {
     HiveAlterHandler handler = new HiveAlterHandler();
     handler.alterTableUpdateTableColumnStats(msdb, oldTable, newTable);
     Mockito.verify(msdb, Mockito.times(1)).getTableColumnStatistics(
-        oldTable.getDbName(), oldTable.getTableName(), Arrays.asList("col1", "col2", "col3", "col4")
+        oldTable.getCatName(), oldTable.getDbName(), oldTable.getTableName(), Arrays.asList("col1", "col2", "col3", "col4")
     );
   }
 
@@ -103,7 +103,7 @@ public class TestHiveAlterHandler {
 
     RawStore msdb = Mockito.mock(RawStore.class);
     Mockito.doThrow(new RuntimeException("shouldn't be called")).when(msdb).getTableColumnStatistics(
-        oldTable.getDbName(), oldTable.getTableName(), Arrays.asList("col1", "col2", "col3", "col4"));
+        oldTable.getCatName(), oldTable.getDbName(), oldTable.getTableName(), Arrays.asList("col1", "col2", "col3", "col4"));
     HiveAlterHandler handler = new HiveAlterHandler();
     handler.alterTableUpdateTableColumnStats(msdb, oldTable, newTable);
   }

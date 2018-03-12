@@ -19,17 +19,23 @@
 package org.apache.hadoop.hive.metastore.client;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
+import org.apache.hadoop.hive.metastore.MetaStoreTestUtils;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.annotation.MetastoreCheckinTest;
 import org.apache.hadoop.hive.metastore.api.CreationMetadata;
+import org.apache.hadoop.hive.metastore.api.Catalog;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.TableMeta;
+import org.apache.hadoop.hive.metastore.client.builder.CatalogBuilder;
 import org.apache.hadoop.hive.metastore.client.builder.DatabaseBuilder;
 import org.apache.hadoop.hive.metastore.client.builder.TableBuilder;
 import org.apache.hadoop.hive.metastore.minihms.AbstractMetaStoreService;
@@ -38,6 +44,8 @@ import org.apache.thrift.TException;
 import com.google.common.collect.Lists;
 
 import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -45,6 +53,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import static java.util.stream.Collectors.toSet;
+import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_CATALOG_NAME;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -72,8 +81,8 @@ public class TestGetTableMeta extends MetaStoreClientTest {
     client = metaStore.getClient();
 
     // Clean up
-    client.dropDatabase(DB_NAME + "_one", true, true, true);
-    client.dropDatabase(DB_NAME + "_two", true, true, true);
+    client.dropDatabase(DEFAULT_CATALOG_NAME, DB_NAME + "_one", true, true, true);
+    client.dropDatabase(DEFAULT_CATALOG_NAME, DB_NAME + "_two", true, true, true);
 
     metaStore.cleanWarehouseDirs();
 
@@ -103,12 +112,11 @@ public class TestGetTableMeta extends MetaStoreClientTest {
   }
 
 
-  private Database createDB(String dbName) throws TException {
+  private void createDB(String dbName) throws TException {
     Database db = new DatabaseBuilder().
             setName(dbName).
             build();
     client.createDatabase(db);
-    return db;
   }
 
 
@@ -156,108 +164,178 @@ public class TestGetTableMeta extends MetaStoreClientTest {
   }
 
   private void assertTableMetas(int[] expected, List<TableMeta> actualTableMetas) {
-    assertEquals("Expected " + expected.length + " but have " + actualTableMetas.size() +
-            " tableMeta(s)", expected.length, actualTableMetas.size());
+    assertTableMetas(expectedMetas, actualTableMetas, expected);
+  }
 
-    Set<TableMeta> metas = actualTableMetas.stream().collect(toSet());
+  private void assertTableMetas(List<TableMeta> actual, int... expected) {
+    assertTableMetas(expectedMetas, actual, expected);
+  }
+
+  private void assertTableMetas(List<TableMeta> fullExpected, List<TableMeta> actual, int... expected) {
+    assertEquals("Expected " + expected.length + " but have " + actual.size() +
+        " tableMeta(s)", expected.length, actual.size());
+
+    Set<TableMeta> metas = new HashSet<>(actual);
     for (int i : expected){
-      assertTrue("Missing " + expectedMetas.get(i), metas.remove(expectedMetas.get(i)));
+      assertTrue("Missing " + fullExpected.get(i), metas.remove(fullExpected.get(i)));
     }
 
     assertTrue("Unexpected tableMeta(s): " + metas, metas.isEmpty());
+
   }
 
   /**
    * Testing getTableMeta(String,String,List(String)) ->
    *         get_table_meta(String,String,List(String)).
-   * @throws Exception
    */
   @Test
   public void testGetTableMeta() throws Exception {
-    List<TableMeta> tableMetas = client.getTableMeta("asdf", "qwerty", Lists.newArrayList("zxcv"));
+    List<TableMeta> tableMetas = client.getTableMeta(DEFAULT_CATALOG_NAME, "asdf", "qwerty", Lists.newArrayList("zxcv"));
     assertTableMetas(new int[]{}, tableMetas);
 
-    tableMetas = client.getTableMeta("testpartdb_two", "vtestparttable", Lists.newArrayList());
+    tableMetas = client.getTableMeta(DEFAULT_CATALOG_NAME, "testpartdb_two", "vtestparttable", Lists.newArrayList());
     assertTableMetas(new int[]{4}, tableMetas);
 
-    tableMetas = client.getTableMeta("*", "*", Lists.newArrayList());
+    tableMetas = client.getTableMeta(DEFAULT_CATALOG_NAME, "*", "*", Lists.newArrayList());
     assertTableMetas(new int[]{0, 1, 2, 3, 4}, tableMetas);
 
-    tableMetas = client.getTableMeta("***", "**", Lists.newArrayList());
+    tableMetas = client.getTableMeta(DEFAULT_CATALOG_NAME, "***", "**", Lists.newArrayList());
     assertTableMetas(new int[]{0, 1, 2, 3, 4}, tableMetas);
 
-    tableMetas = client.getTableMeta("*one", "*", Lists.newArrayList());
+    tableMetas = client.getTableMeta(DEFAULT_CATALOG_NAME, "*one", "*", Lists.newArrayList());
     assertTableMetas(new int[]{0, 1, 2}, tableMetas);
 
-    tableMetas = client.getTableMeta("*one*", "*", Lists.newArrayList());
+    tableMetas = client.getTableMeta(DEFAULT_CATALOG_NAME, "*one*", "*", Lists.newArrayList());
     assertTableMetas(new int[]{0, 1, 2}, tableMetas);
 
-    tableMetas = client.getTableMeta("testpartdb_two", "*", Lists.newArrayList());
+    tableMetas = client.getTableMeta(DEFAULT_CATALOG_NAME, "testpartdb_two", "*", Lists.newArrayList());
     assertTableMetas(new int[]{3, 4}, tableMetas);
 
-    tableMetas = client.getTableMeta("testpartdb_two*", "*", Lists.newArrayList());
+    tableMetas = client.getTableMeta(DEFAULT_CATALOG_NAME, "testpartdb_two*", "*", Lists.newArrayList());
     assertTableMetas(new int[]{3, 4}, tableMetas);
 
-    tableMetas = client.getTableMeta("testpartdb*", "*", Lists.newArrayList(
+    tableMetas = client.getTableMeta(DEFAULT_CATALOG_NAME, "testpartdb*", "*", Lists.newArrayList(
             TableType.EXTERNAL_TABLE.name()));
     assertTableMetas(new int[]{0}, tableMetas);
 
-    tableMetas = client.getTableMeta("testpartdb*", "*", Lists.newArrayList(
+    tableMetas = client.getTableMeta(DEFAULT_CATALOG_NAME, "testpartdb*", "*", Lists.newArrayList(
             TableType.EXTERNAL_TABLE.name(), TableType.MATERIALIZED_VIEW.name()));
     assertTableMetas(new int[]{0, 4}, tableMetas);
 
-    tableMetas = client.getTableMeta("*one", "*", Lists.newArrayList("*TABLE"));
+    tableMetas = client.getTableMeta(DEFAULT_CATALOG_NAME, "*one", "*", Lists.newArrayList("*TABLE"));
     assertTableMetas(new int[]{}, tableMetas);
 
-    tableMetas = client.getTableMeta("*one", "*", Lists.newArrayList("*"));
+    tableMetas = client.getTableMeta(DEFAULT_CATALOG_NAME, "*one", "*", Lists.newArrayList("*"));
     assertTableMetas(new int[]{}, tableMetas);
   }
 
   @Test
   public void testGetTableMetaCaseSensitive() throws Exception {
-    List<TableMeta> tableMetas = client.getTableMeta("*tWo", "tEsT*", Lists.newArrayList());
+    List<TableMeta> tableMetas = client.getTableMeta(DEFAULT_CATALOG_NAME, "*tWo", "tEsT*", Lists.newArrayList());
     assertTableMetas(new int[]{3}, tableMetas);
 
-    tableMetas = client.getTableMeta("*", "*", Lists.newArrayList("mAnAGeD_tABlE"));
+    tableMetas = client.getTableMeta(DEFAULT_CATALOG_NAME, "*", "*", Lists.newArrayList("mAnAGeD_tABlE"));
     assertTableMetas(new int[]{}, tableMetas);
   }
 
   @Test
   public void testGetTableMetaNullOrEmptyDb() throws Exception {
-    List<TableMeta> tableMetas = client.getTableMeta(null, "*", Lists.newArrayList());
+    List<TableMeta> tableMetas = client.getTableMeta(DEFAULT_CATALOG_NAME, null, "*", Lists.newArrayList());
     assertTableMetas(new int[]{0, 1, 2, 3, 4}, tableMetas);
 
-    tableMetas = client.getTableMeta("", "*", Lists.newArrayList());
+    tableMetas = client.getTableMeta(DEFAULT_CATALOG_NAME, "", "*", Lists.newArrayList());
     assertTableMetas(new int[]{}, tableMetas);
   }
 
   @Test
   public void testGetTableMetaNullOrEmptyTbl() throws Exception {
-    List<TableMeta> tableMetas = client.getTableMeta("*", null, Lists.newArrayList());
+    List<TableMeta> tableMetas = client.getTableMeta(DEFAULT_CATALOG_NAME, "*", null, Lists.newArrayList());
     assertTableMetas(new int[]{0, 1, 2, 3, 4}, tableMetas);
 
-    tableMetas = client.getTableMeta("*", "", Lists.newArrayList());
+    tableMetas = client.getTableMeta(DEFAULT_CATALOG_NAME, "*", "", Lists.newArrayList());
     assertTableMetas(new int[]{}, tableMetas);
   }
 
   @Test
   public void testGetTableMetaNullOrEmptyTypes() throws Exception {
-    List<TableMeta> tableMetas = client.getTableMeta("*", "*", Lists.newArrayList());
+    List<TableMeta> tableMetas = client.getTableMeta(DEFAULT_CATALOG_NAME, "*", "*", Lists.newArrayList());
     assertTableMetas(new int[]{0, 1, 2, 3, 4}, tableMetas);
 
-    tableMetas = client.getTableMeta("*", "*", Lists.newArrayList(""));
+    tableMetas = client.getTableMeta(DEFAULT_CATALOG_NAME, "*", "*", Lists.newArrayList(""));
     assertTableMetas(new int[]{}, tableMetas);
 
-    tableMetas = client.getTableMeta("*", "*", null);
+    tableMetas = client.getTableMeta(DEFAULT_CATALOG_NAME, "*", "*", null);
     assertTableMetas(new int[]{0, 1, 2, 3, 4}, tableMetas);
   }
 
   @Test
   public void testGetTableMetaNullNoDbNoTbl() throws Exception {
-    client.dropDatabase(DB_NAME + "_one", true, true, true);
-    client.dropDatabase(DB_NAME + "_two", true, true, true);
-    List<TableMeta> tableMetas = client.getTableMeta("*", "*", Lists.newArrayList());
+    client.dropDatabase(DEFAULT_CATALOG_NAME, DB_NAME + "_one", true, true, true);
+    client.dropDatabase(DEFAULT_CATALOG_NAME, DB_NAME + "_two", true, true, true);
+    List<TableMeta> tableMetas = client.getTableMeta(DEFAULT_CATALOG_NAME, "*", "*", Lists.newArrayList());
     assertTableMetas(new int[]{}, tableMetas);
+  }
+
+  @SuppressWarnings("deprecation")
+  @Test
+  public void deprecatedMethods() throws TException {
+    List<TableMeta> tableMetas = client.getTableMeta("*", "*", Lists.newArrayList());
+    assertTableMetas(tableMetas, 0, 1, 2, 3, 4);
+
+    tableMetas = client.getTableMeta("testpartdb_two", "vtestparttable", Lists.newArrayList());
+    assertTableMetas(tableMetas, 4);
+  }
+
+  @Test
+  public void tablesInDifferentCatalog() throws TException {
+    String catName = "get_table_meta_catalog";
+    Catalog cat = new CatalogBuilder()
+        .setName(catName)
+        .setLocation(MetaStoreTestUtils.getTestWarehouseDir(catName))
+        .build();
+    client.createCatalog(cat);
+
+    String dbName = "db9";
+    // For this one don't specify a location to make sure it gets put in the catalog directory
+    Database db = new DatabaseBuilder()
+        .setName(dbName)
+        .setCatalogName(catName)
+        .build();
+    client.createDatabase(db);
+
+    String[] tableNames = {"table_in_other_catalog_1", "table_in_other_catalog_2", "random_name"};
+    List<TableMeta> expected = new ArrayList<>(tableNames.length);
+    for (int i = 0; i < tableNames.length; i++) {
+      client.createTable(new TableBuilder()
+          .inDb(db)
+          .setTableName(tableNames[i])
+          .addCol("id", "int")
+          .addCol("name", "string")
+          .build());
+      expected.add(new TableMeta(dbName, tableNames[i], TableType.MANAGED_TABLE.name()));
+    }
+
+    List<String> types = Collections.singletonList(TableType.MANAGED_TABLE.name());
+    List<TableMeta> actual = client.getTableMeta(catName, dbName, "*", types);
+    assertTableMetas(expected, actual, 0, 1, 2);
+
+    actual = client.getTableMeta(catName, "*", "table_*", types);
+    assertTableMetas(expected, actual, 0, 1);
+
+    actual = client.getTableMeta(DEFAULT_CATALOG_NAME, dbName, "table_in_other_catalog_*", types);
+    assertTableMetas(expected, actual);
+  }
+
+  @Test
+  public void noSuchCatalog() throws TException {
+    List<TableMeta> tableMetas = client.getTableMeta("nosuchcatalog", "*", "*", Lists.newArrayList());
+    Assert.assertEquals(0, tableMetas.size());
+  }
+
+  @Test
+  public void catalogPatternsDontWork() throws TException {
+    List<TableMeta> tableMetas = client.getTableMeta("h*", "*", "*", Lists.newArrayList());
+    Assert.assertEquals(0, tableMetas.size());
   }
 
 }

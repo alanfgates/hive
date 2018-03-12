@@ -59,6 +59,13 @@ CREATE TABLE "DATABASE_PARAMS" (
 );
 
 
+CREATE TABLE "CTLGS" (
+    "CTLG_ID" BIGINT PRIMARY KEY,
+    "NAME" VARCHAR(256) UNIQUE,
+    "DESC" VARCHAR(4000),
+    "LOCATION_URI" VARCHAR(4000) NOT NULL
+);
+
 --
 -- Name: DBS; Type: TABLE; Schema: public; Owner: hiveuser; Tablespace:
 --
@@ -69,7 +76,8 @@ CREATE TABLE "DBS" (
     "DB_LOCATION_URI" character varying(4000) NOT NULL,
     "NAME" character varying(128) DEFAULT NULL::character varying,
     "OWNER_NAME" character varying(128) DEFAULT NULL::character varying,
-    "OWNER_TYPE" character varying(10) DEFAULT NULL::character varying
+    "OWNER_TYPE" character varying(10) DEFAULT NULL::character varying,
+    "CTLG_NAME" varchar(256)
 );
 
 
@@ -168,6 +176,7 @@ CREATE TABLE "PARTITIONS" (
 
 CREATE TABLE "PARTITION_EVENTS" (
     "PART_NAME_ID" bigint NOT NULL,
+    "CAT_NAME" character varying(256),
     "DB_NAME" character varying(128),
     "EVENT_TIME" bigint NOT NULL,
     "EVENT_TYPE" integer NOT NULL,
@@ -319,7 +328,11 @@ CREATE TABLE "SEQUENCE_TABLE" (
 CREATE TABLE "SERDES" (
     "SERDE_ID" bigint NOT NULL,
     "NAME" character varying(128) DEFAULT NULL::character varying,
-    "SLIB" character varying(4000) DEFAULT NULL::character varying
+    "SLIB" character varying(4000) DEFAULT NULL::character varying,
+    "DESCRIPTION" varchar(4000),
+    "SERIALIZER_CLASS" varchar(4000),
+    "DESERIALIZER_CLASS" varchar(4000),
+    "SERDE_TYPE" integer
 );
 
 
@@ -504,6 +517,7 @@ CREATE TABLE  "DELEGATION_TOKENS"
 
 CREATE TABLE "TAB_COL_STATS" (
  "CS_ID" bigint NOT NULL,
+ "CAT_NAME" character varying(256) DEFAULT NULL::character varying,
  "DB_NAME" character varying(128) DEFAULT NULL::character varying,
  "TABLE_NAME" character varying(256) DEFAULT NULL::character varying,
  "COLUMN_NAME" character varying(767) DEFAULT NULL::character varying,
@@ -540,6 +554,7 @@ CREATE TABLE "VERSION" (
 
 CREATE TABLE "PART_COL_STATS" (
  "CS_ID" bigint NOT NULL,
+ "CAT_NAME" character varying(256) DEFAULT NULL::character varying,
  "DB_NAME" character varying(128) DEFAULT NULL::character varying,
  "TABLE_NAME" character varying(256) DEFAULT NULL::character varying,
  "PARTITION_NAME" character varying(767) DEFAULT NULL::character varying,
@@ -594,6 +609,7 @@ CREATE TABLE "NOTIFICATION_LOG"
     "EVENT_ID" BIGINT NOT NULL,
     "EVENT_TIME" INTEGER NOT NULL,
     "EVENT_TYPE" VARCHAR(32) NOT NULL,
+    "CAT_NAME" VARCHAR(256),
     "DB_NAME" VARCHAR(128),
     "TBL_NAME" VARCHAR(256),
     "MESSAGE" text,
@@ -1178,7 +1194,7 @@ CREATE INDEX "PART_PRIVS_N49" ON "PART_PRIVS" USING btree ("PART_ID");
 -- Name: PCS_STATS_IDX; Type: INDEX; Schema: public; Owner: hiveuser; Tablespace:
 --
 
-CREATE INDEX "PCS_STATS_IDX" ON "PART_COL_STATS" USING btree ("DB_NAME","TABLE_NAME","COLUMN_NAME","PARTITION_NAME");
+CREATE INDEX "PCS_STATS_IDX" ON "PART_COL_STATS" USING btree ("CAT_NAME", "DB_NAME","TABLE_NAME","COLUMN_NAME","PARTITION_NAME");
 
 
 --
@@ -1552,6 +1568,7 @@ ALTER TABLE ONLY "TAB_COL_STATS" ADD CONSTRAINT "TAB_COL_STATS_fkey" FOREIGN KEY
 --
 ALTER TABLE ONLY "PART_COL_STATS" ADD CONSTRAINT "PART_COL_STATS_fkey" FOREIGN KEY("PART_ID") REFERENCES "PARTITIONS"("PART_ID") DEFERRABLE;
 
+ALTER TABLE "DBS" ADD CONSTRAINT "DBS_FK1" FOREIGN KEY ("CTLG_NAME") REFERENCES "CTLGS" ("NAME");
 
 ALTER TABLE ONLY "VERSION" ADD CONSTRAINT "VERSION_pkey" PRIMARY KEY ("VER_ID");
 
@@ -1748,6 +1765,33 @@ CREATE TABLE NEXT_WRITE_ID (
 );
 
 CREATE UNIQUE INDEX NEXT_WRITE_ID_IDX ON NEXT_WRITE_ID (NWI_DATABASE, NWI_TABLE);
+
+CREATE TABLE "I_SCHEMA" (
+  "SCHEMA_ID" bigint primary key,
+  "SCHEMA_TYPE" integer not null,
+  "NAME" varchar(256) unique,
+  "DB_ID" bigint references "DBS" ("DB_ID"),
+  "COMPATIBILITY" integer not null,
+  "VALIDATION_LEVEL" integer not null,
+  "CAN_EVOLVE" boolean not null,
+  "SCHEMA_GROUP" varchar(256),
+  "DESCRIPTION" varchar(4000)
+);
+
+CREATE TABLE "SCHEMA_VERSION" (
+  "SCHEMA_VERSION_ID" bigint primary key,
+  "SCHEMA_ID" bigint references "I_SCHEMA" ("SCHEMA_ID"),
+  "VERSION" integer not null,
+  "CREATED_AT" bigint not null,
+  "CD_ID" bigint references "CDS" ("CD_ID"), 
+  "STATE" integer not null,
+  "DESCRIPTION" varchar(4000),
+  "SCHEMA_TEXT" text,
+  "FINGERPRINT" varchar(256),
+  "SCHEMA_VERSION_NAME" varchar(256),
+  "SERDE_ID" bigint references "SERDES" ("SERDE_ID"), 
+  unique ("SCHEMA_ID", "VERSION")
+);
 
 -- -----------------------------------------------------------------
 -- Record schema version. Should be the last step in the init script

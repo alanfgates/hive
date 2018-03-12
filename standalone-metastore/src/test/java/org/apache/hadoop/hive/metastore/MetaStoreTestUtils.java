@@ -17,11 +17,13 @@
  */
 package org.apache.hadoop.hive.metastore;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.hadoop.conf.Configuration;
@@ -29,6 +31,7 @@ import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.conf.MetastoreConf.ConfVars;
 import org.apache.hadoop.hive.metastore.events.EventCleanerTask;
 import org.apache.hadoop.hive.metastore.security.HadoopThriftAuthBridge;
+import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -218,5 +221,12 @@ public class MetaStoreTestUtils {
       MetastoreConf.setClass(conf, ConfVars.EXPRESSION_PROXY_CLASS,
           DefaultPartitionExpressionProxy.class, PartitionExpressionProxy.class);
     }
+  }
+
+
+  public static String getTestWarehouseDir(String name) {
+    File dir = new File(System.getProperty("java.io.tmpdir"), name);
+    dir.deleteOnExit();
+    return dir.getAbsolutePath();
   }
 }

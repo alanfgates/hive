@@ -17,6 +17,8 @@
  */
 package org.apache.hadoop.hive.metastore.client.builder;
 
+import org.apache.hadoop.hive.metastore.Warehouse;
+import org.apache.hadoop.hive.metastore.api.Catalog;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
@@ -33,10 +35,24 @@ import java.util.Map;
  * selects reasonable defaults.
  */
 public class DatabaseBuilder {
-  private String name, description, location;
+  private String name, description, location, catalogName;
   private Map<String, String> params = new HashMap<>();
   private String ownerName;
   private PrincipalType ownerType;
+
+  public DatabaseBuilder() {
+    catalogName = Warehouse.DEFAULT_CATALOG_NAME;
+  }
+
+  public DatabaseBuilder setCatalogName(String catalogName) {
+    this.catalogName = catalogName;
+    return this;
+  }
+
+  public DatabaseBuilder setCatalogName(Catalog catalog) {
+    this.catalogName = catalog.getName();
+    return this;
+  }
 
   public DatabaseBuilder setName(String name) {
     this.name = name;
@@ -73,11 +89,12 @@ public class DatabaseBuilder {
     return this;
   }
 
-  public Database build() throws TException {
+  public Database build() throws MetaException {
     if (name == null) throw new MetaException("You must name the database");
     Database db = new Database(name, description, location, params);
+    db.setCatalogName(catalogName);
     try {
-      if (ownerName != null) ownerName = SecurityUtils.getUser();
+      if (ownerName == null) ownerName = SecurityUtils.getUser();
       db.setOwnerName(ownerName);
       if (ownerType == null) ownerType = PrincipalType.USER;
       db.setOwnerType(ownerType);

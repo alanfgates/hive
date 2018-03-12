@@ -48,8 +48,9 @@ struct SQLPrimaryKey {
   4: i32 key_seq,        // sequence number within primary key
   5: string pk_name,     // primary key name
   6: bool enable_cstr,   // Enable/Disable
-  7: bool validate_cstr,  // Validate/No validate
-  8: bool rely_cstr      // Rely/No Rely
+  7: bool validate_cstr, // Validate/No validate
+  8: bool rely_cstr,     // Rely/No Rely
+  9: optional string catName = "hive"
 }
 
 struct SQLForeignKey {
@@ -66,7 +67,8 @@ struct SQLForeignKey {
   11: string pk_name,      // primary key name
   12: bool enable_cstr,    // Enable/Disable
   13: bool validate_cstr,  // Validate/No validate
-  14: bool rely_cstr       // Rely/No Rely
+  14: bool rely_cstr,      // Rely/No Rely
+  15: optional string catName = "hive"
 }
 
 struct SQLUniqueConstraint {
@@ -77,7 +79,8 @@ struct SQLUniqueConstraint {
   5: string uk_name,     // unique key name
   6: bool enable_cstr,   // Enable/Disable
   7: bool validate_cstr, // Validate/No validate
-  8: bool rely_cstr      // Rely/No Rely
+  8: bool rely_cstr,     // Rely/No Rely
+  9: optional string catName = "hive"
 }
 
 struct SQLNotNullConstraint {
@@ -87,7 +90,8 @@ struct SQLNotNullConstraint {
   4: string nn_name,     // not null name
   5: bool enable_cstr,   // Enable/Disable
   6: bool validate_cstr, // Validate/No validate
-  7: bool rely_cstr      // Rely/No Rely
+  7: bool rely_cstr,     // Rely/No Rely
+  9: optional string catName = "hive"
 }
 
 struct SQLDefaultConstraint {
@@ -183,12 +187,46 @@ enum EventRequestType {
     DELETE = 3,
 }
 
+enum SerdeType {
+  HIVE = 1,
+  SCHEMA_REGISTRY = 2,
+}
+
+enum SchemaType {
+  HIVE = 1,
+  AVRO = 2,
+}
+
+enum SchemaCompatibility {
+  NONE = 1,
+  BACKWARD = 2,
+  FORWARD = 3,
+  BOTH = 4
+}
+
+enum SchemaValidation {
+  LATEST = 1,
+  ALL = 2
+}
+
+enum SchemaVersionState {
+  INITIATED = 1,
+  START_REVIEW = 2,
+  CHANGES_REQUIRED = 3,
+  REVIEWED = 4,
+  ENABLED = 5,
+  DISABLED = 6,
+  ARCHIVED = 7,
+  DELETED = 8
+}
+
 struct HiveObjectRef{
   1: HiveObjectType objectType,
   2: string dbName,
   3: string objectName,
   4: list<string> partValues,
   5: string columnName,
+  6: optional string catName = "hive"
 }
 
 struct PrivilegeGrantInfo {
@@ -274,6 +312,16 @@ struct GrantRevokeRoleResponse {
   1: optional bool success;
 }
 
+struct Catalog {
+  1: string name,
+  2: optional string description,
+  3: string locationUri
+}
+
+struct CatalogName {
+  1: string name
+}
+
 // namespace for tables
 struct Database {
   1: string name,
@@ -282,14 +330,19 @@ struct Database {
   4: map<string, string> parameters, // properties associated with the database
   5: optional PrincipalPrivilegeSet privileges,
   6: optional string ownerName,
-  7: optional PrincipalType ownerType
+  7: optional PrincipalType ownerType,
+  8: optional string catalogName
 }
 
 // This object holds the information needed by SerDes
 struct SerDeInfo {
   1: string name,                   // name of the serde, table name by default
   2: string serializationLib,       // usually the class that implements the extractor & loader
-  3: map<string, string> parameters // initialization parameters
+  3: map<string, string> parameters, // initialization parameters
+  4: optional string description,
+  5: optional string serializerClass,
+  6: optional string deserializerClass,
+  7: optional SerdeType serdeType
 }
 
 // sort order of a column (column name along with asc(1)/desc(0))
@@ -338,7 +391,8 @@ struct Table {
   13: optional PrincipalPrivilegeSet privileges,
   14: optional bool temporary=false,
   15: optional bool rewriteEnabled,     // rewrite enabled or not
-  16: optional CreationMetadata creationMetadata   // only for MVs, it stores table names used and txn list at MV creation
+  16: optional CreationMetadata creationMetadata,   // only for MVs, it stores table names used and txn list at MV creation
+  17: optional string catName = "hive" // Name of the catalog the table is in
 }
 
 struct Partition {
@@ -349,7 +403,8 @@ struct Partition {
   5: i32          lastAccessTime,
   6: StorageDescriptor   sd,
   7: map<string, string> parameters,
-  8: optional PrincipalPrivilegeSet privileges
+  8: optional PrincipalPrivilegeSet privileges,
+  9: optional string catName = "hive"
 }
 
 struct PartitionWithoutSD {
@@ -375,7 +430,8 @@ struct PartitionSpec {
   2: string tableName,
   3: string rootPath,
   4: optional PartitionSpecWithSharedSD sharedSDPartitionSpec,
-  5: optional PartitionListComposingSpec partitionList
+  5: optional PartitionListComposingSpec partitionList,
+  6: optional string catName = "hive"
 }
 
 // column statistics
@@ -464,7 +520,8 @@ struct ColumnStatisticsDesc {
 2: required string dbName,
 3: required string tableName,
 4: optional string partName,
-5: optional i64 lastAnalyzed
+5: optional i64 lastAnalyzed,
+6: optional string catName = "hive"
 }
 
 struct ColumnStatistics {
@@ -499,7 +556,8 @@ struct EnvironmentContext {
 
 struct PrimaryKeysRequest {
   1: required string db_name,
-  2: required string tbl_name
+  2: required string tbl_name,
+  3: optional string catName = "hive"
 }
 
 struct PrimaryKeysResponse {
@@ -511,6 +569,7 @@ struct ForeignKeysRequest {
   2: string parent_tbl_name,
   3: string foreign_db_name,
   4: string foreign_tbl_name
+  5: optional string catName = "hive" // No cross catalog constraints
 }
 
 struct ForeignKeysResponse {
@@ -519,7 +578,8 @@ struct ForeignKeysResponse {
 
 struct UniqueConstraintsRequest {
   1: required string db_name,
-  2: required string tbl_name
+  2: required string tbl_name,
+  3: optional string catName = "hive"
 }
 
 struct UniqueConstraintsResponse {
@@ -528,7 +588,8 @@ struct UniqueConstraintsResponse {
 
 struct NotNullConstraintsRequest {
   1: required string db_name,
-  2: required string tbl_name
+  2: required string tbl_name,
+  3: optional string catName = "hive"
 }
 
 struct NotNullConstraintsResponse {
@@ -548,7 +609,8 @@ struct DefaultConstraintsResponse {
 struct DropConstraintRequest {
   1: required string dbname, 
   2: required string tablename,
-  3: required string constraintname
+  3: required string constraintname,
+  4: optional string catName = "hive"
 }
 
 struct AddPrimaryKeyRequest {
@@ -584,6 +646,7 @@ struct PartitionsByExprRequest {
   3: required binary expr,
   4: optional string defaultPartitionName,
   5: optional i16 maxParts=-1
+  6: optional string catName = "hive"
 }
 
 struct TableStatsResult {
@@ -598,13 +661,15 @@ struct TableStatsRequest {
  1: required string dbName,
  2: required string tblName,
  3: required list<string> colNames
+ 4: optional string catName = "hive"
 }
 
 struct PartitionsStatsRequest {
  1: required string dbName,
  2: required string tblName,
  3: required list<string> colNames,
- 4: required list<string> partNames
+ 4: required list<string> partNames,
+ 5: optional string catName = "hive"
 }
 
 // Return type for add_partitions_req
@@ -618,7 +683,8 @@ struct AddPartitionsRequest {
   2: required string tblName,
   3: required list<Partition> parts,
   4: required bool ifNotExists,
-  5: optional bool needResult=true
+  5: optional bool needResult=true,
+  6: optional string catName = "hive"
 }
 
 // Return type for drop_partitions_req
@@ -646,7 +712,8 @@ struct DropPartitionsRequest {
   5: optional bool ifExists=true, // currently verified on client
   6: optional bool ignoreProtection,
   7: optional EnvironmentContext environmentContext,
-  8: optional bool needResult=true
+  8: optional bool needResult=true,
+  9: optional string catName = "hive"
 }
 
 struct PartitionValuesRequest {
@@ -658,6 +725,7 @@ struct PartitionValuesRequest {
   6: optional list<FieldSchema> partitionOrder;
   7: optional bool ascending = true;
   8: optional i64 maxParts = -1;
+  9: optional string catName = "hive";
 }
 
 struct PartitionValuesRow {
@@ -693,6 +761,7 @@ struct Function {
   6: i32              createTime,
   7: FunctionType     functionType,
   8: list<ResourceUri> resourceUris,
+  9: optional string  catName = "hive"
 }
 
 // Structs for transaction and locks
@@ -935,6 +1004,7 @@ struct NotificationEvent {
     5: optional string tableName,
     6: required string message,
     7: optional string messageFormat,
+    8: optional string catName = "hive",
 }
 
 struct NotificationEventResponse {
@@ -948,6 +1018,7 @@ struct CurrentNotificationEventId {
 struct NotificationEventsCountRequest {
     1: required i64 fromEventId,
     2: required string dbName,
+    3: optional string catName = "hive",
 }
 
 struct NotificationEventsCountResponse {
@@ -973,6 +1044,7 @@ struct FireEventRequest {
     3: optional string dbName,
     4: optional string tableName,
     5: optional list<string> partitionVals,
+    6: optional string catName,
 }
 
 struct FireEventResponse {
@@ -1064,7 +1136,8 @@ struct ClientCapabilities {
 struct GetTableRequest {
   1: required string dbName,
   2: required string tblName,
-  3: optional ClientCapabilities capabilities
+  3: optional ClientCapabilities capabilities,
+  4: optional string catName = "hive"
 }
 
 struct GetTableResult {
@@ -1074,7 +1147,8 @@ struct GetTableResult {
 struct GetTablesRequest {
   1: required string dbName,
   2: optional list<string> tblNames,
-  3: optional ClientCapabilities capabilities
+  3: optional ClientCapabilities capabilities,
+  4: optional string catName = "hive"
 }
 
 struct GetTablesResult {
@@ -1096,6 +1170,7 @@ struct TableMeta {
   2: required string tableName;
   3: required string tableType;
   4: optional string comments;
+  5: optional string catName = "hive";
 }
 
 struct Materialization {
@@ -1318,6 +1393,71 @@ struct WMCreateOrDropTriggerToPoolMappingRequest {
 struct WMCreateOrDropTriggerToPoolMappingResponse {
 }
 
+// Schema objects
+// Schema is already taken, so for the moment I'm calling it an ISchema for Independent Schema
+struct ISchema {
+  1: SchemaType schemaType,
+  2: string name,
+  3: string dbName,
+  4: SchemaCompatibility compatibility,
+  5: SchemaValidation validationLevel,
+  6: bool canEvolve,
+  7: optional string schemaGroup,
+  8: optional string description
+}
+
+struct ISchemaName {
+  1: string dbName,
+  2: string schemaName
+}
+
+struct AlterISchemaRequest {
+  1: ISchemaName name,
+  3: ISchema newSchema
+}
+
+struct SchemaVersion {
+  1:  ISchemaName schema,
+  2:  i32 version,
+  3:  i64 createdAt,
+  4:  list<FieldSchema> cols,
+  5:  optional SchemaVersionState state,
+  6:  optional string description,
+  7:  optional string schemaText,
+  8:  optional string fingerprint,
+  9:  optional string name,
+  10: optional SerDeInfo serDe
+}
+
+struct SchemaVersionDescriptor {
+  1: ISchemaName schema,
+  2: i32 version
+}
+
+struct FindSchemasByColsRqst {
+  1: optional string colName,
+  2: optional string colNamespace,
+  3: optional string type
+}
+
+struct FindSchemasByColsResp {
+  1: list<SchemaVersionDescriptor> schemaVersions
+}
+
+struct MapSchemaVersionToSerdeRequest {
+  1: SchemaVersionDescriptor schemaVersion,
+  2: string serdeName
+}
+
+struct SetSchemaVersionStateRequest {
+  1: SchemaVersionDescriptor schemaVersion,
+  2: SchemaVersionState state
+}
+
+struct GetSerdeRequest {
+  1: string serdeName
+}
+
 // Exceptions.
 
 exception MetaException {
@@ -1388,6 +1528,11 @@ service ThriftHiveMetastore extends fb303.FacebookService
 {
   string getMetaConf(1:string key) throws(1:MetaException o1)
   void setMetaConf(1:string key, 2:string value) throws(1:MetaException o1)
+
+  void create_catalog(1: Catalog catalog) throws (1:AlreadyExistsException o1, 2:InvalidObjectException o2, 3: MetaException o3)
+  Catalog get_catalog(1: CatalogName catName) throws (1:NoSuchObjectException o1, 2:MetaException o2)
+  list<string> get_catalogs() throws (1:MetaException o1)
+  void drop_catalog(1: CatalogName catName) throws (1:NoSuchObjectException o1, 2:InvalidOperationException o2, 3:MetaException o3)
 
   void create_database(1:Database database) throws(1:AlreadyExistsException o1, 2:InvalidObjectException o2, 3:MetaException o3)
   Database get_database(1:string name) throws(1:NoSuchObjectException o1, 2:MetaException o2)
@@ -1929,6 +2074,38 @@ service ThriftHiveMetastore extends fb303.FacebookService
 
   WMCreateOrDropTriggerToPoolMappingResponse create_or_drop_wm_trigger_to_pool_mapping(1:WMCreateOrDropTriggerToPoolMappingRequest request)
       throws(1:AlreadyExistsException o1, 2:NoSuchObjectException o2, 3:InvalidObjectException o3, 4:MetaException o4)
+
+  // Schema calls
+  void create_ischema(1:ISchema schema) throws(1:AlreadyExistsException o1,
+        NoSuchObjectException o2, 3:MetaException o3)
+  void alter_ischema(1:AlterISchemaRequest rqst)
+        throws(1:NoSuchObjectException o1, 2:MetaException o2)
+  ISchema get_ischema(1:ISchemaName name) throws (1:NoSuchObjectException o1, 2:MetaException o2)
+  void drop_ischema(1:ISchemaName name)
+        throws(1:NoSuchObjectException o1, 2:InvalidOperationException o2, 3:MetaException o3)
+
+  void add_schema_version(1:SchemaVersion schemaVersion)
+        throws(1:AlreadyExistsException o1, 2:NoSuchObjectException o2, 3:MetaException o3)
+  SchemaVersion get_schema_version(1: SchemaVersionDescriptor schemaVersion)
+        throws (1:NoSuchObjectException o1, 2:MetaException o2)
+  SchemaVersion get_schema_latest_version(1: ISchemaName schemaName)
+        throws (1:NoSuchObjectException o1, 2:MetaException o2)
+  list<SchemaVersion> get_schema_all_versions(1: ISchemaName schemaName)
+        throws (1:NoSuchObjectException o1, 2:MetaException o2)
+  void drop_schema_version(1: SchemaVersionDescriptor schemaVersion)
+        throws(1:NoSuchObjectException o1, 2:MetaException o2)
+  FindSchemasByColsResp get_schemas_by_cols(1: FindSchemasByColsRqst rqst)
+        throws(1:MetaException o1)
+  // There is no blanket update of SchemaVersion since it is (mostly) immutable.  The only
+  // updates are the specific ones to associate a version with a serde and to change its state
+  void map_schema_version_to_serde(1: MapSchemaVersionToSerdeRequest rqst)
+        throws(1:NoSuchObjectException o1, 2:MetaException o2)
+  void set_schema_version_state(1: SetSchemaVersionStateRequest rqst)
+        throws(1:NoSuchObjectException o1, 2:InvalidOperationException o2, 3:MetaException o3)
+
+  void add_serde(1: SerDeInfo serde) throws(1:AlreadyExistsException o1, 2:MetaException o2)
+  SerDeInfo get_serde(1: GetSerdeRequest rqst) throws(1:NoSuchObjectException o1, 2:MetaException o2)
+
 }
 
 // * Note about the DDL_TIME: When creating or altering a table or a partition,

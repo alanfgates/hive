@@ -18,25 +18,31 @@
 package org.apache.hadoop.hive.metastore.client;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
+import org.apache.hadoop.hive.metastore.MetaStoreTestUtils;
 import org.apache.hadoop.hive.metastore.PartitionDropOptions;
 import org.apache.hadoop.hive.metastore.annotation.MetastoreCheckinTest;
+import org.apache.hadoop.hive.metastore.api.Catalog;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.Partition;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.client.builder.CatalogBuilder;
 import org.apache.hadoop.hive.metastore.client.builder.DatabaseBuilder;
 import org.apache.hadoop.hive.metastore.client.builder.PartitionBuilder;
 import org.apache.hadoop.hive.metastore.client.builder.TableBuilder;
 import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.minihms.AbstractMetaStoreService;
+import org.apache.thrift.TException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -47,6 +53,9 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import com.google.common.collect.Lists;
+
+import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_CATALOG_NAME;
+import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_DATABASE_NAME;
 
 /**
  * Tests for dropping partitions.
@@ -69,7 +78,7 @@ public class TestDropPartitions extends MetaStoreClientTest {
   public static void startMetaStores() {
     Map<MetastoreConf.ConfVars, String> msConf = new HashMap<MetastoreConf.ConfVars, String>();
     // Enable trash, so it can be tested
-    Map<String, String> extraConf = new HashMap<String, String>();
+    Map<String, String> extraConf = new HashMap<>();
     extraConf.put("fs.trash.checkpoint.interval", "30");  // FS_TRASH_CHECKPOINT_INTERVAL_KEY
     extraConf.put("fs.trash.interval", "30");             // FS_TRASH_INTERVAL_KEY (hadoop-2)
     startMetaStores(msConf, extraConf);
@@ -85,7 +94,7 @@ public class TestDropPartitions extends MetaStoreClientTest {
     client = metaStore.getClient();
 
     // Clean up the database
-    client.dropDatabase(DB_NAME, true, true, true);
+    client.dropDatabase(DEFAULT_CATALOG_NAME, DB_NAME, true, true, true);
     metaStore.cleanWarehouseDirs();
     Database db = new DatabaseBuilder().
         setName(DB_NAME).
@@ -117,7 +126,7 @@ public class TestDropPartitions extends MetaStoreClientTest {
   public void testDropPartition() throws Exception {
 
     boolean dropSuccessful =
-        client.dropPartition(DB_NAME, TABLE_NAME, PARTITIONS[0].getValues(), false);
+        client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, PARTITIONS[0].getValues(), false);
     Assert.assertTrue(dropSuccessful);
     List<Partition> droppedPartitions = Lists.newArrayList(PARTITIONS[0]);
     List<Partition> remainingPartitions = Lists.newArrayList(PARTITIONS[1], PARTITIONS[2]);
@@ -127,7 +136,7 @@ public class TestDropPartitions extends MetaStoreClientTest {
   @Test
   public void testDropPartitionDeleteData() throws Exception {
 
-    client.dropPartition(DB_NAME, TABLE_NAME, PARTITIONS[0].getValues(), true);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, PARTITIONS[0].getValues(), true);
     List<Partition> droppedPartitions = Lists.newArrayList(PARTITIONS[0]);
     List<Partition> remainingPartitions = Lists.newArrayList(PARTITIONS[1], PARTITIONS[2]);
     checkPartitionsAfterDelete(TABLE_NAME, droppedPartitions, remainingPartitions, true, false);
@@ -136,8 +145,8 @@ public class TestDropPartitions extends MetaStoreClientTest {
   @Test
   public void testDropPartitionDeleteParentDir() throws Exception {
 
-    client.dropPartition(DB_NAME, TABLE_NAME, PARTITIONS[0].getValues(), true);
-    client.dropPartition(DB_NAME, TABLE_NAME, PARTITIONS[1].getValues(), true);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, PARTITIONS[0].getValues(), true);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, PARTITIONS[1].getValues(), true);
 
     List<Partition> droppedPartitions = Lists.newArrayList(PARTITIONS[0], PARTITIONS[1]);
     List<Partition> remainingPartitions = Lists.newArrayList(PARTITIONS[2]);
@@ -160,7 +169,7 @@ public class TestDropPartitions extends MetaStoreClientTest {
     Partition partition2 =
         createPartition(tableName, null, Lists.newArrayList("2018"), getYearPartCol(), null);
 
-    client.dropPartition(DB_NAME, tableName, partition1.getValues(), true);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, tableName, partition1.getValues(), true);
     List<Partition> droppedPartitions = Lists.newArrayList(partition1);
     List<Partition> remainingPartitions = Lists.newArrayList(partition2);
     checkPartitionsAfterDelete(tableName, droppedPartitions, remainingPartitions, true, true);
@@ -179,8 +188,8 @@ public class TestDropPartitions extends MetaStoreClientTest {
     Partition partition = createPartition(TABLE_NAME, location, Lists.newArrayList("2016", "may"),
         getYearAndMonthPartCols(), partParams);
 
-    client.dropPartition(DB_NAME, TABLE_NAME, Lists.newArrayList("2016", "may"), true);
-    List<Partition> partitionsAfterDelete = client.listPartitions(DB_NAME, TABLE_NAME, MAX);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList("2016", "may"), true);
+    List<Partition> partitionsAfterDelete = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, MAX);
     Assert.assertFalse(partitionsAfterDelete.contains(partition));
     Assert.assertTrue("The location '" + location + "' should exist.",
         metaStore.isPathExists(new Path(location)));
@@ -201,8 +210,8 @@ public class TestDropPartitions extends MetaStoreClientTest {
     Partition partition =
         createPartition(tableName, location, Lists.newArrayList("2017"), getYearPartCol(), null);
 
-    client.dropPartition(DB_NAME, tableName, partition.getValues(), true);
-    List<Partition> partitionsAfterDelete = client.listPartitions(DB_NAME, tableName, MAX);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, tableName, partition.getValues(), true);
+    List<Partition> partitionsAfterDelete = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, tableName, MAX);
     Assert.assertTrue(partitionsAfterDelete.isEmpty());
     Assert.assertTrue("The location '" + location + "' should exist.",
         metaStore.isPathExists(new Path(location)));
@@ -211,57 +220,57 @@ public class TestDropPartitions extends MetaStoreClientTest {
   @Test(expected = NoSuchObjectException.class)
   public void testDropPartitionNonExistingDB() throws Exception {
 
-    client.dropPartition("nonexistingdb", TABLE_NAME, Lists.newArrayList("2017"), false);
+    client.dropPartition(DEFAULT_CATALOG_NAME, "nonexistingdb", TABLE_NAME, Lists.newArrayList("2017"), false);
   }
 
   @Test(expected = NoSuchObjectException.class)
   public void testDropPartitionNonExistingTable() throws Exception {
 
-    client.dropPartition(DB_NAME, "nonexistingtable", Lists.newArrayList("2017"), false);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, "nonexistingtable", Lists.newArrayList("2017"), false);
   }
 
   @Test(expected = MetaException.class)
   public void testDropPartitionNullDB() throws Exception {
 
-    client.dropPartition(null, TABLE_NAME, Lists.newArrayList("2017"), false);
+    client.dropPartition(DEFAULT_CATALOG_NAME, null, TABLE_NAME, Lists.newArrayList("2017"), false);
   }
 
   @Test(expected = MetaException.class)
   public void testDropPartitionNullTable() throws Exception {
 
-    client.dropPartition(DB_NAME, null, Lists.newArrayList("2017"), false);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, null, Lists.newArrayList("2017"), false);
   }
 
   @Test(expected = NoSuchObjectException.class)
   public void testDropPartitionEmptyDB() throws Exception {
 
-    client.dropPartition("", TABLE_NAME, Lists.newArrayList("2017"), false);
+    client.dropPartition(DEFAULT_CATALOG_NAME, "", TABLE_NAME, Lists.newArrayList("2017"), false);
   }
 
   @Test(expected = NoSuchObjectException.class)
   public void testDropPartitionEmptyTable() throws Exception {
 
-    client.dropPartition(DB_NAME, "", Lists.newArrayList("2017"), false);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, "", Lists.newArrayList("2017"), false);
   }
 
   @Test(expected = MetaException.class)
   public void testDropPartitionNullPartVals() throws Exception {
 
     List<String> partVals = null;
-    client.dropPartition(DB_NAME, TABLE_NAME, partVals, false);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, partVals, false);
   }
 
   @Test(expected = MetaException.class)
   public void testDropPartitionEmptyPartVals() throws Exception {
 
     List<String> partVals = new ArrayList<>();
-    client.dropPartition(DB_NAME, TABLE_NAME, partVals, false);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, partVals, false);
   }
 
   @Test(expected = NoSuchObjectException.class)
   public void testDropPartitionNonExistingPartVals() throws Exception {
 
-    client.dropPartition(DB_NAME, TABLE_NAME, Lists.newArrayList("2017", "may"), false);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList("2017", "may"), false);
   }
 
   @Test
@@ -271,7 +280,7 @@ public class TestDropPartitions extends MetaStoreClientTest {
     partVals.add(null);
     partVals.add(null);
     try {
-      client.dropPartition(DB_NAME, TABLE_NAME, partVals, false);
+      client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, partVals, false);
       Assert.fail("NullPointerException or NoSuchObjectException is expected to be thrown");
     } catch (NullPointerException | NoSuchObjectException e) {
       // TODO: Should not throw NPE.
@@ -284,19 +293,19 @@ public class TestDropPartitions extends MetaStoreClientTest {
     List<String> partVals = new ArrayList<>();
     partVals.add("");
     partVals.add("");
-    client.dropPartition(DB_NAME, TABLE_NAME, partVals, false);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, partVals, false);
   }
 
   @Test(expected = MetaException.class)
   public void testDropPartitionMoreValsInList() throws Exception {
 
-    client.dropPartition(DB_NAME, TABLE_NAME, Lists.newArrayList("2017", "march", "12:00"), false);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList("2017", "march", "12:00"), false);
   }
 
   @Test(expected = MetaException.class)
   public void testDropPartitionLessValsInList() throws Exception {
 
-    client.dropPartition(DB_NAME, TABLE_NAME, Lists.newArrayList("2017"), false);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList("2017"), false);
   }
 
   // Tests for dropPartition(String db_name, String tbl_name, List<String> part_vals,
@@ -309,7 +318,7 @@ public class TestDropPartitions extends MetaStoreClientTest {
     partDropOptions.deleteData(false);
     partDropOptions.purgeData(false);
 
-    client.dropPartition(DB_NAME, TABLE_NAME, PARTITIONS[0].getValues(), partDropOptions);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, PARTITIONS[0].getValues(), partDropOptions);
     List<Partition> droppedPartitions = Lists.newArrayList(PARTITIONS[0]);
     List<Partition> remainingPartitions = Lists.newArrayList(PARTITIONS[1], PARTITIONS[2]);
     checkPartitionsAfterDelete(TABLE_NAME, droppedPartitions, remainingPartitions, false, false);
@@ -322,7 +331,7 @@ public class TestDropPartitions extends MetaStoreClientTest {
     partDropOptions.deleteData(true);
     partDropOptions.purgeData(false);
 
-    client.dropPartition(DB_NAME, TABLE_NAME, PARTITIONS[0].getValues(), partDropOptions);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, PARTITIONS[0].getValues(), partDropOptions);
     List<Partition> droppedPartitions = Lists.newArrayList(PARTITIONS[0]);
     List<Partition> remainingPartitions = Lists.newArrayList(PARTITIONS[1], PARTITIONS[2]);
     checkPartitionsAfterDelete(TABLE_NAME, droppedPartitions, remainingPartitions, true, false);
@@ -335,7 +344,7 @@ public class TestDropPartitions extends MetaStoreClientTest {
     partDropOptions.deleteData(true);
     partDropOptions.purgeData(true);
 
-    client.dropPartition(DB_NAME, TABLE_NAME, PARTITIONS[0].getValues(), partDropOptions);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, PARTITIONS[0].getValues(), partDropOptions);
     List<Partition> droppedPartitions = Lists.newArrayList(PARTITIONS[0]);
     List<Partition> remainingPartitions = Lists.newArrayList(PARTITIONS[1], PARTITIONS[2]);
     checkPartitionsAfterDelete(TABLE_NAME, droppedPartitions, remainingPartitions, true, true);
@@ -357,8 +366,8 @@ public class TestDropPartitions extends MetaStoreClientTest {
     partDropOptions.deleteData(true);
     partDropOptions.purgeData(true);
 
-    client.dropPartition(DB_NAME, tableName, partition.getValues(), partDropOptions);
-    List<Partition> partitionsAfterDrop = client.listPartitions(DB_NAME, tableName, MAX);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, tableName, partition.getValues(), partDropOptions);
+    List<Partition> partitionsAfterDrop = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, tableName, MAX);
     Assert.assertTrue(partitionsAfterDrop.isEmpty());
     Assert.assertTrue("The location '" + location + "' should exist.",
         metaStore.isPathExists(new Path(location)));
@@ -371,7 +380,7 @@ public class TestDropPartitions extends MetaStoreClientTest {
     partDropOptions.deleteData(false);
     partDropOptions.purgeData(true);
 
-    client.dropPartition(DB_NAME, TABLE_NAME, PARTITIONS[0].getValues(), partDropOptions);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, PARTITIONS[0].getValues(), partDropOptions);
     List<Partition> droppedPartitions = Lists.newArrayList(PARTITIONS[0]);
     List<Partition> remainingPartitions = Lists.newArrayList(PARTITIONS[1], PARTITIONS[2]);
     checkPartitionsAfterDelete(TABLE_NAME, droppedPartitions, remainingPartitions, false, false);
@@ -394,7 +403,7 @@ public class TestDropPartitions extends MetaStoreClientTest {
     Partition partition2 =
         createPartition(tableName, null, Lists.newArrayList("2018"), getYearPartCol(), null);
 
-    client.dropPartition(DB_NAME, tableName, partition1.getValues(), true);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, tableName, partition1.getValues(), true);
     List<Partition> droppedPartitions = Lists.newArrayList(partition1);
     List<Partition> remainingPartitions = Lists.newArrayList(partition2);
     checkPartitionsAfterDelete(tableName, droppedPartitions, remainingPartitions, true, true);
@@ -403,7 +412,7 @@ public class TestDropPartitions extends MetaStoreClientTest {
   @Test(expected = NullPointerException.class)
   public void testDropPartitionNullPartDropOptions() throws Exception {
     // TODO: This should not throw NPE
-    client.dropPartition(DB_NAME, TABLE_NAME, PARTITIONS[0].getValues(), null);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, PARTITIONS[0].getValues(), null);
   }
 
   // Tests for dropPartition(String db_name, String tbl_name, String name,
@@ -412,7 +421,7 @@ public class TestDropPartitions extends MetaStoreClientTest {
   @Test
   public void testDropPartitionByName() throws Exception {
 
-    client.dropPartition(DB_NAME, TABLE_NAME, "year=2017/month=march", false);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, "year=2017/month=march", false);
     List<Partition> droppedPartitions = Lists.newArrayList(PARTITIONS[0]);
     List<Partition> remainingPartitions = Lists.newArrayList(PARTITIONS[1], PARTITIONS[2]);
     checkPartitionsAfterDelete(TABLE_NAME, droppedPartitions, remainingPartitions, false, false);
@@ -422,7 +431,7 @@ public class TestDropPartitions extends MetaStoreClientTest {
   public void testDropPartitionByNameLessValue() throws Exception {
 
     try {
-      client.dropPartition(DB_NAME, TABLE_NAME, "year=2017", true);
+      client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, "year=2017", true);
       Assert.fail("NoSuchObjectException should be thrown.");
     } catch (NoSuchObjectException e) {
       // Expected exception
@@ -436,7 +445,7 @@ public class TestDropPartitions extends MetaStoreClientTest {
   @Test
   public void testDropPartitionByNameMoreValue() throws Exception {
     // The extra non existing values will be ignored.
-    client.dropPartition(DB_NAME, TABLE_NAME, "year=2017/month=march/day=10", true);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, "year=2017/month=march/day=10", true);
     List<Partition> droppedPartitions = Lists.newArrayList(PARTITIONS[0]);
     List<Partition> remainingPartitions = Lists.newArrayList(PARTITIONS[1], PARTITIONS[2]);
     checkPartitionsAfterDelete(TABLE_NAME, droppedPartitions, remainingPartitions, true, false);
@@ -445,53 +454,160 @@ public class TestDropPartitions extends MetaStoreClientTest {
   @Test(expected = NoSuchObjectException.class)
   public void testDropPartitionByNameNonExistingPart() throws Exception {
 
-    client.dropPartition(DB_NAME, TABLE_NAME, "year=2017/month=may", true);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, "year=2017/month=may", true);
   }
 
   @Test(expected = NoSuchObjectException.class)
   public void testDropPartitionByNameNonExistingTable() throws Exception {
 
-    client.dropPartition(DB_NAME, "nonexistingtable", "year=2017/month=may", true);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, "nonexistingtable", "year=2017/month=may", true);
   }
 
   @Test(expected = NoSuchObjectException.class)
   public void testDropPartitionByNameNonExistingDB() throws Exception {
 
-    client.dropPartition("nonexistingdb", TABLE_NAME, "year=2017/month=may", true);
+    client.dropPartition(DEFAULT_CATALOG_NAME, "nonexistingdb", TABLE_NAME, "year=2017/month=may", true);
   }
 
   @Test(expected = NoSuchObjectException.class)
   public void testDropPartitionByNameInvalidName() throws Exception {
 
-    client.dropPartition(DB_NAME, TABLE_NAME, "ev=2017/honap=march", true);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, "ev=2017/honap=march", true);
   }
 
   @Test(expected = NoSuchObjectException.class)
   public void testDropPartitionByNameInvalidNameFormat() throws Exception {
 
-    client.dropPartition(DB_NAME, TABLE_NAME, "invalidnameformat", true);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, "invalidnameformat", true);
   }
 
   @Test(expected = NoSuchObjectException.class)
   public void testDropPartitionByNameInvalidNameNoValues() throws Exception {
 
-    client.dropPartition(DB_NAME, TABLE_NAME, "year=/month=", true);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, "year=/month=", true);
   }
 
   @Test(expected = MetaException.class)
   public void testDropPartitionByNameNullName() throws Exception {
 
     String name = null;
-    client.dropPartition(DB_NAME, TABLE_NAME, name, true);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, name, true);
   }
 
   @Test(expected = MetaException.class)
   public void testDropPartitionByNameEmptyName() throws Exception {
 
-    client.dropPartition(DB_NAME, TABLE_NAME, "", true);
+    client.dropPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, "", true);
   }
 
-    // Helper methods
+  @Test
+  public void otherCatalog() throws TException {
+    String catName = "drop_partition_catalog";
+    Catalog cat = new CatalogBuilder()
+        .setName(catName)
+        .setLocation(MetaStoreTestUtils.getTestWarehouseDir(catName))
+        .build();
+    client.createCatalog(cat);
+
+    String dbName = "drop_partition_database_in_other_catalog";
+    Database db = new DatabaseBuilder()
+        .setName(dbName)
+        .setCatalogName(catName)
+        .build();
+    client.createDatabase(db);
+
+    String tableName = "table_in_other_catalog";
+    Table table = new TableBuilder()
+        .inDb(db)
+        .setTableName(tableName)
+        .addCol("id", "int")
+        .addCol("name", "string")
+        .addPartCol("partcol", "string")
+        .build();
+    client.createTable(table);
+
+    Partition[] parts = new Partition[2];
+    for (int i = 0; i < parts.length; i++) {
+      parts[i] = new PartitionBuilder()
+          .inTable(table)
+          .addValue("a" + i)
+          .build();
+    }
+    client.add_partitions(Arrays.asList(parts));
+    List<Partition> fetched = client.listPartitions(catName, dbName, tableName, (short)-1);
+    Assert.assertEquals(parts.length, fetched.size());
+
+    Assert.assertTrue(client.dropPartition(catName, dbName, tableName,
+        Collections.singletonList("a0"), PartitionDropOptions.instance().ifExists(false)));
+    try {
+      client.getPartition(catName, dbName, tableName, Collections.singletonList("a0"));
+      Assert.fail();
+    } catch (NoSuchObjectException e) {
+      // NOP
+    }
+
+    Assert.assertTrue(client.dropPartition(catName, dbName, tableName, "partcol=a1", true));
+    try {
+      client.getPartition(catName, dbName, tableName, Collections.singletonList("a1"));
+      Assert.fail();
+    } catch (NoSuchObjectException e) {
+      // NOP
+    }
+  }
+
+  @SuppressWarnings("deprecation")
+  @Test
+  public void deprecatedCalls() throws TException {
+    String tableName = "table_in_other_catalog";
+    Table table = new TableBuilder()
+        .setTableName(tableName)
+        .addCol("id", "int")
+        .addCol("name", "string")
+        .addPartCol("partcol", "string")
+        .build();
+    client.createTable(table);
+
+    Partition[] parts = new Partition[2];
+    for (int i = 0; i < parts.length; i++) {
+      parts[i] = new PartitionBuilder()
+          .inTable(table)
+          .addValue("a" + i)
+          .build();
+    }
+    client.add_partitions(Arrays.asList(parts));
+    List<Partition> fetched = client.listPartitions(DEFAULT_DATABASE_NAME, tableName, (short)-1);
+    Assert.assertEquals(parts.length, fetched.size());
+
+    Assert.assertTrue(client.dropPartition(DEFAULT_DATABASE_NAME, tableName,
+        Collections.singletonList("a0"), PartitionDropOptions.instance().ifExists(false)));
+    try {
+      client.getPartition(DEFAULT_DATABASE_NAME, tableName, Collections.singletonList("a0"));
+      Assert.fail();
+    } catch (NoSuchObjectException e) {
+      // NOP
+    }
+
+    Assert.assertTrue(client.dropPartition(DEFAULT_DATABASE_NAME, tableName, "partcol=a1", true));
+    try {
+      client.getPartition(DEFAULT_DATABASE_NAME, tableName, Collections.singletonList("a1"));
+      Assert.fail();
+    } catch (NoSuchObjectException e) {
+      // NOP
+    }
+  }
+
+  @Test(expected = NoSuchObjectException.class)
+  public void testDropPartitionBogusCatalog() throws Exception {
+    client.dropPartition("nosuch", DB_NAME, TABLE_NAME, Lists.newArrayList("2017"), false);
+  }
+
+  @Test(expected = NoSuchObjectException.class)
+  public void testDropPartitionByNameBogusCatalog() throws Exception {
+    client.dropPartition("nosuch", DB_NAME, TABLE_NAME, "year=2017", false);
+  }
+
+
+  // Helper methods
 
   private Table createTable(String tableName, List<FieldSchema> partCols,
       Map<String, String> tableParams) throws Exception {
@@ -517,7 +633,7 @@ public class TestDropPartitions extends MetaStoreClientTest {
         .setCols(partCols)
         .build();
     client.add_partition(partition);
-    partition = client.getPartition(DB_NAME, TABLE_NAME, values);
+    partition = client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, values);
     return partition;
   }
 
@@ -532,7 +648,7 @@ public class TestDropPartitions extends MetaStoreClientTest {
         .setPartParams(partParams)
         .build();
     client.add_partition(partition);
-    partition = client.getPartition(DB_NAME, tableName, values);
+    partition = client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, tableName, values);
     return partition;
   }
 
@@ -552,7 +668,7 @@ public class TestDropPartitions extends MetaStoreClientTest {
   private void checkPartitionsAfterDelete(String tableName, List<Partition> droppedPartitions,
       List<Partition> existingPartitions, boolean deleteData, boolean purge) throws Exception {
 
-    List<Partition> partitions = client.listPartitions(DB_NAME, tableName, MAX);
+    List<Partition> partitions = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, tableName, MAX);
     Assert
         .assertEquals(
             "The table " + tableName + " has " + partitions.size()

@@ -104,6 +104,40 @@ ALTER TABLE WM_MAPPING ADD CONSTRAINT WM_MAPPING_FK1 FOREIGN KEY (RP_ID) REFEREN
 
 ALTER TABLE WM_MAPPING ADD CONSTRAINT WM_MAPPING_FK2 FOREIGN KEY (POOL_ID) REFERENCES WM_POOL (POOL_ID);
 
+-- Upgrades for Schema Registry objects
+ALTER TABLE "SERDES" ADD "DESCRIPTION" VARCHAR(4000);
+ALTER TABLE "SERDES" ADD "SERIALIZER_CLASS" VARCHAR(4000);
+ALTER TABLE "SERDES" ADD "DESERIALIZER_CLASS" VARCHAR(4000);
+ALTER TABLE "SERDES" ADD "SERDE_TYPE" INTEGER;
+
+CREATE TABLE "I_SCHEMA" (
+  "SCHEMA_ID" number primary key,
+  "SCHEMA_TYPE" number not null,
+  "NAME" varchar2(256) unique,
+  "DB_ID" number references "DBS" ("DB_ID"),
+  "COMPATIBILITY" number not null,
+  "VALIDATION_LEVEL" number not null,
+  "CAN_EVOLVE" number(1) not null,
+  "SCHEMA_GROUP" varchar2(256),
+  "DESCRIPTION" varchar2(4000)
+);
+
+CREATE TABLE "SCHEMA_VERSION" (
+  "SCHEMA_VERSION_ID" number primary key,
+  "SCHEMA_ID" number references "I_SCHEMA" ("SCHEMA_ID"),
+  "VERSION" number not null,
+  "CREATED_AT" number not null,
+  "CD_ID" number references "CDS" ("CD_ID"), 
+  "STATE" number not null,
+  "DESCRIPTION" varchar2(4000),
+  "SCHEMA_TEXT" clob,
+  "FINGERPRINT" varchar2(256),
+  "SCHEMA_VERSION_NAME" varchar2(256),
+  "SERDE_ID" number references "SERDES" ("SERDE_ID"), 
+  UNIQUE ("SCHEMA_ID", "VERSION")
+);
+
+
 UPDATE VERSION SET SCHEMA_VERSION='3.0.0', VERSION_COMMENT='Hive release version 3.0.0' where VER_ID=1;
 SELECT 'Finished upgrading MetaStore schema from 2.3.0 to 3.0.0' AS Status from dual;
 
@@ -157,7 +191,6 @@ UPDATE DBS
   SET DB_LOCATION_URI = 's3a' || SUBSTR(DB_LOCATION_URI, 4)
   WHERE DB_LOCATION_URI LIKE 's3n://%' ;
 
-
 -- HIVE-18192
 CREATE TABLE TXN_TO_WRITE_ID (
   T2W_TXNID number(19) NOT NULL,
@@ -189,3 +222,59 @@ ALTER TABLE COMPLETED_TXN_COMPONENTS ADD CTC_WRITEID number(19);
 ALTER TABLE KEY_CONSTRAINTS ADD DEFAULT_VALUE VARCHAR(400);
 
 ALTER TABLE HIVE_LOCKS MODIFY(HL_TXNID NOT NULL);
+
+-- HIVE-18755, add catalogs
+-- new catalogs table
+CREATE TABLE CTLGS (
+    CTLG_ID NUMBER PRIMARY KEY,
+    "NAME" VARCHAR2(256),
+    "DESC" VARCHAR2(4000),
+    LOCATION_URI VARCHAR2(4000) NOT NULL,
+    UNIQUE ("NAME")
+);
+
+-- Insert a default value.  The location is TBD.  Hive will fix this when it starts
+INSERT INTO CTLGS VALUES (1, 'hive', 'Default catalog for Hive', 'TBD');
+
+-- Drop the unique index on DBS
+DROP INDEX UNIQUE_DATABASE;
+
+-- Add the new column to the DBS table, can't put in the not null constraint yet
+ALTER TABLE DBS ADD CTLG_NAME VARCHAR2(256);
+
+-- Update all records in the DBS table to point to the Hive catalog
+UPDATE DBS 
+  SET "CTLG_NAME" = 'hive';
+
+-- Add the not null constraint
+ALTER TABLE DBS MODIFY CTLG_NAME NOT NULL;
+
+-- Put back the unique index 
+CREATE UNIQUE INDEX UNIQUE_DATABASE ON DBS ("NAME", CTLG_NAME);
+
+-- Add the foreign key
+ALTER TABLE DBS ADD CONSTRAINT CTLGS_FK FOREIGN KEY (CTLG_NAME) REFERENCES CTLGS ("NAME") INITIALLY DEFERRED;
+
+-- Add columns to table stats and part stats
+ALTER TABLE TAB_COL_STATS ADD CAT_NAME VARCHAR2(256);
+ALTER TABLE PART_COL_STATS ADD CAT_NAME VARCHAR2(256);
+
+-- Set the existing column names to Hive
+UPDATE TAB_COL_STATS
+  SET CAT_NAME = 'hive';
+UPDATE PART_COL_STATS
+  SET CAT_NAME = 'hive';
+
+-- Add the not null constraint
+ALTER TABLE TAB_COL_STATS MODIFY CAT_NAME NOT NULL;
+ALTER TABLE PART_COL_STATS MODIFY CAT_NAME NOT NULL;
+
+-- Rebuild the index for Part col stats.  No such index for table stats, which seems weird
+DROP INDEX PCS_STATS_IDX;
+CREATE INDEX PCS_STATS_IDX ON PART_COL_STATS (CAT_NAME, DB_NAME,TABLE_NAME,COLUMN_NAME,PARTITION_NAME);
+
+-- Add column to partition events
+ALTER TABLE PARTITION_EVENTS ADD CAT_NAME VARCHAR2(256);
+
+-- Add column to notification log
+ALTER TABLE NOTIFICATION_LOG ADD CAT_NAME VARCHAR2(256);

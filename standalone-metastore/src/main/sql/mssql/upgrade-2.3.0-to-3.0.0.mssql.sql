@@ -103,6 +103,39 @@ ALTER TABLE WM_MAPPING ADD CONSTRAINT WM_MAPPING_FK1 FOREIGN KEY (RP_ID) REFEREN
 
 ALTER TABLE WM_MAPPING ADD CONSTRAINT WM_MAPPING_FK2 FOREIGN KEY (POOL_ID) REFERENCES WM_POOL (POOL_ID);
 
+-- Upgrades for Schema Registry objects
+ALTER TABLE "SERDES" ADD "DESCRIPTION" nvarchar(4000);
+ALTER TABLE "SERDES" ADD "SERIALIZER_CLASS" nvarchar(4000);
+ALTER TABLE "SERDES" ADD "DESERIALIZER_CLASS" nvarchar(4000);
+ALTER TABLE "SERDES" ADD "SERDE_TYPE" int;
+
+CREATE TABLE "I_SCHEMA" (
+  "SCHEMA_ID" bigint primary key,
+  "SCHEMA_TYPE" int not null,
+  "NAME" nvarchar(256) unique,
+  "DB_ID" bigint references "DBS" ("DB_ID"),
+  "COMPATIBILITY" int not null,
+  "VALIDATION_LEVEL" int not null,
+  "CAN_EVOLVE" bit not null,
+  "SCHEMA_GROUP" nvarchar(256),
+  "DESCRIPTION" nvarchar(4000),
+);
+
+CREATE TABLE "SCHEMA_VERSION" (
+  "SCHEMA_VERSION_ID" bigint primary key,
+  "SCHEMA_ID" bigint references "I_SCHEMA" ("SCHEMA_ID"),
+  "VERSION" int not null,
+  "CREATED_AT" bigint not null,
+  "CD_ID" bigint references "CDS" ("CD_ID"),
+  "STATE" int not null,
+  "DESCRIPTION" nvarchar(4000),
+  "SCHEMA_TEXT" varchar(max),
+  "FINGERPRINT" nvarchar(256),
+  "SCHEMA_VERSION_NAME" nvarchar(256),
+  "SERDE_ID" bigint references "SERDES" ("SERDE_ID"),
+  unique ("SCHEMA_ID", "VERSION")
+);
+
 UPDATE VERSION SET SCHEMA_VERSION='3.0.0', VERSION_COMMENT='Hive release version 3.0.0' where VER_ID=1;
 SELECT 'Finished upgrading MetaStore schema from 2.3.0 to 3.0.0' AS MESSAGE;
 
@@ -180,3 +213,61 @@ ALTER TABLE COMPLETED_TXN_COMPONENTS ADD CTC_WRITEID bigint;
  ALTER TABLE KEY_CONSTRAINTS ADD DEFAULT_VALUE VARCHAR(400);
 
 ALTER TABLE HIVE_LOCKS MODIFY ALTER COLUMN HL_TXNID bigint NOT NULL;
+
+-- HIVE-18755, add catalogs
+-- new catalog table
+CREATE TABLE CTLGS (
+      CTLG_ID bigint primary key,
+      "NAME" nvarchar(256),
+      "DESC" nvarchar(4000),
+      LOCATION_URI nvarchar(4000) not null
+);
+
+-- Create unique index on CTLGS.NAME
+CREATE UNIQUE INDEX UNIQUE_CTLG ON CTLGS ("NAME");
+
+-- Insert a default value.  The location is TBD.  Hive will fix this when it starts
+INSERT INTO CTLGS VALUES (1, 'hive', 'Default catalog for Hive', 'TBD');
+
+-- Drop the unique index on DBS
+DROP INDEX UNIQUEDATABASE ON DBS;
+
+-- Add the new column to the DBS table, can't put in the not null constraint yet
+ALTER TABLE DBS ADD CTLG_NAME nvarchar(256);
+
+-- Update all records in the DBS table to point to the Hive catalog
+UPDATE DBS
+  SET "CTLG_NAME" = 'hive';
+
+-- Add the not null constraint
+ALTER TABLE DBS ALTER COLUMN CTLG_NAME nvarchar(256) NOT NULL;
+
+-- Put back the unique index
+CREATE UNIQUE INDEX UNIQUEDATABASE ON DBS ("NAME", "CTLG_NAME");
+
+-- Add the foreign key
+ALTER TABLE DBS ADD CONSTRAINT "DBS_FK1" FOREIGN KEY ("CTLG_NAME") REFERENCES CTLGS ("NAME");
+
+-- Add columns to table stats and part stats
+ALTER TABLE TAB_COL_STATS ADD CAT_NAME nvarchar(256);
+ALTER TABLE PART_COL_STATS ADD CAT_NAME nvarchar(256);
+
+-- Set the existing column names to Hive
+UPDATE TAB_COL_STATS
+  SET CAT_NAME = 'hive';
+UPDATE PART_COL_STATS
+  SET CAT_NAME = 'hive';
+
+-- Add the not null constraint
+ALTER TABLE TAB_COL_STATS ALTER COLUMN CAT_NAME nvarchar(256) NOT NULL;
+ALTER TABLE PART_COL_STATS ALTER COLUMN CAT_NAME nvarchar(256) NOT NULL;
+
+-- Rebuild the index for Part col stats.  No such index for table stats, which seems weird
+DROP INDEX PCS_STATS_IDX ON PART_COL_STATS;
+CREATE INDEX PCS_STATS_IDX ON PART_COL_STATS (CAT_NAME, DB_NAME, TABLE_NAME, COLUMN_NAME, PARTITION_NAME);
+
+-- Add columns to partition events
+ALTER TABLE PARTITION_EVENTS ADD CAT_NAME nvarchar(256);
+
+-- Add columns to notification log
+ALTER TABLE NOTIFICATION_LOG ADD CAT_NAME nvarchar(256);

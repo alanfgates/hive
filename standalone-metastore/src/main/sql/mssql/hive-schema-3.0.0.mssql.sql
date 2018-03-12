@@ -93,12 +93,13 @@ CREATE TABLE PART_COL_STATS
     NUM_TRUES bigint NULL,
     PART_ID bigint NULL,
     PARTITION_NAME nvarchar(767) NOT NULL,
-    "TABLE_NAME" nvarchar(256) NOT NULL
+    "TABLE_NAME" nvarchar(256) NOT NULL,
+    "CAT_NAME" nvarchar(256) NOT NULL
 );
 
 ALTER TABLE PART_COL_STATS ADD CONSTRAINT PART_COL_STATS_PK PRIMARY KEY (CS_ID);
 
-CREATE INDEX PCS_STATS_IDX ON PART_COL_STATS (DB_NAME,TABLE_NAME,COLUMN_NAME,PARTITION_NAME);
+CREATE INDEX PCS_STATS_IDX ON PART_COL_STATS (CAT_NAME, DB_NAME,TABLE_NAME,COLUMN_NAME,PARTITION_NAME);
 
 -- Table PART_PRIVS for classes [org.apache.hadoop.hive.metastore.model.MPartitionPrivilege]
 CREATE TABLE PART_PRIVS
@@ -236,7 +237,8 @@ CREATE TABLE TAB_COL_STATS
     NUM_NULLS bigint NOT NULL,
     NUM_TRUES bigint NULL,
     TBL_ID bigint NULL,
-    "TABLE_NAME" nvarchar(256) NOT NULL
+    "TABLE_NAME" nvarchar(256) NOT NULL,
+    "CAT_NAME" nvarchar(256) NOT NULL
 );
 
 ALTER TABLE TAB_COL_STATS ADD CONSTRAINT TAB_COL_STATS_PK PRIMARY KEY (CS_ID);
@@ -276,7 +278,8 @@ CREATE TABLE DBS
     DB_LOCATION_URI nvarchar(4000) NOT NULL,
     "NAME" nvarchar(128) NULL,
     OWNER_NAME nvarchar(128) NULL,
-    OWNER_TYPE nvarchar(10) NULL
+    OWNER_TYPE nvarchar(10) NULL,
+    CTLG_NAME nvarchar(256)
 );
 
 ALTER TABLE DBS ADD CONSTRAINT DBS_PK PRIMARY KEY (DB_ID);
@@ -312,7 +315,11 @@ CREATE TABLE SERDES
 (
     SERDE_ID bigint NOT NULL,
     "NAME" nvarchar(128) NULL,
-    SLIB nvarchar(4000) NULL
+    SLIB nvarchar(4000) NULL,
+    "DESCRIPTION" nvarchar(4000),
+    "SERIALIZER_CLASS" nvarchar(4000),
+    "DESERIALIZER_CLASS" nvarchar(4000),
+    "SERDE_TYPE" int
 );
 
 ALTER TABLE SERDES ADD CONSTRAINT SERDES_PK PRIMARY KEY (SERDE_ID);
@@ -407,6 +414,7 @@ ALTER TABLE SDS ADD CONSTRAINT SDS_PK PRIMARY KEY (SD_ID);
 CREATE TABLE PARTITION_EVENTS
 (
     PART_NAME_ID bigint NOT NULL,
+    CAT_NAME nvarchar(256) NULL,
     DB_NAME nvarchar(128) NULL,
     EVENT_TIME bigint NOT NULL,
     EVENT_TYPE int NOT NULL,
@@ -600,6 +608,7 @@ CREATE TABLE NOTIFICATION_LOG
     EVENT_ID bigint NOT NULL,
     EVENT_TIME int NOT NULL,
     EVENT_TYPE nvarchar(32) NOT NULL,
+    CAT_NAME nvarchar(128) NULL,
     DB_NAME nvarchar(128) NULL,
     TBL_NAME nvarchar(256) NULL,
     MESSAGE_FORMAT nvarchar(16),
@@ -672,6 +681,24 @@ CREATE TABLE WM_MAPPING
 );
 
 ALTER TABLE WM_MAPPING ADD CONSTRAINT WM_MAPPING_PK PRIMARY KEY (MAPPING_ID);
+
+CREATE TABLE MV_CREATION_METADATA
+(
+    TBL_ID bigint NOT NULL,
+    TBL_NAME nvarchar(256) NOT NULL,
+    LAST_TRANSACTION_INFO text NOT NULL
+);
+
+ALTER TABLE MV_CREATION_METADATA ADD CONSTRAINT MV_CREATION_METADATA_FK FOREIGN KEY (TBL_ID) REFERENCES TBLS (TBL_ID) ;
+
+CREATE TABLE CTLGS (
+      CTLG_ID bigint primary key,
+      "NAME" nvarchar(256),
+      "DESC" nvarchar(4000),
+      LOCATION_URI nvarchar(4000) not null
+);
+
+CREATE UNIQUE INDEX UNIQUE_CTLG ON CTLGS ("NAME");
 
 -- Constraints for table MASTER_KEYS for class(es) [org.apache.hadoop.hive.metastore.model.MMasterKey]
 
@@ -766,7 +793,7 @@ CREATE INDEX TABLEPRIVILEGEINDEX ON TBL_PRIVS (TBL_ID,PRINCIPAL_NAME,PRINCIPAL_T
 
 
 -- Constraints for table DBS for class(es) [org.apache.hadoop.hive.metastore.model.MDatabase]
-CREATE UNIQUE INDEX UNIQUEDATABASE ON DBS ("NAME");
+CREATE UNIQUE INDEX UNIQUEDATABASE ON DBS ("NAME", "CTLG_NAME");
 
 
 -- Constraints for table TBL_COL_PRIVS for class(es) [org.apache.hadoop.hive.metastore.model.MTableColumnPrivilege]
@@ -954,6 +981,7 @@ CREATE UNIQUE INDEX UNIQUE_WM_MAPPING ON WM_MAPPING (RP_ID, ENTITY_TYPE, ENTITY_
 
 ALTER TABLE WM_MAPPING ADD CONSTRAINT WM_MAPPING_FK1 FOREIGN KEY (RP_ID) REFERENCES WM_RESOURCEPLAN (RP_ID);
 
+ALTER TABLE DBS ADD CONSTRAINT "DBS_FK1" FOREIGN KEY ("CTLG_NAME") REFERENCES CTLGS ("NAME");
 -- -----------------------------------------------------------------------------------------------------------------------------------------------
 -- Transaction and Lock Tables
 -- These are not part of package jdo, so if you are going to regenerate this file you need to manually add the following section back to the file.
@@ -1148,6 +1176,33 @@ CREATE TABLE NEXT_WRITE_ID (
 );
 
 CREATE UNIQUE INDEX NEXT_WRITE_ID_IDX ON NEXT_WRITE_ID (NWI_DATABASE, NWI_TABLE);
+
+CREATE TABLE "I_SCHEMA" (
+  "SCHEMA_ID" bigint primary key,
+  "SCHEMA_TYPE" int not null,
+  "NAME" nvarchar(256) unique,
+  "DB_ID" bigint references "DBS" ("DB_ID"),
+  "COMPATIBILITY" int not null,
+  "VALIDATION_LEVEL" int not null,
+  "CAN_EVOLVE" bit not null,
+  "SCHEMA_GROUP" nvarchar(256),
+  "DESCRIPTION" nvarchar(4000),
+);
+
+CREATE TABLE "SCHEMA_VERSION" (
+  "SCHEMA_VERSION_ID" bigint primary key,
+  "SCHEMA_ID" bigint references "I_SCHEMA" ("SCHEMA_ID"),
+  "VERSION" int not null,
+  "CREATED_AT" bigint not null,
+  "CD_ID" bigint references "CDS" ("CD_ID"),
+  "STATE" int not null,
+  "DESCRIPTION" nvarchar(4000),
+  "SCHEMA_TEXT" varchar(max),
+  "FINGERPRINT" nvarchar(256),
+  "SCHEMA_VERSION_NAME" nvarchar(256),
+  "SERDE_ID" bigint references "SERDES" ("SERDE_ID"),
+  unique ("SCHEMA_ID", "VERSION")
+);
 
 -- -----------------------------------------------------------------
 -- Record schema version. Should be the last step in the init script

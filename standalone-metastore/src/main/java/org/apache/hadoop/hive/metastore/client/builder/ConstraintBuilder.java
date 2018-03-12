@@ -17,8 +17,13 @@
  */
 package org.apache.hadoop.hive.metastore.client.builder;
 
+import org.apache.commons.lang.StringUtils;
+import org.apache.hadoop.hive.metastore.Warehouse;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.Table;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Base builder for all types of constraints.  Database name, table name, and column name
@@ -26,15 +31,19 @@ import org.apache.hadoop.hive.metastore.api.Table;
  * @param <T> Type of builder extending this.
  */
 abstract class ConstraintBuilder<T> {
-  protected String dbName, tableName, columnName, constraintName;
-  protected int keySeq;
+  protected String catName, dbName, tableName, constraintName;
+  List<String> columns;
   protected boolean enable, validate, rely;
+  private int nextSeq;
   private T child;
 
   protected ConstraintBuilder() {
-    keySeq = 1;
+    nextSeq = 1;
     enable = true;
     validate = rely = false;
+    catName = Warehouse.DEFAULT_CATALOG_NAME;
+    dbName = Warehouse.DEFAULT_DATABASE_NAME;
+    columns = new ArrayList<>();
   }
 
   protected void setChild(T child) {
@@ -42,12 +51,21 @@ abstract class ConstraintBuilder<T> {
   }
 
   protected void checkBuildable(String defaultConstraintName) throws MetaException {
-    if (dbName == null || tableName == null || columnName == null) {
-      throw new MetaException("You must provide database name, table name, and column name");
+    if (tableName == null || columns.isEmpty()) {
+      throw new MetaException("You must provide table name and columns");
     }
     if (constraintName == null) {
-      constraintName = dbName + "_" + tableName + "_" + columnName + "_" + defaultConstraintName;
+      constraintName = tableName + "_" + defaultConstraintName;
     }
+  }
+
+  protected int getNextSeq() {
+    return nextSeq++;
+  }
+
+  public T setCatName(String catName) {
+    this.catName = catName;
+    return child;
   }
 
   public T setDbName(String dbName) {
@@ -60,24 +78,20 @@ abstract class ConstraintBuilder<T> {
     return child;
   }
 
-  public T setDbAndTableName(Table table) {
+  public T onTable(Table table) {
+    this.catName = table.getCatName();
     this.dbName = table.getDbName();
     this.tableName = table.getTableName();
     return child;
   }
 
-  public T setColumnName(String columnName) {
-    this.columnName = columnName;
+  public T addColumn(String columnName) {
+    this.columns.add(columnName);
     return child;
   }
 
   public T setConstraintName(String constraintName) {
     this.constraintName = constraintName;
-    return child;
-  }
-
-  public T setKeySeq(int keySeq) {
-    this.keySeq = keySeq;
     return child;
   }
 

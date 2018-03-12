@@ -20,9 +20,14 @@ package org.apache.hadoop.hive.metastore.client;
 
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.common.StatsSetupConst;
+import org.apache.hadoop.hive.metastore.ColumnType;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
+import org.apache.hadoop.hive.metastore.MetaStoreTestUtils;
+import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.annotation.MetastoreCheckinTest;
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException;
+import org.apache.hadoop.hive.metastore.api.Catalog;
+import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.EnvironmentContext;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
@@ -34,11 +39,15 @@ import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.SkewedInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.api.UnknownDBException;
+import org.apache.hadoop.hive.metastore.client.builder.CatalogBuilder;
 import org.apache.hadoop.hive.metastore.client.builder.DatabaseBuilder;
 import org.apache.hadoop.hive.metastore.client.builder.PartitionBuilder;
 import org.apache.hadoop.hive.metastore.client.builder.TableBuilder;
 import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.minihms.AbstractMetaStoreService;
+import org.apache.thrift.TApplicationException;
+import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TProtocolException;
 import org.apache.thrift.transport.TTransportException;
 import org.junit.After;
@@ -50,10 +59,19 @@ import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import java.io.File;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+
+import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_CATALOG_NAME;
+import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_DATABASE_NAME;
 
 /**
  * Test class for IMetaStoreClient API. Testing the Table related functions for metadata
@@ -78,7 +96,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
   public static void startMetaStores() {
     Map<MetastoreConf.ConfVars, String> msConf = new HashMap<MetastoreConf.ConfVars, String>();
     // Enable trash, so it can be tested
-    Map<String, String> extraConf = new HashMap<String, String>();
+    Map<String, String> extraConf = new HashMap<>();
     extraConf.put("fs.trash.checkpoint.interval", "30");  // FS_TRASH_CHECKPOINT_INTERVAL_KEY
     extraConf.put("fs.trash.interval", "30");             // FS_TRASH_INTERVAL_KEY (hadoop-2)
     startMetaStores(msConf, extraConf);
@@ -90,10 +108,10 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     client = metaStore.getClient();
 
     // Clean up the database
-    client.dropDatabase(OTHER_DATABASE, true, true, true);
+    client.dropDatabase(DEFAULT_CATALOG_NAME, OTHER_DATABASE, true, true, true);
     // Drop every table in the default database
-    for(String tableName : client.getAllTables(DEFAULT_DATABASE)) {
-      client.dropTable(DEFAULT_DATABASE, tableName, true, true, true);
+    for(String tableName : client.getAllTables(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE)) {
+      client.dropTable(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE, tableName, true, true, true);
     }
 
     // Clean up trash
@@ -101,14 +119,12 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
 
     testTables[0] =
         new TableBuilder()
-            .setDbName(DEFAULT_DATABASE)
             .setTableName("test_table")
             .addCol("test_col", "int")
             .build();
 
     testTables[1] =
         new TableBuilder()
-            .setDbName(DEFAULT_DATABASE)
             .setTableName("test_view")
             .addCol("test_col", "int")
             .setType("VIRTUAL_VIEW")
@@ -116,14 +132,12 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
 
     testTables[2] =
         new TableBuilder()
-            .setDbName(DEFAULT_DATABASE)
             .setTableName("test_table_to_find_1")
             .addCol("test_col", "int")
             .build();
 
     testTables[3] =
         new TableBuilder()
-            .setDbName(DEFAULT_DATABASE)
             .setTableName("test_partitioned_table")
             .addCol("test_col1", "int")
             .addCol("test_col2", "int")
@@ -132,7 +146,6 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
 
     testTables[4] =
         new TableBuilder()
-            .setDbName(DEFAULT_DATABASE)
             .setTableName("external_table_for_test")
             .addCol("test_col", "int")
             .setLocation(metaStore.getWarehouseRoot() + "/external/table_dir")
@@ -159,7 +172,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     for(int i=0; i < 3; i++) {
       Partition partition =
           new PartitionBuilder()
-              .fromTable(testTables[3])
+              .inTable(testTables[3])
               .addValue("a" + i)
               .build();
       client.add_partition(partition);
@@ -168,16 +181,16 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     List<Partition> partitions =
         client.listPartitions(testTables[3].getDbName(), testTables[3].getTableName(), (short)-1);
     for(Partition partition : partitions) {
-      Path dataFile = new Path(partition.getSd().getLocation().toString() + "/dataFile");
+      Path dataFile = new Path(partition.getSd().getLocation() + "/dataFile");
       metaStore.createFile(dataFile, "100");
     }
 
     // Reload tables from the MetaStore, and create data files
     for(int i=0; i < testTables.length; i++) {
-      testTables[i] = client.getTable(testTables[i].getDbName(), testTables[i].getTableName());
+      testTables[i] = client.getTable(DEFAULT_CATALOG_NAME, testTables[i].getDbName(), testTables[i].getTableName());
       if (testTables[i].getPartitionKeys().isEmpty()) {
         if (testTables[i].getSd().getLocation() != null) {
-          Path dataFile = new Path(testTables[i].getSd().getLocation().toString() + "/dataFile");
+          Path dataFile = new Path(testTables[i].getSd().getLocation() + "/dataFile");
           metaStore.createFile(dataFile, "100");
         }
       }
@@ -199,14 +212,13 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
 
   /**
    * This test creates and queries a table and then drops it. Good for testing the happy path
-   * @throws Exception
    */
   @Test
   public void testCreateGetDeleteTable() throws Exception {
     // Try to create a table with all of the parameters set
     Table table = getTableWithAllParametersSet();
     client.createTable(table);
-    Table createdTable = client.getTable(table.getDbName(), table.getTableName());
+    Table createdTable = client.getTable(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName());
     // The createTime will be set on the server side, so the comparison should skip it
     table.setCreateTime(createdTable.getCreateTime());
     // The extra parameters will be added on server side, so check that the required ones are
@@ -224,9 +236,9 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     Assert.assertTrue("The directory should not be created",
         metaStore.isPathExists(new Path(createdTable.getSd().getLocation())));
 
-    client.dropTable(table.getDbName(), table.getTableName(), true, false);
+    client.dropTable(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), true, false);
     try {
-      client.getTable(table.getDbName(), table.getTableName());
+      client.getTable(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName());
       Assert.fail("Expected a NoSuchObjectException to be thrown");
     } catch (NoSuchObjectException exception) {
       // Expected exception
@@ -237,7 +249,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
   public void testCreateTableDefaultValues() throws Exception {
     Table table = new Table();
     StorageDescriptor sd = new StorageDescriptor();
-    List<FieldSchema> cols = new ArrayList<FieldSchema>();
+    List<FieldSchema> cols = new ArrayList<>();
 
     table.setDbName(DEFAULT_DATABASE);
     table.setTableName("test_table_2");
@@ -247,7 +259,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     table.setSd(sd);
 
     client.createTable(table);
-    Table createdTable = client.getTable(table.getDbName(), table.getTableName());
+    Table createdTable = client.getTable(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName());
 
     Assert.assertNull("Comparing OwnerName", createdTable.getOwner());
     Assert.assertNotEquals("Comparing CreateTime", 0, createdTable.getCreateTime());
@@ -309,7 +321,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
   public void testCreateTableDefaultLocationInSpecificDatabase() throws Exception {
     Table table = new Table();
     StorageDescriptor sd = new StorageDescriptor();
-    List<FieldSchema> cols = new ArrayList<FieldSchema>();
+    List<FieldSchema> cols = new ArrayList<>();
 
     table.setDbName(OTHER_DATABASE);
     table.setTableName("test_table_2");
@@ -319,7 +331,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     table.setSd(sd);
 
     client.createTable(table);
-    Table createdTable = client.getTable(table.getDbName(), table.getTableName());
+    Table createdTable = client.getTable(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName());
     Assert.assertEquals("Storage descriptor location", metaStore.getWarehouseRoot()
         + "/" + table.getDbName() + ".db/" + table.getTableName(),
         createdTable.getSd().getLocation());
@@ -329,7 +341,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
   public void testCreateTableDefaultValuesView() throws Exception {
     Table table = new Table();
     StorageDescriptor sd = new StorageDescriptor();
-    List<FieldSchema> cols = new ArrayList<FieldSchema>();
+    List<FieldSchema> cols = new ArrayList<>();
 
     table.setDbName(DEFAULT_DATABASE);
     table.setTableName("test_table_2");
@@ -340,10 +352,9 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     table.setSd(sd);
 
     client.createTable(table);
-    Table createdTable = client.getTable(table.getDbName(), table.getTableName());
+    Table createdTable = client.getTable(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName());
 
     // No location should be created for views
-    StorageDescriptor createdSd = createdTable.getSd();
     Assert.assertNull("Storage descriptor location should be null",
         createdTable.getSd().getLocation());
   }
@@ -390,7 +401,6 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
 
   private Table getNewTable() throws MetaException {
     return new TableBuilder()
-               .setDbName(DEFAULT_DATABASE)
                .setTableName("test_table_with_invalid_sd")
                .addCol("test_col", "int")
                .build();
@@ -446,28 +456,28 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
   public void testDropTableNoSuchDatabase() throws Exception {
     Table table = testTables[2];
 
-    client.dropTable("no_such_database", table.getTableName(), true, false);
+    client.dropTable(DEFAULT_CATALOG_NAME, "no_such_database", table.getTableName(), true, false);
   }
 
   @Test(expected = NoSuchObjectException.class)
   public void testDropTableNoSuchTable() throws Exception {
     Table table = testTables[2];
 
-    client.dropTable(table.getDbName(), "no_such_table", true, false);
+    client.dropTable(DEFAULT_CATALOG_NAME, table.getDbName(), "no_such_table", true, false);
   }
 
   @Test(expected = NoSuchObjectException.class)
   public void testDropTableNoSuchTableInTheDatabase() throws Exception {
     Table table = testTables[2];
 
-    client.dropTable(OTHER_DATABASE, table.getTableName(), true, false);
+    client.dropTable(DEFAULT_CATALOG_NAME, OTHER_DATABASE, table.getTableName(), true, false);
   }
 
   @Test
   public void testDropTableNullDatabase() throws Exception {
     // Missing database in the query
     try {
-      client.dropTable(null, OTHER_DATABASE, true, false);
+      client.dropTable(DEFAULT_CATALOG_NAME, null, OTHER_DATABASE, true, false);
       // TODO: Should be checked on server side. On Embedded metastore it throws MetaException,
       // on Remote metastore it throws TProtocolException
       Assert.fail("Expected an MetaException or TProtocolException to be thrown");
@@ -481,7 +491,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
   @Test
   public void testDropTableNullTableName() throws Exception {
     try {
-      client.dropTable(DEFAULT_DATABASE, null, true, false);
+      client.dropTable(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE, null, true, false);
       // TODO: Should be checked on server side. On Embedded metastore it throws MetaException,
       // on Remote metastore it throws TProtocolException
       Assert.fail("Expected an MetaException or TProtocolException to be thrown");
@@ -497,9 +507,9 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     Table table = testTables[0];
 
     // Test in upper case
-    client.dropTable(table.getDbName().toUpperCase(), table.getTableName().toUpperCase());
+    client.dropTable(DEFAULT_CATALOG_NAME, table.getDbName().toUpperCase(), table.getTableName().toUpperCase());
     try {
-      client.getTable(table.getDbName(), table.getTableName());
+      client.getTable(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName());
       Assert.fail("Expected a NoSuchObjectException to be thrown");
     } catch (NoSuchObjectException exception) {
       // Expected exception
@@ -507,9 +517,9 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
 
     // Test in mixed case
     client.createTable(table);
-    client.dropTable("DeFaUlt", "TeST_tAbLE");
+    client.dropTable(DEFAULT_CATALOG_NAME, "DeFaUlt", "TeST_tAbLE");
     try {
-      client.getTable(table.getDbName(), table.getTableName());
+      client.getTable(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName());
       Assert.fail("Expected a NoSuchObjectException to be thrown");
     } catch (NoSuchObjectException exception) {
       // Expected exception
@@ -520,19 +530,19 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
   public void testDropTableDeleteDir() throws Exception {
     Table table = testTables[0];
 
-    client.dropTable(table.getDbName(), table.getTableName(), true, false);
+    client.dropTable(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), true, false);
 
     Assert.assertFalse("Table path should be removed",
         metaStore.isPathExists(new Path(table.getSd().getLocation())));
 
     client.createTable(table);
-    client.dropTable(table.getDbName(), table.getTableName(), false, false);
+    client.dropTable(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), false, false);
 
     Assert.assertTrue("Table path should be kept",
         metaStore.isPathExists(new Path(table.getSd().getLocation())));
 
     // Drop table with partitions
-    client.dropTable(partitionedTable.getDbName(), partitionedTable.getTableName(), true, false);
+    client.dropTable(DEFAULT_CATALOG_NAME, partitionedTable.getDbName(), partitionedTable.getTableName(), true, false);
 
     Assert.assertFalse("Table path should be removed",
         metaStore.isPathExists(new Path(partitionedTable.getSd().getLocation())));
@@ -543,21 +553,21 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     Table table = testTables[0];
 
     // Check what happens, when we ignore these errors
-    client.dropTable("no_such_database", table.getTableName(), true, true);
-    client.dropTable(table.getDbName(), "no_such_table", false, true);
-    client.dropTable(OTHER_DATABASE, table.getTableName(), true, true);
+    client.dropTable(DEFAULT_CATALOG_NAME, "no_such_database", table.getTableName(), true, true);
+    client.dropTable(DEFAULT_CATALOG_NAME, table.getDbName(), "no_such_table", false, true);
+    client.dropTable(DEFAULT_CATALOG_NAME, OTHER_DATABASE, table.getTableName(), true, true);
 
     // TODO: Strangely the default parametrization is to ignore missing tables
-    client.dropTable("no_such_database", table.getTableName());
-    client.dropTable(table.getDbName(), "no_such_table");
-    client.dropTable(OTHER_DATABASE, table.getTableName());
+    client.dropTable(DEFAULT_CATALOG_NAME, "no_such_database", table.getTableName());
+    client.dropTable(DEFAULT_CATALOG_NAME, table.getDbName(), "no_such_table");
+    client.dropTable(DEFAULT_CATALOG_NAME, OTHER_DATABASE, table.getTableName());
   }
 
   @Test
   public void testDropTableWithPurge() throws Exception {
     Table table = testTables[0];
 
-    client.dropTable(table.getDbName(), table.getTableName(), true, true, true);
+    client.dropTable(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), true, true, true);
 
     Assert.assertFalse("Table path should be removed",
         metaStore.isPathExists(new Path(table.getSd().getLocation())));
@@ -569,7 +579,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
   public void testDropTableWithoutPurge() throws Exception {
     Table table = testTables[0];
 
-    client.dropTable(table.getDbName(), table.getTableName(), true, true, false);
+    client.dropTable(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), true, true, false);
 
     Assert.assertFalse("Table path should be removed",
         metaStore.isPathExists(new Path(table.getSd().getLocation())));
@@ -581,7 +591,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
   public void testDropTableExternalWithPurge() throws Exception {
     Table table = externalTable;
 
-    client.dropTable(table.getDbName(), table.getTableName(), true, true, true);
+    client.dropTable(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), true, true, true);
 
     Assert.assertTrue("Table path should not be removed",
         metaStore.isPathExists(new Path(table.getSd().getLocation())));
@@ -593,7 +603,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
   public void testDropTableExternalWithoutPurge() throws Exception {
     Table table = externalTable;
 
-    client.dropTable(table.getDbName(), table.getTableName(), true, true, false);
+    client.dropTable(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), true, true, false);
 
     Assert.assertTrue("Table path should not be removed",
         metaStore.isPathExists(new Path(table.getSd().getLocation())));
@@ -604,8 +614,8 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
   @Test
   public void testTruncateTableUnpartitioned() throws Exception {
     // Unpartitioned table
-    Path dataFile = new Path(testTables[0].getSd().getLocation().toString() + "/dataFile");
-    client.truncateTable(testTables[0].getDbName(), testTables[0].getTableName(), null);
+    Path dataFile = new Path(testTables[0].getSd().getLocation() + "/dataFile");
+    client.truncateTable(DEFAULT_CATALOG_NAME, testTables[0].getDbName(), testTables[0].getTableName(), null);
     Assert.assertTrue("Location should exist",
         metaStore.isPathExists(new Path(testTables[0].getSd().getLocation())));
     Assert.assertFalse("DataFile should be removed", metaStore.isPathExists(dataFile));
@@ -615,10 +625,10 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
   @Test
   public void testTruncateTablePartitioned() throws Exception {
     // Partitioned table - delete specific partitions a0, a2
-    List<String> partitionsToDelete = new ArrayList<String>();
+    List<String> partitionsToDelete = new ArrayList<>();
     partitionsToDelete.add("test_part_col=a0");
     partitionsToDelete.add("test_part_col=a2");
-    client.truncateTable(partitionedTable.getDbName(), partitionedTable.getTableName(),
+    client.truncateTable(DEFAULT_CATALOG_NAME, partitionedTable.getDbName(), partitionedTable.getTableName(),
         partitionsToDelete);
     Assert.assertTrue("Location should exist",
         metaStore.isPathExists(new Path(testTables[0].getSd().getLocation())));
@@ -626,7 +636,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
         client.listPartitions(partitionedTable.getDbName(), partitionedTable.getTableName(),
             (short)-1);
     for(Partition partition : partitions) {
-      Path dataFile = new Path(partition.getSd().getLocation().toString() + "/dataFile");
+      Path dataFile = new Path(partition.getSd().getLocation() + "/dataFile");
       if (partition.getValues().contains("a0") || partition.getValues().contains("a2")) {
         // a0, a2 should be empty
         Assert.assertFalse("DataFile should be removed", metaStore.isPathExists(dataFile));
@@ -641,14 +651,14 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
   @Test
   public void testTruncateTablePartitionedDeleteAll() throws Exception {
     // Partitioned table - delete all
-    client.truncateTable(partitionedTable.getDbName(), partitionedTable.getTableName(), null);
+    client.truncateTable(DEFAULT_CATALOG_NAME, partitionedTable.getDbName(), partitionedTable.getTableName(), null);
     Assert.assertTrue("Location should exist",
         metaStore.isPathExists(new Path(testTables[0].getSd().getLocation())));
     List<Partition> partitions =
         client.listPartitions(partitionedTable.getDbName(), partitionedTable.getTableName(),
             (short)-1);
     for(Partition partition : partitions) {
-      Path dataFile = new Path(partition.getSd().getLocation().toString() + "/dataFile");
+      Path dataFile = new Path(partition.getSd().getLocation() + "/dataFile");
       Assert.assertFalse("Every dataFile should be removed", metaStore.isPathExists(dataFile));
     }
   }
@@ -665,8 +675,8 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     // Partition keys can not be set, but getTableWithAllParametersSet is added one, so remove for
     // this test
     newTable.setPartitionKeys(originalTable.getPartitionKeys());
-    client.alter_table(originalDatabase, originalTableName, newTable);
-    Table alteredTable = client.getTable(originalDatabase, originalTableName);
+    client.alterTable(DEFAULT_CATALOG_NAME, originalDatabase, originalTableName, newTable);
+    Table alteredTable = client.getTable(DEFAULT_CATALOG_NAME, originalDatabase, originalTableName);
 
     // The extra parameters will be added on server side, so check that the required ones are
     // present
@@ -693,18 +703,18 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     // Do not change the location, so it is tested that the location will be changed even if the
     // location is not set to null, just remain the same
     newTable.setTableName("new_table");
-    client.alter_table(originalDatabase, originalTableName, newTable);
-    List<String> tableNames = client.getTables(originalDatabase, originalTableName);
+    client.alterTable(DEFAULT_CATALOG_NAME, originalDatabase, originalTableName, newTable);
+    List<String> tableNames = client.getTables(DEFAULT_CATALOG_NAME, originalDatabase, originalTableName);
     Assert.assertEquals("Original table should be removed", 0, tableNames.size());
     Assert.assertFalse("Original table directory should be removed",
         metaStore.isPathExists(new Path(originalTable.getSd().getLocation())));
-    Table alteredTable = client.getTable(newTable.getDbName(), newTable.getTableName());
+    Table alteredTable = client.getTable(DEFAULT_CATALOG_NAME, newTable.getDbName(), newTable.getTableName());
     Assert.assertTrue("New table directory should exist",
         metaStore.isPathExists(new Path(alteredTable.getSd().getLocation())));
     Assert.assertEquals("New directory should be set", new Path(metaStore.getWarehouseRoot()
         + "/" + alteredTable.getTableName()), new Path(alteredTable.getSd().getLocation()));
 
-    Path dataFile = new Path(alteredTable.getSd().getLocation().toString() + "/dataFile");
+    Path dataFile = new Path(alteredTable.getSd().getLocation() + "/dataFile");
     Assert.assertTrue("New directory should contain data", metaStore.isPathExists(dataFile));
 
     // The following data should be changed
@@ -720,18 +730,18 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
 
     Table newTable = originalTable.deepCopy();
     newTable.setDbName(OTHER_DATABASE);
-    client.alter_table(originalDatabase, originalTableName, newTable);
-    List<String> tableNames = client.getTables(originalDatabase, originalTableName);
+    client.alterTable(DEFAULT_CATALOG_NAME, originalDatabase, originalTableName, newTable);
+    List<String> tableNames = client.getTables(DEFAULT_CATALOG_NAME, originalDatabase, originalTableName);
     Assert.assertEquals("Original table should be removed", 0, tableNames.size());
     Assert.assertFalse("Original table directory should be removed",
         metaStore.isPathExists(new Path(originalTable.getSd().getLocation())));
-    Table alteredTable = client.getTable(newTable.getDbName(), newTable.getTableName());
+    Table alteredTable = client.getTable(DEFAULT_CATALOG_NAME, newTable.getDbName(), newTable.getTableName());
     Assert.assertTrue("New table directory should exist",
         metaStore.isPathExists(new Path(alteredTable.getSd().getLocation())));
     Assert.assertEquals("New directory should be set", new Path(metaStore.getWarehouseRoot()
         + "/" + alteredTable.getDbName() + ".db/" + alteredTable.getTableName()),
         new Path(alteredTable.getSd().getLocation()));
-    Path dataFile = new Path(alteredTable.getSd().getLocation().toString() + "/dataFile");
+    Path dataFile = new Path(alteredTable.getSd().getLocation() + "/dataFile");
     Assert.assertTrue("New directory should contain data", metaStore.isPathExists(dataFile));
 
     // The following data should be changed, other data should be the same
@@ -747,15 +757,15 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
 
     Table newTable = originalTable.deepCopy();
     newTable.setTableName("new_external_table_for_test");
-    client.alter_table(originalDatabase, originalTableName, newTable);
-    List<String> tableNames = client.getTables(originalDatabase, originalTableName);
+    client.alterTable(DEFAULT_CATALOG_NAME, originalDatabase, originalTableName, newTable);
+    List<String> tableNames = client.getTables(DEFAULT_CATALOG_NAME, originalDatabase, originalTableName);
     Assert.assertEquals("Original table should be removed", 0, tableNames.size());
     Assert.assertTrue("Original table directory should be kept",
         metaStore.isPathExists(new Path(originalTable.getSd().getLocation())));
-    Table alteredTable = client.getTable(newTable.getDbName(), newTable.getTableName());
+    Table alteredTable = client.getTable(DEFAULT_CATALOG_NAME, newTable.getDbName(), newTable.getTableName());
     Assert.assertEquals("New location should be the same", originalTable.getSd().getLocation(),
         alteredTable.getSd().getLocation());
-    Path dataFile = new Path(alteredTable.getSd().getLocation().toString() + "/dataFile");
+    Path dataFile = new Path(alteredTable.getSd().getLocation() + "/dataFile");
     Assert.assertTrue("The location should contain data", metaStore.isPathExists(dataFile));
 
     // The extra parameters will be added on server side, so check that the required ones are
@@ -776,13 +786,13 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     // Change the location, and see the results
     Table newTable = originalTable.deepCopy();
     newTable.getSd().setLocation(newTable.getSd().getLocation() + "_modified");
-    client.alter_table(originalTable.getDbName(), originalTable.getTableName(), newTable);
-    Table alteredTable = client.getTable(newTable.getDbName(), newTable.getTableName());
+    client.alterTable(DEFAULT_CATALOG_NAME, originalTable.getDbName(), originalTable.getTableName(), newTable);
+    Table alteredTable = client.getTable(DEFAULT_CATALOG_NAME, newTable.getDbName(), newTable.getTableName());
     Assert.assertTrue("Original table directory should be kept",
         metaStore.isPathExists(new Path(originalTable.getSd().getLocation())));
     Assert.assertEquals("New location should be the new one", newTable.getSd().getLocation(),
         alteredTable.getSd().getLocation());
-    Path dataFile = new Path(alteredTable.getSd().getLocation().toString() + "/dataFile");
+    Path dataFile = new Path(alteredTable.getSd().getLocation() + "/dataFile");
     Assert.assertFalse("The location should not contain data", metaStore.isPathExists(dataFile));
 
     // The extra parameters will be added on server side, so check that the required ones are
@@ -813,8 +823,8 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     // Add a new column
     cols.add(new FieldSchema("new_col", "int", null));
     // Store the changes
-    client.alter_table(originalTable.getDbName(), originalTable.getTableName(), newTable);
-    Table alteredTable = client.getTable(newTable.getDbName(), newTable.getTableName());
+    client.alterTable(DEFAULT_CATALOG_NAME, originalTable.getDbName(), originalTable.getTableName(), newTable);
+    Table alteredTable = client.getTable(DEFAULT_CATALOG_NAME, newTable.getDbName(), newTable.getTableName());
     Assert.assertTrue("Original table directory should be kept",
         metaStore.isPathExists(new Path(originalTable.getSd().getLocation())));
 
@@ -826,13 +836,14 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     newTable.getPartitionKeys().get(0).setType("string");
     newTable.getPartitionKeys().get(0).setComment("changed comment");
 
-    client.alter_table(originalTable.getDbName(), originalTable.getTableName(), newTable);
-    alteredTable = client.getTable(newTable.getDbName(), newTable.getTableName());
+    client.alterTable(DEFAULT_CATALOG_NAME, originalTable.getDbName(), originalTable.getTableName(), newTable);
+    alteredTable = client.getTable(DEFAULT_CATALOG_NAME, newTable.getDbName(), newTable.getTableName());
     // The following data might be changed
     alteredTable.setParameters(newTable.getParameters());
     Assert.assertEquals("The table data should be the same", newTable, alteredTable);
   }
 
+  @SuppressWarnings("deprecation")
   @Test
   public void testAlterTableCascade() throws Exception {
     Table originalTable = partitionedTable;
@@ -843,7 +854,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
 
     // Run without cascade
     client.alter_table(originalTable.getDbName(), originalTable.getTableName(), newTable, false);
-    Table alteredTable = client.getTable(newTable.getDbName(), newTable.getTableName());
+    Table alteredTable = client.getTable(DEFAULT_CATALOG_NAME, newTable.getDbName(), newTable.getTableName());
     Assert.assertEquals("The table data should be changed", newTable, alteredTable);
 
     List<Partition> partitions =
@@ -856,7 +867,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     // Run with cascade
     cols.add(new FieldSchema("new_col_2", "int", null));
     client.alter_table(originalTable.getDbName(), originalTable.getTableName(), newTable, true);
-    alteredTable = client.getTable(newTable.getDbName(), newTable.getTableName());
+    alteredTable = client.getTable(DEFAULT_CATALOG_NAME, newTable.getDbName(), newTable.getTableName());
     Assert.assertEquals("The table data should be changed", newTable, alteredTable);
 
     partitions =
@@ -870,9 +881,9 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     cols.add(new FieldSchema("new_col_3", "int", null));
     EnvironmentContext context = new EnvironmentContext();
     context.putToProperties(StatsSetupConst.CASCADE, "true");
-    client.alter_table_with_environmentContext(originalTable.getDbName(),
+    client.alterTable(DEFAULT_CATALOG_NAME, originalTable.getDbName(),
         originalTable.getTableName(), newTable, context);
-    alteredTable = client.getTable(newTable.getDbName(), newTable.getTableName());
+    alteredTable = client.getTable(DEFAULT_CATALOG_NAME, newTable.getDbName(), newTable.getTableName());
     Assert.assertEquals("The table data should be changed", newTable, alteredTable);
 
     partitions =
@@ -889,7 +900,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     Table newTable = originalTable.deepCopy();
     newTable.setDbName(null);
 
-    client.alter_table(originalTable.getDbName(), originalTable.getTableName(), newTable);
+    client.alterTable(DEFAULT_CATALOG_NAME, originalTable.getDbName(), originalTable.getTableName(), newTable);
   }
 
   @Test(expected = MetaException.class)
@@ -898,7 +909,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     Table newTable = originalTable.deepCopy();
     newTable.setTableName(null);
 
-    client.alter_table(originalTable.getDbName(), originalTable.getTableName(), newTable);
+    client.alterTable(DEFAULT_CATALOG_NAME, originalTable.getDbName(), originalTable.getTableName(), newTable);
   }
 
   @Test(expected = InvalidOperationException.class)
@@ -906,7 +917,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     Table originalTable = testTables[0];
     Table newTable = originalTable.deepCopy();
     newTable.setTableName("test_table;");
-    client.alter_table(originalTable.getDbName(), originalTable.getTableName(), newTable);
+    client.alterTable(DEFAULT_CATALOG_NAME, originalTable.getDbName(), originalTable.getTableName(), newTable);
   }
 
   @Test(expected = InvalidOperationException.class)
@@ -915,7 +926,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     Table newTable = originalTable.deepCopy();
     newTable.setTableName("");
 
-    client.alter_table(originalTable.getDbName(), originalTable.getTableName(), newTable);
+    client.alterTable(DEFAULT_CATALOG_NAME, originalTable.getDbName(), originalTable.getTableName(), newTable);
   }
 
   @Test(expected = MetaException.class)
@@ -924,7 +935,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     Table newTable = originalTable.deepCopy();
     newTable.setSd(null);
 
-    client.alter_table(originalTable.getDbName(), originalTable.getTableName(), newTable);
+    client.alterTable(DEFAULT_CATALOG_NAME, originalTable.getDbName(), originalTable.getTableName(), newTable);
   }
 
   @Test(expected = MetaException.class)
@@ -932,7 +943,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     Table originalTable = testTables[0];
     Table newTable = originalTable.deepCopy();
 
-    client.alter_table(null, originalTable.getTableName(), newTable);
+    client.alterTable(DEFAULT_CATALOG_NAME, null, originalTable.getTableName(), newTable);
   }
 
   @Test(expected = MetaException.class)
@@ -940,14 +951,14 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     Table originalTable = testTables[0];
     Table newTable = originalTable.deepCopy();
 
-    client.alter_table(originalTable.getDbName(), null, newTable);
+    client.alterTable(DEFAULT_CATALOG_NAME, originalTable.getDbName(), null, newTable);
   }
 
   @Test
   public void testAlterTableNullNewTable() throws Exception {
     Table originalTable = testTables[0];
     try {
-      client.alter_table(originalTable.getDbName(), originalTable.getTableName(), null);
+      client.alterTable(DEFAULT_CATALOG_NAME, originalTable.getDbName(), originalTable.getTableName(), null);
       // TODO: Should be checked on server side. On Embedded metastore it throws
       // NullPointerException, on Remote metastore it throws TTransportException
       Assert.fail("Expected a NullPointerException or TTransportException to be thrown");
@@ -964,7 +975,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     Table newTable = originalTable.deepCopy();
     newTable.getSd().setCols(null);
 
-    client.alter_table(originalTable.getDbName(), originalTable.getTableName(), newTable);
+    client.alterTable(DEFAULT_CATALOG_NAME, originalTable.getDbName(), originalTable.getTableName(), newTable);
   }
 
   @Test(expected = MetaException.class)
@@ -973,7 +984,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     Table newTable = originalTable.deepCopy();
     newTable.getSd().setSerdeInfo(null);
 
-    client.alter_table(originalTable.getDbName(), originalTable.getTableName(), newTable);
+    client.alterTable(DEFAULT_CATALOG_NAME, originalTable.getDbName(), originalTable.getTableName(), newTable);
   }
 
   @Test(expected = MetaException.class)
@@ -982,7 +993,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     Table newTable = originalTable.deepCopy();
     newTable.getSd().getCols().get(0).setType(null);
 
-    client.alter_table(originalTable.getDbName(), originalTable.getTableName(), newTable);
+    client.alterTable(DEFAULT_CATALOG_NAME, originalTable.getDbName(), originalTable.getTableName(), newTable);
   }
 
   @Test(expected = MetaException.class)
@@ -991,7 +1002,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     Table newTable = originalTable.deepCopy();
     newTable.getSd().setLocation(null);
 
-    client.alter_table(originalTable.getDbName(), originalTable.getTableName(), newTable);
+    client.alterTable(DEFAULT_CATALOG_NAME, originalTable.getDbName(), originalTable.getTableName(), newTable);
   }
 
   @Test(expected = InvalidOperationException.class)
@@ -1000,7 +1011,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     Table newTable = originalTable.deepCopy();
     newTable.getSd().getCols().get(0).setType("xyz");
 
-    client.alter_table(originalTable.getDbName(), originalTable.getTableName(), newTable);
+    client.alterTable(DEFAULT_CATALOG_NAME, originalTable.getDbName(), originalTable.getTableName(), newTable);
   }
 
   @Test(expected = InvalidOperationException.class)
@@ -1009,7 +1020,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     Table newTable = originalTable.deepCopy();
     newTable.addToPartitionKeys(new FieldSchema("new_part", "int", "comment"));
 
-    client.alter_table(originalTable.getDbName(), originalTable.getTableName(), newTable);
+    client.alterTable(DEFAULT_CATALOG_NAME, originalTable.getDbName(), originalTable.getTableName(), newTable);
   }
 
   @Test(expected = InvalidOperationException.class)
@@ -1018,7 +1029,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     Table newTable = originalTable.deepCopy();
     newTable.getPartitionKeys().get(0).setName("altered_name");
 
-    client.alter_table(originalTable.getDbName(), originalTable.getTableName(), newTable);
+    client.alterTable(DEFAULT_CATALOG_NAME, originalTable.getDbName(), originalTable.getTableName(), newTable);
   }
 
   @Test(expected = InvalidOperationException.class)
@@ -1026,7 +1037,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     Table originalTable = partitionedTable;
     Table newTable = originalTable.deepCopy();
     newTable.getPartitionKeys().remove(0);
-    client.alter_table(originalTable.getDbName(), originalTable.getTableName(), newTable);
+    client.alterTable(DEFAULT_CATALOG_NAME, originalTable.getDbName(), originalTable.getTableName(), newTable);
   }
 
   @Test(expected = InvalidOperationException.class)
@@ -1034,7 +1045,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     Table originalTable = testTables[2];
     Table newTable = originalTable.deepCopy();
 
-    client.alter_table("no_such_database", originalTable.getTableName(), newTable);
+    client.alterTable(DEFAULT_CATALOG_NAME, "no_such_database", originalTable.getTableName(), newTable);
   }
 
   @Test(expected = InvalidOperationException.class)
@@ -1042,7 +1053,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     Table originalTable = testTables[2];
     Table newTable = originalTable.deepCopy();
 
-    client.alter_table(originalTable.getDbName(), "no_such_table_name", newTable);
+    client.alterTable(DEFAULT_CATALOG_NAME, originalTable.getDbName(), "no_such_table_name", newTable);
   }
 
   @Test(expected = InvalidOperationException.class)
@@ -1050,7 +1061,7 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     Table originalTable = testTables[2];
     Table newTable = originalTable.deepCopy();
 
-    client.alter_table(OTHER_DATABASE, originalTable.getTableName(), newTable);
+    client.alterTable(DEFAULT_CATALOG_NAME, OTHER_DATABASE, originalTable.getTableName(), newTable);
   }
 
   @Test
@@ -1061,12 +1072,328 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     newTable.setTableName(testTables[2].getTableName());
     try {
       // Already existing table
-      client.alter_table(originalTable.getDbName(), originalTable.getTableName(), newTable);
+      client.alterTable(DEFAULT_CATALOG_NAME, originalTable.getDbName(), originalTable.getTableName(), newTable);
       // TODO: Maybe throw AlreadyExistsException.
       Assert.fail("Expected an InvalidOperationException to be thrown");
     } catch (InvalidOperationException exception) {
       // Expected exception
     }
+  }
+
+  @Test
+  public void tablesInOtherCatalogs() throws TException, URISyntaxException {
+    String catName = "create_etc_tables_in_other_catalogs";
+    Catalog cat = new CatalogBuilder()
+        .setName(catName)
+        .setLocation(MetaStoreTestUtils.getTestWarehouseDir(catName))
+        .build();
+    client.createCatalog(cat);
+
+    String dbName = "db_in_other_catalog";
+    // For this one don't specify a location to make sure it gets put in the catalog directory
+    Database db = new DatabaseBuilder()
+        .setName(dbName)
+        .setCatalogName(catName)
+        .build();
+    client.createDatabase(db);
+
+    String[] tableNames = new String[4];
+    for (int i = 0; i < tableNames.length; i++) {
+      tableNames[i] = "table_in_other_catalog_" + i;
+      TableBuilder builder = new TableBuilder()
+          .inDb(db)
+          .setTableName(tableNames[i])
+          .addCol("col1_" + i, ColumnType.STRING_TYPE_NAME)
+          .addCol("col2_" + i, ColumnType.INT_TYPE_NAME);
+      // Make one have a non-standard location
+      if (i == 0) builder.setLocation(MetaStoreTestUtils.getTestWarehouseDir(tableNames[i]));
+      // Make one partitioned
+      if (i == 2) builder.addPartCol("pcol1", ColumnType.STRING_TYPE_NAME);
+      // Make one a materialized view
+      if (i == 3) {
+        builder.setType(TableType.MATERIALIZED_VIEW.name())
+            .setRewriteEnabled(true);
+      }
+      client.createTable(builder.build());
+    }
+
+    // Add partitions for the partitioned table
+    /*
+    // TODO CAT Add this once add_partition works with catalogs
+    String[] partVals = new String[3];
+    Table partitionedTable = client.getTable(catName, dbName, tableNames[2]);
+    for (int i = 0; i < partVals.length; i++) {
+      partVals[i] = "part" + i;
+      client.add_partition(new PartitionBuilder()
+          .onTable(partitionedTable)
+          .addValue(partVals[i])
+          .build());
+    }
+    */
+
+    // Get tables, make sure the locations are correct
+    for (int i = 0; i < tableNames.length; i++) {
+      Table t = client.getTable(catName, dbName, tableNames[i]);
+      Assert.assertEquals(catName, t.getCatName());
+      String expectedLocation = (i < 1) ?
+        new File(MetaStoreTestUtils.getTestWarehouseDir(tableNames[i])).toURI().toString()
+        :
+        new File(cat.getLocationUri() + File.separatorChar + dbName + ".db",
+            tableNames[i]).toURI().toString();
+
+      Assert.assertEquals(expectedLocation, t.getSd().getLocation() + "/");
+      File dir = new File(new URI(t.getSd().getLocation()).getPath());
+      Assert.assertTrue(dir.exists() && dir.isDirectory());
+
+    }
+
+    // Make sure getting table in the wrong catalog does not work
+    try {
+      Table t = client.getTable(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE_NAME, tableNames[0]);
+      Assert.fail();
+    } catch (NoSuchObjectException e) {
+      // NOP
+    }
+
+    // test getAllTables
+    Set<String> fetchedNames = new HashSet<>(client.getAllTables(catName, dbName));
+    Assert.assertEquals(tableNames.length, fetchedNames.size());
+    for (String tableName : tableNames) Assert.assertTrue(fetchedNames.contains(tableName));
+
+    fetchedNames = new HashSet<>(client.getAllTables(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE_NAME));
+    for (String tableName : tableNames) Assert.assertFalse(fetchedNames.contains(tableName));
+
+    // test getMaterializedViewsForRewriting
+    List<String> materializedViews = client.getMaterializedViewsForRewriting(catName, dbName);
+    Assert.assertEquals(1, materializedViews.size());
+    Assert.assertEquals(tableNames[3], materializedViews.get(0));
+
+    fetchedNames = new HashSet<>(client.getMaterializedViewsForRewriting(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE_NAME));
+    Assert.assertFalse(fetchedNames.contains(tableNames[3]));
+
+    // test getTableObjectsByName
+    List<Table> fetchedTables = client.getTableObjectsByName(catName, dbName,
+        Arrays.asList(tableNames[0], tableNames[1]));
+    Assert.assertEquals(2, fetchedTables.size());
+    Collections.sort(fetchedTables);
+    Assert.assertEquals(tableNames[0], fetchedTables.get(0).getTableName());
+    Assert.assertEquals(tableNames[1], fetchedTables.get(1).getTableName());
+
+    fetchedTables = client.getTableObjectsByName(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE_NAME,
+        Arrays.asList(tableNames[0], tableNames[1]));
+    Assert.assertEquals(0, fetchedTables.size());
+
+    // Test altering the table
+    Table t = client.getTable(catName, dbName, tableNames[0]).deepCopy();
+    t.getParameters().put("test", "test");
+    client.alterTable(catName, dbName, tableNames[0], t);
+    t = client.getTable(catName, dbName, tableNames[0]).deepCopy();
+    Assert.assertEquals("test", t.getParameters().get("test"));
+
+    // Alter a table in the wrong catalog
+    try {
+      client.alterTable(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE_NAME, tableNames[0], t);
+      Assert.fail();
+    } catch (InvalidOperationException e) {
+      // NOP
+    }
+
+    /*
+    List<String> partNames = new ArrayList<>();
+    for (String partVal : partVals) partNames.add("pcol1=" + partVal);
+    // Truncate a table
+    client.truncateTable(catName, dbName, tableNames[0], partNames);
+
+    // Truncate a table in the wrong catalog
+    try {
+      client.truncateTable(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE_NAME, tableNames[0], partNames);
+      Assert.fail();
+    } catch (MetaException e) {
+      // NOP
+    }
+    */
+
+    // Drop a table from the wrong catalog
+    try {
+      client.dropTable(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE_NAME, tableNames[0], true, false);
+      Assert.fail();
+    } catch (NoSuchObjectException e) {
+      // NOP
+    }
+
+    // Should ignore the failure
+    client.dropTable(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE_NAME, tableNames[0], false, true);
+
+    for (String tableName : tableNames) {
+      t = client.getTable(catName, dbName, tableName);
+      File tableDir = new File(new URI(t.getSd().getLocation()).getPath());
+      Assert.assertTrue(tableDir.exists() && tableDir.isDirectory());
+
+      if (tableName.equalsIgnoreCase(tableNames[0])) {
+        client.dropTable(catName, dbName, tableName, false, false);
+        Assert.assertTrue(tableDir.exists() && tableDir.isDirectory());
+      } else {
+        client.dropTable(catName, dbName, tableName);
+        Assert.assertFalse(tableDir.exists());
+      }
+    }
+    Assert.assertEquals(0, client.getAllTables(catName, dbName).size());
+  }
+
+  @SuppressWarnings("deprecation")
+  @Test
+  public void deprecatedTableCalls() throws TException {
+    String[] tableNames = new String[4];
+    for (int i = 0; i < tableNames.length; i++) {
+      tableNames[i] = "deprecated_table_calls" + i;
+      TableBuilder builder = new TableBuilder()
+          .setTableName(tableNames[i])
+          .addCol("col1", ColumnType.STRING_TYPE_NAME)
+          .addCol("col2", ColumnType.INT_TYPE_NAME);
+      // Make one partitioned
+      if (i == 2) builder.addPartCol("pcol1", ColumnType.STRING_TYPE_NAME);
+      // Make one a materialized view
+      if (i == 3) builder.setType(TableType.MATERIALIZED_VIEW.name());
+      client.createTable(builder.build());
+    }
+
+    // Add partitions for the partitioned table
+    String[] partVals = new String[3];
+    Table partitionedTable = client.getTable(DEFAULT_DATABASE_NAME, tableNames[2]);
+    for (int i = 0; i < partVals.length; i++) {
+      partVals[i] = "part" + i;
+      client.add_partition(new PartitionBuilder()
+          .inTable(partitionedTable)
+          .addValue(partVals[i])
+          .build());
+    }
+
+    // Get tables
+    for (int i = 0; i < tableNames.length; i++) {
+      Table t = client.getTable(DEFAULT_DATABASE_NAME, tableNames[i]);
+      Assert.assertNotNull(t);
+    }
+
+    // test getAllTables
+    Set<String> fetchedNames = new HashSet<>(client.getAllTables(DEFAULT_DATABASE_NAME));
+    for (String tableName : tableNames) Assert.assertTrue(fetchedNames.contains(tableName));
+
+    // test getTableObjectsByName
+    List<Table> fetchedTables = client.getTableObjectsByName(DEFAULT_DATABASE_NAME,
+        Arrays.asList(tableNames[0], tableNames[1]));
+    Assert.assertEquals(2, fetchedTables.size());
+    Collections.sort(fetchedTables);
+    Assert.assertEquals(tableNames[0], fetchedTables.get(0).getTableName());
+    Assert.assertEquals(tableNames[1], fetchedTables.get(1).getTableName());
+
+    // Test altering the table
+    Table t = client.getTable(DEFAULT_DATABASE_NAME, tableNames[0]).deepCopy();
+    t.getParameters().put("test", "test");
+    client.alter_table(DEFAULT_DATABASE_NAME, tableNames[0], t);
+    t = client.getTable(DEFAULT_DATABASE_NAME, tableNames[0]).deepCopy();
+    Assert.assertEquals("test", t.getParameters().get("test"));
+
+    List<String> partNames = new ArrayList<>();
+    for (String partVal : partVals) partNames.add("pcol1=" + partVal);
+    // Truncate a table
+    client.truncateTable(DEFAULT_DATABASE_NAME, tableNames[0], partNames);
+
+    for (String tableName : tableNames) {
+      t = client.getTable(DEFAULT_DATABASE_NAME, tableName);
+      client.dropTable(DEFAULT_DATABASE_NAME, tableName, false, false);
+    }
+    fetchedNames = new HashSet<>(client.getAllTables(DEFAULT_DATABASE_NAME));
+    for (String tableName : tableNames) Assert.assertFalse(fetchedNames.contains(tableName));
+  }
+
+  @Test(expected = InvalidObjectException.class)
+  public void createTableInBogusCatalog() throws TException {
+    client.createTable(new TableBuilder()
+        .setCatName("nosuch")
+        .setTableName("doomed")
+        .addCol("col1", ColumnType.STRING_TYPE_NAME)
+        .addCol("col2", ColumnType.INT_TYPE_NAME)
+        .build());
+  }
+
+  @Test(expected = NoSuchObjectException.class)
+  public void getTableInBogusCatalog() throws TException {
+    client.getTable("nosuch", testTables[0].getDbName(), testTables[0].getTableName());
+  }
+
+  @Test
+  public void getAllTablesInBogusCatalog() throws TException {
+    List<String> names = client.getAllTables("nosuch", testTables[0].getDbName());
+    Assert.assertTrue(names.isEmpty());
+  }
+
+  @Test(expected = UnknownDBException.class)
+  public void getTableObjectsByNameBogusCatalog() throws TException {
+    client.getTableObjectsByName("nosuch", testTables[0].getDbName(),
+        Arrays.asList(testTables[0].getTableName(), testTables[1].getTableName()));
+  }
+
+  @Test
+  public void getMaterializedViewsInBogusCatalog() throws TException {
+    List<String> names = client.getMaterializedViewsForRewriting("nosuch", DEFAULT_DATABASE_NAME);
+    Assert.assertTrue(names.isEmpty());
+  }
+
+  @Test(expected = InvalidOperationException.class)
+  public void alterTableBogusCatalog() throws TException {
+    Table t = testTables[0].deepCopy();
+    t.getParameters().put("a", "b");
+    client.alterTable("nosuch", t.getDbName(), t.getTableName(), t);
+  }
+
+  @Test(expected = InvalidOperationException.class)
+  public void moveTablesBetweenCatalogsOnAlter() throws TException {
+    String catName = "move_table_between_catalogs_on_alter";
+    Catalog cat = new CatalogBuilder()
+        .setName(catName)
+        .setLocation(MetaStoreTestUtils.getTestWarehouseDir(catName))
+        .build();
+    client.createCatalog(cat);
+
+    String dbName = "a_db";
+    // For this one don't specify a location to make sure it gets put in the catalog directory
+    Database db = new DatabaseBuilder()
+        .setName(dbName)
+        .setCatalogName(catName)
+        .build();
+    client.createDatabase(db);
+
+    String tableName = "non_movable_table";
+    Table before = new TableBuilder()
+        .inDb(db)
+        .setTableName(tableName)
+        .addCol("col1", ColumnType.STRING_TYPE_NAME)
+        .addCol("col2", ColumnType.INT_TYPE_NAME)
+        .build();
+    client.createTable(before);
+    Table after = before.deepCopy();
+    after.setCatName(DEFAULT_CATALOG_NAME);
+    client.alterTable(catName, dbName, tableName, after);
+
+  }
+
+  @Test
+  public void truncateTableBogusCatalog() throws TException {
+    try {
+      List<String> partNames = client.listPartitionNames(partitionedTable.getDbName(),
+          partitionedTable.getTableName(), (short) -1);
+      client.truncateTable("nosuch", partitionedTable.getDbName(), partitionedTable.getTableName(),
+          partNames);
+      Assert.fail(); // For reasons I don't understand and am too lazy to debug at the moment the
+      // NoSuchObjectException gets swallowed by a TApplicationException in remote mode.
+    } catch (TApplicationException|NoSuchObjectException e) {
+      //NOP
+    }
+  }
+
+  @Test(expected = NoSuchObjectException.class)
+  public void dropTableBogusCatalog() throws TException {
+    client.dropTable("nosuch", testTables[0].getDbName(), testTables[0].getTableName(), true, false);
   }
 
   /**

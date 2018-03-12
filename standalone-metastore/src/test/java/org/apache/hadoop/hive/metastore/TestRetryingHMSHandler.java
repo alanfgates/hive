@@ -24,6 +24,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.annotation.MetastoreCheckinTest;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.metastore.client.builder.DatabaseBuilder;
 import org.apache.hadoop.hive.metastore.client.builder.TableBuilder;
 import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.conf.MetastoreConf.ConfVars;
@@ -64,8 +65,9 @@ public class TestRetryingHMSHandler {
     String dbName = "hive4159";
     String tblName = "tmptbl";
 
-    Database db = new Database();
-    db.setName(dbName);
+    Database db = new DatabaseBuilder()
+        .setName(dbName)
+        .build();
     msc.createDatabase(db);
 
     Assert.assertEquals(2, AlternateFailurePreListener.getCallCount());

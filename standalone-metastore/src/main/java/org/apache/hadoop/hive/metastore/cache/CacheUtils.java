@@ -34,24 +34,25 @@ import org.apache.hadoop.hive.metastore.utils.StringUtils;
 public class CacheUtils {
   private static final String delimit = "\u0001";
 
-  public static String buildKey(String dbName) {
-    return dbName;
+  public static String buildCatalogKey(String catName) {
+    return catName;
   }
 
-  public static String buildKeyWithDelimit(String dbName) {
-    return buildKey(dbName) + delimit;
+  public static String buildCatalogKeyWithDelimit(String catName) {
+    return buildCatalogKey(catName) + delimit;
   }
 
-  public static String buildKey(String dbName, String tableName) {
-    return dbName + delimit + tableName;
+  public static String buildDbKey(String catName, String dbName) {
+    return buildKey(catName, dbName);
   }
 
-  public static String buildKeyWithDelimit(String dbName, String tableName) {
-    return buildKey(dbName, tableName) + delimit;
+  public static String buildDbKeyWithDelimit(String catName, String dbName) {
+    return buildDbKey(catName, dbName) + delimit;
   }
 
-  public static String buildKey(String dbName, String tableName, List<String> partVals) {
-    String key = buildKey(dbName, tableName);
+  public static String buildPartKey(String catName, String dbName, String tableName,
+                                    List<String> partVals) {
+    String key = buildKey(catName, dbName, tableName);
     if (CollectionUtils.isNotEmpty(partVals)) {
       key += delimit;
       key += String.join(delimit, partVals);
@@ -59,18 +60,38 @@ public class CacheUtils {
     return key;
   }
 
-  public static String buildKeyWithDelimit(String dbName, String tableName, List<String> partVals) {
-    return buildKey(dbName, tableName, partVals) + delimit;
+  public static String buildPartKeyWithDelimit(String catName, String dbName, String tableName,
+                                               List<String> partVals) {
+    return buildPartKey(catName, dbName, tableName, partVals) + delimit;
   }
 
-  public static String buildKey(String dbName, String tableName, List<String> partVals, String colName) {
-    String key = buildKey(dbName, tableName, partVals);
-    return key + delimit + colName;
+  public static String buildPartColKey(String catName, String dbName, String tableName,
+                                       List<String> partVals, String colName) {
+    String key = buildPartKey(catName, dbName, tableName, partVals);
+    return buildKey(key, colName);
   }
 
-  public static String buildKey(String dbName, String tableName, String colName) {
-    String key = buildKey(dbName, tableName);
-    return key + delimit + colName;
+  public static String buildTableKey(String catName, String dbName, String tableName) {
+    return buildKey(catName, dbName, tableName);
+  }
+
+  public static String buildTableKeyWithDelimit(String catName, String dbName, String tableName) {
+    return buildKey(catName, dbName, tableName) + delimit;
+  }
+
+  public static String buildTableColKey(String catName, String dbName, String tableName,
+                                        String colName) {
+    return buildKey(catName, dbName, tableName, colName);
+  }
+
+  private static String buildKey(String... elements) {
+    return org.apache.commons.lang.StringUtils.join(elements, delimit);
+  }
+
+  public static String[] splitDbName(String key) {
+    String[] names = key.split(delimit);
+    assert names.length == 2;
+    return names;
   }
 
   public static String[] splitTableColStats(String key) {

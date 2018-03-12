@@ -21,6 +21,7 @@ package org.apache.hadoop.hive.metastore;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.annotation.MetastoreCheckinTest;
 import org.apache.hadoop.hive.metastore.api.Database;
+import org.apache.hadoop.hive.metastore.client.builder.DatabaseBuilder;
 import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.conf.MetastoreConf.ConfVars;
 import org.apache.hadoop.hive.metastore.security.HadoopThriftAuthBridge;
@@ -59,8 +60,9 @@ public class TestRemoteHiveMetaStoreIpAddress {
 
   @Test
   public void testIpAddress() throws Exception {
-    Database db = new Database();
-    db.setName("testIpAddressIp");
+    Database db = new DatabaseBuilder()
+        .setName("testIpAddressIp")
+        .build();
     msc.createDatabase(db);
     msc.dropDatabase(db.getName());
   }

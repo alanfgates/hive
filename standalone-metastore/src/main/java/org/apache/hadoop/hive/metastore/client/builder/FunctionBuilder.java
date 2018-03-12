@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.hive.metastore.client.builder;
 
+import org.apache.hadoop.hive.metastore.Warehouse;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.Function;
 import org.apache.hadoop.hive.metastore.api.FunctionType;
@@ -35,7 +36,7 @@ import java.util.List;
  * Class for creating Thrift Function objects for tests, and API usage.
  */
 public class FunctionBuilder {
-  private String dbName = "default";
+  private String catName, dbName;
   private String funcName = null;
   private String className = null;
   private String owner = null;
@@ -49,7 +50,14 @@ public class FunctionBuilder {
     ownerType = PrincipalType.USER;
     createTime = (int) (System.currentTimeMillis() / 1000);
     funcType = FunctionType.JAVA;
-    resourceUris = new ArrayList<ResourceUri>();
+    resourceUris = new ArrayList<>();
+    catName = Warehouse.DEFAULT_CATALOG_NAME;
+    dbName = Warehouse.DEFAULT_DATABASE_NAME;
+  }
+
+  public FunctionBuilder setCatName(String catName) {
+    this.catName = catName;
+    return this;
   }
 
   public FunctionBuilder setDbName(String dbName) {
@@ -57,8 +65,9 @@ public class FunctionBuilder {
     return this;
   }
 
-  public FunctionBuilder setDbName(Database db) {
+  public FunctionBuilder inDb(Database db) {
     this.dbName = db.getName();
+    this.catName = db.getCatalogName();
     return this;
   }
 
@@ -110,7 +119,9 @@ public class FunctionBuilder {
     } catch (IOException e) {
       throw MetaStoreUtils.newMetaException(e);
     }
-    return new Function(funcName, dbName, className, owner, ownerType, createTime, funcType,
+    Function f = new Function(funcName, dbName, className, owner, ownerType, createTime, funcType,
         resourceUris);
+    f.setCatName(catName);
+    return f;
   }
 }

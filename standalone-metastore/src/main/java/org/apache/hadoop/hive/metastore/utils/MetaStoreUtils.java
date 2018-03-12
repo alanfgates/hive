@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hive.metastore.utils;
 
+import org.apache.hadoop.hive.metastore.api.ISchemaName;
 import org.apache.hadoop.hive.metastore.api.WMPoolSchedulingPolicy;
 
 import com.google.common.base.Predicates;
@@ -117,6 +118,28 @@ public class MetaStoreUtils {
   private static final Charset ENCODING = StandardCharsets.UTF_8;
   private static final Logger LOG = LoggerFactory.getLogger(MetaStoreUtils.class);
 
+  // The following two are public for any external users who wish to use them.
+  /**
+   * This character is used to mark a database name as having a catalog name prepended.  This
+   * marker should be placed first in the String to make it easy to determine that this has both
+   * a catalog and a database name.  @ is chosen as it is not used in regular expressions.  This
+   * is only intended for use when making old Thrift calls that do not support catalog names.
+   */
+  public static final char CATALOG_DB_THRIFT_NAME_MARKER = '@';
+
+  /**
+   * This String is used to seaprate the catalog name from the database name.  This should only
+   * be used in Strings that are prepended with {@link #CATALOG_DB_THRIFT_NAME_MARKER}.  # is
+   * chosen because it is not used in regular expressions.  this is only intended for use when
+   * making old Thrift calls that do not support catalog names.
+   */
+  public static final String CATALOG_DB_SEPARATOR = "#";
+
+  /**
+   * Mark a database as being empty (as distinct from null).
+   */
+  public static final String DB_EMPTY_MARKER = "!";
+
   // Right now we only support one special character '/'.
   // More special characters can be added accordingly in the future.
   // NOTE:
@@ -216,7 +239,7 @@ public class MetaStoreUtils {
 
   // Given a list of partStats, this function will give you an aggr stats
   public static List<ColumnStatisticsObj> aggrPartitionStats(List<ColumnStatistics> partStats,
-      String dbName, String tableName, List<String> partNames, List<String> colNames,
+      String catName, String dbName, String tableName, List<String> partNames, List<String> colNames,
       boolean areAllPartsFound, boolean useDensityFunctionForNDVEstimation, double ndvTuner)
       throws MetaException {
     Map<ColumnStatsAggregator, List<ColStatsObjWithSourceInfo>> colStatsMap =
@@ -236,12 +259,12 @@ public class MetaStoreUtils {
               new ArrayList<ColStatsObjWithSourceInfo>());
         }
         colStatsMap.get(aliasToAggregator.get(obj.getColName()))
-            .add(new ColStatsObjWithSourceInfo(obj, dbName, tableName, partName));
+            .add(new ColStatsObjWithSourceInfo(obj, catName, dbName, tableName, partName));
       }
     }
     if (colStatsMap.size() < 1) {
-      LOG.debug("No stats data found for: dbName= {},  tblName= {}, partNames= {}, colNames= {}",
-          dbName, tableName, partNames, colNames);
+      LOG.debug("No stats data found for: tblName= {}, partNames= {}, colNames= {}",
+          Warehouse.getCatalogQualifiedTableName(catName, dbName, tableName), partNames, colNames);
       return new ArrayList<ColumnStatisticsObj>();
     }
     return aggrPartitionStats(colStatsMap, partNames, areAllPartsFound,
@@ -1608,13 +1631,15 @@ public class MetaStoreUtils {
   // ColumnStatisticsObj with info about its db, table, partition (if table is partitioned)
   public static class ColStatsObjWithSourceInfo {
     private final ColumnStatisticsObj colStatsObj;
+    private final String catName;
     private final String dbName;
     private final String tblName;
     private final String partName;
 
-    public ColStatsObjWithSourceInfo(ColumnStatisticsObj colStatsObj, String dbName, String tblName,
+    public ColStatsObjWithSourceInfo(ColumnStatisticsObj colStatsObj, String catName, String dbName, String tblName,
         String partName) {
       this.colStatsObj = colStatsObj;
+      this.catName = catName;
       this.dbName = dbName;
       this.tblName = tblName;
       this.partName = partName;
@@ -1622,6 +1647,10 @@ public class MetaStoreUtils {
 
     public ColumnStatisticsObj getColStatsObj() {
       return colStatsObj;
+    }
+
+    public String getCatName() {
+      return catName;
     }
 
     public String getDbName() {
@@ -1636,4 +1665,78 @@ public class MetaStoreUtils {
       return partName;
     }
   }
+
+  private static boolean hasCatalogName(String dbName) {
+    return dbName != null && dbName.length() > 0 &&
+        dbName.charAt(0) == CATALOG_DB_THRIFT_NAME_MARKER;
+  }
+
+  /**
+   * Given a catalog name and database name cram them together into one string.
+   * @param catalogName catalog name
+   * @param dbName database name
+   * @return one string that contains both.
+   */
+  public static String prependCatalogToDbName(String catalogName, String dbName) {
+    if (catalogName == null) catalogName = Warehouse.DEFAULT_CATALOG_NAME;
+    StringBuilder buf = new StringBuilder()
+        .append(CATALOG_DB_THRIFT_NAME_MARKER)
+        .append(catalogName)
+        .append(CATALOG_DB_SEPARATOR);
+    if (dbName != null) {
+      if (dbName.isEmpty()) buf.append(DB_EMPTY_MARKER);
+      else buf.append(dbName);
+    }
+    return buf.toString();
+  }
+
+  /**
+   * Prepend the default 'hive' catalog onto the database name.
+   * @param dbName database name
+   * @return one string with the 'hive' catalog name prepended.
+   */
+  public static String prependCatalogToDbName(String dbName) {
+    return prependCatalogToDbName(null, dbName);
+  }
+
+  private final static String[] nullCatalogAndDatabase = {null, null};
+
+  /**
+   * Parse the catalog name out of the database name.  If no catalog name is present then the
+   * default 'hive' catalog will be assumed.
+   * @param dbName name of the database.  This may or may not contain the catalog name.
+   * @return an array of two elements, the first being the catalog name, the second the database
+   * name.
+   * @throws MetaException if the name is not either just a database name or a catalog plus
+   * database name with the proper delimiters.
+   */
+  public static String[] parseDbName(String dbName) throws MetaException {
+    if (dbName == null) return nullCatalogAndDatabase;
+    if (hasCatalogName(dbName)) {
+      if (dbName.endsWith(CATALOG_DB_SEPARATOR)) {
+        // This means the DB name is null
+        return new String[] {dbName.substring(1, dbName.length() - 1), null};
+      } else if (dbName.endsWith(DB_EMPTY_MARKER)) {
+        // This means the DB name is empty
+        return new String[] {dbName.substring(1, dbName.length() - DB_EMPTY_MARKER.length() - 1), ""};
+      }
+      String[] names = dbName.substring(1).split(CATALOG_DB_SEPARATOR, 2);
+      if (names.length != 2) {
+        throw new MetaException(dbName + " is prepended with the catalog marker but does not " +
+            "appear to have a catalog name in it");
+      }
+      return names;
+    } else {
+      return new String[] {Warehouse.DEFAULT_CATALOG_NAME, dbName};
+    }
+  }
+
+  /**
+   * Position in the array returned by {@link #parseDbName} that has the catalog name.
+   */
+  public static final int CAT_NAME = 0;
+  /**
+   * Position in the array returned by {@link #parseDbName} that has the database name.
+   */
+  public static final int DB_NAME = 1;
 }

@@ -23,6 +23,7 @@ import java.util.List;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterators;
+import org.apache.hadoop.hive.metastore.Warehouse;
 import org.apache.hadoop.hive.metastore.utils.MetaStoreUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -465,7 +466,8 @@ public class AuthorizationPreEventListener extends MetaStorePreEventListener {
         PreEventContext context) throws HiveException, NoSuchObjectException, MetaException {
       org.apache.hadoop.hive.metastore.api.Partition wrapperApiPart = mapiPart.deepCopy();
       org.apache.hadoop.hive.metastore.api.Table t = context.getHandler().get_table_core(
-          mapiPart.getDbName(), mapiPart.getTableName());
+          // TODO CAT
+          Warehouse.DEFAULT_CATALOG_NAME, mapiPart.getDbName(), mapiPart.getTableName());
       if (wrapperApiPart.getSd() == null){
         // In the cases of create partition, by the time this event fires, the partition
         // object has not yet come into existence, and thus will not yet have a

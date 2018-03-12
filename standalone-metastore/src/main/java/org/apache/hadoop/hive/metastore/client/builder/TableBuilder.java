@@ -18,6 +18,8 @@
 package org.apache.hadoop.hive.metastore.client.builder;
 
 import org.apache.hadoop.hive.metastore.TableType;
+import org.apache.hadoop.hive.metastore.Warehouse;
+import org.apache.hadoop.hive.metastore.api.BasicTxnInfo;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.MetaException;
@@ -36,15 +38,19 @@ import java.util.Map;
  * needed by the underlying {@link StorageDescriptorBuilder}.
  */
 public class TableBuilder extends StorageDescriptorBuilder<TableBuilder> {
-  private String dbName, tableName, owner, viewOriginalText, viewExpandedText, type;
+  private String catName, dbName, tableName, owner, viewOriginalText, viewExpandedText, type;
   private List<FieldSchema> partCols;
   private int createTime, lastAccessTime, retention;
   private Map<String, String> tableParams;
   private boolean rewriteEnabled, temporary;
+  private Map<String, BasicTxnInfo> creationMetadata;
 
   public TableBuilder() {
     // Set some reasonable defaults
+    catName = Warehouse.DEFAULT_CATALOG_NAME;
+    dbName = Warehouse.DEFAULT_DATABASE_NAME;
     tableParams = new HashMap<>();
+    creationMetadata = new HashMap<>();
     createTime = lastAccessTime = (int)(System.currentTimeMillis() / 1000);
     retention = 0;
     partCols = new ArrayList<>();
@@ -52,13 +58,19 @@ public class TableBuilder extends StorageDescriptorBuilder<TableBuilder> {
     super.setChild(this);
   }
 
+  public TableBuilder setCatName(String catName) {
+    this.catName = catName;
+    return this;
+  }
+
   public TableBuilder setDbName(String dbName) {
     this.dbName = dbName;
     return this;
   }
 
-  public TableBuilder setDbName(Database db) {
+  public TableBuilder inDb(Database db) {
     this.dbName = db.getName();
+    this.catName = db.getCatalogName();
     return this;
   }
 
@@ -139,9 +151,14 @@ public class TableBuilder extends StorageDescriptorBuilder<TableBuilder> {
     return this;
   }
 
+  public TableBuilder addCreationMetadata(String key, BasicTxnInfo value) {
+    creationMetadata.put(key, value);
+    return this;
+  }
+
   public Table build() throws MetaException {
-    if (dbName == null || tableName == null) {
-      throw new MetaException("You must set the database and table name");
+    if (tableName == null) {
+      throw new MetaException("You must set the table name");
     }
     if (owner == null) {
       try {
@@ -152,12 +169,10 @@ public class TableBuilder extends StorageDescriptorBuilder<TableBuilder> {
     }
     Table t = new Table(tableName, dbName, owner, createTime, lastAccessTime, retention, buildSd(),
         partCols, tableParams, viewOriginalText, viewExpandedText, type);
-    if (rewriteEnabled) {
-      t.setRewriteEnabled(true);
-    }
-    if (temporary) {
-      t.setTemporary(temporary);
-    }
+    if (rewriteEnabled) t.setRewriteEnabled(true);
+    if (temporary) t.setTemporary(temporary);
+    t.setCatName(catName);
+    t.setCreationMetadata(creationMetadata);
     return t;
   }
 

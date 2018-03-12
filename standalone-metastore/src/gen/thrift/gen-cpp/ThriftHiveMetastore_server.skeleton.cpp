@@ -32,6 +32,26 @@ class ThriftHiveMetastoreHandler : virtual public ThriftHiveMetastoreIf {
     printf("setMetaConf\n");
   }
 
+  void create_catalog(const Catalog& catalog) {
+    // Your implementation goes here
+    printf("create_catalog\n");
+  }
+
+  void get_catalog(Catalog& _return, const CatalogName& catName) {
+    // Your implementation goes here
+    printf("get_catalog\n");
+  }
+
+  void get_catalogs(std::vector<std::string> & _return) {
+    // Your implementation goes here
+    printf("get_catalogs\n");
+  }
+
+  void drop_catalog(const CatalogName& catName) {
+    // Your implementation goes here
+    printf("drop_catalog\n");
+  }
+
   void create_database(const Database& database) {
     // Your implementation goes here
     printf("create_database\n");
@@ -920,6 +940,76 @@ class ThriftHiveMetastoreHandler : virtual public ThriftHiveMetastoreIf {
   void create_or_drop_wm_trigger_to_pool_mapping(WMCreateOrDropTriggerToPoolMappingResponse& _return, const WMCreateOrDropTriggerToPoolMappingRequest& request) {
     // Your implementation goes here
     printf("create_or_drop_wm_trigger_to_pool_mapping\n");
+  }
+
+  void create_ischema(const ISchema& schema) {
+    // Your implementation goes here
+    printf("create_ischema\n");
+  }
+
+  void alter_ischema(const AlterISchemaRequest& rqst) {
+    // Your implementation goes here
+    printf("alter_ischema\n");
+  }
+
+  void get_ischema(ISchema& _return, const ISchemaName& name) {
+    // Your implementation goes here
+    printf("get_ischema\n");
+  }
+
+  void drop_ischema(const ISchemaName& name) {
+    // Your implementation goes here
+    printf("drop_ischema\n");
+  }
+
+  void add_schema_version(const SchemaVersion& schemaVersion) {
+    // Your implementation goes here
+    printf("add_schema_version\n");
+  }
+
+  void get_schema_version(SchemaVersion& _return, const SchemaVersionDescriptor& schemaVersion) {
+    // Your implementation goes here
+    printf("get_schema_version\n");
+  }
+
+  void get_schema_latest_version(SchemaVersion& _return, const ISchemaName& schemaName) {
+    // Your implementation goes here
+    printf("get_schema_latest_version\n");
+  }
+
+  void get_schema_all_versions(std::vector<SchemaVersion> & _return, const ISchemaName& schemaName) {
+    // Your implementation goes here
+    printf("get_schema_all_versions\n");
+  }
+
+  void drop_schema_version(const SchemaVersionDescriptor& schemaVersion) {
+    // Your implementation goes here
+    printf("drop_schema_version\n");
+  }
+
+  void get_schemas_by_cols(FindSchemasByColsResp& _return, const FindSchemasByColsRqst& rqst) {
+    // Your implementation goes here
+    printf("get_schemas_by_cols\n");
+  }
+
+  void map_schema_version_to_serde(const MapSchemaVersionToSerdeRequest& rqst) {
+    // Your implementation goes here
+    printf("map_schema_version_to_serde\n");
+  }
+
+  void set_schema_version_state(const SetSchemaVersionStateRequest& rqst) {
+    // Your implementation goes here
+    printf("set_schema_version_state\n");
+  }
+
+  void add_serde(const SerDeInfo& serde) {
+    // Your implementation goes here
+    printf("add_serde\n");
+  }
+
+  void get_serde(SerDeInfo& _return, const GetSerdeRequest& rqst) {
+    // Your implementation goes here
+    printf("get_serde\n");
   }
 
 };

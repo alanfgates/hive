@@ -1402,7 +1402,8 @@ public class Hive {
    */
   private List<String> getMaterializedViewsForRewriting(String dbName) throws HiveException {
     try {
-      return getMSC().getMaterializedViewsForRewriting(dbName);
+      // TODO CAT
+      return getMSC().getMaterializedViewsForRewriting(Warehouse.DEFAULT_CATALOG_NAME, dbName);
     } catch (Exception e) {
       throw new HiveException(e);
     }

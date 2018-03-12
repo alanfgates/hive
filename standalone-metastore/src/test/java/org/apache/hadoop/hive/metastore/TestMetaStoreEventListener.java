@@ -204,6 +204,7 @@ public class TestMetaStoreEventListener {
 
     Database db = new DatabaseBuilder()
         .setName(dbName)
+        .setCatalogName(Warehouse.DEFAULT_CATALOG_NAME)
         .build();
     msc.createDatabase(db);
     listSize++;
@@ -218,7 +219,7 @@ public class TestMetaStoreEventListener {
     validateCreateDb(db, dbEvent.getDatabase());
 
     Table table = new TableBuilder()
-        .setDbName(db)
+        .inDb(db)
         .setTableName(tblName)
         .addCol("a", "string")
         .addPartCol("b", "string")
@@ -236,7 +237,7 @@ public class TestMetaStoreEventListener {
 
 
     Partition part = new PartitionBuilder()
-        .fromTable(table)
+        .inTable(table)
         .addValue("2011")
         .build();
     msc.add_partition(part);

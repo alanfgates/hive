@@ -19,8 +19,11 @@
 package org.apache.hadoop.hive.metastore.client;
 
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
+import org.apache.hadoop.hive.metastore.MetaStoreTestUtils;
 import org.apache.hadoop.hive.metastore.annotation.MetastoreCheckinTest;
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException;
+import org.apache.hadoop.hive.metastore.api.Catalog;
+import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.Function;
 import org.apache.hadoop.hive.metastore.api.FunctionType;
 import org.apache.hadoop.hive.metastore.api.GetAllFunctionsResponse;
@@ -30,10 +33,12 @@ import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.hadoop.hive.metastore.api.ResourceType;
 import org.apache.hadoop.hive.metastore.api.ResourceUri;
+import org.apache.hadoop.hive.metastore.client.builder.CatalogBuilder;
 import org.apache.hadoop.hive.metastore.client.builder.DatabaseBuilder;
 import org.apache.hadoop.hive.metastore.client.builder.FunctionBuilder;
 import org.apache.hadoop.hive.metastore.minihms.AbstractMetaStoreService;
 import org.apache.thrift.TApplicationException;
+import org.apache.thrift.TException;
 import org.apache.thrift.transport.TTransportException;
 import org.junit.After;
 import org.junit.Assert;
@@ -43,7 +48,11 @@ import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import java.util.HashSet;
 import java.util.List;
+
+import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_CATALOG_NAME;
+import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_DATABASE_NAME;
 
 /**
  * Test class for IMetaStoreClient API. Testing the Function related functions.
@@ -69,9 +78,9 @@ public class TestFunctions extends MetaStoreClientTest {
     client = metaStore.getClient();
 
     // Clean up the database
-    client.dropDatabase(OTHER_DATABASE, true, true, true);
+    client.dropDatabase(DEFAULT_CATALOG_NAME, OTHER_DATABASE, true, true, true);
     for(Function function : client.getAllFunctions().getFunctions()) {
-      client.dropFunction(function.getDbName(), function.getFunctionName());
+      client.dropFunction(DEFAULT_CATALOG_NAME, function.getDbName(), function.getFunctionName());
     }
 
     testFunctions[0] =
@@ -107,7 +116,7 @@ public class TestFunctions extends MetaStoreClientTest {
     // Create the functions, and reload them from the MetaStore
     for(int i=0; i < testFunctions.length; i++) {
       client.createFunction(testFunctions[i]);
-      testFunctions[i] = client.getFunction(testFunctions[i].getDbName(),
+      testFunctions[i] = client.getFunction(DEFAULT_CATALOG_NAME, testFunctions[i].getDbName(),
           testFunctions[i].getFunctionName());
     }
   }
@@ -125,7 +134,6 @@ public class TestFunctions extends MetaStoreClientTest {
 
   /**
    * This test creates and queries a function and then drops it. Good for testing the happy path.
-   * @throws Exception
    */
   @Test
   public void testCreateGetDeleteFunction() throws Exception {
@@ -145,14 +153,14 @@ public class TestFunctions extends MetaStoreClientTest {
 
     client.createFunction(function);
 
-    Function createdFunction = client.getFunction(function.getDbName(),
+    Function createdFunction = client.getFunction(DEFAULT_CATALOG_NAME, function.getDbName(),
         function.getFunctionName());
     // The createTime will be set on the server side, so the comparison should skip it
     function.setCreateTime(createdFunction.getCreateTime());
     Assert.assertEquals("Comparing functions", function, createdFunction);
-    client.dropFunction(function.getDbName(), function.getFunctionName());
+    client.dropFunction(DEFAULT_CATALOG_NAME, function.getDbName(), function.getFunctionName());
     try {
-      client.getFunction(function.getDbName(), function.getFunctionName());
+      client.getFunction(DEFAULT_CATALOG_NAME, function.getDbName(), function.getFunctionName());
       Assert.fail("Expected a NoSuchObjectException to be thrown");
     } catch (NoSuchObjectException exception) {
       // Expected exception
@@ -170,7 +178,7 @@ public class TestFunctions extends MetaStoreClientTest {
 
     client.createFunction(function);
 
-    Function createdFunction = client.getFunction(function.getDbName(),
+    Function createdFunction = client.getFunction(DEFAULT_CATALOG_NAME, function.getDbName(),
         function.getFunctionName());
     Assert.assertNull("Comparing OwnerName", createdFunction.getOwnerName());
     Assert.assertEquals("Comparing ResourceUris", 0, createdFunction.getResourceUris().size());
@@ -292,12 +300,12 @@ public class TestFunctions extends MetaStoreClientTest {
     Function function = testFunctions[0];
 
     // Test in upper case
-    Function resultUpper = client.getFunction(function.getDbName().toUpperCase(),
+    Function resultUpper = client.getFunction(DEFAULT_CATALOG_NAME, function.getDbName().toUpperCase(),
         function.getFunctionName().toUpperCase());
     Assert.assertEquals("Comparing functions", function, resultUpper);
 
     // Test in mixed case
-    Function resultMix = client.getFunction("DeFaUlt", "tEsT_FuncTION_tO_FinD_1");
+    Function resultMix = client.getFunction(DEFAULT_CATALOG_NAME, "DeFaUlt", "tEsT_FuncTION_tO_FinD_1");
     Assert.assertEquals("Comparing functions", function, resultMix);
   }
 
@@ -306,7 +314,7 @@ public class TestFunctions extends MetaStoreClientTest {
     // Choosing the 2nd function, since the 1st one is duplicated in the dummy database
     Function function = testFunctions[1];
 
-    client.getFunction("no_such_database", function.getFunctionName());
+    client.getFunction(DEFAULT_CATALOG_NAME, "no_such_database", function.getFunctionName());
   }
 
   @Test(expected = NoSuchObjectException.class)
@@ -314,7 +322,7 @@ public class TestFunctions extends MetaStoreClientTest {
     // Choosing the 2nd function, since the 1st one is duplicated in the dummy database
     Function function = testFunctions[1];
 
-    client.getFunction(function.getDbName(), "no_such_function");
+    client.getFunction(DEFAULT_CATALOG_NAME, function.getDbName(), "no_such_function");
   }
 
   @Test(expected = NoSuchObjectException.class)
@@ -322,13 +330,13 @@ public class TestFunctions extends MetaStoreClientTest {
     // Choosing the 2nd function, since the 1st one is duplicated in the dummy database
     Function function = testFunctions[1];
 
-    client.getFunction(OTHER_DATABASE, function.getFunctionName());
+    client.getFunction(DEFAULT_CATALOG_NAME, OTHER_DATABASE, function.getFunctionName());
   }
 
   @Test
   public void testGetFunctionNullDatabase() throws Exception {
     try {
-      client.getFunction(null, OTHER_DATABASE);
+      client.getFunction(DEFAULT_CATALOG_NAME, null, OTHER_DATABASE);
       // TODO: Should have a check on the server side. Embedded metastore throws
       // NullPointerException, remote throws MetaException
       Assert.fail("Expected an NullPointerException or MetaException to be thrown");
@@ -341,7 +349,7 @@ public class TestFunctions extends MetaStoreClientTest {
 
   @Test(expected = MetaException.class)
   public void testGetFunctionNullFunctionName() throws Exception {
-    client.getFunction(DEFAULT_DATABASE, null);
+    client.getFunction(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE, null);
   }
 
   @Test(expected = NoSuchObjectException.class)
@@ -349,12 +357,12 @@ public class TestFunctions extends MetaStoreClientTest {
     // Choosing the 2nd function, since the 1st one is duplicated in the dummy database
     Function function = testFunctions[1];
 
-    client.dropFunction("no_such_database", function.getFunctionName());
+    client.dropFunction(DEFAULT_CATALOG_NAME, "no_such_database", function.getFunctionName());
   }
 
   @Test(expected = NoSuchObjectException.class)
   public void testDropFunctionNoSuchFunction() throws Exception {
-    client.dropFunction(DEFAULT_DATABASE, "no_such_function");
+    client.dropFunction(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE, "no_such_function");
   }
 
   @Test(expected = NoSuchObjectException.class)
@@ -362,13 +370,13 @@ public class TestFunctions extends MetaStoreClientTest {
     // Choosing the 2nd function, since the 1st one is duplicated in the dummy database
     Function function = testFunctions[1];
 
-    client.dropFunction(OTHER_DATABASE, function.getFunctionName());
+    client.dropFunction(DEFAULT_CATALOG_NAME, OTHER_DATABASE, function.getFunctionName());
   }
 
   @Test
   public void testDropFunctionNullDatabase() throws Exception {
     try {
-      client.dropFunction(null, "no_such_function");
+      client.dropFunction(DEFAULT_CATALOG_NAME, null, "no_such_function");
       // TODO: Should have a check on the server side. Embedded metastore throws
       // NullPointerException, remote throws TTransportException
       Assert.fail("Expected an NullPointerException or TTransportException to be thrown");
@@ -382,7 +390,7 @@ public class TestFunctions extends MetaStoreClientTest {
   @Test
   public void testDropFunctionNullFunctionName() throws Exception {
     try {
-      client.dropFunction(DEFAULT_DATABASE, null);
+      client.dropFunction(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE, null);
       // TODO: Should have a check on the server side. Embedded metastore throws
       // NullPointerException, remote throws TTransportException
       Assert.fail("Expected an NullPointerException or TTransportException to be thrown");
@@ -398,12 +406,12 @@ public class TestFunctions extends MetaStoreClientTest {
     Function function = testFunctions[0];
 
     // Test in upper case
-    client.dropFunction(function.getDbName().toUpperCase(),
+    client.dropFunction(DEFAULT_CATALOG_NAME, function.getDbName().toUpperCase(),
         function.getFunctionName().toUpperCase());
 
     // Check if the function is really removed
     try {
-      client.getFunction(function.getDbName(), function.getFunctionName());
+      client.getFunction(DEFAULT_CATALOG_NAME, function.getDbName(), function.getFunctionName());
       Assert.fail("Expected a NoSuchObjectException to be thrown");
     } catch (NoSuchObjectException exception) {
       // Expected exception
@@ -411,11 +419,11 @@ public class TestFunctions extends MetaStoreClientTest {
 
     // Test in mixed case
     client.createFunction(function);
-    client.dropFunction("DeFaUlt", "tEsT_FuncTION_tO_FinD_1");
+    client.dropFunction(DEFAULT_CATALOG_NAME, "DeFaUlt", "tEsT_FuncTION_tO_FinD_1");
 
     // Check if the function is really removed
     try {
-      client.getFunction(function.getDbName(), function.getFunctionName());
+      client.getFunction(DEFAULT_CATALOG_NAME, function.getDbName(), function.getFunctionName());
       Assert.fail("Expected a NoSuchObjectException to be thrown");
     } catch (NoSuchObjectException exception) {
       // Expected exception
@@ -440,7 +448,7 @@ public class TestFunctions extends MetaStoreClientTest {
     }
 
     // Drop one function, see what remains
-    client.dropFunction(testFunctions[1].getDbName(), testFunctions[1].getFunctionName());
+    client.dropFunction(DEFAULT_CATALOG_NAME, testFunctions[1].getDbName(), testFunctions[1].getFunctionName());
     response = client.getAllFunctions();
     allFunctions = response.getFunctions();
     Assert.assertEquals("All functions size", 3, allFunctions.size());
@@ -458,44 +466,44 @@ public class TestFunctions extends MetaStoreClientTest {
   @Test
   public void testGetFunctions() throws Exception {
     // Find functions which name contains _to_find_ in the default database
-    List<String> functions = client.getFunctions(DEFAULT_DATABASE, "*_to_find_*");
+    List<String> functions = client.getFunctions(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE, "*_to_find_*");
     Assert.assertEquals("Found functions size", 2, functions.size());
     Assert.assertTrue("Should contain", functions.contains("test_function_to_find_1"));
     Assert.assertTrue("Should contain", functions.contains("test_function_to_find_2"));
 
     // Find functions which name contains _to_find_ or _hidden_ in the default database
-    functions = client.getFunctions(DEFAULT_DATABASE, "*_to_find_*|*_hidden_*");
+    functions = client.getFunctions(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE, "*_to_find_*|*_hidden_*");
     Assert.assertEquals("Found functions size", 3, functions.size());
     Assert.assertTrue("Should contain", functions.contains("test_function_to_find_1"));
     Assert.assertTrue("Should contain", functions.contains("test_function_to_find_2"));
     Assert.assertTrue("Should contain", functions.contains("test_function_hidden_1"));
 
     // Find functions which name contains _to_find_ in the dummy database
-    functions = client.getFunctions(OTHER_DATABASE, "*_to_find_*");
+    functions = client.getFunctions(DEFAULT_CATALOG_NAME, OTHER_DATABASE, "*_to_find_*");
     Assert.assertEquals("Found functions size", 1, functions.size());
     Assert.assertTrue("Should contain", functions.contains("test_function_to_find_1"));
 
     // Look for functions but do not find any
-    functions = client.getFunctions(DEFAULT_DATABASE, "*_not_such_function_*");
+    functions = client.getFunctions(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE, "*_not_such_function_*");
     Assert.assertEquals("No such functions size", 0, functions.size());
 
     // Look for functions without pattern
-    functions = client.getFunctions(DEFAULT_DATABASE, null);
+    functions = client.getFunctions(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE, null);
     Assert.assertEquals("Search functions without pattern size", 3, functions.size());
 
     // Look for functions with empty pattern
-    functions = client.getFunctions(DEFAULT_DATABASE, "");
+    functions = client.getFunctions(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE, "");
     Assert.assertEquals("Search functions with empty pattern", 0, functions.size());
 
     // No such database
-    functions = client.getFunctions("no_such_database", "*_to_find_*");
+    functions = client.getFunctions(DEFAULT_CATALOG_NAME, "no_such_database", "*_to_find_*");
     Assert.assertEquals("No such functions size", 0, functions.size());
   }
 
   @Test
   public void testGetFunctionsCaseInsensitive() throws Exception {
     // Check case insensitive search
-    List<String> functions = client.getFunctions("deFAulT", "*_tO_FiND*");
+    List<String> functions = client.getFunctions(DEFAULT_CATALOG_NAME, "deFAulT", "*_tO_FiND*");
     Assert.assertEquals("Found functions size", 2, functions.size());
     Assert.assertTrue("Should contain", functions.contains("test_function_to_find_1"));
     Assert.assertTrue("Should contain", functions.contains("test_function_to_find_2"));
@@ -503,7 +511,7 @@ public class TestFunctions extends MetaStoreClientTest {
 
   @Test(expected = MetaException.class)
   public void testGetFunctionsNullDatabase() throws Exception {
-    client.getFunctions(null, OTHER_DATABASE);
+    client.getFunctions(DEFAULT_CATALOG_NAME, null, OTHER_DATABASE);
   }
 
   @Test
@@ -518,10 +526,10 @@ public class TestFunctions extends MetaStoreClientTest {
             .setFunctionType(FunctionType.JAVA)
             .build();
 
-    client.alterFunction(testFunctions[0].getDbName(), testFunctions[0].getFunctionName(),
+    client.alterFunction(DEFAULT_CATALOG_NAME, testFunctions[0].getDbName(), testFunctions[0].getFunctionName(),
         newFunction);
 
-    Function alteredFunction = client.getFunction(newFunction.getDbName(),
+    Function alteredFunction = client.getFunction(DEFAULT_CATALOG_NAME, newFunction.getDbName(),
         newFunction.getFunctionName());
     // Currently this method only sets
     //  - Database
@@ -543,7 +551,7 @@ public class TestFunctions extends MetaStoreClientTest {
     Assert.assertEquals("Comparing FunctionType", newFunction.getFunctionType(),
         alteredFunction.getFunctionType());
     try {
-      client.getFunction(testFunctions[0].getDbName(), testFunctions[0].getDbName());
+      client.getFunction(DEFAULT_CATALOG_NAME, testFunctions[0].getDbName(), testFunctions[0].getDbName());
       Assert.fail("Expected a NoSuchObjectException to be thrown");
     } catch (NoSuchObjectException exception) {
       // Expected exception
@@ -554,10 +562,10 @@ public class TestFunctions extends MetaStoreClientTest {
     newFunction = testFunctions[1].deepCopy();
     newFunction.setClassName("NewClassName");
 
-    client.alterFunction(testFunctions[1].getDbName(), testFunctions[1].getFunctionName(),
+    client.alterFunction(DEFAULT_CATALOG_NAME, testFunctions[1].getDbName(), testFunctions[1].getFunctionName(),
         newFunction);
 
-    alteredFunction = client.getFunction(newFunction.getDbName(), newFunction.getFunctionName());
+    alteredFunction = client.getFunction(DEFAULT_CATALOG_NAME, newFunction.getDbName(), newFunction.getFunctionName());
     Assert.assertEquals("Comparing functions", newFunction, alteredFunction);
   }
 
@@ -574,7 +582,7 @@ public class TestFunctions extends MetaStoreClientTest {
     Function originalFunction = testFunctions[1];
     Function newFunction = getNewFunction();
 
-    client.alterFunction("no_such_database", originalFunction.getFunctionName(), newFunction);
+    client.alterFunction(DEFAULT_CATALOG_NAME, "no_such_database", originalFunction.getFunctionName(), newFunction);
   }
 
   @Test(expected = MetaException.class)
@@ -583,7 +591,7 @@ public class TestFunctions extends MetaStoreClientTest {
     Function originalFunction = testFunctions[1];
     Function newFunction = getNewFunction();
 
-    client.alterFunction(originalFunction.getDbName(), "no_such_function", newFunction);
+    client.alterFunction(DEFAULT_CATALOG_NAME, originalFunction.getDbName(), "no_such_function", newFunction);
   }
 
   @Test(expected = MetaException.class)
@@ -592,7 +600,7 @@ public class TestFunctions extends MetaStoreClientTest {
     Function originalFunction = testFunctions[1];
     Function newFunction = getNewFunction();
 
-    client.alterFunction(OTHER_DATABASE, originalFunction.getFunctionName(), newFunction);
+    client.alterFunction(DEFAULT_CATALOG_NAME, OTHER_DATABASE, originalFunction.getFunctionName(), newFunction);
   }
 
   @Test
@@ -600,7 +608,7 @@ public class TestFunctions extends MetaStoreClientTest {
     Function newFunction = getNewFunction();
 
     try {
-      client.alterFunction(null, OTHER_DATABASE, newFunction);
+      client.alterFunction(DEFAULT_CATALOG_NAME, null, OTHER_DATABASE, newFunction);
       // TODO: Should have a check on the server side. Embedded metastore throws
       // NullPointerException, remote throws TTransportException
       Assert.fail("Expected an NullPointerException or TTransportException to be thrown");
@@ -616,7 +624,7 @@ public class TestFunctions extends MetaStoreClientTest {
     Function newFunction = getNewFunction();
 
     try {
-      client.alterFunction(DEFAULT_DATABASE, null, newFunction);
+      client.alterFunction(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE, null, newFunction);
       // TODO: Should have a check on the server side. Embedded metastore throws
       // NullPointerException, remote throws TTransportException
       Assert.fail("Expected an NullPointerException or TTransportException to be thrown");
@@ -632,7 +640,7 @@ public class TestFunctions extends MetaStoreClientTest {
     Function originalFunction = testFunctions[1];
 
     try {
-      client.alterFunction(DEFAULT_DATABASE, originalFunction.getFunctionName(), null);
+      client.alterFunction(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE, originalFunction.getFunctionName(), null);
       // TODO: Should have a check on the server side. Embedded metastore throws
       // NullPointerException, remote throws TTransportException
       Assert.fail("Expected an NullPointerException or TTransportException to be thrown");
@@ -649,7 +657,7 @@ public class TestFunctions extends MetaStoreClientTest {
     newFunction.setFunctionName("test_function_2;");
 
     try {
-      client.alterFunction(DEFAULT_DATABASE, "test_function_to_find_2", newFunction);
+      client.alterFunction(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE, "test_function_to_find_2", newFunction);
       // TODO: Should have a check on the server side. Embedded metastore throws
       // InvalidObjectException, remote throws TApplicationException
       Assert.fail("Expected an InvalidObjectException or TApplicationException to be thrown");
@@ -666,7 +674,7 @@ public class TestFunctions extends MetaStoreClientTest {
     newFunction.setFunctionName("");
 
     try {
-      client.alterFunction(DEFAULT_DATABASE, "test_function_to_find_2", newFunction);
+      client.alterFunction(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE, "test_function_to_find_2", newFunction);
       // TODO: Should have a check on the server side. Embedded metastore throws
       // InvalidObjectException, remote throws TApplicationException
       Assert.fail("Expected an InvalidObjectException or TApplicationException to be thrown");
@@ -683,7 +691,7 @@ public class TestFunctions extends MetaStoreClientTest {
     newFunction.setClassName(null);
 
     try {
-      client.alterFunction(DEFAULT_DATABASE, "test_function_to_find_2", newFunction);
+      client.alterFunction(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE, "test_function_to_find_2", newFunction);
       // TODO: Should have a check on the server side. Embedded metastore throws
       // InvalidObjectException, remote throws TApplicationException
       Assert.fail("Expected an InvalidObjectException or TApplicationException to be thrown");
@@ -700,7 +708,7 @@ public class TestFunctions extends MetaStoreClientTest {
     newFunction.setFunctionName(null);
 
     try {
-      client.alterFunction(DEFAULT_DATABASE, "test_function_to_find_2", newFunction);
+      client.alterFunction(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE, "test_function_to_find_2", newFunction);
       // TODO: Should have a check on the server side. Embedded metastore throws
       // NullPointerException, remote throws TTransportException
       Assert.fail("Expected an NullPointerException or TTransportException to be thrown");
@@ -717,7 +725,7 @@ public class TestFunctions extends MetaStoreClientTest {
     newFunction.setDbName(null);
 
     try {
-      client.alterFunction(DEFAULT_DATABASE, "test_function_to_find_2", newFunction);
+      client.alterFunction(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE, "test_function_to_find_2", newFunction);
       // TODO: Should have a check on the server side. Embedded metastore throws
       // NullPointerException, remote throws TTransportException
       Assert.fail("Expected an NullPointerException or TTransportException to be thrown");
@@ -734,7 +742,7 @@ public class TestFunctions extends MetaStoreClientTest {
     newFunction.setOwnerType(null);
 
     try {
-      client.alterFunction(DEFAULT_DATABASE, "test_function_to_find_2", newFunction);
+      client.alterFunction(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE, "test_function_to_find_2", newFunction);
       // TODO: Should have a check on the server side. Embedded metastore throws
       // NullPointerException, remote throws TTransportException
       Assert.fail("Expected an NullPointerException or TTransportException to be thrown");
@@ -751,7 +759,7 @@ public class TestFunctions extends MetaStoreClientTest {
     newFunction.setFunctionType(null);
 
     try {
-      client.alterFunction(DEFAULT_DATABASE, "test_function_to_find_2", newFunction);
+      client.alterFunction(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE, "test_function_to_find_2", newFunction);
       // TODO: Should have a check on the server side. Embedded metastore throws
       // NullPointerException, remote throws TTransportException
       Assert.fail("Expected an NullPointerException or TTransportException to be thrown");
@@ -768,7 +776,7 @@ public class TestFunctions extends MetaStoreClientTest {
     newFunction.setDbName("no_such_database");
 
     try {
-      client.alterFunction(DEFAULT_DATABASE, "test_function_to_find_2", newFunction);
+      client.alterFunction(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE, "test_function_to_find_2", newFunction);
       // TODO: Should have a check on the server side. Embedded metastore throws
       // InvalidObjectException, remote throws TApplicationException
       Assert.fail("Expected an InvalidObjectException or TApplicationException to be thrown");
@@ -786,7 +794,7 @@ public class TestFunctions extends MetaStoreClientTest {
     Function originalFunction = testFunctions[0];
     Function newFunction = testFunctions[1];
 
-    client.alterFunction(originalFunction.getDbName(), originalFunction.getFunctionName(),
+    client.alterFunction(DEFAULT_CATALOG_NAME, originalFunction.getDbName(), originalFunction.getFunctionName(),
         newFunction);
   }
 
@@ -801,16 +809,16 @@ public class TestFunctions extends MetaStoreClientTest {
     Function originalFunction = testFunctions[1];
 
     // Test in upper case
-    client.alterFunction(originalFunction.getDbName().toUpperCase(),
+    client.alterFunction(DEFAULT_CATALOG_NAME, originalFunction.getDbName().toUpperCase(),
         originalFunction.getFunctionName().toUpperCase(), newFunction);
-    Function alteredFunction = client.getFunction(newFunction.getDbName(),
+    Function alteredFunction = client.getFunction(DEFAULT_CATALOG_NAME, newFunction.getDbName(),
         newFunction.getFunctionName());
 
     // The creation time is changed, so we do not check that
     newFunction.setCreateTime(alteredFunction.getCreateTime());
     Assert.assertEquals("Comparing functions", newFunction, alteredFunction);
     try {
-      client.getFunction(originalFunction.getDbName(), originalFunction.getDbName());
+      client.getFunction(DEFAULT_CATALOG_NAME, originalFunction.getDbName(), originalFunction.getDbName());
       Assert.fail("Expected a NoSuchObjectException to be thrown");
     } catch (NoSuchObjectException exception) {
       // Expected exception
@@ -819,17 +827,175 @@ public class TestFunctions extends MetaStoreClientTest {
     // Test in mixed case
     originalFunction = testFunctions[2];
     newFunction.setFunctionName("test_function_3");
-    client.alterFunction("DeFaUlt", "tEsT_FuncTION_HiDDEn_1", newFunction);
-    alteredFunction = client.getFunction(newFunction.getDbName(), newFunction.getFunctionName());
+    client.alterFunction(DEFAULT_CATALOG_NAME, "DeFaUlt", "tEsT_FuncTION_HiDDEn_1", newFunction);
+    alteredFunction = client.getFunction(DEFAULT_CATALOG_NAME, newFunction.getDbName(), newFunction.getFunctionName());
 
     // The creation time is changed, so we do not check that
     newFunction.setCreateTime(alteredFunction.getCreateTime());
     Assert.assertEquals("Comparing functions", newFunction, alteredFunction);
     try {
-      client.getFunction(originalFunction.getDbName(), originalFunction.getDbName());
+      client.getFunction(DEFAULT_CATALOG_NAME, originalFunction.getDbName(), originalFunction.getDbName());
       Assert.fail("Expected a NoSuchObjectException to be thrown");
     } catch (NoSuchObjectException exception) {
       // Expected exception
     }
   }
+
+  @Test
+  public void otherCatalog() throws TException {
+    String catName = "functions_catalog";
+    Catalog cat = new CatalogBuilder()
+        .setName(catName)
+        .setLocation(MetaStoreTestUtils.getTestWarehouseDir(catName))
+        .build();
+    client.createCatalog(cat);
+
+    String dbName = "functions_other_catalog_db";
+    Database db = new DatabaseBuilder()
+        .setCatalogName(catName)
+        .setName(dbName)
+        .build();
+    client.createDatabase(db);
+
+    String functionName = "test_function";
+    Function function =
+        new FunctionBuilder()
+            .inDb(db)
+            .setName(functionName)
+            .setClass(TEST_FUNCTION_CLASS)
+            .setFunctionType(FunctionType.JAVA)
+            .setOwnerType(PrincipalType.ROLE)
+            .setOwner("owner")
+            .setCreateTime(100)
+            .addResourceUri(new ResourceUri(ResourceType.JAR, "hdfs:///tmp/jar1.jar"))
+            .addResourceUri(new ResourceUri(ResourceType.FILE, "hdfs:///tmp/file1.txt"))
+            .addResourceUri(new ResourceUri(ResourceType.ARCHIVE, "hdfs:///tmp/archive1.tgz"))
+            .build();
+
+    client.createFunction(function);
+
+    Function createdFunction = client.getFunction(catName, dbName, functionName);
+    // The createTime will be set on the server side, so the comparison should skip it
+    function.setCreateTime(createdFunction.getCreateTime());
+    Assert.assertEquals("Comparing functions", function, createdFunction);
+
+    String f2Name = "testy_function2";
+    Function f2 = new FunctionBuilder()
+        .inDb(db)
+        .setName(f2Name)
+        .setClass(TEST_FUNCTION_CLASS)
+        .build();
+    client.createFunction(f2);
+
+    Set<String> functions = new HashSet<>(client.getFunctions(catName, dbName, "test*"));
+    Assert.assertEquals(2, functions.size());
+    Assert.assertTrue(functions.contains(functionName));
+    Assert.assertTrue(functions.contains(f2Name));
+
+    functions = new HashSet<>(client.getFunctions(catName, dbName, "test_*"));
+    Assert.assertEquals(1, functions.size());
+    Assert.assertTrue(functions.contains(functionName));
+    Assert.assertFalse(functions.contains(f2Name));
+
+    client.dropFunction(function.getCatName(), function.getDbName(), function.getFunctionName());
+    try {
+      client.getFunction(function.getCatName(), function.getDbName(), function.getFunctionName());
+      Assert.fail("Expected a NoSuchObjectException to be thrown");
+    } catch (NoSuchObjectException exception) {
+      // Expected exception
+    }
+  }
+
+  @SuppressWarnings("deprecation")
+  @Test
+  public void deprecatedCalls() throws TException {
+    String functionName = "test_function";
+    Function function =
+        new FunctionBuilder()
+            .setName(functionName)
+            .setClass(TEST_FUNCTION_CLASS)
+            .setFunctionType(FunctionType.JAVA)
+            .setOwnerType(PrincipalType.ROLE)
+            .setOwner("owner")
+            .setCreateTime(100)
+            .addResourceUri(new ResourceUri(ResourceType.JAR, "hdfs:///tmp/jar1.jar"))
+            .addResourceUri(new ResourceUri(ResourceType.FILE, "hdfs:///tmp/file1.txt"))
+            .addResourceUri(new ResourceUri(ResourceType.ARCHIVE, "hdfs:///tmp/archive1.tgz"))
+            .build();
+
+    client.createFunction(function);
+
+    Function createdFunction = client.getFunction(DEFAULT_DATABASE_NAME, functionName);
+    // The createTime will be set on the server side, so the comparison should skip it
+    function.setCreateTime(createdFunction.getCreateTime());
+    Assert.assertEquals("Comparing functions", function, createdFunction);
+
+    String f2Name = "testy_function2";
+    Function f2 = new FunctionBuilder()
+        .setName(f2Name)
+        .setClass(TEST_FUNCTION_CLASS)
+        .build();
+    client.createFunction(f2);
+
+    Set<String> functions = new HashSet<>(client.getFunctions(DEFAULT_DATABASE_NAME, "test*"));
+    Assert.assertTrue(2 < functions.size());
+    Assert.assertTrue(functions.contains(functionName));
+    Assert.assertTrue(functions.contains(f2Name));
+
+    functions = new HashSet<>(client.getFunctions(DEFAULT_DATABASE_NAME, "testy*"));
+    Assert.assertEquals(1, functions.size());
+    Assert.assertTrue(functions.contains(f2Name));
+
+    GetAllFunctionsResponse resp = client.getAllFunctions();
+    final Set<String> fnames = new HashSet<>();
+    resp.getFunctions().forEach(f -> fnames.add(f.getFunctionName()));
+    Assert.assertTrue(fnames.contains(functionName));
+    Assert.assertTrue(fnames.contains(f2Name));
+
+    client.dropFunction(function.getDbName(), function.getFunctionName());
+    try {
+      client.getFunction(function.getCatName(), function.getDbName(), function.getFunctionName());
+      Assert.fail("Expected a NoSuchObjectException to be thrown");
+    } catch (NoSuchObjectException exception) {
+      // Expected exception
+    }
+  }
+
+  @Test(expected = NoSuchObjectException.class)
+  public void addNoSuchCatalog() throws TException {
+    String functionName = "test_function";
+    Function function =
+        new FunctionBuilder()
+            .setName(functionName)
+            .setCatName("nosuch")
+            .setDbName(DEFAULT_DATABASE_NAME)
+            .setClass(TEST_FUNCTION_CLASS)
+            .setFunctionType(FunctionType.JAVA)
+            .setOwnerType(PrincipalType.ROLE)
+            .setOwner("owner")
+            .setCreateTime(100)
+            .addResourceUri(new ResourceUri(ResourceType.JAR, "hdfs:///tmp/jar1.jar"))
+            .addResourceUri(new ResourceUri(ResourceType.FILE, "hdfs:///tmp/file1.txt"))
+            .addResourceUri(new ResourceUri(ResourceType.ARCHIVE, "hdfs:///tmp/archive1.tgz"))
+            .build();
+
+    client.createFunction(function);
+  }
+
+  @Test(expected = NoSuchObjectException.class)
+  public void getNoSuchCatalog() throws TException {
+    client.getFunction("nosuch", DEFAULT_DATABASE_NAME, testFunctions[0].getFunctionName());
+  }
+
+  @Test(expected = NoSuchObjectException.class)
+  public void dropNoSuchCatalog() throws TException {
+    client.dropFunction("nosuch", DEFAULT_DATABASE_NAME, testFunctions[0].getFunctionName());
+  }
+
+  @Test
+  public void getFunctionsNoSuchCatalog() throws TException {
+    List<String> functionNames = client.getFunctions("nosuch", DEFAULT_DATABASE_NAME, "*");
+    Assert.assertEquals(0, functionNames.size());
+  }
+
 }

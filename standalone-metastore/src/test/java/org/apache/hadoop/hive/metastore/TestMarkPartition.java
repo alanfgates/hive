@@ -77,7 +77,7 @@ public class TestMarkPartition {
     msc.createTable(table);
 
     Partition part = new PartitionBuilder()
-        .fromTable(table)
+        .inTable(table)
         .addValue("2011")
         .build();
     msc.add_partition(part);

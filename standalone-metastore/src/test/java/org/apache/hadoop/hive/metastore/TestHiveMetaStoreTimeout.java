@@ -24,6 +24,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.annotation.MetastoreCheckinTest;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.MetaException;
+import org.apache.hadoop.hive.metastore.client.builder.DatabaseBuilder;
 import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.metastore.conf.MetastoreConf.ConfVars;
 import org.apache.hadoop.util.StringUtils;
@@ -75,8 +76,9 @@ public class TestHiveMetaStoreTimeout {
     String dbName = "db";
     client.dropDatabase(dbName, true, true);
 
-    Database db = new Database();
-    db.setName(dbName);
+    Database db = new DatabaseBuilder()
+        .setName(dbName)
+        .build();
     try {
       client.createDatabase(db);
     } catch (MetaException e) {
@@ -93,8 +95,9 @@ public class TestHiveMetaStoreTimeout {
     String dbName = "db";
     client.dropDatabase(dbName, true, true);
 
-    Database db = new Database();
-    db.setName(dbName);
+    Database db = new DatabaseBuilder()
+        .setName(dbName)
+        .build();
     try {
       client.createDatabase(db);
       Assert.fail("should throw timeout exception.");
@@ -114,8 +117,9 @@ public class TestHiveMetaStoreTimeout {
 
     // no timeout before reset
     client.dropDatabase(dbName, true, true);
-    Database db = new Database();
-    db.setName(dbName);
+    Database db = new DatabaseBuilder()
+        .setName(dbName)
+        .build();
     try {
       client.createDatabase(db);
     } catch (MetaException e) {

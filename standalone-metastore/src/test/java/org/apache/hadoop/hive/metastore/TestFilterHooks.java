@@ -75,11 +75,12 @@ public class TestFilterHooks {
     }
 
     @Override
-    public List<String> filterTableNames(String dbName, List<String> tableList) throws MetaException {
+    public List<String> filterTableNames(String catName, String dbName, List<String> tableList)
+        throws MetaException {
       if (blockResults) {
         return new ArrayList<>();
       }
-      return super.filterTableNames(dbName, tableList);
+      return super.filterTableNames(catName, dbName, tableList);
     }
 
     @Override
@@ -124,12 +125,12 @@ public class TestFilterHooks {
     }
 
     @Override
-    public List<String> filterPartitionNames(String dbName, String tblName,
+    public List<String> filterPartitionNames(String catName, String dbName, String tblName,
         List<String> partitionNames) throws MetaException {
       if (blockResults) {
         return new ArrayList<>();
       }
-      return super.filterPartitionNames(dbName, tblName, partitionNames);
+      return super.filterPartitionNames(catName, dbName, tblName, partitionNames);
     }
 
   }
@@ -160,10 +161,12 @@ public class TestFilterHooks {
     msc.dropDatabase(DBNAME2, true, true, true);
     Database db1 = new DatabaseBuilder()
         .setName(DBNAME1)
+        .setCatalogName(Warehouse.DEFAULT_CATALOG_NAME)
         .build();
     msc.createDatabase(db1);
     Database db2 = new DatabaseBuilder()
         .setName(DBNAME2)
+        .setCatalogName(Warehouse.DEFAULT_CATALOG_NAME)
         .build();
     msc.createDatabase(db2);
     Table tab1 = new TableBuilder()
@@ -181,12 +184,12 @@ public class TestFilterHooks {
         .build();
     msc.createTable(tab2);
     Partition part1 = new PartitionBuilder()
-        .fromTable(tab2)
+        .inTable(tab2)
         .addValue("value1")
         .build();
     msc.add_partition(part1);
     Partition part2 = new PartitionBuilder()
-        .fromTable(tab2)
+        .inTable(tab2)
         .addValue("value2")
         .build();
     msc.add_partition(part2);

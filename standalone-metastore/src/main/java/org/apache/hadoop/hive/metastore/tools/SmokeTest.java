@@ -68,7 +68,7 @@ public class SmokeTest {
 
     LOG.info("Going to create table " + tableName);
     Table table = new TableBuilder()
-        .setDbName(db)
+        .inDb(db)
         .setTableName(tableName)
         .addCol("col1", ColumnType.INT_TYPE_NAME)
         .addCol("col2", ColumnType.TIMESTAMP_TYPE_NAME)
@@ -78,7 +78,7 @@ public class SmokeTest {
 
     LOG.info("Going to create partition with value " + partValue);
     Partition part = new PartitionBuilder()
-        .fromTable(table)
+        .inTable(table)
         .addValue("val1")
         .build();
     client.add_partition(part);

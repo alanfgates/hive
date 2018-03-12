@@ -20,6 +20,9 @@ package org.apache.hadoop.hive.metastore.client.builder;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.SQLUniqueConstraint;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Builder for {@link SQLUniqueConstraint}.  Only requires what {@link ConstraintBuilder} requires.
  */
@@ -29,9 +32,15 @@ public class SQLUniqueConstraintBuilder extends ConstraintBuilder<SQLUniqueConst
     super.setChild(this);
   }
 
-  public SQLUniqueConstraint build() throws MetaException {
+  public List<SQLUniqueConstraint> build() throws MetaException {
     checkBuildable("unique_constraint");
-    return new SQLUniqueConstraint(dbName, tableName, columnName, keySeq, constraintName, enable,
-        validate, rely);
+    List<SQLUniqueConstraint> uc = new ArrayList<>(columns.size());
+    for (String column : columns) {
+      SQLUniqueConstraint c = new SQLUniqueConstraint(dbName, tableName, column, getNextSeq(),
+          constraintName, enable, validate, rely);
+      c.setCatName(catName);
+      uc.add(c);
+    }
+    return uc;
   }
 }

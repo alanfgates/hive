@@ -178,8 +178,9 @@ public abstract class TestHiveMetaStore {
 
       client.dropTable(dbName, tblName);
       silentDropDatabase(dbName);
-      Database db = new Database();
-      db.setName(dbName);
+      Database db = new DatabaseBuilder()
+          .setName(dbName)
+          .build();
       client.createDatabase(db);
       db = client.getDatabase(dbName);
       Path dbPath = new Path(db.getLocationUri());
@@ -709,9 +710,10 @@ public abstract class TestHiveMetaStore {
 
     client.dropTable(dbName, tblName);
     silentDropDatabase(dbName);
-    Database db = new Database();
-    db.setName(dbName);
-    db.setDescription("Alter Partition Test database");
+    Database db = new DatabaseBuilder()
+        .setName(dbName)
+        .setDescription("Alter Partition Test database")
+        .build();
     client.createDatabase(db);
 
     Table tbl = new TableBuilder()
@@ -804,9 +806,10 @@ public abstract class TestHiveMetaStore {
 
       client.dropTable(dbName, tblName);
       silentDropDatabase(dbName);
-      Database db = new Database();
-      db.setName(dbName);
-      db.setDescription("Alter Partition Test database");
+      Database db = new DatabaseBuilder()
+          .setName(dbName)
+          .setDescription("Alter Partition Test database")
+          .build();
       client.createDatabase(db);
 
       Table tbl = new TableBuilder()
@@ -884,9 +887,10 @@ public abstract class TestHiveMetaStore {
 
       client.dropTable(dbName, tblName);
       silentDropDatabase(dbName);
-      Database db = new Database();
-      db.setName(dbName);
-      db.setDescription("Rename Partition Test database");
+      Database db = new DatabaseBuilder()
+          .setName(dbName)
+          .setDescription("Rename Partition Test database")
+          .build();
       client.createDatabase(db);
 
       Table tbl = new TableBuilder()
@@ -1000,8 +1004,10 @@ public abstract class TestHiveMetaStore {
           warehouse.getDatabasePath(db).toString(), db.getLocationUri());
       assertEquals(db.getOwnerName(), SecurityUtils.getUser());
       assertEquals(db.getOwnerType(), PrincipalType.USER);
-      Database db2 = new Database();
-      db2.setName(TEST_DB2_NAME);
+      assertEquals(Warehouse.DEFAULT_CATALOG_NAME, db.getCatalogName());
+      Database db2 = new DatabaseBuilder()
+          .setName(TEST_DB2_NAME)
+          .build();
       client.createDatabase(db2);
 
       db2 = client.getDatabase(TEST_DB2_NAME);
@@ -1041,15 +1047,16 @@ public abstract class TestHiveMetaStore {
 
     silentDropDatabase(TEST_DB1_NAME);
 
-    Database db = new Database();
-    db.setName(TEST_DB1_NAME);
     String dbLocation =
       MetastoreConf.getVar(conf, ConfVars.WAREHOUSE) + "/test/_testDB_create_";
     FileSystem fs = FileSystem.get(new Path(dbLocation).toUri(), conf);
     fs.mkdirs(
               new Path(MetastoreConf.getVar(conf, ConfVars.WAREHOUSE) + "/test"),
               new FsPermission((short) 0));
-    db.setLocationUri(dbLocation);
+    Database db = new DatabaseBuilder()
+        .setName(TEST_DB1_NAME)
+        .setLocation(dbLocation)
+        .build();
 
 
     boolean createFailed = false;
@@ -1081,11 +1088,12 @@ public abstract class TestHiveMetaStore {
       // clear up any existing databases
       silentDropDatabase(TEST_DB1_NAME);
 
-      Database db = new Database();
-      db.setName(TEST_DB1_NAME);
       String dbLocation =
           MetastoreConf.getVar(conf, ConfVars.WAREHOUSE) + "/_testDB_create_";
-      db.setLocationUri(dbLocation);
+      Database db = new DatabaseBuilder()
+          .setName(TEST_DB1_NAME)
+          .setLocation(dbLocation)
+          .build();
       client.createDatabase(db);
 
       db = client.getDatabase(TEST_DB1_NAME);
@@ -1106,14 +1114,15 @@ public abstract class TestHiveMetaStore {
       }
       assertTrue("Database " + TEST_DB1_NAME + " exists ", objectNotExist);
 
-      db = new Database();
-      db.setName(TEST_DB1_NAME);
       dbLocation =
           MetastoreConf.getVar(conf, ConfVars.WAREHOUSE) + "/_testDB_file_";
       FileSystem fs = FileSystem.get(new Path(dbLocation).toUri(), conf);
       fs.createNewFile(new Path(dbLocation));
       fs.deleteOnExit(new Path(dbLocation));
-      db.setLocationUri(dbLocation);
+      db = new DatabaseBuilder()
+          .setName(TEST_DB1_NAME)
+          .setLocation(dbLocation)
+          .build();
 
       boolean createFailed = false;
       try {
@@ -1247,8 +1256,9 @@ public abstract class TestHiveMetaStore {
       client.dropTable(dbName, tblName);
       silentDropDatabase(dbName);
 
-      Database db = new Database();
-      db.setName(dbName);
+      Database db = new DatabaseBuilder()
+          .setName(dbName)
+          .build();
       client.createDatabase(db);
 
       client.dropType(typeName);
@@ -1397,7 +1407,8 @@ public abstract class TestHiveMetaStore {
         udbe = e;
       }
       assertNotNull(udbe);
-      assertTrue("DB not found", udbe.getMessage().contains("not find database db_that_doesnt_exist"));
+      assertTrue("DB not found",
+          udbe.getMessage().contains("not find database hive.db_that_doesnt_exist"));
 
       udbe = null;
       try {
@@ -1498,8 +1509,9 @@ public abstract class TestHiveMetaStore {
 
     try {
       cleanUp(dbName, tblName, typeName);
-      Database db = new Database();
-      db.setName(dbName);
+      Database db = new DatabaseBuilder()
+          .setName(dbName)
+          .build();
       client.createDatabase(db);
       createTableForTestFilter(dbName,tblName, tblOwner, lastAccessed, true);
 
@@ -1658,8 +1670,9 @@ public abstract class TestHiveMetaStore {
     client.dropTable(dbName, tblName);
     silentDropDatabase(dbName);
 
-    Database db = new Database();
-    db.setName(dbName);
+    Database db = new DatabaseBuilder()
+        .setName(dbName)
+        .build();
     client.createDatabase(db);
 
     Table tbl = new TableBuilder()
@@ -1683,8 +1696,9 @@ public abstract class TestHiveMetaStore {
       client.dropTable(dbName, tblName);
       silentDropDatabase(dbName);
 
-      Database db = new Database();
-      db.setName(dbName);
+      Database db = new DatabaseBuilder()
+          .setName(dbName)
+          .build();
       client.createDatabase(db);
 
       ArrayList<FieldSchema> invCols = new ArrayList<>(2);
@@ -1834,8 +1848,9 @@ public abstract class TestHiveMetaStore {
     try {
       client.dropTable(dbName, tblName);
       silentDropDatabase(dbName);
-      Database db = new Database();
-      db.setName(dbName);
+      Database db = new DatabaseBuilder()
+          .setName(dbName)
+          .build();
       client.createDatabase(db);
 
       client.dropType(typeName);
@@ -1920,11 +1935,12 @@ public abstract class TestHiveMetaStore {
     try {
       silentDropDatabase(dbName);
 
-      Database db = new Database();
-      db.setName(dbName);
       String dbLocation =
           MetastoreConf.getVar(conf, ConfVars.WAREHOUSE) + "_testDB_table_create_";
-      db.setLocationUri(dbLocation);
+      Database db = new DatabaseBuilder()
+          .setName(dbName)
+          .setLocation(dbLocation)
+          .build();
       client.createDatabase(db);
       db = client.getDatabase(dbName);
 
@@ -2014,8 +2030,9 @@ public abstract class TestHiveMetaStore {
 
     silentDropDatabase(dbName);
 
-    Database db = new Database();
-    db.setName(dbName);
+    Database db = new DatabaseBuilder()
+        .setName(dbName)
+        .build();
     client.createDatabase(db);
 
     Table tbl = new TableBuilder()
@@ -2188,8 +2205,9 @@ public abstract class TestHiveMetaStore {
 
       silentDropDatabase(dbName);
 
-      Database db = new Database();
-      db.setName(dbName);
+      Database db = new DatabaseBuilder()
+          .setName(dbName)
+          .build();
       client.createDatabase(db);
 
       Table tbl = new TableBuilder()
@@ -2257,6 +2275,11 @@ public abstract class TestHiveMetaStore {
       add_partition(client, tbl, vals, "part1");
       add_partition(client, tbl, vals2, "part2");
       add_partition(client, tbl, vals3, "part3");
+
+      /*
+      List<Partition> parts = client.listPartitions(dbName, tblName, (short)-1);
+      for (Partition part : parts) LOG.info("XXX found part " + part.toString());
+      */
 
       checkFilter(client, dbName, tblName, "p2 = \"p21\"", 2);
       checkFilter(client, dbName, tblName, "p2 < \"p23\"", 3);
@@ -2334,9 +2357,10 @@ public abstract class TestHiveMetaStore {
       client.dropTable(dbName, tableName2);
       client.dropTable(dbName, tableName3);
       silentDropDatabase(dbName);
-      Database db = new Database();
-      db.setName(dbName);
-      db.setDescription("Alter Partition Test database");
+      Database db = new DatabaseBuilder()
+          .setName(dbName)
+          .setDescription("Alter Partition Test database")
+          .build();
       client.createDatabase(db);
 
       Table table1 = createTableForTestFilter(dbName,tableName1, owner1, lastAccessTime1, true);
@@ -2692,8 +2716,9 @@ public abstract class TestHiveMetaStore {
 
   private Database createDb(String dbName) throws Exception {
     if(null == dbName) { return null; }
-    Database db = new Database();
-    db.setName(dbName);
+    Database db = new DatabaseBuilder()
+        .setName(dbName)
+        .build();
     client.createDatabase(db);
     return db;
   }
@@ -2797,10 +2822,11 @@ public abstract class TestHiveMetaStore {
     final String role1 = "role1";
 
     silentDropDatabase(dbName);
-    Database db = new Database();
-    db.setName(dbName);
-    db.setOwnerName(user1);
-    db.setOwnerType(PrincipalType.USER);
+    Database db = new DatabaseBuilder()
+        .setName(dbName)
+        .setOwnerName(user1)
+        .setOwnerType(PrincipalType.USER)
+        .build();
 
     client.createDatabase(db);
     checkDbOwnerType(dbName, user1, PrincipalType.USER);
@@ -2827,8 +2853,9 @@ public abstract class TestHiveMetaStore {
     // Setup
     silentDropDatabase(dbName);
 
-    Database db = new Database();
-    db.setName(dbName);
+    Database db = new DatabaseBuilder()
+        .setName(dbName)
+        .build();
     client.createDatabase(db);
     for (String tableName : tableNames) {
       createTable(dbName, tableName);
@@ -2853,9 +2880,10 @@ public abstract class TestHiveMetaStore {
     String defaultUri = MetastoreConf.getVar(conf, ConfVars.WAREHOUSE) + "/default_location.db";
     String newUri = MetastoreConf.getVar(conf, ConfVars.WAREHOUSE) + "/new_location.db";
 
-    Database db = new Database();
-    db.setName(dbName);
-    db.setLocationUri(defaultUri);
+    Database db = new DatabaseBuilder()
+        .setName(dbName)
+        .setLocation(defaultUri)
+        .build();
     client.createDatabase(db);
 
     db = client.getDatabase(dbName);
@@ -2981,9 +3009,10 @@ public abstract class TestHiveMetaStore {
 
       client.dropTable(dbName, tblName);
       silentDropDatabase(dbName);
-      Database db = new Database();
-      db.setName(dbName);
-      db.setDescription("Validate Table Columns test");
+      Database db = new DatabaseBuilder()
+          .setName(dbName)
+          .setDescription("Validate Table Columns test")
+          .build();
       client.createDatabase(db);
 
       Table tbl = new TableBuilder()

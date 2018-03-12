@@ -73,6 +73,7 @@ public class TestMetaStoreEndFunctionListener {
 
     Database db = new DatabaseBuilder()
         .setName(dbName)
+        .setCatalogName(Warehouse.DEFAULT_CATALOG_NAME)
         .build();
     msc.createDatabase(db);
 
@@ -93,7 +94,7 @@ public class TestMetaStoreEndFunctionListener {
 
     String unknownTable = "UnknownTable";
     Table table = new TableBuilder()
-        .setDbName(db)
+        .inDb(db)
         .setTableName(tblName)
         .addCol("a", "string")
         .addPartCol("b", "string")

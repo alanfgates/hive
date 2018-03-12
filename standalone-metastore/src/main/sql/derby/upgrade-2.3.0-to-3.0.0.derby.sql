@@ -43,6 +43,40 @@ ALTER TABLE "APP"."WM_MAPPING" ADD CONSTRAINT "WM_MAPPING_PK" PRIMARY KEY ("MAPP
 ALTER TABLE "APP"."WM_MAPPING" ADD CONSTRAINT "WM_MAPPING_FK1" FOREIGN KEY ("RP_ID") REFERENCES "APP"."WM_RESOURCEPLAN" ("RP_ID") ON DELETE NO ACTION ON UPDATE NO ACTION;
 ALTER TABLE "APP"."WM_MAPPING" ADD CONSTRAINT "WM_MAPPING_FK2" FOREIGN KEY ("POOL_ID") REFERENCES "APP"."WM_POOL" ("POOL_ID") ON DELETE NO ACTION ON UPDATE NO ACTION;
 
+-- Upgrades for Schema Registry objects
+ALTER TABLE "APP"."SERDES" ADD COLUMN "DESCRIPTION" VARCHAR(4000);
+ALTER TABLE "APP"."SERDES" ADD COLUMN "SERIALIZER_CLASS" VARCHAR(4000);
+ALTER TABLE "APP"."SERDES" ADD COLUMN "DESERIALIZER_CLASS" VARCHAR(4000);
+ALTER TABLE "APP"."SERDES" ADD COLUMN "SERDE_TYPE" INTEGER;
+
+CREATE TABLE "APP"."I_SCHEMA" (
+  "SCHEMA_ID" bigint primary key,
+  "SCHEMA_TYPE" integer not null,
+  "NAME" varchar(256) unique,
+  "DB_ID" bigint references "APP"."DBS" ("DB_ID"),
+  "COMPATIBILITY" integer not null,
+  "VALIDATION_LEVEL" integer not null,
+  "CAN_EVOLVE" char(1) not null,
+  "SCHEMA_GROUP" varchar(256),
+  "DESCRIPTION" varchar(4000)
+);
+
+CREATE TABLE "APP"."SCHEMA_VERSION" (
+  "SCHEMA_VERSION_ID" bigint primary key,
+  "SCHEMA_ID" bigint references "APP"."I_SCHEMA" ("SCHEMA_ID"),
+  "VERSION" integer not null,
+  "CREATED_AT" bigint not null,
+  "CD_ID" bigint references "APP"."CDS" ("CD_ID"),
+  "STATE" integer not null,
+  "DESCRIPTION" varchar(4000),
+  "SCHEMA_TEXT" clob,
+  "FINGERPRINT" varchar(256),
+  "SCHEMA_VERSION_NAME" varchar(256),
+  "SERDE_ID" bigint references "APP"."SERDES" ("SERDE_ID")
+);
+
+CREATE UNIQUE INDEX "APP"."UNIQUE_SCHEMA_VERSION" ON "APP"."SCHEMA_VERSION" ("SCHEMA_ID", "VERSION");
+
 UPDATE "APP".VERSION SET SCHEMA_VERSION='3.0.0', VERSION_COMMENT='Hive release version 3.0.0' where VER_ID=1;
 
 -- 048-HIVE-14498
@@ -126,3 +160,60 @@ ALTER TABLE COMPLETED_TXN_COMPONENTS ADD CTC_WRITEID bigint;
 ALTER TABLE "APP"."KEY_CONSTRAINTS" ADD COLUMN "DEFAULT_VALUE" VARCHAR(400);
 
 ALTER TABLE "APP"."HIVE_LOCKS" ALTER COLUMN "HL_TXNID" NOT NULL;
+
+-- Create new Catalog table
+-- HIVE-18755, add catalogs
+-- new catalogs table
+CREATE TABLE "APP"."CTLGS" (
+    "CTLG_ID" BIGINT NOT NULL,
+    "NAME" VARCHAR(256) UNIQUE,
+    "DESC" VARCHAR(4000),
+    "LOCATION_URI" VARCHAR(4000) NOT NULL);
+
+ALTER TABLE "APP"."CTLGS" ADD CONSTRAINT "CTLGS_PK" PRIMARY KEY ("CTLG_ID");
+
+-- Insert a default value.  The location is TBD.  Hive will fix this when it starts
+INSERT INTO "APP"."CTLGS" VALUES (1, 'hive', 'Default catalog for Hive', 'TBD');
+
+-- Drop the unique index on DBS
+DROP INDEX "APP"."UNIQUE_DATABASE";
+
+-- Add the new column to the DBS table, can't put in the not null constraint yet
+ALTER TABLE "APP"."DBS" ADD COLUMN "CTLG_NAME" VARCHAR(256);
+
+-- Update all records in the DBS table to point to the Hive catalog
+UPDATE "APP"."DBS" 
+  SET "CTLG_NAME" = 'hive';
+
+-- Add the not null constraint
+ALTER TABLE "APP"."DBS" ALTER COLUMN "CTLG_NAME" NOT NULL;
+
+-- Put back the unique index 
+CREATE UNIQUE INDEX "APP"."UNIQUE_DATABASE" ON "APP"."DBS" ("NAME", "CTLG_NAME");
+
+-- Add the foreign key
+ALTER TABLE "APP"."DBS" ADD CONSTRAINT "DBS_FK1" FOREIGN KEY ("CTLG_NAME") REFERENCES "APP"."CTLGS" ("NAME") ON DELETE NO ACTION ON UPDATE NO ACTION;
+
+-- Add columns to table stats and part stats
+ALTER TABLE "APP"."TAB_COL_STATS" ADD COLUMN "CAT_NAME" VARCHAR(256);
+ALTER TABLE "APP"."PART_COL_STATS" ADD COLUMN "CAT_NAME" VARCHAR(256);
+
+-- Set the existing column names to Hive
+UPDATE "APP"."TAB_COL_STATS"
+  SET "CAT_NAME" = 'hive';
+UPDATE "APP"."PART_COL_STATS"
+  SET "CAT_NAME" = 'hive';
+
+-- Add the not null constraint
+ALTER TABLE "APP"."TAB_COL_STATS" ALTER COLUMN "CAT_NAME" NOT NULL;
+ALTER TABLE "APP"."PART_COL_STATS" ALTER COLUMN "CAT_NAME" NOT NULL;
+
+-- Rebuild the index for Part col stats.  No such index for table stats, which seems weird
+DROP INDEX "APP"."PCS_STATS_IDX";
+CREATE INDEX "APP"."PCS_STATS_IDX" ON "APP"."PART_COL_STATS" ("CAT_NAME", "DB_NAME","TABLE_NAME","COLUMN_NAME","PARTITION_NAME");
+
+-- Add column to partition events
+ALTER TABLE "APP"."PARTITION_EVENTS" ADD COLUMN "CAT_NAME" VARCHAR(256);
+
+-- Add column to notification log
+ALTER TABLE "APP"."NOTIFICATION_LOG" ADD COLUMN "CAT_NAME" VARCHAR(256);
