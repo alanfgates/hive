@@ -1401,17 +1401,19 @@ struct WMCreateOrDropTriggerToPoolMappingResponse {
 struct ISchema {
   1: SchemaType schemaType,
   2: string name,
-  3: string dbName,
-  4: SchemaCompatibility compatibility,
-  5: SchemaValidation validationLevel,
-  6: bool canEvolve,
-  7: optional string schemaGroup,
-  8: optional string description
+  3: string catName,
+  4: string dbName,
+  5: SchemaCompatibility compatibility,
+  6: SchemaValidation validationLevel,
+  7: bool canEvolve,
+  8: optional string schemaGroup,
+  9: optional string description
 }
 
 struct ISchemaName {
-  1: string dbName,
-  2: string schemaName
+  1: string catName,
+  2: string dbName,
+  3: string schemaName
 }
 
 struct AlterISchemaRequest {

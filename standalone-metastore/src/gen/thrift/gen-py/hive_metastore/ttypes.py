@@ -19450,6 +19450,7 @@ class ISchema:
   Attributes:
    - schemaType
    - name
+   - catName
    - dbName
    - compatibility
    - validationLevel
@@ -19462,17 +19463,19 @@ class ISchema:
     None, # 0
     (1, TType.I32, 'schemaType', None, None, ), # 1
     (2, TType.STRING, 'name', None, None, ), # 2
-    (3, TType.STRING, 'dbName', None, None, ), # 3
-    (4, TType.I32, 'compatibility', None, None, ), # 4
-    (5, TType.I32, 'validationLevel', None, None, ), # 5
-    (6, TType.BOOL, 'canEvolve', None, None, ), # 6
-    (7, TType.STRING, 'schemaGroup', None, None, ), # 7
-    (8, TType.STRING, 'description', None, None, ), # 8
+    (3, TType.STRING, 'catName', None, None, ), # 3
+    (4, TType.STRING, 'dbName', None, None, ), # 4
+    (5, TType.I32, 'compatibility', None, None, ), # 5
+    (6, TType.I32, 'validationLevel', None, None, ), # 6
+    (7, TType.BOOL, 'canEvolve', None, None, ), # 7
+    (8, TType.STRING, 'schemaGroup', None, None, ), # 8
+    (9, TType.STRING, 'description', None, None, ), # 9
   )
 
-  def __init__(self, schemaType=None, name=None, dbName=None, compatibility=None, validationLevel=None, canEvolve=None, schemaGroup=None, description=None,):
+  def __init__(self, schemaType=None, name=None, catName=None, dbName=None, compatibility=None, validationLevel=None, canEvolve=None, schemaGroup=None, description=None,):
     self.schemaType = schemaType
     self.name = name
+    self.catName = catName
     self.dbName = dbName
     self.compatibility = compatibility
     self.validationLevel = validationLevel
@@ -19501,30 +19504,35 @@ class ISchema:
           iprot.skip(ftype)
       elif fid == 3:
         if ftype == TType.STRING:
-          self.dbName = iprot.readString()
+          self.catName = iprot.readString()
         else:
           iprot.skip(ftype)
       elif fid == 4:
-        if ftype == TType.I32:
-          self.compatibility = iprot.readI32()
+        if ftype == TType.STRING:
+          self.dbName = iprot.readString()
         else:
           iprot.skip(ftype)
       elif fid == 5:
         if ftype == TType.I32:
-          self.validationLevel = iprot.readI32()
+          self.compatibility = iprot.readI32()
         else:
           iprot.skip(ftype)
       elif fid == 6:
+        if ftype == TType.I32:
+          self.validationLevel = iprot.readI32()
+        else:
+          iprot.skip(ftype)
+      elif fid == 7:
         if ftype == TType.BOOL:
           self.canEvolve = iprot.readBool()
         else:
           iprot.skip(ftype)
-      elif fid == 7:
+      elif fid == 8:
         if ftype == TType.STRING:
           self.schemaGroup = iprot.readString()
         else:
           iprot.skip(ftype)
-      elif fid == 8:
+      elif fid == 9:
         if ftype == TType.STRING:
           self.description = iprot.readString()
         else:
@@ -19547,28 +19555,32 @@ class ISchema:
       oprot.writeFieldBegin('name', TType.STRING, 2)
       oprot.writeString(self.name)
       oprot.writeFieldEnd()
+    if self.catName is not None:
+      oprot.writeFieldBegin('catName', TType.STRING, 3)
+      oprot.writeString(self.catName)
+      oprot.writeFieldEnd()
     if self.dbName is not None:
-      oprot.writeFieldBegin('dbName', TType.STRING, 3)
+      oprot.writeFieldBegin('dbName', TType.STRING, 4)
       oprot.writeString(self.dbName)
       oprot.writeFieldEnd()
     if self.compatibility is not None:
-      oprot.writeFieldBegin('compatibility', TType.I32, 4)
+      oprot.writeFieldBegin('compatibility', TType.I32, 5)
       oprot.writeI32(self.compatibility)
       oprot.writeFieldEnd()
     if self.validationLevel is not None:
-      oprot.writeFieldBegin('validationLevel', TType.I32, 5)
+      oprot.writeFieldBegin('validationLevel', TType.I32, 6)
       oprot.writeI32(self.validationLevel)
       oprot.writeFieldEnd()
     if self.canEvolve is not None:
-      oprot.writeFieldBegin('canEvolve', TType.BOOL, 6)
+      oprot.writeFieldBegin('canEvolve', TType.BOOL, 7)
       oprot.writeBool(self.canEvolve)
       oprot.writeFieldEnd()
     if self.schemaGroup is not None:
-      oprot.writeFieldBegin('schemaGroup', TType.STRING, 7)
+      oprot.writeFieldBegin('schemaGroup', TType.STRING, 8)
       oprot.writeString(self.schemaGroup)
       oprot.writeFieldEnd()
     if self.description is not None:
-      oprot.writeFieldBegin('description', TType.STRING, 8)
+      oprot.writeFieldBegin('description', TType.STRING, 9)
       oprot.writeString(self.description)
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
@@ -19582,6 +19594,7 @@ class ISchema:
     value = 17
     value = (value * 31) ^ hash(self.schemaType)
     value = (value * 31) ^ hash(self.name)
+    value = (value * 31) ^ hash(self.catName)
     value = (value * 31) ^ hash(self.dbName)
     value = (value * 31) ^ hash(self.compatibility)
     value = (value * 31) ^ hash(self.validationLevel)
@@ -19604,17 +19617,20 @@ class ISchema:
 class ISchemaName:
   """
   Attributes:
+   - catName
    - dbName
    - schemaName
   """
 
   thrift_spec = (
     None, # 0
-    (1, TType.STRING, 'dbName', None, None, ), # 1
-    (2, TType.STRING, 'schemaName', None, None, ), # 2
+    (1, TType.STRING, 'catName', None, None, ), # 1
+    (2, TType.STRING, 'dbName', None, None, ), # 2
+    (3, TType.STRING, 'schemaName', None, None, ), # 3
   )
 
-  def __init__(self, dbName=None, schemaName=None,):
+  def __init__(self, catName=None, dbName=None, schemaName=None,):
+    self.catName = catName
     self.dbName = dbName
     self.schemaName = schemaName
 
@@ -19629,10 +19645,15 @@ class ISchemaName:
         break
       if fid == 1:
         if ftype == TType.STRING:
-          self.dbName = iprot.readString()
+          self.catName = iprot.readString()
         else:
           iprot.skip(ftype)
       elif fid == 2:
+        if ftype == TType.STRING:
+          self.dbName = iprot.readString()
+        else:
+          iprot.skip(ftype)
+      elif fid == 3:
         if ftype == TType.STRING:
           self.schemaName = iprot.readString()
         else:
@@ -19647,12 +19668,16 @@ class ISchemaName:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return
     oprot.writeStructBegin('ISchemaName')
+    if self.catName is not None:
+      oprot.writeFieldBegin('catName', TType.STRING, 1)
+      oprot.writeString(self.catName)
+      oprot.writeFieldEnd()
     if self.dbName is not None:
-      oprot.writeFieldBegin('dbName', TType.STRING, 1)
+      oprot.writeFieldBegin('dbName', TType.STRING, 2)
       oprot.writeString(self.dbName)
       oprot.writeFieldEnd()
     if self.schemaName is not None:
-      oprot.writeFieldBegin('schemaName', TType.STRING, 2)
+      oprot.writeFieldBegin('schemaName', TType.STRING, 3)
       oprot.writeString(self.schemaName)
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
@@ -19664,6 +19689,7 @@ class ISchemaName:
 
   def __hash__(self):
     value = 17
+    value = (value * 31) ^ hash(self.catName)
     value = (value * 31) ^ hash(self.dbName)
     value = (value * 31) ^ hash(self.schemaName)
     return value

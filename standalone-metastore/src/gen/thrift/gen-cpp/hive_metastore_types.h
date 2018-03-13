@@ -11799,9 +11799,10 @@ inline std::ostream& operator<<(std::ostream& out, const WMCreateOrDropTriggerTo
 }
 
 typedef struct _ISchema__isset {
-  _ISchema__isset() : schemaType(false), name(false), dbName(false), compatibility(false), validationLevel(false), canEvolve(false), schemaGroup(false), description(false) {}
+  _ISchema__isset() : schemaType(false), name(false), catName(false), dbName(false), compatibility(false), validationLevel(false), canEvolve(false), schemaGroup(false), description(false) {}
   bool schemaType :1;
   bool name :1;
+  bool catName :1;
   bool dbName :1;
   bool compatibility :1;
   bool validationLevel :1;
@@ -11815,12 +11816,13 @@ class ISchema {
 
   ISchema(const ISchema&);
   ISchema& operator=(const ISchema&);
-  ISchema() : schemaType((SchemaType::type)0), name(), dbName(), compatibility((SchemaCompatibility::type)0), validationLevel((SchemaValidation::type)0), canEvolve(0), schemaGroup(), description() {
+  ISchema() : schemaType((SchemaType::type)0), name(), catName(), dbName(), compatibility((SchemaCompatibility::type)0), validationLevel((SchemaValidation::type)0), canEvolve(0), schemaGroup(), description() {
   }
 
   virtual ~ISchema() throw();
   SchemaType::type schemaType;
   std::string name;
+  std::string catName;
   std::string dbName;
   SchemaCompatibility::type compatibility;
   SchemaValidation::type validationLevel;
@@ -11833,6 +11835,8 @@ class ISchema {
   void __set_schemaType(const SchemaType::type val);
 
   void __set_name(const std::string& val);
+
+  void __set_catName(const std::string& val);
 
   void __set_dbName(const std::string& val);
 
@@ -11851,6 +11855,8 @@ class ISchema {
     if (!(schemaType == rhs.schemaType))
       return false;
     if (!(name == rhs.name))
+      return false;
+    if (!(catName == rhs.catName))
       return false;
     if (!(dbName == rhs.dbName))
       return false;
@@ -11891,7 +11897,8 @@ inline std::ostream& operator<<(std::ostream& out, const ISchema& obj)
 }
 
 typedef struct _ISchemaName__isset {
-  _ISchemaName__isset() : dbName(false), schemaName(false) {}
+  _ISchemaName__isset() : catName(false), dbName(false), schemaName(false) {}
+  bool catName :1;
   bool dbName :1;
   bool schemaName :1;
 } _ISchemaName__isset;
@@ -11901,14 +11908,17 @@ class ISchemaName {
 
   ISchemaName(const ISchemaName&);
   ISchemaName& operator=(const ISchemaName&);
-  ISchemaName() : dbName(), schemaName() {
+  ISchemaName() : catName(), dbName(), schemaName() {
   }
 
   virtual ~ISchemaName() throw();
+  std::string catName;
   std::string dbName;
   std::string schemaName;
 
   _ISchemaName__isset __isset;
+
+  void __set_catName(const std::string& val);
 
   void __set_dbName(const std::string& val);
 
@@ -11916,6 +11926,8 @@ class ISchemaName {
 
   bool operator == (const ISchemaName & rhs) const
   {
+    if (!(catName == rhs.catName))
+      return false;
     if (!(dbName == rhs.dbName))
       return false;
     if (!(schemaName == rhs.schemaName))

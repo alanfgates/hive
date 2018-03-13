@@ -27977,6 +27977,10 @@ void ISchema::__set_name(const std::string& val) {
   this->name = val;
 }
 
+void ISchema::__set_catName(const std::string& val) {
+  this->catName = val;
+}
+
 void ISchema::__set_dbName(const std::string& val) {
   this->dbName = val;
 }
@@ -28044,13 +28048,21 @@ uint32_t ISchema::read(::apache::thrift::protocol::TProtocol* iprot) {
         break;
       case 3:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
+          xfer += iprot->readString(this->catName);
+          this->__isset.catName = true;
+        } else {
+          xfer += iprot->skip(ftype);
+        }
+        break;
+      case 4:
+        if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->dbName);
           this->__isset.dbName = true;
         } else {
           xfer += iprot->skip(ftype);
         }
         break;
-      case 4:
+      case 5:
         if (ftype == ::apache::thrift::protocol::T_I32) {
           int32_t ecast1075;
           xfer += iprot->readI32(ecast1075);
@@ -28060,7 +28072,7 @@ uint32_t ISchema::read(::apache::thrift::protocol::TProtocol* iprot) {
           xfer += iprot->skip(ftype);
         }
         break;
-      case 5:
+      case 6:
         if (ftype == ::apache::thrift::protocol::T_I32) {
           int32_t ecast1076;
           xfer += iprot->readI32(ecast1076);
@@ -28070,7 +28082,7 @@ uint32_t ISchema::read(::apache::thrift::protocol::TProtocol* iprot) {
           xfer += iprot->skip(ftype);
         }
         break;
-      case 6:
+      case 7:
         if (ftype == ::apache::thrift::protocol::T_BOOL) {
           xfer += iprot->readBool(this->canEvolve);
           this->__isset.canEvolve = true;
@@ -28078,7 +28090,7 @@ uint32_t ISchema::read(::apache::thrift::protocol::TProtocol* iprot) {
           xfer += iprot->skip(ftype);
         }
         break;
-      case 7:
+      case 8:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->schemaGroup);
           this->__isset.schemaGroup = true;
@@ -28086,7 +28098,7 @@ uint32_t ISchema::read(::apache::thrift::protocol::TProtocol* iprot) {
           xfer += iprot->skip(ftype);
         }
         break;
-      case 8:
+      case 9:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->description);
           this->__isset.description = true;
@@ -28119,29 +28131,33 @@ uint32_t ISchema::write(::apache::thrift::protocol::TProtocol* oprot) const {
   xfer += oprot->writeString(this->name);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("dbName", ::apache::thrift::protocol::T_STRING, 3);
+  xfer += oprot->writeFieldBegin("catName", ::apache::thrift::protocol::T_STRING, 3);
+  xfer += oprot->writeString(this->catName);
+  xfer += oprot->writeFieldEnd();
+
+  xfer += oprot->writeFieldBegin("dbName", ::apache::thrift::protocol::T_STRING, 4);
   xfer += oprot->writeString(this->dbName);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("compatibility", ::apache::thrift::protocol::T_I32, 4);
+  xfer += oprot->writeFieldBegin("compatibility", ::apache::thrift::protocol::T_I32, 5);
   xfer += oprot->writeI32((int32_t)this->compatibility);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("validationLevel", ::apache::thrift::protocol::T_I32, 5);
+  xfer += oprot->writeFieldBegin("validationLevel", ::apache::thrift::protocol::T_I32, 6);
   xfer += oprot->writeI32((int32_t)this->validationLevel);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("canEvolve", ::apache::thrift::protocol::T_BOOL, 6);
+  xfer += oprot->writeFieldBegin("canEvolve", ::apache::thrift::protocol::T_BOOL, 7);
   xfer += oprot->writeBool(this->canEvolve);
   xfer += oprot->writeFieldEnd();
 
   if (this->__isset.schemaGroup) {
-    xfer += oprot->writeFieldBegin("schemaGroup", ::apache::thrift::protocol::T_STRING, 7);
+    xfer += oprot->writeFieldBegin("schemaGroup", ::apache::thrift::protocol::T_STRING, 8);
     xfer += oprot->writeString(this->schemaGroup);
     xfer += oprot->writeFieldEnd();
   }
   if (this->__isset.description) {
-    xfer += oprot->writeFieldBegin("description", ::apache::thrift::protocol::T_STRING, 8);
+    xfer += oprot->writeFieldBegin("description", ::apache::thrift::protocol::T_STRING, 9);
     xfer += oprot->writeString(this->description);
     xfer += oprot->writeFieldEnd();
   }
@@ -28154,6 +28170,7 @@ void swap(ISchema &a, ISchema &b) {
   using ::std::swap;
   swap(a.schemaType, b.schemaType);
   swap(a.name, b.name);
+  swap(a.catName, b.catName);
   swap(a.dbName, b.dbName);
   swap(a.compatibility, b.compatibility);
   swap(a.validationLevel, b.validationLevel);
@@ -28166,6 +28183,7 @@ void swap(ISchema &a, ISchema &b) {
 ISchema::ISchema(const ISchema& other1077) {
   schemaType = other1077.schemaType;
   name = other1077.name;
+  catName = other1077.catName;
   dbName = other1077.dbName;
   compatibility = other1077.compatibility;
   validationLevel = other1077.validationLevel;
@@ -28177,6 +28195,7 @@ ISchema::ISchema(const ISchema& other1077) {
 ISchema& ISchema::operator=(const ISchema& other1078) {
   schemaType = other1078.schemaType;
   name = other1078.name;
+  catName = other1078.catName;
   dbName = other1078.dbName;
   compatibility = other1078.compatibility;
   validationLevel = other1078.validationLevel;
@@ -28191,6 +28210,7 @@ void ISchema::printTo(std::ostream& out) const {
   out << "ISchema(";
   out << "schemaType=" << to_string(schemaType);
   out << ", " << "name=" << to_string(name);
+  out << ", " << "catName=" << to_string(catName);
   out << ", " << "dbName=" << to_string(dbName);
   out << ", " << "compatibility=" << to_string(compatibility);
   out << ", " << "validationLevel=" << to_string(validationLevel);
@@ -28204,6 +28224,10 @@ void ISchema::printTo(std::ostream& out) const {
 ISchemaName::~ISchemaName() throw() {
 }
 
+
+void ISchemaName::__set_catName(const std::string& val) {
+  this->catName = val;
+}
 
 void ISchemaName::__set_dbName(const std::string& val) {
   this->dbName = val;
@@ -28236,13 +28260,21 @@ uint32_t ISchemaName::read(::apache::thrift::protocol::TProtocol* iprot) {
     {
       case 1:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
+          xfer += iprot->readString(this->catName);
+          this->__isset.catName = true;
+        } else {
+          xfer += iprot->skip(ftype);
+        }
+        break;
+      case 2:
+        if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->dbName);
           this->__isset.dbName = true;
         } else {
           xfer += iprot->skip(ftype);
         }
         break;
-      case 2:
+      case 3:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->schemaName);
           this->__isset.schemaName = true;
@@ -28267,11 +28299,15 @@ uint32_t ISchemaName::write(::apache::thrift::protocol::TProtocol* oprot) const 
   apache::thrift::protocol::TOutputRecursionTracker tracker(*oprot);
   xfer += oprot->writeStructBegin("ISchemaName");
 
-  xfer += oprot->writeFieldBegin("dbName", ::apache::thrift::protocol::T_STRING, 1);
+  xfer += oprot->writeFieldBegin("catName", ::apache::thrift::protocol::T_STRING, 1);
+  xfer += oprot->writeString(this->catName);
+  xfer += oprot->writeFieldEnd();
+
+  xfer += oprot->writeFieldBegin("dbName", ::apache::thrift::protocol::T_STRING, 2);
   xfer += oprot->writeString(this->dbName);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("schemaName", ::apache::thrift::protocol::T_STRING, 2);
+  xfer += oprot->writeFieldBegin("schemaName", ::apache::thrift::protocol::T_STRING, 3);
   xfer += oprot->writeString(this->schemaName);
   xfer += oprot->writeFieldEnd();
 
@@ -28282,17 +28318,20 @@ uint32_t ISchemaName::write(::apache::thrift::protocol::TProtocol* oprot) const 
 
 void swap(ISchemaName &a, ISchemaName &b) {
   using ::std::swap;
+  swap(a.catName, b.catName);
   swap(a.dbName, b.dbName);
   swap(a.schemaName, b.schemaName);
   swap(a.__isset, b.__isset);
 }
 
 ISchemaName::ISchemaName(const ISchemaName& other1079) {
+  catName = other1079.catName;
   dbName = other1079.dbName;
   schemaName = other1079.schemaName;
   __isset = other1079.__isset;
 }
 ISchemaName& ISchemaName::operator=(const ISchemaName& other1080) {
+  catName = other1080.catName;
   dbName = other1080.dbName;
   schemaName = other1080.schemaName;
   __isset = other1080.__isset;
@@ -28301,7 +28340,8 @@ ISchemaName& ISchemaName::operator=(const ISchemaName& other1080) {
 void ISchemaName::printTo(std::ostream& out) const {
   using ::apache::thrift::to_string;
   out << "ISchemaName(";
-  out << "dbName=" << to_string(dbName);
+  out << "catName=" << to_string(catName);
+  out << ", " << "dbName=" << to_string(dbName);
   out << ", " << "schemaName=" << to_string(schemaName);
   out << ")";
 }

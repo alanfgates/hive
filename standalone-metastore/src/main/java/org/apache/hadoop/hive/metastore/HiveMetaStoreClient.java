@@ -2929,18 +2929,18 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   }
 
   @Override
-  public void alterISchema(String dbName, String schemaName, ISchema newSchema) throws TException {
-    client.alter_ischema(new AlterISchemaRequest(new ISchemaName(dbName, schemaName), newSchema));
+  public void alterISchema(String catName, String dbName, String schemaName, ISchema newSchema) throws TException {
+    client.alter_ischema(new AlterISchemaRequest(new ISchemaName(catName, dbName, schemaName), newSchema));
   }
 
   @Override
-  public ISchema getISchema(String dbName, String name) throws TException {
-    return client.get_ischema(new ISchemaName(dbName, name));
+  public ISchema getISchema(String catName, String dbName, String name) throws TException {
+    return client.get_ischema(new ISchemaName(catName, dbName, name));
   }
 
   @Override
-  public void dropISchema(String dbName, String name) throws TException {
-    client.drop_ischema(new ISchemaName(dbName, name));
+  public void dropISchema(String catName, String dbName, String name) throws TException {
+    client.drop_ischema(new ISchemaName(catName, dbName, name));
   }
 
   @Override
@@ -2949,23 +2949,23 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   }
 
   @Override
-  public SchemaVersion getSchemaVersion(String dbName, String schemaName, int version) throws TException {
-    return client.get_schema_version(new SchemaVersionDescriptor(new ISchemaName(dbName, schemaName), version));
+  public SchemaVersion getSchemaVersion(String catName, String dbName, String schemaName, int version) throws TException {
+    return client.get_schema_version(new SchemaVersionDescriptor(new ISchemaName(catName, dbName, schemaName), version));
   }
 
   @Override
-  public SchemaVersion getSchemaLatestVersion(String dbName, String schemaName) throws TException {
-    return client.get_schema_latest_version(new ISchemaName(dbName, schemaName));
+  public SchemaVersion getSchemaLatestVersion(String catName, String dbName, String schemaName) throws TException {
+    return client.get_schema_latest_version(new ISchemaName(catName, dbName, schemaName));
   }
 
   @Override
-  public List<SchemaVersion> getSchemaAllVersions(String dbName, String schemaName) throws TException {
-    return client.get_schema_all_versions(new ISchemaName(dbName, schemaName));
+  public List<SchemaVersion> getSchemaAllVersions(String catName, String dbName, String schemaName) throws TException {
+    return client.get_schema_all_versions(new ISchemaName(catName, dbName, schemaName));
   }
 
   @Override
-  public void dropSchemaVersion(String dbName, String schemaName, int version) throws TException {
-    client.drop_schema_version(new SchemaVersionDescriptor(new ISchemaName(dbName, schemaName), version));
+  public void dropSchemaVersion(String catName, String dbName, String schemaName, int version) throws TException {
+    client.drop_schema_version(new SchemaVersionDescriptor(new ISchemaName(catName, dbName, schemaName), version));
   }
 
   @Override
@@ -2974,17 +2974,17 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   }
 
   @Override
-  public void mapSchemaVersionToSerde(String dbName, String schemaName, int version, String serdeName)
+  public void mapSchemaVersionToSerde(String catName, String dbName, String schemaName, int version, String serdeName)
       throws TException {
     client.map_schema_version_to_serde(new MapSchemaVersionToSerdeRequest(
-        new SchemaVersionDescriptor(new ISchemaName(dbName, schemaName), version), serdeName));
+        new SchemaVersionDescriptor(new ISchemaName(catName, dbName, schemaName), version), serdeName));
   }
 
   @Override
-  public void setSchemaVersionState(String dbName, String schemaName, int version, SchemaVersionState state)
+  public void setSchemaVersionState(String catName, String dbName, String schemaName, int version, SchemaVersionState state)
       throws TException {
     client.set_schema_version_state(new SetSchemaVersionStateRequest(new SchemaVersionDescriptor(
-        new ISchemaName(dbName, schemaName), version), state));
+        new ISchemaName(catName, dbName, schemaName), version), state));
   }
 
   @Override

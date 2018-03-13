@@ -9877,7 +9877,7 @@ public class ObjectStore implements RawStore, Configurable {
     MISchema mSchema = convertToMISchema(schema);
     try {
       openTransaction();
-      if (getMISchema(schema.getDbName(), schema.getName()) != null) {
+      if (getMISchema(schema.getCatName(), schema.getDbName(), schema.getName()) != null) {
         throw new AlreadyExistsException("Schema with name " + schema.getDbName() + "." +
             schema.getName() + " already exists");
       }
@@ -9894,7 +9894,7 @@ public class ObjectStore implements RawStore, Configurable {
     boolean committed = false;
     try {
       openTransaction();
-      MISchema oldMSchema = getMISchema(schemaName.getDbName(), schemaName.getSchemaName());
+      MISchema oldMSchema = getMISchema(schemaName.getCatName(), schemaName.getDbName(), schemaName.getSchemaName());
       if (oldMSchema == null) {
         throw new NoSuchObjectException("Schema " + schemaName + " does not exist");
       }
@@ -9916,7 +9916,8 @@ public class ObjectStore implements RawStore, Configurable {
     boolean committed = false;
     try {
       openTransaction();
-      ISchema schema = convertToISchema(getMISchema(schemaName.getDbName(), schemaName.getSchemaName()));
+      ISchema schema = convertToISchema(getMISchema(schemaName.getCatName(), schemaName.getDbName(),
+          schemaName.getSchemaName()));
       committed = commitTransaction();
       return schema;
     } finally {
@@ -9924,15 +9925,18 @@ public class ObjectStore implements RawStore, Configurable {
     }
   }
 
-  private MISchema getMISchema(String dbName, String name) {
+  private MISchema getMISchema(String catName, String dbName, String name) {
     Query query = null;
     try {
       name = normalizeIdentifier(name);
       dbName = normalizeIdentifier(dbName);
-      query = pm.newQuery(MISchema.class, "name == schemaName && db.name == dbname");
-      query.declareParameters("java.lang.String schemaName, java.lang.String dbname");
+      catName = normalizeIdentifier(catName);
+      query = pm.newQuery(MISchema.class,
+          "name == schemaName && db.name == dbname && db.catalogName == cat");
+      query.declareParameters(
+          "java.lang.String schemaName, java.lang.String dbname, java.lang.String cat");
       query.setUnique(true);
-      MISchema mSchema = (MISchema)query.execute(name, dbName);
+      MISchema mSchema = (MISchema)query.execute(name, dbName, catName);
       pm.retrieve(mSchema);
       return mSchema;
     } finally {
@@ -9945,7 +9949,7 @@ public class ObjectStore implements RawStore, Configurable {
     boolean committed = false;
     try {
       openTransaction();
-      MISchema mSchema = getMISchema(schemaName.getDbName(), schemaName.getSchemaName());
+      MISchema mSchema = getMISchema(schemaName.getCatName(), schemaName.getDbName(), schemaName.getSchemaName());
       if (mSchema != null) {
         pm.deletePersistentAll(mSchema);
       } else {
@@ -9965,13 +9969,14 @@ public class ObjectStore implements RawStore, Configurable {
     try {
       openTransaction();
       // Make sure it doesn't already exist
-      if (getMSchemaVersion(schemaVersion.getSchema().getDbName(),
+      if (getMSchemaVersion(schemaVersion.getSchema().getCatName(), schemaVersion.getSchema().getDbName(),
           schemaVersion.getSchema().getSchemaName(), schemaVersion.getVersion()) != null) {
         throw new AlreadyExistsException("Schema name " + schemaVersion.getSchema() +
             " version " + schemaVersion.getVersion() + " already exists");
       }
       // Make sure the referenced Schema exists
-      if (getMISchema(schemaVersion.getSchema().getDbName(), schemaVersion.getSchema().getSchemaName()) == null) {
+      if (getMISchema(schemaVersion.getSchema().getCatName(), schemaVersion.getSchema().getDbName(),
+          schemaVersion.getSchema().getSchemaName()) == null) {
         throw new NoSuchObjectException("Schema " + schemaVersion.getSchema() + " does not exist");
       }
       pm.makePersistent(mSchemaVersion);
@@ -9987,8 +9992,8 @@ public class ObjectStore implements RawStore, Configurable {
     boolean committed = false;
     try {
       openTransaction();
-      MSchemaVersion oldMSchemaVersion = getMSchemaVersion(version.getSchema().getDbName(),
-          version.getSchema().getSchemaName(), version.getVersion());
+      MSchemaVersion oldMSchemaVersion = getMSchemaVersion(version.getSchema().getCatName(),
+          version.getSchema().getDbName(), version.getSchema().getSchemaName(), version.getVersion());
       if (oldMSchemaVersion == null) {
         throw new NoSuchObjectException("No schema version " + version + " exists");
       }
@@ -10007,9 +10012,9 @@ public class ObjectStore implements RawStore, Configurable {
     boolean committed = false;
     try {
       openTransaction();
-      SchemaVersion schemaVersion =
-          convertToSchemaVersion(getMSchemaVersion(version.getSchema().getDbName(),
-              version.getSchema().getSchemaName(), version.getVersion()));
+      SchemaVersion schemaVersion = convertToSchemaVersion(getMSchemaVersion(
+          version.getSchema().getCatName(), version.getSchema().getDbName(),
+          version.getSchema().getSchemaName(), version.getVersion()));
       committed = commitTransaction();
       return schemaVersion;
     } finally {
@@ -10017,17 +10022,19 @@ public class ObjectStore implements RawStore, Configurable {
     }
   }
 
-  private MSchemaVersion getMSchemaVersion(String dbName, String schemaName, int version) {
+  private MSchemaVersion getMSchemaVersion(String catName, String dbName, String schemaName, int version) {
     Query query = null;
     try {
       dbName = normalizeIdentifier(dbName);
       schemaName = normalizeIdentifier(schemaName);
       query = pm.newQuery(MSchemaVersion.class,
-          "iSchema.name == schemaName && iSchema.db.name == dbName && version == schemaVersion");
-      query.declareParameters(
-          "java.lang.String schemaName, java.lang.String dbName, java.lang.Integer schemaVersion");
+          "iSchema.name == schemaName && iSchema.db.name == dbName &&" +
+              "iSchema.db.catalogName == cat && version == schemaVersion");
+      query.declareParameters( "java.lang.String schemaName, java.lang.String dbName," +
+          "java.lang.String cat, java.lang.Integer schemaVersion");
       query.setUnique(true);
-      MSchemaVersion mSchemaVersion = (MSchemaVersion)query.execute(schemaName, dbName, version);
+      MSchemaVersion mSchemaVersion =
+          (MSchemaVersion)query.executeWithArray(schemaName, dbName, catName, version);
       pm.retrieve(mSchemaVersion);
       if (mSchemaVersion != null) {
         pm.retrieveAll(mSchemaVersion.getCols());
@@ -10047,13 +10054,15 @@ public class ObjectStore implements RawStore, Configurable {
       openTransaction();
       String name = normalizeIdentifier(schemaName.getSchemaName());
       String dbName = normalizeIdentifier(schemaName.getDbName());
+      String catName = normalizeIdentifier(schemaName.getCatName());
       query = pm.newQuery(MSchemaVersion.class,
-          "iSchema.name == schemaName && iSchema.db.name == dbName");
-      query.declareParameters("java.lang.String schemaName, java.lang.String dbName");
+          "iSchema.name == schemaName && iSchema.db.name == dbName && iSchema.db.catalogName == cat");
+      query.declareParameters("java.lang.String schemaName, java.lang.String dbName, " +
+          "java.lang.String cat");
       query.setUnique(true);
       query.setOrdering("version descending");
       query.setRange(0, 1);
-      MSchemaVersion mSchemaVersion = (MSchemaVersion)query.execute(name, dbName);
+      MSchemaVersion mSchemaVersion = (MSchemaVersion)query.execute(name, dbName, catName);
       pm.retrieve(mSchemaVersion);
       if (mSchemaVersion != null) {
         pm.retrieveAll(mSchemaVersion.getCols());
@@ -10075,11 +10084,13 @@ public class ObjectStore implements RawStore, Configurable {
       openTransaction();
       String name = normalizeIdentifier(schemaName.getSchemaName());
       String dbName = normalizeIdentifier(schemaName.getDbName());
-      query = pm.newQuery(MSchemaVersion.class,
-          "iSchema.name == schemaName && iSchema.db.name == dbName");
-      query.declareParameters("java.lang.String schemaName, java.lang.String dbName");
+      String catName = normalizeIdentifier(schemaName.getCatName());
+      query = pm.newQuery(MSchemaVersion.class, "iSchema.name == schemaName &&" +
+          "iSchema.db.name == dbName && iSchema.db.catalogName == cat");
+      query.declareParameters("java.lang.String schemaName, java.lang.String dbName," +
+          " java.lang.String cat");
       query.setOrdering("version descending");
-      List<MSchemaVersion> mSchemaVersions = query.setParameters(name, dbName).executeList();
+      List<MSchemaVersion> mSchemaVersions = query.setParameters(name, dbName, catName).executeList();
       pm.retrieveAll(mSchemaVersions);
       if (mSchemaVersions == null || mSchemaVersions.isEmpty()) return null;
       List<SchemaVersion> schemaVersions = new ArrayList<>(mSchemaVersions.size());
@@ -10156,8 +10167,8 @@ public class ObjectStore implements RawStore, Configurable {
     boolean committed = false;
     try {
       openTransaction();
-      MSchemaVersion mSchemaVersion = getMSchemaVersion(version.getSchema().getDbName(),
-          version.getSchema().getSchemaName(), version.getVersion());
+      MSchemaVersion mSchemaVersion = getMSchemaVersion(version.getSchema().getCatName(),
+          version.getSchema().getDbName(), version.getSchema().getSchemaName(), version.getVersion());
       if (mSchemaVersion != null) {
         pm.deletePersistentAll(mSchemaVersion);
       } else {
@@ -10220,8 +10231,7 @@ public class ObjectStore implements RawStore, Configurable {
   private MISchema convertToMISchema(ISchema schema) throws NoSuchObjectException {
     return new MISchema(schema.getSchemaType().getValue(),
                         normalizeIdentifier(schema.getName()),
-                        // TODO CAT
-                        getMDatabase(DEFAULT_CATALOG_NAME, schema.getDbName()),
+                        getMDatabase(schema.getCatName(), schema.getDbName()),
                         schema.getCompatibility().getValue(),
                         schema.getValidationLevel().getValue(),
                         schema.isCanEvolve(),
@@ -10233,6 +10243,7 @@ public class ObjectStore implements RawStore, Configurable {
     if (mSchema == null) return null;
     ISchema schema = new ISchema(SchemaType.findByValue(mSchema.getSchemaType()),
                                  mSchema.getName(),
+                                 mSchema.getDb().getCatalogName(),
                                  mSchema.getDb().getName(),
                                  SchemaCompatibility.findByValue(mSchema.getCompatibility()),
                                  SchemaValidation.findByValue(mSchema.getValidationLevel()),
@@ -10243,8 +10254,10 @@ public class ObjectStore implements RawStore, Configurable {
   }
 
   private MSchemaVersion convertToMSchemaVersion(SchemaVersion schemaVersion) throws MetaException {
-    return new MSchemaVersion(getMISchema(normalizeIdentifier(schemaVersion.getSchema().getDbName()),
-          normalizeIdentifier(schemaVersion.getSchema().getSchemaName())),
+    return new MSchemaVersion(getMISchema(
+        normalizeIdentifier(schemaVersion.getSchema().getCatName()),
+        normalizeIdentifier(schemaVersion.getSchema().getDbName()),
+        normalizeIdentifier(schemaVersion.getSchema().getSchemaName())),
         schemaVersion.getVersion(),
         schemaVersion.getCreatedAt(),
         createNewMColumnDescriptor(convertToMFieldSchemas(schemaVersion.getCols())),
@@ -10259,8 +10272,8 @@ public class ObjectStore implements RawStore, Configurable {
   private SchemaVersion convertToSchemaVersion(MSchemaVersion mSchemaVersion) throws MetaException {
     if (mSchemaVersion == null) return null;
     SchemaVersion schemaVersion = new SchemaVersion(
-        new ISchemaName(mSchemaVersion.getiSchema().getDb().getName(),
-            mSchemaVersion.getiSchema().getName()),
+        new ISchemaName(mSchemaVersion.getiSchema().getDb().getCatalogName(),
+            mSchemaVersion.getiSchema().getDb().getName(), mSchemaVersion.getiSchema().getName()),
         mSchemaVersion.getVersion(),
         mSchemaVersion.getCreatedAt(),
         convertToFieldSchemas(mSchemaVersion.getCols().getCols()));

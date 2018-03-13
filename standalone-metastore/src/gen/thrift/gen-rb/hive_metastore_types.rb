@@ -4440,16 +4440,18 @@ class ISchema
   include ::Thrift::Struct, ::Thrift::Struct_Union
   SCHEMATYPE = 1
   NAME = 2
-  DBNAME = 3
-  COMPATIBILITY = 4
-  VALIDATIONLEVEL = 5
-  CANEVOLVE = 6
-  SCHEMAGROUP = 7
-  DESCRIPTION = 8
+  CATNAME = 3
+  DBNAME = 4
+  COMPATIBILITY = 5
+  VALIDATIONLEVEL = 6
+  CANEVOLVE = 7
+  SCHEMAGROUP = 8
+  DESCRIPTION = 9
 
   FIELDS = {
     SCHEMATYPE => {:type => ::Thrift::Types::I32, :name => 'schemaType', :enum_class => ::SchemaType},
     NAME => {:type => ::Thrift::Types::STRING, :name => 'name'},
+    CATNAME => {:type => ::Thrift::Types::STRING, :name => 'catName'},
     DBNAME => {:type => ::Thrift::Types::STRING, :name => 'dbName'},
     COMPATIBILITY => {:type => ::Thrift::Types::I32, :name => 'compatibility', :enum_class => ::SchemaCompatibility},
     VALIDATIONLEVEL => {:type => ::Thrift::Types::I32, :name => 'validationLevel', :enum_class => ::SchemaValidation},
@@ -4477,10 +4479,12 @@ end
 
 class ISchemaName
   include ::Thrift::Struct, ::Thrift::Struct_Union
-  DBNAME = 1
-  SCHEMANAME = 2
+  CATNAME = 1
+  DBNAME = 2
+  SCHEMANAME = 3
 
   FIELDS = {
+    CATNAME => {:type => ::Thrift::Types::STRING, :name => 'catName'},
     DBNAME => {:type => ::Thrift::Types::STRING, :name => 'dbName'},
     SCHEMANAME => {:type => ::Thrift::Types::STRING, :name => 'schemaName'}
   }

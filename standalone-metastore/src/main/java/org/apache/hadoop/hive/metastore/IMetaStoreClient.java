@@ -3435,6 +3435,7 @@ public interface IMetaStoreClient {
 
   /**
    * Alter an existing schema.
+   * @param catName catalog name
    * @param dbName database the schema is in
    * @param schemaName name of the schema
    * @param newSchema altered schema object
@@ -3442,10 +3443,11 @@ public interface IMetaStoreClient {
    * @throws MetaException general metastore error
    * @throws TException general thrift error
    */
-  void alterISchema(String dbName, String schemaName, ISchema newSchema) throws TException;
+  void alterISchema(String catName, String dbName, String schemaName, ISchema newSchema) throws TException;
 
   /**
    * Fetch a schema.
+   * @param catName catalog name
    * @param dbName database the schema is in
    * @param name name of the schema
    * @return the schema or null if no such schema
@@ -3453,10 +3455,11 @@ public interface IMetaStoreClient {
    * @throws MetaException general metastore error
    * @throws TException general thrift error
    */
-  ISchema getISchema(String dbName, String name) throws TException;
+  ISchema getISchema(String catName, String dbName, String name) throws TException;
 
   /**
    * Drop an existing schema.  If there are schema versions of this, this call will fail.
+   * @param catName catalog name
    * @param dbName database the schema is in
    * @param name name of the schema to drop
    * @throws NoSuchObjectException no schema with this name could be found
@@ -3464,7 +3467,7 @@ public interface IMetaStoreClient {
    * @throws MetaException general metastore error
    * @throws TException general thrift error
    */
-  void dropISchema(String dbName, String name) throws TException;
+  void dropISchema(String catName, String dbName, String name) throws TException;
 
   /**
    * Add a new version to an existing schema.
@@ -3486,10 +3489,11 @@ public interface IMetaStoreClient {
    * @throws MetaException general metastore error
    * @throws TException general thrift error
    */
-  SchemaVersion getSchemaVersion(String dbName, String schemaName, int version) throws TException;
+  SchemaVersion getSchemaVersion(String catName, String dbName, String schemaName, int version) throws TException;
 
   /**
    * Get the latest version of a schema.
+   * @param catName catalog name
    * @param dbName database the schema is in
    * @param schemaName name of the schema
    * @return latest version of the schema or null if the schema does not exist or there are no
@@ -3498,10 +3502,11 @@ public interface IMetaStoreClient {
    * @throws MetaException general metastore error
    * @throws TException general thrift error
    */
-  SchemaVersion getSchemaLatestVersion(String dbName, String schemaName) throws TException;
+  SchemaVersion getSchemaLatestVersion(String catName, String dbName, String schemaName) throws TException;
 
   /**
    * Get all the extant versions of a schema.
+   * @param catName catalog name
    * @param dbName database the schema is in
    * @param schemaName name of the schema.
    * @return list of all the schema versions or null if this schema does not exist or has no
@@ -3510,12 +3515,13 @@ public interface IMetaStoreClient {
    * @throws MetaException general metastore error
    * @throws TException general thrift error
    */
-  List<SchemaVersion> getSchemaAllVersions(String dbName, String schemaName) throws TException;
+  List<SchemaVersion> getSchemaAllVersions(String catName, String dbName, String schemaName) throws TException;
 
   /**
    * Drop a version of a schema.  Given that versions are supposed to be immutable you should
    * think really hard before you call this method.  It should only be used for schema versions
    * that were added in error and never referenced any data.
+   * @param catName catalog name
    * @param dbName database the schema is in
    * @param schemaName name of the schema
    * @param version version of the schema
@@ -3523,7 +3529,7 @@ public interface IMetaStoreClient {
    * @throws MetaException general metastore error
    * @throws TException general thrift error
    */
-  void dropSchemaVersion(String dbName, String schemaName, int version) throws TException;
+  void dropSchemaVersion(String catName, String dbName, String schemaName, int version) throws TException;
 
   /**
    * Find all schema versions that have columns that match a query.
@@ -3538,6 +3544,7 @@ public interface IMetaStoreClient {
   /**
    * Map a schema version to a serde.  This mapping is one-to-one, thus this will destroy any
    * previous mappings for this schema version.
+   * @param catName catalog name
    * @param dbName database the schema is in
    * @param schemaName name of the schema
    * @param version version of the schema
@@ -3547,10 +3554,11 @@ public interface IMetaStoreClient {
    * @throws MetaException general metastore error
    * @throws TException general thrift error
    */
-  void mapSchemaVersionToSerde(String dbName, String schemaName, int version, String serdeName) throws TException;
+  void mapSchemaVersionToSerde(String catName, String dbName, String schemaName, int version, String serdeName) throws TException;
 
   /**
    * Set the state of a schema version.
+   * @param catName catalog name
    * @param dbName database the schema is in
    * @param schemaName name of the schema
    * @param version version of the schema
@@ -3560,7 +3568,7 @@ public interface IMetaStoreClient {
    * @throws MetaException general metastore error
    * @throws TException general thrift error
    */
-  void setSchemaVersionState(String dbName, String schemaName, int version, SchemaVersionState state) throws TException;
+  void setSchemaVersionState(String catName, String dbName, String schemaName, int version, SchemaVersionState state) throws TException;
 
   /**
    * Add a serde.  This is primarily intended for use with SchemaRegistry objects, since serdes

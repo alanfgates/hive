@@ -1480,7 +1480,6 @@ public interface RawStore extends Configurable {
    * @throws AlreadyExistsException there's already a schema with this name
    * @throws MetaException general database exception
    */
-  // TODO
   void createISchema(ISchema schema) throws AlreadyExistsException, MetaException,
       NoSuchObjectException;
 
@@ -1500,7 +1499,6 @@ public interface RawStore extends Configurable {
    * @return ISchema
    * @throws MetaException general database exception
    */
-  // TODO
   ISchema getISchema(ISchemaName schemaName) throws MetaException;
 
   /**
@@ -1510,7 +1508,6 @@ public interface RawStore extends Configurable {
    * @throws NoSuchObjectException no schema of this name exists
    * @throws MetaException general database exception
    */
-    // TODO
   void dropISchema(ISchemaName schemaName) throws NoSuchObjectException, MetaException;
 
   /**
@@ -1522,7 +1519,6 @@ public interface RawStore extends Configurable {
    * @throws NoSuchObjectException no schema with the passed in name exists.
    * @throws MetaException general database exception
    */
-  // TODO
   void addSchemaVersion(SchemaVersion schemaVersion)
       throws AlreadyExistsException, InvalidObjectException, NoSuchObjectException, MetaException;
 
@@ -1536,7 +1532,6 @@ public interface RawStore extends Configurable {
    * @throws NoSuchObjectException no such version of the named schema exists
    * @throws MetaException general database exception
    */
-    // TODO
   void alterSchemaVersion(SchemaVersionDescriptor version, SchemaVersion newVersion)
       throws NoSuchObjectException, MetaException;
 
@@ -1546,7 +1541,6 @@ public interface RawStore extends Configurable {
    * @return the SchemaVersion
    * @throws MetaException general database exception
    */
-    // TODO
   SchemaVersion getSchemaVersion(SchemaVersionDescriptor version) throws MetaException;
 
   /**
@@ -1555,7 +1549,6 @@ public interface RawStore extends Configurable {
    * @return latest version of the schema
    * @throws MetaException general database exception
    */
-    // TODO
   SchemaVersion getLatestSchemaVersion(ISchemaName schemaName) throws MetaException;
 
   /**
@@ -1564,7 +1557,6 @@ public interface RawStore extends Configurable {
    * @return all versions of the schema
    * @throws MetaException general database exception
    */
-    // TODO
   List<SchemaVersion> getAllSchemaVersion(ISchemaName schemaName) throws MetaException;
 
   /**
@@ -1583,7 +1575,6 @@ public interface RawStore extends Configurable {
    * matching SchemaVersions.
    * @throws MetaException general database exception
    */
-  // TODO
   List<SchemaVersion> getSchemaVersionsByColumns(String colName, String colNamespace, String type)
       throws MetaException;
 
@@ -1593,7 +1584,6 @@ public interface RawStore extends Configurable {
    * @throws NoSuchObjectException no such version of the named schema exists
    * @throws MetaException general database exception
    */
-    // TODO
   void dropSchemaVersion(SchemaVersionDescriptor version) throws NoSuchObjectException, MetaException;
 
   /**

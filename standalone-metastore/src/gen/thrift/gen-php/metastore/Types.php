@@ -27183,6 +27183,10 @@ class ISchema {
   /**
    * @var string
    */
+  public $catName = null;
+  /**
+   * @var string
+   */
   public $dbName = null;
   /**
    * @var int
@@ -27217,26 +27221,30 @@ class ISchema {
           'type' => TType::STRING,
           ),
         3 => array(
-          'var' => 'dbName',
+          'var' => 'catName',
           'type' => TType::STRING,
           ),
         4 => array(
+          'var' => 'dbName',
+          'type' => TType::STRING,
+          ),
+        5 => array(
           'var' => 'compatibility',
           'type' => TType::I32,
           ),
-        5 => array(
+        6 => array(
           'var' => 'validationLevel',
           'type' => TType::I32,
           ),
-        6 => array(
+        7 => array(
           'var' => 'canEvolve',
           'type' => TType::BOOL,
           ),
-        7 => array(
+        8 => array(
           'var' => 'schemaGroup',
           'type' => TType::STRING,
           ),
-        8 => array(
+        9 => array(
           'var' => 'description',
           'type' => TType::STRING,
           ),
@@ -27248,6 +27256,9 @@ class ISchema {
       }
       if (isset($vals['name'])) {
         $this->name = $vals['name'];
+      }
+      if (isset($vals['catName'])) {
+        $this->catName = $vals['catName'];
       }
       if (isset($vals['dbName'])) {
         $this->dbName = $vals['dbName'];
@@ -27305,40 +27316,47 @@ class ISchema {
           break;
         case 3:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->dbName);
+            $xfer += $input->readString($this->catName);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 4:
-          if ($ftype == TType::I32) {
-            $xfer += $input->readI32($this->compatibility);
+          if ($ftype == TType::STRING) {
+            $xfer += $input->readString($this->dbName);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 5:
           if ($ftype == TType::I32) {
-            $xfer += $input->readI32($this->validationLevel);
+            $xfer += $input->readI32($this->compatibility);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 6:
+          if ($ftype == TType::I32) {
+            $xfer += $input->readI32($this->validationLevel);
+          } else {
+            $xfer += $input->skip($ftype);
+          }
+          break;
+        case 7:
           if ($ftype == TType::BOOL) {
             $xfer += $input->readBool($this->canEvolve);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
-        case 7:
+        case 8:
           if ($ftype == TType::STRING) {
             $xfer += $input->readString($this->schemaGroup);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
-        case 8:
+        case 9:
           if ($ftype == TType::STRING) {
             $xfer += $input->readString($this->description);
           } else {
@@ -27368,33 +27386,38 @@ class ISchema {
       $xfer += $output->writeString($this->name);
       $xfer += $output->writeFieldEnd();
     }
+    if ($this->catName !== null) {
+      $xfer += $output->writeFieldBegin('catName', TType::STRING, 3);
+      $xfer += $output->writeString($this->catName);
+      $xfer += $output->writeFieldEnd();
+    }
     if ($this->dbName !== null) {
-      $xfer += $output->writeFieldBegin('dbName', TType::STRING, 3);
+      $xfer += $output->writeFieldBegin('dbName', TType::STRING, 4);
       $xfer += $output->writeString($this->dbName);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->compatibility !== null) {
-      $xfer += $output->writeFieldBegin('compatibility', TType::I32, 4);
+      $xfer += $output->writeFieldBegin('compatibility', TType::I32, 5);
       $xfer += $output->writeI32($this->compatibility);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->validationLevel !== null) {
-      $xfer += $output->writeFieldBegin('validationLevel', TType::I32, 5);
+      $xfer += $output->writeFieldBegin('validationLevel', TType::I32, 6);
       $xfer += $output->writeI32($this->validationLevel);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->canEvolve !== null) {
-      $xfer += $output->writeFieldBegin('canEvolve', TType::BOOL, 6);
+      $xfer += $output->writeFieldBegin('canEvolve', TType::BOOL, 7);
       $xfer += $output->writeBool($this->canEvolve);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->schemaGroup !== null) {
-      $xfer += $output->writeFieldBegin('schemaGroup', TType::STRING, 7);
+      $xfer += $output->writeFieldBegin('schemaGroup', TType::STRING, 8);
       $xfer += $output->writeString($this->schemaGroup);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->description !== null) {
-      $xfer += $output->writeFieldBegin('description', TType::STRING, 8);
+      $xfer += $output->writeFieldBegin('description', TType::STRING, 9);
       $xfer += $output->writeString($this->description);
       $xfer += $output->writeFieldEnd();
     }
@@ -27411,6 +27434,10 @@ class ISchemaName {
   /**
    * @var string
    */
+  public $catName = null;
+  /**
+   * @var string
+   */
   public $dbName = null;
   /**
    * @var string
@@ -27421,16 +27448,23 @@ class ISchemaName {
     if (!isset(self::$_TSPEC)) {
       self::$_TSPEC = array(
         1 => array(
-          'var' => 'dbName',
+          'var' => 'catName',
           'type' => TType::STRING,
           ),
         2 => array(
+          'var' => 'dbName',
+          'type' => TType::STRING,
+          ),
+        3 => array(
           'var' => 'schemaName',
           'type' => TType::STRING,
           ),
         );
     }
     if (is_array($vals)) {
+      if (isset($vals['catName'])) {
+        $this->catName = $vals['catName'];
+      }
       if (isset($vals['dbName'])) {
         $this->dbName = $vals['dbName'];
       }
@@ -27461,12 +27495,19 @@ class ISchemaName {
       {
         case 1:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->dbName);
+            $xfer += $input->readString($this->catName);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 2:
+          if ($ftype == TType::STRING) {
+            $xfer += $input->readString($this->dbName);
+          } else {
+            $xfer += $input->skip($ftype);
+          }
+          break;
+        case 3:
           if ($ftype == TType::STRING) {
             $xfer += $input->readString($this->schemaName);
           } else {
@@ -27486,13 +27527,18 @@ class ISchemaName {
   public function write($output) {
     $xfer = 0;
     $xfer += $output->writeStructBegin('ISchemaName');
+    if ($this->catName !== null) {
+      $xfer += $output->writeFieldBegin('catName', TType::STRING, 1);
+      $xfer += $output->writeString($this->catName);
+      $xfer += $output->writeFieldEnd();
+    }
     if ($this->dbName !== null) {
-      $xfer += $output->writeFieldBegin('dbName', TType::STRING, 1);
+      $xfer += $output->writeFieldBegin('dbName', TType::STRING, 2);
       $xfer += $output->writeString($this->dbName);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->schemaName !== null) {
-      $xfer += $output->writeFieldBegin('schemaName', TType::STRING, 2);
+      $xfer += $output->writeFieldBegin('schemaName', TType::STRING, 3);
       $xfer += $output->writeString($this->schemaName);
       $xfer += $output->writeFieldEnd();
     }
