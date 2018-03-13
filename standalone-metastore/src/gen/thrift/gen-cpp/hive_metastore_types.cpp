@@ -1128,6 +1128,10 @@ SQLUniqueConstraint::~SQLUniqueConstraint() throw() {
 }
 
 
+void SQLUniqueConstraint::__set_catName(const std::string& val) {
+  this->catName = val;
+}
+
 void SQLUniqueConstraint::__set_table_db(const std::string& val) {
   this->table_db = val;
 }
@@ -1160,11 +1164,6 @@ void SQLUniqueConstraint::__set_rely_cstr(const bool val) {
   this->rely_cstr = val;
 }
 
-void SQLUniqueConstraint::__set_catName(const std::string& val) {
-  this->catName = val;
-__isset.catName = true;
-}
-
 uint32_t SQLUniqueConstraint::read(::apache::thrift::protocol::TProtocol* iprot) {
 
   apache::thrift::protocol::TInputRecursionTracker tracker(*iprot);
@@ -1188,13 +1187,21 @@ uint32_t SQLUniqueConstraint::read(::apache::thrift::protocol::TProtocol* iprot)
     {
       case 1:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
+          xfer += iprot->readString(this->catName);
+          this->__isset.catName = true;
+        } else {
+          xfer += iprot->skip(ftype);
+        }
+        break;
+      case 2:
+        if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->table_db);
           this->__isset.table_db = true;
         } else {
           xfer += iprot->skip(ftype);
         }
         break;
-      case 2:
+      case 3:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->table_name);
           this->__isset.table_name = true;
@@ -1202,7 +1209,7 @@ uint32_t SQLUniqueConstraint::read(::apache::thrift::protocol::TProtocol* iprot)
           xfer += iprot->skip(ftype);
         }
         break;
-      case 3:
+      case 4:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->column_name);
           this->__isset.column_name = true;
@@ -1210,7 +1217,7 @@ uint32_t SQLUniqueConstraint::read(::apache::thrift::protocol::TProtocol* iprot)
           xfer += iprot->skip(ftype);
         }
         break;
-      case 4:
+      case 5:
         if (ftype == ::apache::thrift::protocol::T_I32) {
           xfer += iprot->readI32(this->key_seq);
           this->__isset.key_seq = true;
@@ -1218,7 +1225,7 @@ uint32_t SQLUniqueConstraint::read(::apache::thrift::protocol::TProtocol* iprot)
           xfer += iprot->skip(ftype);
         }
         break;
-      case 5:
+      case 6:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->uk_name);
           this->__isset.uk_name = true;
@@ -1226,7 +1233,7 @@ uint32_t SQLUniqueConstraint::read(::apache::thrift::protocol::TProtocol* iprot)
           xfer += iprot->skip(ftype);
         }
         break;
-      case 6:
+      case 7:
         if (ftype == ::apache::thrift::protocol::T_BOOL) {
           xfer += iprot->readBool(this->enable_cstr);
           this->__isset.enable_cstr = true;
@@ -1234,7 +1241,7 @@ uint32_t SQLUniqueConstraint::read(::apache::thrift::protocol::TProtocol* iprot)
           xfer += iprot->skip(ftype);
         }
         break;
-      case 7:
+      case 8:
         if (ftype == ::apache::thrift::protocol::T_BOOL) {
           xfer += iprot->readBool(this->validate_cstr);
           this->__isset.validate_cstr = true;
@@ -1242,18 +1249,10 @@ uint32_t SQLUniqueConstraint::read(::apache::thrift::protocol::TProtocol* iprot)
           xfer += iprot->skip(ftype);
         }
         break;
-      case 8:
+      case 9:
         if (ftype == ::apache::thrift::protocol::T_BOOL) {
           xfer += iprot->readBool(this->rely_cstr);
           this->__isset.rely_cstr = true;
-        } else {
-          xfer += iprot->skip(ftype);
-        }
-        break;
-      case 9:
-        if (ftype == ::apache::thrift::protocol::T_STRING) {
-          xfer += iprot->readString(this->catName);
-          this->__isset.catName = true;
         } else {
           xfer += iprot->skip(ftype);
         }
@@ -1275,43 +1274,42 @@ uint32_t SQLUniqueConstraint::write(::apache::thrift::protocol::TProtocol* oprot
   apache::thrift::protocol::TOutputRecursionTracker tracker(*oprot);
   xfer += oprot->writeStructBegin("SQLUniqueConstraint");
 
-  xfer += oprot->writeFieldBegin("table_db", ::apache::thrift::protocol::T_STRING, 1);
+  xfer += oprot->writeFieldBegin("catName", ::apache::thrift::protocol::T_STRING, 1);
+  xfer += oprot->writeString(this->catName);
+  xfer += oprot->writeFieldEnd();
+
+  xfer += oprot->writeFieldBegin("table_db", ::apache::thrift::protocol::T_STRING, 2);
   xfer += oprot->writeString(this->table_db);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("table_name", ::apache::thrift::protocol::T_STRING, 2);
+  xfer += oprot->writeFieldBegin("table_name", ::apache::thrift::protocol::T_STRING, 3);
   xfer += oprot->writeString(this->table_name);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("column_name", ::apache::thrift::protocol::T_STRING, 3);
+  xfer += oprot->writeFieldBegin("column_name", ::apache::thrift::protocol::T_STRING, 4);
   xfer += oprot->writeString(this->column_name);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("key_seq", ::apache::thrift::protocol::T_I32, 4);
+  xfer += oprot->writeFieldBegin("key_seq", ::apache::thrift::protocol::T_I32, 5);
   xfer += oprot->writeI32(this->key_seq);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("uk_name", ::apache::thrift::protocol::T_STRING, 5);
+  xfer += oprot->writeFieldBegin("uk_name", ::apache::thrift::protocol::T_STRING, 6);
   xfer += oprot->writeString(this->uk_name);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("enable_cstr", ::apache::thrift::protocol::T_BOOL, 6);
+  xfer += oprot->writeFieldBegin("enable_cstr", ::apache::thrift::protocol::T_BOOL, 7);
   xfer += oprot->writeBool(this->enable_cstr);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("validate_cstr", ::apache::thrift::protocol::T_BOOL, 7);
+  xfer += oprot->writeFieldBegin("validate_cstr", ::apache::thrift::protocol::T_BOOL, 8);
   xfer += oprot->writeBool(this->validate_cstr);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("rely_cstr", ::apache::thrift::protocol::T_BOOL, 8);
+  xfer += oprot->writeFieldBegin("rely_cstr", ::apache::thrift::protocol::T_BOOL, 9);
   xfer += oprot->writeBool(this->rely_cstr);
   xfer += oprot->writeFieldEnd();
 
-  if (this->__isset.catName) {
-    xfer += oprot->writeFieldBegin("catName", ::apache::thrift::protocol::T_STRING, 9);
-    xfer += oprot->writeString(this->catName);
-    xfer += oprot->writeFieldEnd();
-  }
   xfer += oprot->writeFieldStop();
   xfer += oprot->writeStructEnd();
   return xfer;
@@ -1319,6 +1317,7 @@ uint32_t SQLUniqueConstraint::write(::apache::thrift::protocol::TProtocol* oprot
 
 void swap(SQLUniqueConstraint &a, SQLUniqueConstraint &b) {
   using ::std::swap;
+  swap(a.catName, b.catName);
   swap(a.table_db, b.table_db);
   swap(a.table_name, b.table_name);
   swap(a.column_name, b.column_name);
@@ -1327,11 +1326,11 @@ void swap(SQLUniqueConstraint &a, SQLUniqueConstraint &b) {
   swap(a.enable_cstr, b.enable_cstr);
   swap(a.validate_cstr, b.validate_cstr);
   swap(a.rely_cstr, b.rely_cstr);
-  swap(a.catName, b.catName);
   swap(a.__isset, b.__isset);
 }
 
 SQLUniqueConstraint::SQLUniqueConstraint(const SQLUniqueConstraint& other8) {
+  catName = other8.catName;
   table_db = other8.table_db;
   table_name = other8.table_name;
   column_name = other8.column_name;
@@ -1340,10 +1339,10 @@ SQLUniqueConstraint::SQLUniqueConstraint(const SQLUniqueConstraint& other8) {
   enable_cstr = other8.enable_cstr;
   validate_cstr = other8.validate_cstr;
   rely_cstr = other8.rely_cstr;
-  catName = other8.catName;
   __isset = other8.__isset;
 }
 SQLUniqueConstraint& SQLUniqueConstraint::operator=(const SQLUniqueConstraint& other9) {
+  catName = other9.catName;
   table_db = other9.table_db;
   table_name = other9.table_name;
   column_name = other9.column_name;
@@ -1352,14 +1351,14 @@ SQLUniqueConstraint& SQLUniqueConstraint::operator=(const SQLUniqueConstraint& o
   enable_cstr = other9.enable_cstr;
   validate_cstr = other9.validate_cstr;
   rely_cstr = other9.rely_cstr;
-  catName = other9.catName;
   __isset = other9.__isset;
   return *this;
 }
 void SQLUniqueConstraint::printTo(std::ostream& out) const {
   using ::apache::thrift::to_string;
   out << "SQLUniqueConstraint(";
-  out << "table_db=" << to_string(table_db);
+  out << "catName=" << to_string(catName);
+  out << ", " << "table_db=" << to_string(table_db);
   out << ", " << "table_name=" << to_string(table_name);
   out << ", " << "column_name=" << to_string(column_name);
   out << ", " << "key_seq=" << to_string(key_seq);
@@ -1367,7 +1366,6 @@ void SQLUniqueConstraint::printTo(std::ostream& out) const {
   out << ", " << "enable_cstr=" << to_string(enable_cstr);
   out << ", " << "validate_cstr=" << to_string(validate_cstr);
   out << ", " << "rely_cstr=" << to_string(rely_cstr);
-  out << ", " << "catName="; (__isset.catName ? (out << to_string(catName)) : (out << "<null>"));
   out << ")";
 }
 
@@ -1375,6 +1373,10 @@ void SQLUniqueConstraint::printTo(std::ostream& out) const {
 SQLNotNullConstraint::~SQLNotNullConstraint() throw() {
 }
 
+
+void SQLNotNullConstraint::__set_catName(const std::string& val) {
+  this->catName = val;
+}
 
 void SQLNotNullConstraint::__set_table_db(const std::string& val) {
   this->table_db = val;
@@ -1404,11 +1406,6 @@ void SQLNotNullConstraint::__set_rely_cstr(const bool val) {
   this->rely_cstr = val;
 }
 
-void SQLNotNullConstraint::__set_catName(const std::string& val) {
-  this->catName = val;
-__isset.catName = true;
-}
-
 uint32_t SQLNotNullConstraint::read(::apache::thrift::protocol::TProtocol* iprot) {
 
   apache::thrift::protocol::TInputRecursionTracker tracker(*iprot);
@@ -1432,13 +1429,21 @@ uint32_t SQLNotNullConstraint::read(::apache::thrift::protocol::TProtocol* iprot
     {
       case 1:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
+          xfer += iprot->readString(this->catName);
+          this->__isset.catName = true;
+        } else {
+          xfer += iprot->skip(ftype);
+        }
+        break;
+      case 2:
+        if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->table_db);
           this->__isset.table_db = true;
         } else {
           xfer += iprot->skip(ftype);
         }
         break;
-      case 2:
+      case 3:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->table_name);
           this->__isset.table_name = true;
@@ -1446,7 +1451,7 @@ uint32_t SQLNotNullConstraint::read(::apache::thrift::protocol::TProtocol* iprot
           xfer += iprot->skip(ftype);
         }
         break;
-      case 3:
+      case 4:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->column_name);
           this->__isset.column_name = true;
@@ -1454,7 +1459,7 @@ uint32_t SQLNotNullConstraint::read(::apache::thrift::protocol::TProtocol* iprot
           xfer += iprot->skip(ftype);
         }
         break;
-      case 4:
+      case 5:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->nn_name);
           this->__isset.nn_name = true;
@@ -1462,7 +1467,7 @@ uint32_t SQLNotNullConstraint::read(::apache::thrift::protocol::TProtocol* iprot
           xfer += iprot->skip(ftype);
         }
         break;
-      case 5:
+      case 6:
         if (ftype == ::apache::thrift::protocol::T_BOOL) {
           xfer += iprot->readBool(this->enable_cstr);
           this->__isset.enable_cstr = true;
@@ -1470,7 +1475,7 @@ uint32_t SQLNotNullConstraint::read(::apache::thrift::protocol::TProtocol* iprot
           xfer += iprot->skip(ftype);
         }
         break;
-      case 6:
+      case 7:
         if (ftype == ::apache::thrift::protocol::T_BOOL) {
           xfer += iprot->readBool(this->validate_cstr);
           this->__isset.validate_cstr = true;
@@ -1478,18 +1483,10 @@ uint32_t SQLNotNullConstraint::read(::apache::thrift::protocol::TProtocol* iprot
           xfer += iprot->skip(ftype);
         }
         break;
-      case 7:
+      case 8:
         if (ftype == ::apache::thrift::protocol::T_BOOL) {
           xfer += iprot->readBool(this->rely_cstr);
           this->__isset.rely_cstr = true;
-        } else {
-          xfer += iprot->skip(ftype);
-        }
-        break;
-      case 9:
-        if (ftype == ::apache::thrift::protocol::T_STRING) {
-          xfer += iprot->readString(this->catName);
-          this->__isset.catName = true;
         } else {
           xfer += iprot->skip(ftype);
         }
@@ -1511,39 +1508,38 @@ uint32_t SQLNotNullConstraint::write(::apache::thrift::protocol::TProtocol* opro
   apache::thrift::protocol::TOutputRecursionTracker tracker(*oprot);
   xfer += oprot->writeStructBegin("SQLNotNullConstraint");
 
-  xfer += oprot->writeFieldBegin("table_db", ::apache::thrift::protocol::T_STRING, 1);
+  xfer += oprot->writeFieldBegin("catName", ::apache::thrift::protocol::T_STRING, 1);
+  xfer += oprot->writeString(this->catName);
+  xfer += oprot->writeFieldEnd();
+
+  xfer += oprot->writeFieldBegin("table_db", ::apache::thrift::protocol::T_STRING, 2);
   xfer += oprot->writeString(this->table_db);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("table_name", ::apache::thrift::protocol::T_STRING, 2);
+  xfer += oprot->writeFieldBegin("table_name", ::apache::thrift::protocol::T_STRING, 3);
   xfer += oprot->writeString(this->table_name);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("column_name", ::apache::thrift::protocol::T_STRING, 3);
+  xfer += oprot->writeFieldBegin("column_name", ::apache::thrift::protocol::T_STRING, 4);
   xfer += oprot->writeString(this->column_name);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("nn_name", ::apache::thrift::protocol::T_STRING, 4);
+  xfer += oprot->writeFieldBegin("nn_name", ::apache::thrift::protocol::T_STRING, 5);
   xfer += oprot->writeString(this->nn_name);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("enable_cstr", ::apache::thrift::protocol::T_BOOL, 5);
+  xfer += oprot->writeFieldBegin("enable_cstr", ::apache::thrift::protocol::T_BOOL, 6);
   xfer += oprot->writeBool(this->enable_cstr);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("validate_cstr", ::apache::thrift::protocol::T_BOOL, 6);
+  xfer += oprot->writeFieldBegin("validate_cstr", ::apache::thrift::protocol::T_BOOL, 7);
   xfer += oprot->writeBool(this->validate_cstr);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("rely_cstr", ::apache::thrift::protocol::T_BOOL, 7);
+  xfer += oprot->writeFieldBegin("rely_cstr", ::apache::thrift::protocol::T_BOOL, 8);
   xfer += oprot->writeBool(this->rely_cstr);
   xfer += oprot->writeFieldEnd();
 
-  if (this->__isset.catName) {
-    xfer += oprot->writeFieldBegin("catName", ::apache::thrift::protocol::T_STRING, 9);
-    xfer += oprot->writeString(this->catName);
-    xfer += oprot->writeFieldEnd();
-  }
   xfer += oprot->writeFieldStop();
   xfer += oprot->writeStructEnd();
   return xfer;
@@ -1551,6 +1547,7 @@ uint32_t SQLNotNullConstraint::write(::apache::thrift::protocol::TProtocol* opro
 
 void swap(SQLNotNullConstraint &a, SQLNotNullConstraint &b) {
   using ::std::swap;
+  swap(a.catName, b.catName);
   swap(a.table_db, b.table_db);
   swap(a.table_name, b.table_name);
   swap(a.column_name, b.column_name);
@@ -1558,11 +1555,11 @@ void swap(SQLNotNullConstraint &a, SQLNotNullConstraint &b) {
   swap(a.enable_cstr, b.enable_cstr);
   swap(a.validate_cstr, b.validate_cstr);
   swap(a.rely_cstr, b.rely_cstr);
-  swap(a.catName, b.catName);
   swap(a.__isset, b.__isset);
 }
 
 SQLNotNullConstraint::SQLNotNullConstraint(const SQLNotNullConstraint& other10) {
+  catName = other10.catName;
   table_db = other10.table_db;
   table_name = other10.table_name;
   column_name = other10.column_name;
@@ -1570,10 +1567,10 @@ SQLNotNullConstraint::SQLNotNullConstraint(const SQLNotNullConstraint& other10) 
   enable_cstr = other10.enable_cstr;
   validate_cstr = other10.validate_cstr;
   rely_cstr = other10.rely_cstr;
-  catName = other10.catName;
   __isset = other10.__isset;
 }
 SQLNotNullConstraint& SQLNotNullConstraint::operator=(const SQLNotNullConstraint& other11) {
+  catName = other11.catName;
   table_db = other11.table_db;
   table_name = other11.table_name;
   column_name = other11.column_name;
@@ -1581,21 +1578,20 @@ SQLNotNullConstraint& SQLNotNullConstraint::operator=(const SQLNotNullConstraint
   enable_cstr = other11.enable_cstr;
   validate_cstr = other11.validate_cstr;
   rely_cstr = other11.rely_cstr;
-  catName = other11.catName;
   __isset = other11.__isset;
   return *this;
 }
 void SQLNotNullConstraint::printTo(std::ostream& out) const {
   using ::apache::thrift::to_string;
   out << "SQLNotNullConstraint(";
-  out << "table_db=" << to_string(table_db);
+  out << "catName=" << to_string(catName);
+  out << ", " << "table_db=" << to_string(table_db);
   out << ", " << "table_name=" << to_string(table_name);
   out << ", " << "column_name=" << to_string(column_name);
   out << ", " << "nn_name=" << to_string(nn_name);
   out << ", " << "enable_cstr=" << to_string(enable_cstr);
   out << ", " << "validate_cstr=" << to_string(validate_cstr);
   out << ", " << "rely_cstr=" << to_string(rely_cstr);
-  out << ", " << "catName="; (__isset.catName ? (out << to_string(catName)) : (out << "<null>"));
   out << ")";
 }
 
@@ -1603,6 +1599,10 @@ void SQLNotNullConstraint::printTo(std::ostream& out) const {
 SQLDefaultConstraint::~SQLDefaultConstraint() throw() {
 }
 
+
+void SQLDefaultConstraint::__set_catName(const std::string& val) {
+  this->catName = val;
+}
 
 void SQLDefaultConstraint::__set_table_db(const std::string& val) {
   this->table_db = val;
@@ -1659,13 +1659,21 @@ uint32_t SQLDefaultConstraint::read(::apache::thrift::protocol::TProtocol* iprot
     {
       case 1:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
+          xfer += iprot->readString(this->catName);
+          this->__isset.catName = true;
+        } else {
+          xfer += iprot->skip(ftype);
+        }
+        break;
+      case 2:
+        if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->table_db);
           this->__isset.table_db = true;
         } else {
           xfer += iprot->skip(ftype);
         }
         break;
-      case 2:
+      case 3:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->table_name);
           this->__isset.table_name = true;
@@ -1673,7 +1681,7 @@ uint32_t SQLDefaultConstraint::read(::apache::thrift::protocol::TProtocol* iprot
           xfer += iprot->skip(ftype);
         }
         break;
-      case 3:
+      case 4:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->column_name);
           this->__isset.column_name = true;
@@ -1681,7 +1689,7 @@ uint32_t SQLDefaultConstraint::read(::apache::thrift::protocol::TProtocol* iprot
           xfer += iprot->skip(ftype);
         }
         break;
-      case 4:
+      case 5:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->default_value);
           this->__isset.default_value = true;
@@ -1689,7 +1697,7 @@ uint32_t SQLDefaultConstraint::read(::apache::thrift::protocol::TProtocol* iprot
           xfer += iprot->skip(ftype);
         }
         break;
-      case 5:
+      case 6:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->dc_name);
           this->__isset.dc_name = true;
@@ -1697,7 +1705,7 @@ uint32_t SQLDefaultConstraint::read(::apache::thrift::protocol::TProtocol* iprot
           xfer += iprot->skip(ftype);
         }
         break;
-      case 6:
+      case 7:
         if (ftype == ::apache::thrift::protocol::T_BOOL) {
           xfer += iprot->readBool(this->enable_cstr);
           this->__isset.enable_cstr = true;
@@ -1705,7 +1713,7 @@ uint32_t SQLDefaultConstraint::read(::apache::thrift::protocol::TProtocol* iprot
           xfer += iprot->skip(ftype);
         }
         break;
-      case 7:
+      case 8:
         if (ftype == ::apache::thrift::protocol::T_BOOL) {
           xfer += iprot->readBool(this->validate_cstr);
           this->__isset.validate_cstr = true;
@@ -1713,7 +1721,7 @@ uint32_t SQLDefaultConstraint::read(::apache::thrift::protocol::TProtocol* iprot
           xfer += iprot->skip(ftype);
         }
         break;
-      case 8:
+      case 9:
         if (ftype == ::apache::thrift::protocol::T_BOOL) {
           xfer += iprot->readBool(this->rely_cstr);
           this->__isset.rely_cstr = true;
@@ -1738,35 +1746,39 @@ uint32_t SQLDefaultConstraint::write(::apache::thrift::protocol::TProtocol* opro
   apache::thrift::protocol::TOutputRecursionTracker tracker(*oprot);
   xfer += oprot->writeStructBegin("SQLDefaultConstraint");
 
-  xfer += oprot->writeFieldBegin("table_db", ::apache::thrift::protocol::T_STRING, 1);
+  xfer += oprot->writeFieldBegin("catName", ::apache::thrift::protocol::T_STRING, 1);
+  xfer += oprot->writeString(this->catName);
+  xfer += oprot->writeFieldEnd();
+
+  xfer += oprot->writeFieldBegin("table_db", ::apache::thrift::protocol::T_STRING, 2);
   xfer += oprot->writeString(this->table_db);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("table_name", ::apache::thrift::protocol::T_STRING, 2);
+  xfer += oprot->writeFieldBegin("table_name", ::apache::thrift::protocol::T_STRING, 3);
   xfer += oprot->writeString(this->table_name);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("column_name", ::apache::thrift::protocol::T_STRING, 3);
+  xfer += oprot->writeFieldBegin("column_name", ::apache::thrift::protocol::T_STRING, 4);
   xfer += oprot->writeString(this->column_name);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("default_value", ::apache::thrift::protocol::T_STRING, 4);
+  xfer += oprot->writeFieldBegin("default_value", ::apache::thrift::protocol::T_STRING, 5);
   xfer += oprot->writeString(this->default_value);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("dc_name", ::apache::thrift::protocol::T_STRING, 5);
+  xfer += oprot->writeFieldBegin("dc_name", ::apache::thrift::protocol::T_STRING, 6);
   xfer += oprot->writeString(this->dc_name);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("enable_cstr", ::apache::thrift::protocol::T_BOOL, 6);
+  xfer += oprot->writeFieldBegin("enable_cstr", ::apache::thrift::protocol::T_BOOL, 7);
   xfer += oprot->writeBool(this->enable_cstr);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("validate_cstr", ::apache::thrift::protocol::T_BOOL, 7);
+  xfer += oprot->writeFieldBegin("validate_cstr", ::apache::thrift::protocol::T_BOOL, 8);
   xfer += oprot->writeBool(this->validate_cstr);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("rely_cstr", ::apache::thrift::protocol::T_BOOL, 8);
+  xfer += oprot->writeFieldBegin("rely_cstr", ::apache::thrift::protocol::T_BOOL, 9);
   xfer += oprot->writeBool(this->rely_cstr);
   xfer += oprot->writeFieldEnd();
 
@@ -1777,6 +1789,7 @@ uint32_t SQLDefaultConstraint::write(::apache::thrift::protocol::TProtocol* opro
 
 void swap(SQLDefaultConstraint &a, SQLDefaultConstraint &b) {
   using ::std::swap;
+  swap(a.catName, b.catName);
   swap(a.table_db, b.table_db);
   swap(a.table_name, b.table_name);
   swap(a.column_name, b.column_name);
@@ -1789,6 +1802,7 @@ void swap(SQLDefaultConstraint &a, SQLDefaultConstraint &b) {
 }
 
 SQLDefaultConstraint::SQLDefaultConstraint(const SQLDefaultConstraint& other12) {
+  catName = other12.catName;
   table_db = other12.table_db;
   table_name = other12.table_name;
   column_name = other12.column_name;
@@ -1800,6 +1814,7 @@ SQLDefaultConstraint::SQLDefaultConstraint(const SQLDefaultConstraint& other12) 
   __isset = other12.__isset;
 }
 SQLDefaultConstraint& SQLDefaultConstraint::operator=(const SQLDefaultConstraint& other13) {
+  catName = other13.catName;
   table_db = other13.table_db;
   table_name = other13.table_name;
   column_name = other13.column_name;
@@ -1814,7 +1829,8 @@ SQLDefaultConstraint& SQLDefaultConstraint::operator=(const SQLDefaultConstraint
 void SQLDefaultConstraint::printTo(std::ostream& out) const {
   using ::apache::thrift::to_string;
   out << "SQLDefaultConstraint(";
-  out << "table_db=" << to_string(table_db);
+  out << "catName=" << to_string(catName);
+  out << ", " << "table_db=" << to_string(table_db);
   out << ", " << "table_name=" << to_string(table_name);
   out << ", " << "column_name=" << to_string(column_name);
   out << ", " << "default_value=" << to_string(default_value);
@@ -10118,17 +10134,16 @@ UniqueConstraintsRequest::~UniqueConstraintsRequest() throw() {
 }
 
 
+void UniqueConstraintsRequest::__set_catName(const std::string& val) {
+  this->catName = val;
+}
+
 void UniqueConstraintsRequest::__set_db_name(const std::string& val) {
   this->db_name = val;
 }
 
 void UniqueConstraintsRequest::__set_tbl_name(const std::string& val) {
   this->tbl_name = val;
-}
-
-void UniqueConstraintsRequest::__set_catName(const std::string& val) {
-  this->catName = val;
-__isset.catName = true;
 }
 
 uint32_t UniqueConstraintsRequest::read(::apache::thrift::protocol::TProtocol* iprot) {
@@ -10143,6 +10158,7 @@ uint32_t UniqueConstraintsRequest::read(::apache::thrift::protocol::TProtocol* i
 
   using ::apache::thrift::protocol::TProtocolException;
 
+  bool isset_catName = false;
   bool isset_db_name = false;
   bool isset_tbl_name = false;
 
@@ -10156,24 +10172,24 @@ uint32_t UniqueConstraintsRequest::read(::apache::thrift::protocol::TProtocol* i
     {
       case 1:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
-          xfer += iprot->readString(this->db_name);
-          isset_db_name = true;
+          xfer += iprot->readString(this->catName);
+          isset_catName = true;
         } else {
           xfer += iprot->skip(ftype);
         }
         break;
       case 2:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
-          xfer += iprot->readString(this->tbl_name);
-          isset_tbl_name = true;
+          xfer += iprot->readString(this->db_name);
+          isset_db_name = true;
         } else {
           xfer += iprot->skip(ftype);
         }
         break;
       case 3:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
-          xfer += iprot->readString(this->catName);
-          this->__isset.catName = true;
+          xfer += iprot->readString(this->tbl_name);
+          isset_tbl_name = true;
         } else {
           xfer += iprot->skip(ftype);
         }
@@ -10187,6 +10203,8 @@ uint32_t UniqueConstraintsRequest::read(::apache::thrift::protocol::TProtocol* i
 
   xfer += iprot->readStructEnd();
 
+  if (!isset_catName)
+    throw TProtocolException(TProtocolException::INVALID_DATA);
   if (!isset_db_name)
     throw TProtocolException(TProtocolException::INVALID_DATA);
   if (!isset_tbl_name)
@@ -10199,19 +10217,18 @@ uint32_t UniqueConstraintsRequest::write(::apache::thrift::protocol::TProtocol* 
   apache::thrift::protocol::TOutputRecursionTracker tracker(*oprot);
   xfer += oprot->writeStructBegin("UniqueConstraintsRequest");
 
-  xfer += oprot->writeFieldBegin("db_name", ::apache::thrift::protocol::T_STRING, 1);
+  xfer += oprot->writeFieldBegin("catName", ::apache::thrift::protocol::T_STRING, 1);
+  xfer += oprot->writeString(this->catName);
+  xfer += oprot->writeFieldEnd();
+
+  xfer += oprot->writeFieldBegin("db_name", ::apache::thrift::protocol::T_STRING, 2);
   xfer += oprot->writeString(this->db_name);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("tbl_name", ::apache::thrift::protocol::T_STRING, 2);
+  xfer += oprot->writeFieldBegin("tbl_name", ::apache::thrift::protocol::T_STRING, 3);
   xfer += oprot->writeString(this->tbl_name);
   xfer += oprot->writeFieldEnd();
 
-  if (this->__isset.catName) {
-    xfer += oprot->writeFieldBegin("catName", ::apache::thrift::protocol::T_STRING, 3);
-    xfer += oprot->writeString(this->catName);
-    xfer += oprot->writeFieldEnd();
-  }
   xfer += oprot->writeFieldStop();
   xfer += oprot->writeStructEnd();
   return xfer;
@@ -10219,31 +10236,28 @@ uint32_t UniqueConstraintsRequest::write(::apache::thrift::protocol::TProtocol* 
 
 void swap(UniqueConstraintsRequest &a, UniqueConstraintsRequest &b) {
   using ::std::swap;
+  swap(a.catName, b.catName);
   swap(a.db_name, b.db_name);
   swap(a.tbl_name, b.tbl_name);
-  swap(a.catName, b.catName);
-  swap(a.__isset, b.__isset);
 }
 
 UniqueConstraintsRequest::UniqueConstraintsRequest(const UniqueConstraintsRequest& other378) {
+  catName = other378.catName;
   db_name = other378.db_name;
   tbl_name = other378.tbl_name;
-  catName = other378.catName;
-  __isset = other378.__isset;
 }
 UniqueConstraintsRequest& UniqueConstraintsRequest::operator=(const UniqueConstraintsRequest& other379) {
+  catName = other379.catName;
   db_name = other379.db_name;
   tbl_name = other379.tbl_name;
-  catName = other379.catName;
-  __isset = other379.__isset;
   return *this;
 }
 void UniqueConstraintsRequest::printTo(std::ostream& out) const {
   using ::apache::thrift::to_string;
   out << "UniqueConstraintsRequest(";
-  out << "db_name=" << to_string(db_name);
+  out << "catName=" << to_string(catName);
+  out << ", " << "db_name=" << to_string(db_name);
   out << ", " << "tbl_name=" << to_string(tbl_name);
-  out << ", " << "catName="; (__isset.catName ? (out << to_string(catName)) : (out << "<null>"));
   out << ")";
 }
 
@@ -10358,17 +10372,16 @@ NotNullConstraintsRequest::~NotNullConstraintsRequest() throw() {
 }
 
 
+void NotNullConstraintsRequest::__set_catName(const std::string& val) {
+  this->catName = val;
+}
+
 void NotNullConstraintsRequest::__set_db_name(const std::string& val) {
   this->db_name = val;
 }
 
 void NotNullConstraintsRequest::__set_tbl_name(const std::string& val) {
   this->tbl_name = val;
-}
-
-void NotNullConstraintsRequest::__set_catName(const std::string& val) {
-  this->catName = val;
-__isset.catName = true;
 }
 
 uint32_t NotNullConstraintsRequest::read(::apache::thrift::protocol::TProtocol* iprot) {
@@ -10383,6 +10396,7 @@ uint32_t NotNullConstraintsRequest::read(::apache::thrift::protocol::TProtocol* 
 
   using ::apache::thrift::protocol::TProtocolException;
 
+  bool isset_catName = false;
   bool isset_db_name = false;
   bool isset_tbl_name = false;
 
@@ -10396,24 +10410,24 @@ uint32_t NotNullConstraintsRequest::read(::apache::thrift::protocol::TProtocol* 
     {
       case 1:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
-          xfer += iprot->readString(this->db_name);
-          isset_db_name = true;
+          xfer += iprot->readString(this->catName);
+          isset_catName = true;
         } else {
           xfer += iprot->skip(ftype);
         }
         break;
       case 2:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
-          xfer += iprot->readString(this->tbl_name);
-          isset_tbl_name = true;
+          xfer += iprot->readString(this->db_name);
+          isset_db_name = true;
         } else {
           xfer += iprot->skip(ftype);
         }
         break;
       case 3:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
-          xfer += iprot->readString(this->catName);
-          this->__isset.catName = true;
+          xfer += iprot->readString(this->tbl_name);
+          isset_tbl_name = true;
         } else {
           xfer += iprot->skip(ftype);
         }
@@ -10427,6 +10441,8 @@ uint32_t NotNullConstraintsRequest::read(::apache::thrift::protocol::TProtocol* 
 
   xfer += iprot->readStructEnd();
 
+  if (!isset_catName)
+    throw TProtocolException(TProtocolException::INVALID_DATA);
   if (!isset_db_name)
     throw TProtocolException(TProtocolException::INVALID_DATA);
   if (!isset_tbl_name)
@@ -10439,19 +10455,18 @@ uint32_t NotNullConstraintsRequest::write(::apache::thrift::protocol::TProtocol*
   apache::thrift::protocol::TOutputRecursionTracker tracker(*oprot);
   xfer += oprot->writeStructBegin("NotNullConstraintsRequest");
 
-  xfer += oprot->writeFieldBegin("db_name", ::apache::thrift::protocol::T_STRING, 1);
+  xfer += oprot->writeFieldBegin("catName", ::apache::thrift::protocol::T_STRING, 1);
+  xfer += oprot->writeString(this->catName);
+  xfer += oprot->writeFieldEnd();
+
+  xfer += oprot->writeFieldBegin("db_name", ::apache::thrift::protocol::T_STRING, 2);
   xfer += oprot->writeString(this->db_name);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("tbl_name", ::apache::thrift::protocol::T_STRING, 2);
+  xfer += oprot->writeFieldBegin("tbl_name", ::apache::thrift::protocol::T_STRING, 3);
   xfer += oprot->writeString(this->tbl_name);
   xfer += oprot->writeFieldEnd();
 
-  if (this->__isset.catName) {
-    xfer += oprot->writeFieldBegin("catName", ::apache::thrift::protocol::T_STRING, 3);
-    xfer += oprot->writeString(this->catName);
-    xfer += oprot->writeFieldEnd();
-  }
   xfer += oprot->writeFieldStop();
   xfer += oprot->writeStructEnd();
   return xfer;
@@ -10459,31 +10474,28 @@ uint32_t NotNullConstraintsRequest::write(::apache::thrift::protocol::TProtocol*
 
 void swap(NotNullConstraintsRequest &a, NotNullConstraintsRequest &b) {
   using ::std::swap;
+  swap(a.catName, b.catName);
   swap(a.db_name, b.db_name);
   swap(a.tbl_name, b.tbl_name);
-  swap(a.catName, b.catName);
-  swap(a.__isset, b.__isset);
 }
 
 NotNullConstraintsRequest::NotNullConstraintsRequest(const NotNullConstraintsRequest& other388) {
+  catName = other388.catName;
   db_name = other388.db_name;
   tbl_name = other388.tbl_name;
-  catName = other388.catName;
-  __isset = other388.__isset;
 }
 NotNullConstraintsRequest& NotNullConstraintsRequest::operator=(const NotNullConstraintsRequest& other389) {
+  catName = other389.catName;
   db_name = other389.db_name;
   tbl_name = other389.tbl_name;
-  catName = other389.catName;
-  __isset = other389.__isset;
   return *this;
 }
 void NotNullConstraintsRequest::printTo(std::ostream& out) const {
   using ::apache::thrift::to_string;
   out << "NotNullConstraintsRequest(";
-  out << "db_name=" << to_string(db_name);
+  out << "catName=" << to_string(catName);
+  out << ", " << "db_name=" << to_string(db_name);
   out << ", " << "tbl_name=" << to_string(tbl_name);
-  out << ", " << "catName="; (__isset.catName ? (out << to_string(catName)) : (out << "<null>"));
   out << ")";
 }
 
@@ -10598,6 +10610,10 @@ DefaultConstraintsRequest::~DefaultConstraintsRequest() throw() {
 }
 
 
+void DefaultConstraintsRequest::__set_catName(const std::string& val) {
+  this->catName = val;
+}
+
 void DefaultConstraintsRequest::__set_db_name(const std::string& val) {
   this->db_name = val;
 }
@@ -10618,6 +10634,7 @@ uint32_t DefaultConstraintsRequest::read(::apache::thrift::protocol::TProtocol* 
 
   using ::apache::thrift::protocol::TProtocolException;
 
+  bool isset_catName = false;
   bool isset_db_name = false;
   bool isset_tbl_name = false;
 
@@ -10631,13 +10648,21 @@ uint32_t DefaultConstraintsRequest::read(::apache::thrift::protocol::TProtocol* 
     {
       case 1:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
+          xfer += iprot->readString(this->catName);
+          isset_catName = true;
+        } else {
+          xfer += iprot->skip(ftype);
+        }
+        break;
+      case 2:
+        if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->db_name);
           isset_db_name = true;
         } else {
           xfer += iprot->skip(ftype);
         }
         break;
-      case 2:
+      case 3:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->tbl_name);
           isset_tbl_name = true;
@@ -10654,6 +10679,8 @@ uint32_t DefaultConstraintsRequest::read(::apache::thrift::protocol::TProtocol* 
 
   xfer += iprot->readStructEnd();
 
+  if (!isset_catName)
+    throw TProtocolException(TProtocolException::INVALID_DATA);
   if (!isset_db_name)
     throw TProtocolException(TProtocolException::INVALID_DATA);
   if (!isset_tbl_name)
@@ -10666,11 +10693,15 @@ uint32_t DefaultConstraintsRequest::write(::apache::thrift::protocol::TProtocol*
   apache::thrift::protocol::TOutputRecursionTracker tracker(*oprot);
   xfer += oprot->writeStructBegin("DefaultConstraintsRequest");
 
-  xfer += oprot->writeFieldBegin("db_name", ::apache::thrift::protocol::T_STRING, 1);
+  xfer += oprot->writeFieldBegin("catName", ::apache::thrift::protocol::T_STRING, 1);
+  xfer += oprot->writeString(this->catName);
+  xfer += oprot->writeFieldEnd();
+
+  xfer += oprot->writeFieldBegin("db_name", ::apache::thrift::protocol::T_STRING, 2);
   xfer += oprot->writeString(this->db_name);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("tbl_name", ::apache::thrift::protocol::T_STRING, 2);
+  xfer += oprot->writeFieldBegin("tbl_name", ::apache::thrift::protocol::T_STRING, 3);
   xfer += oprot->writeString(this->tbl_name);
   xfer += oprot->writeFieldEnd();
 
@@ -10681,15 +10712,18 @@ uint32_t DefaultConstraintsRequest::write(::apache::thrift::protocol::TProtocol*
 
 void swap(DefaultConstraintsRequest &a, DefaultConstraintsRequest &b) {
   using ::std::swap;
+  swap(a.catName, b.catName);
   swap(a.db_name, b.db_name);
   swap(a.tbl_name, b.tbl_name);
 }
 
 DefaultConstraintsRequest::DefaultConstraintsRequest(const DefaultConstraintsRequest& other398) {
+  catName = other398.catName;
   db_name = other398.db_name;
   tbl_name = other398.tbl_name;
 }
 DefaultConstraintsRequest& DefaultConstraintsRequest::operator=(const DefaultConstraintsRequest& other399) {
+  catName = other399.catName;
   db_name = other399.db_name;
   tbl_name = other399.tbl_name;
   return *this;
@@ -10697,7 +10731,8 @@ DefaultConstraintsRequest& DefaultConstraintsRequest::operator=(const DefaultCon
 void DefaultConstraintsRequest::printTo(std::ostream& out) const {
   using ::apache::thrift::to_string;
   out << "DefaultConstraintsRequest(";
-  out << "db_name=" << to_string(db_name);
+  out << "catName=" << to_string(catName);
+  out << ", " << "db_name=" << to_string(db_name);
   out << ", " << "tbl_name=" << to_string(tbl_name);
   out << ")";
 }

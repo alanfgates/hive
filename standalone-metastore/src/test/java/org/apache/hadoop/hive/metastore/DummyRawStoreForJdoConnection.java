@@ -899,7 +899,7 @@ public class DummyRawStoreForJdoConnection implements RawStore {
   }
 
   @Override
-  public List<SQLDefaultConstraint> getDefaultConstraints(String db_name, String tbl_name)
+  public List<SQLDefaultConstraint> getDefaultConstraints(String catName, String db_name, String tbl_name)
       throws MetaException {
     // TODO Auto-generated method stub
     return null;

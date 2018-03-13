@@ -22,14 +22,14 @@ import org.apache.hadoop.hive.metastore.MetaStoreTestUtils;
 import org.apache.hadoop.hive.metastore.annotation.MetastoreCheckinTest;
 import org.apache.hadoop.hive.metastore.api.Catalog;
 import org.apache.hadoop.hive.metastore.api.Database;
+import org.apache.hadoop.hive.metastore.api.DefaultConstraintsRequest;
 import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
-import org.apache.hadoop.hive.metastore.api.NotNullConstraintsRequest;
-import org.apache.hadoop.hive.metastore.api.SQLNotNullConstraint;
+import org.apache.hadoop.hive.metastore.api.SQLDefaultConstraint;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.client.builder.CatalogBuilder;
 import org.apache.hadoop.hive.metastore.client.builder.DatabaseBuilder;
-import org.apache.hadoop.hive.metastore.client.builder.SQLNotNullConstraintBuilder;
+import org.apache.hadoop.hive.metastore.client.builder.SQLDefaultConstraintBuilder;
 import org.apache.hadoop.hive.metastore.client.builder.TableBuilder;
 import org.apache.hadoop.hive.metastore.minihms.AbstractMetaStoreService;
 import org.apache.thrift.TApplicationException;
@@ -52,7 +52,7 @@ import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_DATABASE_NAME;
 
 @RunWith(Parameterized.class)
 @Category(MetastoreCheckinTest.class)
-public class TestNotNullConstraint {
+public class TestDefaultConstraint {
   // Needed until there is no junit release with @BeforeParam, @AfterParam (junit 4.13)
   // https://github.com/junit-team/junit4/commit/1bf8438b65858565dbb64736bfe13aae9cfc1b5a
   // Then we should remove our own copy
@@ -74,7 +74,7 @@ public class TestNotNullConstraint {
     return result;
   }
 
-  public TestNotNullConstraint(String name, AbstractMetaStoreService metaStore) throws Exception {
+  public TestDefaultConstraint(String name, AbstractMetaStoreService metaStore) throws Exception {
     this.metaStore = metaStore;
     this.metaStore.start();
   }
@@ -176,26 +176,28 @@ public class TestNotNullConstraint {
   public void createGetDrop() throws TException {
     Table table = testTables[0];
     // Make sure get on a table with no key returns empty list
-    NotNullConstraintsRequest rqst =
-        new NotNullConstraintsRequest(table.getCatName(), table.getDbName(), table.getTableName());
-    List<SQLNotNullConstraint> fetched = client.getNotNullConstraints(rqst);
+    DefaultConstraintsRequest rqst =
+        new DefaultConstraintsRequest(table.getCatName(), table.getDbName(), table.getTableName());
+    List<SQLDefaultConstraint> fetched = client.getDefaultConstraints(rqst);
     Assert.assertTrue(fetched.isEmpty());
 
     // Single column unnamed primary key in default catalog and database
-    List<SQLNotNullConstraint> nn = new SQLNotNullConstraintBuilder()
+    List<SQLDefaultConstraint> dv = new SQLDefaultConstraintBuilder()
         .onTable(table)
         .addColumn("col1")
+        .setDefaultVal(0)
         .build();
-    client.addNotNullConstraint(nn);
+    client.addDefaultConstraint(dv);
 
-    rqst = new NotNullConstraintsRequest(table.getCatName(), table.getDbName(), table.getTableName());
-    fetched = client.getNotNullConstraints(rqst);
+    rqst = new DefaultConstraintsRequest(table.getCatName(), table.getDbName(), table.getTableName());
+    fetched = client.getDefaultConstraints(rqst);
     Assert.assertEquals(1, fetched.size());
     Assert.assertEquals(table.getDbName(), fetched.get(0).getTable_db());
     Assert.assertEquals(table.getTableName(), fetched.get(0).getTable_name());
     Assert.assertEquals("col1", fetched.get(0).getColumn_name());
-    Assert.assertEquals(table.getTableName() + "_not_null_constraint", fetched.get(0).getNn_name());
-    String table0PkName = fetched.get(0).getNn_name();
+    Assert.assertEquals("0", fetched.get(0).getDefault_value());
+    Assert.assertEquals(table.getTableName() + "_default_value", fetched.get(0).getDc_name());
+    String table0PkName = fetched.get(0).getDc_name();
     Assert.assertTrue(fetched.get(0).isEnable_cstr());
     Assert.assertFalse(fetched.get(0).isValidate_cstr());
     Assert.assertFalse(fetched.get(0).isRely_cstr());
@@ -204,33 +206,35 @@ public class TestNotNullConstraint {
     // Drop a primary key
     client.dropConstraint(table.getCatName(), table.getDbName(),
         table.getTableName(), table0PkName);
-    rqst = new NotNullConstraintsRequest(table.getCatName(), table.getDbName(), table.getTableName());
-    fetched = client.getNotNullConstraints(rqst);
+    rqst = new DefaultConstraintsRequest(table.getCatName(), table.getDbName(), table.getTableName());
+    fetched = client.getDefaultConstraints(rqst);
     Assert.assertTrue(fetched.isEmpty());
 
     // Make sure I can add it back
-    client.addNotNullConstraint(nn);
+    client.addDefaultConstraint(dv);
   }
 
   @Test
   public void inOtherCatalog() throws TException {
-    String constraintName = "ocuc";
+    String constraintName = "ocdv";
     // Table in non 'hive' catalog
-    List<SQLNotNullConstraint> nn = new SQLNotNullConstraintBuilder()
+    List<SQLDefaultConstraint> dv = new SQLDefaultConstraintBuilder()
         .onTable(testTables[2])
         .addColumn("col1")
         .setConstraintName(constraintName)
+        .setDefaultVal("empty")
         .build();
-    client.addNotNullConstraint(nn);
+    client.addDefaultConstraint(dv);
 
-    NotNullConstraintsRequest rqst = new NotNullConstraintsRequest(testTables[2].getCatName(),
+    DefaultConstraintsRequest rqst = new DefaultConstraintsRequest(testTables[2].getCatName(),
         testTables[2].getDbName(), testTables[2].getTableName());
-    List<SQLNotNullConstraint> fetched = client.getNotNullConstraints(rqst);
+    List<SQLDefaultConstraint> fetched = client.getDefaultConstraints(rqst);
     Assert.assertEquals(1, fetched.size());
     Assert.assertEquals(testTables[2].getDbName(), fetched.get(0).getTable_db());
     Assert.assertEquals(testTables[2].getTableName(), fetched.get(0).getTable_name());
     Assert.assertEquals("col1", fetched.get(0).getColumn_name());
-    Assert.assertEquals(constraintName, fetched.get(0).getNn_name());
+    Assert.assertEquals("empty", fetched.get(0).getDefault_value());
+    Assert.assertEquals(constraintName, fetched.get(0).getDc_name());
     Assert.assertTrue(fetched.get(0).isEnable_cstr());
     Assert.assertFalse(fetched.get(0).isValidate_cstr());
     Assert.assertFalse(fetched.get(0).isRely_cstr());
@@ -238,44 +242,45 @@ public class TestNotNullConstraint {
 
     client.dropConstraint(testTables[2].getCatName(), testTables[2].getDbName(),
         testTables[2].getTableName(), constraintName);
-    rqst = new NotNullConstraintsRequest(testTables[2].getCatName(), testTables[2].getDbName(),
+    rqst = new DefaultConstraintsRequest(testTables[2].getCatName(), testTables[2].getDbName(),
         testTables[2].getTableName());
-    fetched = client.getNotNullConstraints(rqst);
+    fetched = client.getDefaultConstraints(rqst);
     Assert.assertTrue(fetched.isEmpty());
   }
 
   @Test
   public void createTableWithConstraintsPk() throws TException {
-    String constraintName = "ctwcuc";
+    String constraintName = "ctwcdv";
     Table table = new TableBuilder()
         .setTableName("table_with_constraints")
         .addCol("col1", "int")
         .addCol("col2", "varchar(32)")
         .build();
 
-    List<SQLNotNullConstraint> nn = new SQLNotNullConstraintBuilder()
+    List<SQLDefaultConstraint> dv = new SQLDefaultConstraintBuilder()
         .onTable(table)
         .addColumn("col1")
         .setConstraintName(constraintName)
+        .setDefaultVal(0)
         .build();
 
-    client.createTableWithConstraints(table, null, null, null, nn, null);
-    NotNullConstraintsRequest rqst = new NotNullConstraintsRequest(table.getCatName(),
-        table.getDbName(), table.getTableName());
-    List<SQLNotNullConstraint> fetched = client.getNotNullConstraints(rqst);
+    client.createTableWithConstraints(table, null, null, null, null, dv);
+    DefaultConstraintsRequest rqst = new DefaultConstraintsRequest(table.getCatName(), table.getDbName(), table.getTableName());
+    List<SQLDefaultConstraint> fetched = client.getDefaultConstraints(rqst);
     Assert.assertEquals(1, fetched.size());
     Assert.assertEquals(table.getDbName(), fetched.get(0).getTable_db());
     Assert.assertEquals(table.getTableName(), fetched.get(0).getTable_name());
     Assert.assertEquals("col1", fetched.get(0).getColumn_name());
-    Assert.assertEquals(constraintName, fetched.get(0).getNn_name());
+    Assert.assertEquals("0", fetched.get(0).getDefault_value());
+    Assert.assertEquals(constraintName, fetched.get(0).getDc_name());
     Assert.assertTrue(fetched.get(0).isEnable_cstr());
     Assert.assertFalse(fetched.get(0).isValidate_cstr());
     Assert.assertFalse(fetched.get(0).isRely_cstr());
     Assert.assertEquals(table.getCatName(), fetched.get(0).getCatName());
 
     client.dropConstraint(table.getCatName(), table.getDbName(), table.getTableName(), constraintName);
-    rqst = new NotNullConstraintsRequest(table.getCatName(), table.getDbName(), table.getTableName());
-    fetched = client.getNotNullConstraints(rqst);
+    rqst = new DefaultConstraintsRequest(table.getCatName(), table.getDbName(), table.getTableName());
+    fetched = client.getDefaultConstraints(rqst);
     Assert.assertTrue(fetched.isEmpty());
 
   }
@@ -289,56 +294,59 @@ public class TestNotNullConstraint {
         .addCol("col2", "varchar(32)")
         .build();
 
-    List<SQLNotNullConstraint> nn = new SQLNotNullConstraintBuilder()
+    List<SQLDefaultConstraint> dv = new SQLDefaultConstraintBuilder()
         .onTable(table)
         .addColumn("col1")
+        .setDefaultVal(0)
         .build();
 
-    client.createTableWithConstraints(table, null, null, null, nn, null);
-    NotNullConstraintsRequest rqst = new NotNullConstraintsRequest(table.getCatName(),
-        table.getDbName(), table.getTableName());
-    List<SQLNotNullConstraint> fetched = client.getNotNullConstraints(rqst);
+    client.createTableWithConstraints(table, null, null, null, null, dv);
+    DefaultConstraintsRequest rqst = new DefaultConstraintsRequest(table.getCatName(), table.getDbName(), table.getTableName());
+    List<SQLDefaultConstraint> fetched = client.getDefaultConstraints(rqst);
     Assert.assertEquals(1, fetched.size());
     Assert.assertEquals(table.getDbName(), fetched.get(0).getTable_db());
     Assert.assertEquals(table.getTableName(), fetched.get(0).getTable_name());
     Assert.assertEquals("col1", fetched.get(0).getColumn_name());
-    Assert.assertEquals(table.getTableName() + "_not_null_constraint", fetched.get(0).getNn_name());
-    String tablePkName = fetched.get(0).getNn_name();
+    Assert.assertEquals("0", fetched.get(0).getDefault_value());
+    Assert.assertEquals(table.getTableName() + "_default_value", fetched.get(0).getDc_name());
+    String tablePkName = fetched.get(0).getDc_name();
     Assert.assertTrue(fetched.get(0).isEnable_cstr());
     Assert.assertFalse(fetched.get(0).isValidate_cstr());
     Assert.assertFalse(fetched.get(0).isRely_cstr());
     Assert.assertEquals(table.getCatName(), fetched.get(0).getCatName());
 
     client.dropConstraint(table.getCatName(), table.getDbName(), table.getTableName(), tablePkName);
-    rqst = new NotNullConstraintsRequest(table.getCatName(), table.getDbName(), table.getTableName());
-    fetched = client.getNotNullConstraints(rqst);
+    rqst = new DefaultConstraintsRequest(table.getCatName(), table.getDbName(), table.getTableName());
+    fetched = client.getDefaultConstraints(rqst);
     Assert.assertTrue(fetched.isEmpty());
   }
 
   @Test
-  public void doubleAddNotNullConstraint() throws TException {
+  public void doubleAddUniqueConstraint() throws TException {
     Table table = testTables[0];
     // Make sure get on a table with no key returns empty list
-    NotNullConstraintsRequest rqst =
-        new NotNullConstraintsRequest(table.getCatName(), table.getDbName(), table.getTableName());
-    List<SQLNotNullConstraint> fetched = client.getNotNullConstraints(rqst);
+    DefaultConstraintsRequest rqst =
+        new DefaultConstraintsRequest(table.getCatName(), table.getDbName(), table.getTableName());
+    List<SQLDefaultConstraint> fetched = client.getDefaultConstraints(rqst);
     Assert.assertTrue(fetched.isEmpty());
 
     // Single column unnamed primary key in default catalog and database
-    List<SQLNotNullConstraint> nn = new SQLNotNullConstraintBuilder()
+    List<SQLDefaultConstraint> dv = new SQLDefaultConstraintBuilder()
         .onTable(table)
         .addColumn("col1")
+        .setDefaultVal(0)
         .build();
-    client.addNotNullConstraint(nn);
+    client.addDefaultConstraint(dv);
 
     try {
-      nn = new SQLNotNullConstraintBuilder()
+      dv = new SQLDefaultConstraintBuilder()
           .onTable(table)
           .addColumn("col2")
+          .setDefaultVal("this string intentionally left empty")
           .build();
-      client.addNotNullConstraint(nn);
+      client.addDefaultConstraint(dv);
       Assert.fail();
-    } catch (InvalidObjectException|TApplicationException e) {
+    } catch (InvalidObjectException |TApplicationException e) {
       // NOP
     }
   }
@@ -346,11 +354,12 @@ public class TestNotNullConstraint {
   @Test
   public void addNoSuchTable() throws TException {
     try {
-      List<SQLNotNullConstraint> nn = new SQLNotNullConstraintBuilder()
+      List<SQLDefaultConstraint> dv = new SQLDefaultConstraintBuilder()
           .setTableName("nosuch")
           .addColumn("col2")
+          .setDefaultVal("this string intentionally left empty")
           .build();
-      client.addNotNullConstraint(nn);
+      client.addDefaultConstraint(dv);
       Assert.fail();
     } catch (InvalidObjectException |TApplicationException e) {
       // NOP
@@ -359,26 +368,25 @@ public class TestNotNullConstraint {
 
   @Test
   public void getNoSuchTable() throws TException {
-    NotNullConstraintsRequest rqst =
-        new NotNullConstraintsRequest(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE_NAME, "nosuch");
-    List<SQLNotNullConstraint> nn = client.getNotNullConstraints(rqst);
-    Assert.assertTrue(nn.isEmpty());
+    DefaultConstraintsRequest rqst =
+        new DefaultConstraintsRequest(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE_NAME, "nosuch");
+    List<SQLDefaultConstraint> dv = client.getDefaultConstraints(rqst);
+    Assert.assertTrue(dv.isEmpty());
   }
 
   @Test
   public void getNoSuchDb() throws TException {
-    NotNullConstraintsRequest rqst =
-        new NotNullConstraintsRequest(DEFAULT_CATALOG_NAME, "nosuch", testTables[0].getTableName());
-    List<SQLNotNullConstraint> nn = client.getNotNullConstraints(rqst);
-    Assert.assertTrue(nn.isEmpty());
+    DefaultConstraintsRequest rqst =
+        new DefaultConstraintsRequest(DEFAULT_CATALOG_NAME, "nosuch", testTables[0].getTableName());
+    List<SQLDefaultConstraint> dv = client.getDefaultConstraints(rqst);
+    Assert.assertTrue(dv.isEmpty());
   }
 
   @Test
   public void getNoSuchCatalog() throws TException {
-    NotNullConstraintsRequest rqst =
-        new NotNullConstraintsRequest("nosuch", testTables[0].getDbName(), testTables[0].getTableName());
-    List<SQLNotNullConstraint> nn = client.getNotNullConstraints(rqst);
-    Assert.assertTrue(nn.isEmpty());
+    DefaultConstraintsRequest rqst = new DefaultConstraintsRequest("nosuch",
+        testTables[0].getDbName(), testTables[0].getTableName());
+    List<SQLDefaultConstraint> dv = client.getDefaultConstraints(rqst);
+    Assert.assertTrue(dv.isEmpty());
   }
 }
-

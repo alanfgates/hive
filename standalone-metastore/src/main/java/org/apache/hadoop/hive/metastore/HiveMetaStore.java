@@ -7401,7 +7401,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
     @Override
     public UniqueConstraintsResponse get_unique_constraints(UniqueConstraintsRequest request)
         throws TException {
-      String catName = request.isSetCatName() ? request.getCatName() : DEFAULT_CATALOG_NAME;
+      String catName = request.getCatName();
       String db_name = request.getDb_name();
       String tbl_name = request.getTbl_name();
       startTableFunction("get_unique_constraints", catName, db_name, tbl_name);
@@ -7425,7 +7425,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
     @Override
     public NotNullConstraintsResponse get_not_null_constraints(NotNullConstraintsRequest request)
         throws TException {
-      String catName = request.isSetCatName() ? request.getCatName() : DEFAULT_CATALOG_NAME;
+      String catName = request.getCatName();
       String db_name = request.getDb_name();
       String tbl_name = request.getTbl_name();
       startTableFunction("get_not_null_constraints", catName, db_name, tbl_name);
@@ -7449,14 +7449,14 @@ public class HiveMetaStore extends ThriftHiveMetastore {
     @Override
     public DefaultConstraintsResponse get_default_constraints(DefaultConstraintsRequest request)
         throws TException {
+      String catName = request.getCatName();
       String db_name = request.getDb_name();
       String tbl_name = request.getTbl_name();
-      // TODO CAT
-      startTableFunction("get_default_constraints", DEFAULT_CATALOG_NAME, db_name, tbl_name);
+      startTableFunction("get_default_constraints", catName, db_name, tbl_name);
       List<SQLDefaultConstraint> ret = null;
       Exception ex = null;
       try {
-        ret = getMS().getDefaultConstraints(db_name, tbl_name);
+        ret = getMS().getDefaultConstraints(catName, db_name, tbl_name);
       } catch (Exception e) {
         ex = e;
         if (e instanceof MetaException) {

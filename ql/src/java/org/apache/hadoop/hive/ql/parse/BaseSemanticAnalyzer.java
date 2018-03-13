@@ -104,6 +104,8 @@ import org.slf4j.LoggerFactory;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
+import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_CATALOG_NAME;
+
 /**
  * BaseSemanticAnalyzer.
  *
@@ -732,7 +734,8 @@ public abstract class BaseSemanticAnalyzer {
           List<ConstraintInfo> uniqueInfos, List<SQLUniqueConstraint> uniqueConstraints) {
     int i = 1;
     for (ConstraintInfo uniqueInfo : uniqueInfos) {
-      uniqueConstraints.add(new SQLUniqueConstraint(databaseName, tableName, uniqueInfo.colName,
+      // TODO CAT
+      uniqueConstraints.add(new SQLUniqueConstraint(DEFAULT_CATALOG_NAME, databaseName, tableName, uniqueInfo.colName,
               i++, uniqueInfo.constraintName, uniqueInfo.enable, uniqueInfo.validate, uniqueInfo.rely));
     }
   }
@@ -748,7 +751,8 @@ public abstract class BaseSemanticAnalyzer {
   private static void constraintInfosToDefaultConstraints(String databaseName, String tableName,
      List<ConstraintInfo> defaultInfos, List<SQLDefaultConstraint> defaultConstraints) {
     for (ConstraintInfo defaultInfo : defaultInfos) {
-      defaultConstraints.add(new SQLDefaultConstraint(databaseName, tableName, defaultInfo.colName,
+      // TODO CAT
+      defaultConstraints.add(new SQLDefaultConstraint(DEFAULT_CATALOG_NAME, databaseName, tableName, defaultInfo.colName,
           defaultInfo.defaultValue, defaultInfo.constraintName, defaultInfo.enable,
           defaultInfo.validate, defaultInfo.rely));
     }
@@ -765,7 +769,8 @@ public abstract class BaseSemanticAnalyzer {
   private static void constraintInfosToNotNullConstraints(String databaseName, String tableName,
           List<ConstraintInfo> notNullInfos, List<SQLNotNullConstraint> notNullConstraints) {
     for (ConstraintInfo notNullInfo : notNullInfos) {
-      notNullConstraints.add(new SQLNotNullConstraint(databaseName, tableName, notNullInfo.colName,
+      // TODO CAT
+      notNullConstraints.add(new SQLNotNullConstraint(DEFAULT_CATALOG_NAME, databaseName, tableName, notNullInfo.colName,
               notNullInfo.constraintName, notNullInfo.enable, notNullInfo.validate, notNullInfo.rely));
     }
   }

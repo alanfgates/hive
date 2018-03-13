@@ -31,6 +31,8 @@ import org.apache.hadoop.hive.ql.plan.api.StageType;
 
 import java.io.Serializable;
 
+import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_CATALOG_NAME;
+
 /**
  * This task does some work related to materialized views. In particular, it adds
  * or removes the materialized view from the registry if needed, or registers new
@@ -63,7 +65,8 @@ public class MaterializedViewTask extends Task<MaterializedViewDesc> implements 
         Hive db = Hive.get(conf);
         Table mvTable = db.getTable(getWork().getViewName());
         CreationMetadata cm =
-            new CreationMetadata(mvTable.getDbName(), mvTable.getTableName(),
+            // TODO CAT
+            new CreationMetadata(DEFAULT_CATALOG_NAME, mvTable.getDbName(), mvTable.getTableName(),
                 ImmutableSet.copyOf(mvTable.getCreationMetadata().getTablesUsed()));
         cm.setValidTxnList(conf.get(ValidTxnList.VALID_TXNS_KEY));
         db.updateCreationMetadata(mvTable.getDbName(), mvTable.getTableName(), cm);

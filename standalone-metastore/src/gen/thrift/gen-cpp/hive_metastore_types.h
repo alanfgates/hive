@@ -1012,7 +1012,8 @@ inline std::ostream& operator<<(std::ostream& out, const SQLForeignKey& obj)
 }
 
 typedef struct _SQLUniqueConstraint__isset {
-  _SQLUniqueConstraint__isset() : table_db(false), table_name(false), column_name(false), key_seq(false), uk_name(false), enable_cstr(false), validate_cstr(false), rely_cstr(false), catName(true) {}
+  _SQLUniqueConstraint__isset() : catName(false), table_db(false), table_name(false), column_name(false), key_seq(false), uk_name(false), enable_cstr(false), validate_cstr(false), rely_cstr(false) {}
+  bool catName :1;
   bool table_db :1;
   bool table_name :1;
   bool column_name :1;
@@ -1021,7 +1022,6 @@ typedef struct _SQLUniqueConstraint__isset {
   bool enable_cstr :1;
   bool validate_cstr :1;
   bool rely_cstr :1;
-  bool catName :1;
 } _SQLUniqueConstraint__isset;
 
 class SQLUniqueConstraint {
@@ -1029,10 +1029,11 @@ class SQLUniqueConstraint {
 
   SQLUniqueConstraint(const SQLUniqueConstraint&);
   SQLUniqueConstraint& operator=(const SQLUniqueConstraint&);
-  SQLUniqueConstraint() : table_db(), table_name(), column_name(), key_seq(0), uk_name(), enable_cstr(0), validate_cstr(0), rely_cstr(0), catName("hive") {
+  SQLUniqueConstraint() : catName(), table_db(), table_name(), column_name(), key_seq(0), uk_name(), enable_cstr(0), validate_cstr(0), rely_cstr(0) {
   }
 
   virtual ~SQLUniqueConstraint() throw();
+  std::string catName;
   std::string table_db;
   std::string table_name;
   std::string column_name;
@@ -1041,9 +1042,10 @@ class SQLUniqueConstraint {
   bool enable_cstr;
   bool validate_cstr;
   bool rely_cstr;
-  std::string catName;
 
   _SQLUniqueConstraint__isset __isset;
+
+  void __set_catName(const std::string& val);
 
   void __set_table_db(const std::string& val);
 
@@ -1061,10 +1063,10 @@ class SQLUniqueConstraint {
 
   void __set_rely_cstr(const bool val);
 
-  void __set_catName(const std::string& val);
-
   bool operator == (const SQLUniqueConstraint & rhs) const
   {
+    if (!(catName == rhs.catName))
+      return false;
     if (!(table_db == rhs.table_db))
       return false;
     if (!(table_name == rhs.table_name))
@@ -1080,10 +1082,6 @@ class SQLUniqueConstraint {
     if (!(validate_cstr == rhs.validate_cstr))
       return false;
     if (!(rely_cstr == rhs.rely_cstr))
-      return false;
-    if (__isset.catName != rhs.__isset.catName)
-      return false;
-    else if (__isset.catName && !(catName == rhs.catName))
       return false;
     return true;
   }
@@ -1108,7 +1106,8 @@ inline std::ostream& operator<<(std::ostream& out, const SQLUniqueConstraint& ob
 }
 
 typedef struct _SQLNotNullConstraint__isset {
-  _SQLNotNullConstraint__isset() : table_db(false), table_name(false), column_name(false), nn_name(false), enable_cstr(false), validate_cstr(false), rely_cstr(false), catName(true) {}
+  _SQLNotNullConstraint__isset() : catName(false), table_db(false), table_name(false), column_name(false), nn_name(false), enable_cstr(false), validate_cstr(false), rely_cstr(false) {}
+  bool catName :1;
   bool table_db :1;
   bool table_name :1;
   bool column_name :1;
@@ -1116,7 +1115,6 @@ typedef struct _SQLNotNullConstraint__isset {
   bool enable_cstr :1;
   bool validate_cstr :1;
   bool rely_cstr :1;
-  bool catName :1;
 } _SQLNotNullConstraint__isset;
 
 class SQLNotNullConstraint {
@@ -1124,10 +1122,11 @@ class SQLNotNullConstraint {
 
   SQLNotNullConstraint(const SQLNotNullConstraint&);
   SQLNotNullConstraint& operator=(const SQLNotNullConstraint&);
-  SQLNotNullConstraint() : table_db(), table_name(), column_name(), nn_name(), enable_cstr(0), validate_cstr(0), rely_cstr(0), catName("hive") {
+  SQLNotNullConstraint() : catName(), table_db(), table_name(), column_name(), nn_name(), enable_cstr(0), validate_cstr(0), rely_cstr(0) {
   }
 
   virtual ~SQLNotNullConstraint() throw();
+  std::string catName;
   std::string table_db;
   std::string table_name;
   std::string column_name;
@@ -1135,9 +1134,10 @@ class SQLNotNullConstraint {
   bool enable_cstr;
   bool validate_cstr;
   bool rely_cstr;
-  std::string catName;
 
   _SQLNotNullConstraint__isset __isset;
+
+  void __set_catName(const std::string& val);
 
   void __set_table_db(const std::string& val);
 
@@ -1153,10 +1153,10 @@ class SQLNotNullConstraint {
 
   void __set_rely_cstr(const bool val);
 
-  void __set_catName(const std::string& val);
-
   bool operator == (const SQLNotNullConstraint & rhs) const
   {
+    if (!(catName == rhs.catName))
+      return false;
     if (!(table_db == rhs.table_db))
       return false;
     if (!(table_name == rhs.table_name))
@@ -1170,10 +1170,6 @@ class SQLNotNullConstraint {
     if (!(validate_cstr == rhs.validate_cstr))
       return false;
     if (!(rely_cstr == rhs.rely_cstr))
-      return false;
-    if (__isset.catName != rhs.__isset.catName)
-      return false;
-    else if (__isset.catName && !(catName == rhs.catName))
       return false;
     return true;
   }
@@ -1198,7 +1194,8 @@ inline std::ostream& operator<<(std::ostream& out, const SQLNotNullConstraint& o
 }
 
 typedef struct _SQLDefaultConstraint__isset {
-  _SQLDefaultConstraint__isset() : table_db(false), table_name(false), column_name(false), default_value(false), dc_name(false), enable_cstr(false), validate_cstr(false), rely_cstr(false) {}
+  _SQLDefaultConstraint__isset() : catName(false), table_db(false), table_name(false), column_name(false), default_value(false), dc_name(false), enable_cstr(false), validate_cstr(false), rely_cstr(false) {}
+  bool catName :1;
   bool table_db :1;
   bool table_name :1;
   bool column_name :1;
@@ -1214,10 +1211,11 @@ class SQLDefaultConstraint {
 
   SQLDefaultConstraint(const SQLDefaultConstraint&);
   SQLDefaultConstraint& operator=(const SQLDefaultConstraint&);
-  SQLDefaultConstraint() : table_db(), table_name(), column_name(), default_value(), dc_name(), enable_cstr(0), validate_cstr(0), rely_cstr(0) {
+  SQLDefaultConstraint() : catName(), table_db(), table_name(), column_name(), default_value(), dc_name(), enable_cstr(0), validate_cstr(0), rely_cstr(0) {
   }
 
   virtual ~SQLDefaultConstraint() throw();
+  std::string catName;
   std::string table_db;
   std::string table_name;
   std::string column_name;
@@ -1228,6 +1226,8 @@ class SQLDefaultConstraint {
   bool rely_cstr;
 
   _SQLDefaultConstraint__isset __isset;
+
+  void __set_catName(const std::string& val);
 
   void __set_table_db(const std::string& val);
 
@@ -1247,6 +1247,8 @@ class SQLDefaultConstraint {
 
   bool operator == (const SQLDefaultConstraint & rhs) const
   {
+    if (!(catName == rhs.catName))
+      return false;
     if (!(table_db == rhs.table_db))
       return false;
     if (!(table_name == rhs.table_name))
@@ -4483,41 +4485,33 @@ inline std::ostream& operator<<(std::ostream& out, const ForeignKeysResponse& ob
   return out;
 }
 
-typedef struct _UniqueConstraintsRequest__isset {
-  _UniqueConstraintsRequest__isset() : catName(true) {}
-  bool catName :1;
-} _UniqueConstraintsRequest__isset;
 
 class UniqueConstraintsRequest {
  public:
 
   UniqueConstraintsRequest(const UniqueConstraintsRequest&);
   UniqueConstraintsRequest& operator=(const UniqueConstraintsRequest&);
-  UniqueConstraintsRequest() : db_name(), tbl_name(), catName("hive") {
+  UniqueConstraintsRequest() : catName(), db_name(), tbl_name() {
   }
 
   virtual ~UniqueConstraintsRequest() throw();
+  std::string catName;
   std::string db_name;
   std::string tbl_name;
-  std::string catName;
 
-  _UniqueConstraintsRequest__isset __isset;
+  void __set_catName(const std::string& val);
 
   void __set_db_name(const std::string& val);
 
   void __set_tbl_name(const std::string& val);
 
-  void __set_catName(const std::string& val);
-
   bool operator == (const UniqueConstraintsRequest & rhs) const
   {
+    if (!(catName == rhs.catName))
+      return false;
     if (!(db_name == rhs.db_name))
       return false;
     if (!(tbl_name == rhs.tbl_name))
-      return false;
-    if (__isset.catName != rhs.__isset.catName)
-      return false;
-    else if (__isset.catName && !(catName == rhs.catName))
       return false;
     return true;
   }
@@ -4581,41 +4575,33 @@ inline std::ostream& operator<<(std::ostream& out, const UniqueConstraintsRespon
   return out;
 }
 
-typedef struct _NotNullConstraintsRequest__isset {
-  _NotNullConstraintsRequest__isset() : catName(true) {}
-  bool catName :1;
-} _NotNullConstraintsRequest__isset;
 
 class NotNullConstraintsRequest {
  public:
 
   NotNullConstraintsRequest(const NotNullConstraintsRequest&);
   NotNullConstraintsRequest& operator=(const NotNullConstraintsRequest&);
-  NotNullConstraintsRequest() : db_name(), tbl_name(), catName("hive") {
+  NotNullConstraintsRequest() : catName(), db_name(), tbl_name() {
   }
 
   virtual ~NotNullConstraintsRequest() throw();
+  std::string catName;
   std::string db_name;
   std::string tbl_name;
-  std::string catName;
 
-  _NotNullConstraintsRequest__isset __isset;
+  void __set_catName(const std::string& val);
 
   void __set_db_name(const std::string& val);
 
   void __set_tbl_name(const std::string& val);
 
-  void __set_catName(const std::string& val);
-
   bool operator == (const NotNullConstraintsRequest & rhs) const
   {
+    if (!(catName == rhs.catName))
+      return false;
     if (!(db_name == rhs.db_name))
       return false;
     if (!(tbl_name == rhs.tbl_name))
-      return false;
-    if (__isset.catName != rhs.__isset.catName)
-      return false;
-    else if (__isset.catName && !(catName == rhs.catName))
       return false;
     return true;
   }
@@ -4685,12 +4671,15 @@ class DefaultConstraintsRequest {
 
   DefaultConstraintsRequest(const DefaultConstraintsRequest&);
   DefaultConstraintsRequest& operator=(const DefaultConstraintsRequest&);
-  DefaultConstraintsRequest() : db_name(), tbl_name() {
+  DefaultConstraintsRequest() : catName(), db_name(), tbl_name() {
   }
 
   virtual ~DefaultConstraintsRequest() throw();
+  std::string catName;
   std::string db_name;
   std::string tbl_name;
+
+  void __set_catName(const std::string& val);
 
   void __set_db_name(const std::string& val);
 
@@ -4698,6 +4687,8 @@ class DefaultConstraintsRequest {
 
   bool operator == (const DefaultConstraintsRequest & rhs) const
   {
+    if (!(catName == rhs.catName))
+      return false;
     if (!(db_name == rhs.db_name))
       return false;
     if (!(tbl_name == rhs.tbl_name))

@@ -299,17 +299,18 @@ end
 
 class SQLUniqueConstraint
   include ::Thrift::Struct, ::Thrift::Struct_Union
-  TABLE_DB = 1
-  TABLE_NAME = 2
-  COLUMN_NAME = 3
-  KEY_SEQ = 4
-  UK_NAME = 5
-  ENABLE_CSTR = 6
-  VALIDATE_CSTR = 7
-  RELY_CSTR = 8
-  CATNAME = 9
+  CATNAME = 1
+  TABLE_DB = 2
+  TABLE_NAME = 3
+  COLUMN_NAME = 4
+  KEY_SEQ = 5
+  UK_NAME = 6
+  ENABLE_CSTR = 7
+  VALIDATE_CSTR = 8
+  RELY_CSTR = 9
 
   FIELDS = {
+    CATNAME => {:type => ::Thrift::Types::STRING, :name => 'catName'},
     TABLE_DB => {:type => ::Thrift::Types::STRING, :name => 'table_db'},
     TABLE_NAME => {:type => ::Thrift::Types::STRING, :name => 'table_name'},
     COLUMN_NAME => {:type => ::Thrift::Types::STRING, :name => 'column_name'},
@@ -317,8 +318,7 @@ class SQLUniqueConstraint
     UK_NAME => {:type => ::Thrift::Types::STRING, :name => 'uk_name'},
     ENABLE_CSTR => {:type => ::Thrift::Types::BOOL, :name => 'enable_cstr'},
     VALIDATE_CSTR => {:type => ::Thrift::Types::BOOL, :name => 'validate_cstr'},
-    RELY_CSTR => {:type => ::Thrift::Types::BOOL, :name => 'rely_cstr'},
-    CATNAME => {:type => ::Thrift::Types::STRING, :name => 'catName', :default => %q"hive", :optional => true}
+    RELY_CSTR => {:type => ::Thrift::Types::BOOL, :name => 'rely_cstr'}
   }
 
   def struct_fields; FIELDS; end
@@ -331,24 +331,24 @@ end
 
 class SQLNotNullConstraint
   include ::Thrift::Struct, ::Thrift::Struct_Union
-  TABLE_DB = 1
-  TABLE_NAME = 2
-  COLUMN_NAME = 3
-  NN_NAME = 4
-  ENABLE_CSTR = 5
-  VALIDATE_CSTR = 6
-  RELY_CSTR = 7
-  CATNAME = 9
+  CATNAME = 1
+  TABLE_DB = 2
+  TABLE_NAME = 3
+  COLUMN_NAME = 4
+  NN_NAME = 5
+  ENABLE_CSTR = 6
+  VALIDATE_CSTR = 7
+  RELY_CSTR = 8
 
   FIELDS = {
+    CATNAME => {:type => ::Thrift::Types::STRING, :name => 'catName'},
     TABLE_DB => {:type => ::Thrift::Types::STRING, :name => 'table_db'},
     TABLE_NAME => {:type => ::Thrift::Types::STRING, :name => 'table_name'},
     COLUMN_NAME => {:type => ::Thrift::Types::STRING, :name => 'column_name'},
     NN_NAME => {:type => ::Thrift::Types::STRING, :name => 'nn_name'},
     ENABLE_CSTR => {:type => ::Thrift::Types::BOOL, :name => 'enable_cstr'},
     VALIDATE_CSTR => {:type => ::Thrift::Types::BOOL, :name => 'validate_cstr'},
-    RELY_CSTR => {:type => ::Thrift::Types::BOOL, :name => 'rely_cstr'},
-    CATNAME => {:type => ::Thrift::Types::STRING, :name => 'catName', :default => %q"hive", :optional => true}
+    RELY_CSTR => {:type => ::Thrift::Types::BOOL, :name => 'rely_cstr'}
   }
 
   def struct_fields; FIELDS; end
@@ -361,16 +361,18 @@ end
 
 class SQLDefaultConstraint
   include ::Thrift::Struct, ::Thrift::Struct_Union
-  TABLE_DB = 1
-  TABLE_NAME = 2
-  COLUMN_NAME = 3
-  DEFAULT_VALUE = 4
-  DC_NAME = 5
-  ENABLE_CSTR = 6
-  VALIDATE_CSTR = 7
-  RELY_CSTR = 8
+  CATNAME = 1
+  TABLE_DB = 2
+  TABLE_NAME = 3
+  COLUMN_NAME = 4
+  DEFAULT_VALUE = 5
+  DC_NAME = 6
+  ENABLE_CSTR = 7
+  VALIDATE_CSTR = 8
+  RELY_CSTR = 9
 
   FIELDS = {
+    CATNAME => {:type => ::Thrift::Types::STRING, :name => 'catName'},
     TABLE_DB => {:type => ::Thrift::Types::STRING, :name => 'table_db'},
     TABLE_NAME => {:type => ::Thrift::Types::STRING, :name => 'table_name'},
     COLUMN_NAME => {:type => ::Thrift::Types::STRING, :name => 'column_name'},
@@ -1595,19 +1597,20 @@ end
 
 class UniqueConstraintsRequest
   include ::Thrift::Struct, ::Thrift::Struct_Union
-  DB_NAME = 1
-  TBL_NAME = 2
-  CATNAME = 3
+  CATNAME = 1
+  DB_NAME = 2
+  TBL_NAME = 3
 
   FIELDS = {
+    CATNAME => {:type => ::Thrift::Types::STRING, :name => 'catName'},
     DB_NAME => {:type => ::Thrift::Types::STRING, :name => 'db_name'},
-    TBL_NAME => {:type => ::Thrift::Types::STRING, :name => 'tbl_name'},
-    CATNAME => {:type => ::Thrift::Types::STRING, :name => 'catName', :default => %q"hive", :optional => true}
+    TBL_NAME => {:type => ::Thrift::Types::STRING, :name => 'tbl_name'}
   }
 
   def struct_fields; FIELDS; end
 
   def validate
+    raise ::Thrift::ProtocolException.new(::Thrift::ProtocolException::UNKNOWN, 'Required field catName is unset!') unless @catName
     raise ::Thrift::ProtocolException.new(::Thrift::ProtocolException::UNKNOWN, 'Required field db_name is unset!') unless @db_name
     raise ::Thrift::ProtocolException.new(::Thrift::ProtocolException::UNKNOWN, 'Required field tbl_name is unset!') unless @tbl_name
   end
@@ -1634,19 +1637,20 @@ end
 
 class NotNullConstraintsRequest
   include ::Thrift::Struct, ::Thrift::Struct_Union
-  DB_NAME = 1
-  TBL_NAME = 2
-  CATNAME = 3
+  CATNAME = 1
+  DB_NAME = 2
+  TBL_NAME = 3
 
   FIELDS = {
+    CATNAME => {:type => ::Thrift::Types::STRING, :name => 'catName'},
     DB_NAME => {:type => ::Thrift::Types::STRING, :name => 'db_name'},
-    TBL_NAME => {:type => ::Thrift::Types::STRING, :name => 'tbl_name'},
-    CATNAME => {:type => ::Thrift::Types::STRING, :name => 'catName', :default => %q"hive", :optional => true}
+    TBL_NAME => {:type => ::Thrift::Types::STRING, :name => 'tbl_name'}
   }
 
   def struct_fields; FIELDS; end
 
   def validate
+    raise ::Thrift::ProtocolException.new(::Thrift::ProtocolException::UNKNOWN, 'Required field catName is unset!') unless @catName
     raise ::Thrift::ProtocolException.new(::Thrift::ProtocolException::UNKNOWN, 'Required field db_name is unset!') unless @db_name
     raise ::Thrift::ProtocolException.new(::Thrift::ProtocolException::UNKNOWN, 'Required field tbl_name is unset!') unless @tbl_name
   end
@@ -1673,10 +1677,12 @@ end
 
 class DefaultConstraintsRequest
   include ::Thrift::Struct, ::Thrift::Struct_Union
-  DB_NAME = 1
-  TBL_NAME = 2
+  CATNAME = 1
+  DB_NAME = 2
+  TBL_NAME = 3
 
   FIELDS = {
+    CATNAME => {:type => ::Thrift::Types::STRING, :name => 'catName'},
     DB_NAME => {:type => ::Thrift::Types::STRING, :name => 'db_name'},
     TBL_NAME => {:type => ::Thrift::Types::STRING, :name => 'tbl_name'}
   }
@@ -1684,6 +1690,7 @@ class DefaultConstraintsRequest
   def struct_fields; FIELDS; end
 
   def validate
+    raise ::Thrift::ProtocolException.new(::Thrift::ProtocolException::UNKNOWN, 'Required field catName is unset!') unless @catName
     raise ::Thrift::ProtocolException.new(::Thrift::ProtocolException::UNKNOWN, 'Required field db_name is unset!') unless @db_name
     raise ::Thrift::ProtocolException.new(::Thrift::ProtocolException::UNKNOWN, 'Required field tbl_name is unset!') unless @tbl_name
   end

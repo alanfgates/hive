@@ -2258,16 +2258,15 @@ class MetaStoreDirectSql {
           boolean enable = (enableValidateRely & 4) != 0;
           boolean validate = (enableValidateRely & 2) != 0;
           boolean rely = (enableValidateRely & 1) != 0;
-        SQLUniqueConstraint currConstraint = new SQLUniqueConstraint(
-          extractSqlString(line[0]),
-          extractSqlString(line[1]),
-          extractSqlString(line[2]),
-          extractSqlInt(line[3]), extractSqlString(line[4]),
-          enable,
-          validate,
-          rely);
-        currConstraint.setCatName(catName);
-        ret.add(currConstraint);
+        ret.add(new SQLUniqueConstraint(
+            catName,
+            extractSqlString(line[0]),
+            extractSqlString(line[1]),
+            extractSqlString(line[2]),
+            extractSqlInt(line[3]), extractSqlString(line[4]),
+            enable,
+            validate,
+            rely));
       }
     }
     return ret;
@@ -2316,22 +2315,21 @@ class MetaStoreDirectSql {
           boolean enable = (enableValidateRely & 4) != 0;
           boolean validate = (enableValidateRely & 2) != 0;
           boolean rely = (enableValidateRely & 1) != 0;
-        SQLNotNullConstraint currConstraint = new SQLNotNullConstraint(
-          extractSqlString(line[0]),
-          extractSqlString(line[1]),
-          extractSqlString(line[2]),
-          extractSqlString(line[3]),
-          enable,
-          validate,
-          rely);
-        currConstraint.setCatName(catName);
-        ret.add(currConstraint);
+        ret.add(new SQLNotNullConstraint(
+            catName,
+            extractSqlString(line[0]),
+            extractSqlString(line[1]),
+            extractSqlString(line[2]),
+            extractSqlString(line[3]),
+            enable,
+            validate,
+            rely));
       }
     }
     return ret;
   }
 
-  public List<SQLDefaultConstraint> getDefaultConstraints(String db_name, String tbl_name)
+  public List<SQLDefaultConstraint> getDefaultConstraints(String catName, String db_name, String tbl_name)
       throws MetaException {
     List<SQLDefaultConstraint> ret = new ArrayList<SQLDefaultConstraint>();
     String queryText =
@@ -2348,6 +2346,7 @@ class MetaStoreDirectSql {
             + " LEFT OUTER JOIN " + PARTITION_KEYS + " ON " + TBLS + ".\"TBL_ID\" = " + PARTITION_KEYS + ".\"TBL_ID\" AND "
             + " " + PARTITION_KEYS + ".\"INTEGER_IDX\" = " + KEY_CONSTRAINTS + ".\"PARENT_INTEGER_IDX\" "
             + " WHERE " + KEY_CONSTRAINTS + ".\"CONSTRAINT_TYPE\" = "+ MConstraint.DEFAULT_CONSTRAINT+ " AND"
+            + " " + DBS + ".\"CTLG_NAME\" = ? AND"
             + (db_name == null ? "" : " " + DBS + ".\"NAME\" = ? AND")
             + (tbl_name == null ? "" : " " + TBLS + ".\"TBL_NAME\" = ? ") ;
 
@@ -2358,7 +2357,8 @@ class MetaStoreDirectSql {
     if (LOG.isDebugEnabled()){
       LOG.debug("getDefaultConstraints: directsql : " + queryText);
     }
-    List<String> pms = new ArrayList<String>();
+    List<String> pms = new ArrayList<>();
+    pms.add(catName);
     if (db_name != null) {
       pms.add(db_name);
     }
@@ -2377,6 +2377,7 @@ class MetaStoreDirectSql {
         boolean validate = (enableValidateRely & 2) != 0;
         boolean rely = (enableValidateRely & 1) != 0;
         SQLDefaultConstraint currConstraint = new SQLDefaultConstraint(
+            catName,
             extractSqlString(line[0]),
             extractSqlString(line[1]),
             extractSqlString(line[2]),

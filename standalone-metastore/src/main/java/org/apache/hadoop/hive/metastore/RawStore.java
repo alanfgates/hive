@@ -1310,9 +1310,29 @@ public interface RawStore extends Configurable {
   List<SQLNotNullConstraint> getNotNullConstraints(String catName, String db_name,
     String tbl_name) throws MetaException;
 
-  List<SQLDefaultConstraint> getDefaultConstraints(String db_name,
+  /**
+   * Get default values for columns in a table.
+   * @param catName catalog name
+   * @param db_name database name
+   * @param tbl_name table name
+   * @return list of default values defined on the table.
+   * @throws MetaException error accessing the RDBMS
+   */
+  List<SQLDefaultConstraint> getDefaultConstraints(String catName, String db_name,
                                                    String tbl_name) throws MetaException;
 
+  /**
+   * Create a table with constraints
+   * @param tbl table definition
+   * @param primaryKeys primary key definition, or null
+   * @param foreignKeys foreign key definition, or null
+   * @param uniqueConstraints unique constraints definition, or null
+   * @param notNullConstraints not null constraints definition, or null
+   * @param defaultConstraints default values definition, or null
+   * @return list of constraint names
+   * @throws InvalidObjectException one of the provided objects is malformed.
+   * @throws MetaException error accessing the RDBMS
+   */
   List<String> createTableWithConstraints(Table tbl, List<SQLPrimaryKey> primaryKeys,
     List<SQLForeignKey> foreignKeys, List<SQLUniqueConstraint> uniqueConstraints,
     List<SQLNotNullConstraint> notNullConstraints,
@@ -1382,7 +1402,15 @@ public interface RawStore extends Configurable {
    */
   List<String> addNotNullConstraints(List<SQLNotNullConstraint> nns) throws InvalidObjectException, MetaException;
 
-  List<String> addDefaultConstraints(List<SQLDefaultConstraint> nns) throws InvalidObjectException, MetaException;
+  /**
+   * Add default values to a table definition
+   * @param dv list of default values
+   * @return constraint names
+   * @throws InvalidObjectException the specification is malformed.
+   * @throws MetaException error accessing the RDBMS.
+   */
+  List<String> addDefaultConstraints(List<SQLDefaultConstraint> dv)
+      throws InvalidObjectException, MetaException;
 
   /**
    * Gets the unique id of the backing datastore for the metadata

@@ -4601,6 +4601,7 @@ public class ObjectStore implements RawStore, Configurable {
 
     for (int i = 0; i < uks.size(); i++) {
       final String catName = normalizeIdentifier(uks.get(i).getCatName());
+      LOG.info("XXX adding unique constraint with catalog " + catName);
       final String tableDB = normalizeIdentifier(uks.get(i).getTable_db());
       final String tableName = normalizeIdentifier(uks.get(i).getTable_name());
       final String columnName = normalizeIdentifier(uks.get(i).getColumn_name());
@@ -4676,14 +4677,14 @@ public class ObjectStore implements RawStore, Configurable {
     String constraintName = null;
 
     for (int i = 0; i < nns.size(); i++) {
+      final String catName = normalizeIdentifier(nns.get(i).getCatName());
       final String tableDB = normalizeIdentifier(nns.get(i).getTable_db());
       final String tableName = normalizeIdentifier(nns.get(i).getTable_name());
       final String columnName = normalizeIdentifier(nns.get(i).getColumn_name());
 
       // If retrieveCD is false, we do not need to do a deep retrieval of the Table Column Descriptor.
       // For instance, this is the case when we are creating the table.
-      // TODO CAT
-      AttachedMTableInfo nParentTable = getMTable(DEFAULT_CATALOG_NAME, tableDB, tableName, retrieveCD);
+      AttachedMTableInfo nParentTable = getMTable(catName, tableDB, tableName, retrieveCD);
       MTable parentTable = nParentTable.mtbl;
       if (parentTable == null) {
         throw new InvalidObjectException("Parent table not found: " + tableName);
@@ -9654,6 +9655,7 @@ public class ObjectStore implements RawStore, Configurable {
     final String catName = normalizeIdentifier(catNameInput);
     final String db_name = normalizeIdentifier(db_name_input);
     final String tbl_name = normalizeIdentifier(tbl_name_input);
+    LOG.info("XXX Looking for constraint in catalog " + catName);
     return new GetListHelper<SQLUniqueConstraint>(catName, db_name, tbl_name, allowSql, allowJdo) {
 
       @Override
@@ -9692,13 +9694,11 @@ public class ObjectStore implements RawStore, Configurable {
         boolean enable = (enableValidateRely & 4) != 0;
         boolean validate = (enableValidateRely & 2) != 0;
         boolean rely = (enableValidateRely & 1) != 0;
-        SQLUniqueConstraint uc = new SQLUniqueConstraint(db_name,
+        uniqueConstraints.add(new SQLUniqueConstraint(catName, db_name,
          tbl_name,
          cols.get(currConstraint.getParentIntegerIndex()).getName(),
          currConstraint.getPosition(),
-         currConstraint.getConstraintName(), enable, validate, rely);
-        uc.setCatName(catName);
-        uniqueConstraints.add(uc);
+         currConstraint.getConstraintName(), enable, validate, rely));
       }
       commited = commitTransaction();
     } finally {
@@ -9718,38 +9718,38 @@ public class ObjectStore implements RawStore, Configurable {
   }
 
   @Override
-  public List<SQLDefaultConstraint> getDefaultConstraints(String db_name, String tbl_name)
+  public List<SQLDefaultConstraint> getDefaultConstraints(String catName, String db_name, String tbl_name)
       throws MetaException {
     try {
-      return getDefaultConstraintsInternal(db_name, tbl_name, true, true);
+      return getDefaultConstraintsInternal(catName, db_name, tbl_name, true, true);
     } catch (NoSuchObjectException e) {
       throw new MetaException(ExceptionUtils.getStackTrace(e));
     }
   }
 
-  protected List<SQLDefaultConstraint> getDefaultConstraintsInternal(final String db_name_input,
-      final String tbl_name_input, boolean allowSql, boolean allowJdo)
-          throws MetaException, NoSuchObjectException {
+  private List<SQLDefaultConstraint> getDefaultConstraintsInternal(
+      String catName, final String db_name_input, final String tbl_name_input, boolean allowSql,
+      boolean allowJdo) throws MetaException, NoSuchObjectException {
+    catName = normalizeIdentifier(catName);
     final String db_name = normalizeIdentifier(db_name_input);
     final String tbl_name = normalizeIdentifier(tbl_name_input);
-    // TODO CAT
-    return new GetListHelper<SQLDefaultConstraint>(DEFAULT_CATALOG_NAME, db_name, tbl_name, allowSql, allowJdo) {
+    return new GetListHelper<SQLDefaultConstraint>(catName, db_name, tbl_name, allowSql, allowJdo) {
 
       @Override
       protected List<SQLDefaultConstraint> getSqlResult(GetHelper<List<SQLDefaultConstraint>> ctx)
               throws MetaException {
-        return directSql.getDefaultConstraints(db_name, tbl_name);
+        return directSql.getDefaultConstraints(catName, db_name, tbl_name);
       }
 
       @Override
       protected List<SQLDefaultConstraint> getJdoResult(GetHelper<List<SQLDefaultConstraint>> ctx)
               throws MetaException, NoSuchObjectException {
-        return getDefaultConstraintsViaJdo(db_name, tbl_name);
+        return getDefaultConstraintsViaJdo(catName, db_name, tbl_name);
       }
     }.run(false);
   }
 
-  private List<SQLDefaultConstraint> getDefaultConstraintsViaJdo(String db_name, String tbl_name)
+  private List<SQLDefaultConstraint> getDefaultConstraintsViaJdo(String catName, String db_name, String tbl_name)
           throws MetaException {
     boolean commited = false;
     List<SQLDefaultConstraint> defaultConstraints= null;
@@ -9758,9 +9758,11 @@ public class ObjectStore implements RawStore, Configurable {
       openTransaction();
       query = pm.newQuery(MConstraint.class,
         "parentTable.tableName == tbl_name && parentTable.database.name == db_name &&"
+            + " parentTable.database.catalogName == catName &&"
         + " constraintType == MConstraint.DEFAULT_CONSTRAINT");
-      query.declareParameters("java.lang.String tbl_name, java.lang.String db_name");
-      Collection<?> constraints = (Collection<?>) query.execute(tbl_name, db_name);
+      query.declareParameters(
+          "java.lang.String tbl_name, java.lang.String db_name, java.lang.String catName");
+      Collection<?> constraints = (Collection<?>) query.execute(tbl_name, db_name, catName);
       pm.retrieveAll(constraints);
       defaultConstraints = new ArrayList<>();
       for (Iterator<?> i = constraints.iterator(); i.hasNext();) {
@@ -9771,7 +9773,7 @@ public class ObjectStore implements RawStore, Configurable {
         boolean enable = (enableValidateRely & 4) != 0;
         boolean validate = (enableValidateRely & 2) != 0;
         boolean rely = (enableValidateRely & 1) != 0;
-        defaultConstraints.add(new SQLDefaultConstraint(db_name,
+        defaultConstraints.add(new SQLDefaultConstraint(catName, db_name,
          tbl_name,
          cols.get(currConstraint.getParentIntegerIndex()).getName(),
          currConstraint.getDefaultValue(), currConstraint.getConstraintName(), enable, validate, rely));
@@ -9832,12 +9834,10 @@ public class ObjectStore implements RawStore, Configurable {
         boolean enable = (enableValidateRely & 4) != 0;
         boolean validate = (enableValidateRely & 2) != 0;
         boolean rely = (enableValidateRely & 1) != 0;
-        SQLNotNullConstraint nnc = new SQLNotNullConstraint(db_name,
+        notNullConstraints.add(new SQLNotNullConstraint(catName, db_name,
             tbl_name,
             cols.get(currConstraint.getParentIntegerIndex()).getName(),
-            currConstraint.getConstraintName(), enable, validate, rely);
-        nnc.setCatName(catName);
-        notNullConstraints.add(nnc);
+            currConstraint.getConstraintName(), enable, validate, rely));
       }
       commited = commitTransaction();
     } finally {

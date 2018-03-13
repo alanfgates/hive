@@ -1138,6 +1138,10 @@ class SQLUniqueConstraint {
   /**
    * @var string
    */
+  public $catName = null;
+  /**
+   * @var string
+   */
   public $table_db = null;
   /**
    * @var string
@@ -1167,53 +1171,52 @@ class SQLUniqueConstraint {
    * @var bool
    */
   public $rely_cstr = null;
-  /**
-   * @var string
-   */
-  public $catName = "hive";
 
   public function __construct($vals=null) {
     if (!isset(self::$_TSPEC)) {
       self::$_TSPEC = array(
         1 => array(
-          'var' => 'table_db',
+          'var' => 'catName',
           'type' => TType::STRING,
           ),
         2 => array(
-          'var' => 'table_name',
+          'var' => 'table_db',
           'type' => TType::STRING,
           ),
         3 => array(
-          'var' => 'column_name',
+          'var' => 'table_name',
           'type' => TType::STRING,
           ),
         4 => array(
+          'var' => 'column_name',
+          'type' => TType::STRING,
+          ),
+        5 => array(
           'var' => 'key_seq',
           'type' => TType::I32,
           ),
-        5 => array(
+        6 => array(
           'var' => 'uk_name',
           'type' => TType::STRING,
           ),
-        6 => array(
+        7 => array(
           'var' => 'enable_cstr',
           'type' => TType::BOOL,
           ),
-        7 => array(
+        8 => array(
           'var' => 'validate_cstr',
           'type' => TType::BOOL,
           ),
-        8 => array(
+        9 => array(
           'var' => 'rely_cstr',
           'type' => TType::BOOL,
-          ),
-        9 => array(
-          'var' => 'catName',
-          'type' => TType::STRING,
           ),
         );
     }
     if (is_array($vals)) {
+      if (isset($vals['catName'])) {
+        $this->catName = $vals['catName'];
+      }
       if (isset($vals['table_db'])) {
         $this->table_db = $vals['table_db'];
       }
@@ -1237,9 +1240,6 @@ class SQLUniqueConstraint {
       }
       if (isset($vals['rely_cstr'])) {
         $this->rely_cstr = $vals['rely_cstr'];
-      }
-      if (isset($vals['catName'])) {
-        $this->catName = $vals['catName'];
       }
     }
   }
@@ -1265,63 +1265,63 @@ class SQLUniqueConstraint {
       {
         case 1:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->table_db);
+            $xfer += $input->readString($this->catName);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 2:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->table_name);
+            $xfer += $input->readString($this->table_db);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 3:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->column_name);
+            $xfer += $input->readString($this->table_name);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 4:
+          if ($ftype == TType::STRING) {
+            $xfer += $input->readString($this->column_name);
+          } else {
+            $xfer += $input->skip($ftype);
+          }
+          break;
+        case 5:
           if ($ftype == TType::I32) {
             $xfer += $input->readI32($this->key_seq);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
-        case 5:
+        case 6:
           if ($ftype == TType::STRING) {
             $xfer += $input->readString($this->uk_name);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
-        case 6:
+        case 7:
           if ($ftype == TType::BOOL) {
             $xfer += $input->readBool($this->enable_cstr);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
-        case 7:
+        case 8:
           if ($ftype == TType::BOOL) {
             $xfer += $input->readBool($this->validate_cstr);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
-        case 8:
+        case 9:
           if ($ftype == TType::BOOL) {
             $xfer += $input->readBool($this->rely_cstr);
-          } else {
-            $xfer += $input->skip($ftype);
-          }
-          break;
-        case 9:
-          if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->catName);
           } else {
             $xfer += $input->skip($ftype);
           }
@@ -1339,49 +1339,49 @@ class SQLUniqueConstraint {
   public function write($output) {
     $xfer = 0;
     $xfer += $output->writeStructBegin('SQLUniqueConstraint');
+    if ($this->catName !== null) {
+      $xfer += $output->writeFieldBegin('catName', TType::STRING, 1);
+      $xfer += $output->writeString($this->catName);
+      $xfer += $output->writeFieldEnd();
+    }
     if ($this->table_db !== null) {
-      $xfer += $output->writeFieldBegin('table_db', TType::STRING, 1);
+      $xfer += $output->writeFieldBegin('table_db', TType::STRING, 2);
       $xfer += $output->writeString($this->table_db);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->table_name !== null) {
-      $xfer += $output->writeFieldBegin('table_name', TType::STRING, 2);
+      $xfer += $output->writeFieldBegin('table_name', TType::STRING, 3);
       $xfer += $output->writeString($this->table_name);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->column_name !== null) {
-      $xfer += $output->writeFieldBegin('column_name', TType::STRING, 3);
+      $xfer += $output->writeFieldBegin('column_name', TType::STRING, 4);
       $xfer += $output->writeString($this->column_name);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->key_seq !== null) {
-      $xfer += $output->writeFieldBegin('key_seq', TType::I32, 4);
+      $xfer += $output->writeFieldBegin('key_seq', TType::I32, 5);
       $xfer += $output->writeI32($this->key_seq);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->uk_name !== null) {
-      $xfer += $output->writeFieldBegin('uk_name', TType::STRING, 5);
+      $xfer += $output->writeFieldBegin('uk_name', TType::STRING, 6);
       $xfer += $output->writeString($this->uk_name);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->enable_cstr !== null) {
-      $xfer += $output->writeFieldBegin('enable_cstr', TType::BOOL, 6);
+      $xfer += $output->writeFieldBegin('enable_cstr', TType::BOOL, 7);
       $xfer += $output->writeBool($this->enable_cstr);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->validate_cstr !== null) {
-      $xfer += $output->writeFieldBegin('validate_cstr', TType::BOOL, 7);
+      $xfer += $output->writeFieldBegin('validate_cstr', TType::BOOL, 8);
       $xfer += $output->writeBool($this->validate_cstr);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->rely_cstr !== null) {
-      $xfer += $output->writeFieldBegin('rely_cstr', TType::BOOL, 8);
+      $xfer += $output->writeFieldBegin('rely_cstr', TType::BOOL, 9);
       $xfer += $output->writeBool($this->rely_cstr);
-      $xfer += $output->writeFieldEnd();
-    }
-    if ($this->catName !== null) {
-      $xfer += $output->writeFieldBegin('catName', TType::STRING, 9);
-      $xfer += $output->writeString($this->catName);
       $xfer += $output->writeFieldEnd();
     }
     $xfer += $output->writeFieldStop();
@@ -1394,6 +1394,10 @@ class SQLUniqueConstraint {
 class SQLNotNullConstraint {
   static $_TSPEC;
 
+  /**
+   * @var string
+   */
+  public $catName = null;
   /**
    * @var string
    */
@@ -1422,49 +1426,48 @@ class SQLNotNullConstraint {
    * @var bool
    */
   public $rely_cstr = null;
-  /**
-   * @var string
-   */
-  public $catName = "hive";
 
   public function __construct($vals=null) {
     if (!isset(self::$_TSPEC)) {
       self::$_TSPEC = array(
         1 => array(
-          'var' => 'table_db',
+          'var' => 'catName',
           'type' => TType::STRING,
           ),
         2 => array(
-          'var' => 'table_name',
+          'var' => 'table_db',
           'type' => TType::STRING,
           ),
         3 => array(
-          'var' => 'column_name',
+          'var' => 'table_name',
           'type' => TType::STRING,
           ),
         4 => array(
-          'var' => 'nn_name',
+          'var' => 'column_name',
           'type' => TType::STRING,
           ),
         5 => array(
+          'var' => 'nn_name',
+          'type' => TType::STRING,
+          ),
+        6 => array(
           'var' => 'enable_cstr',
           'type' => TType::BOOL,
           ),
-        6 => array(
+        7 => array(
           'var' => 'validate_cstr',
           'type' => TType::BOOL,
           ),
-        7 => array(
+        8 => array(
           'var' => 'rely_cstr',
           'type' => TType::BOOL,
-          ),
-        9 => array(
-          'var' => 'catName',
-          'type' => TType::STRING,
           ),
         );
     }
     if (is_array($vals)) {
+      if (isset($vals['catName'])) {
+        $this->catName = $vals['catName'];
+      }
       if (isset($vals['table_db'])) {
         $this->table_db = $vals['table_db'];
       }
@@ -1485,9 +1488,6 @@ class SQLNotNullConstraint {
       }
       if (isset($vals['rely_cstr'])) {
         $this->rely_cstr = $vals['rely_cstr'];
-      }
-      if (isset($vals['catName'])) {
-        $this->catName = $vals['catName'];
       }
     }
   }
@@ -1513,56 +1513,56 @@ class SQLNotNullConstraint {
       {
         case 1:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->table_db);
+            $xfer += $input->readString($this->catName);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 2:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->table_name);
+            $xfer += $input->readString($this->table_db);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 3:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->column_name);
+            $xfer += $input->readString($this->table_name);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 4:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->nn_name);
+            $xfer += $input->readString($this->column_name);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 5:
-          if ($ftype == TType::BOOL) {
-            $xfer += $input->readBool($this->enable_cstr);
+          if ($ftype == TType::STRING) {
+            $xfer += $input->readString($this->nn_name);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 6:
           if ($ftype == TType::BOOL) {
-            $xfer += $input->readBool($this->validate_cstr);
+            $xfer += $input->readBool($this->enable_cstr);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 7:
           if ($ftype == TType::BOOL) {
-            $xfer += $input->readBool($this->rely_cstr);
+            $xfer += $input->readBool($this->validate_cstr);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
-        case 9:
-          if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->catName);
+        case 8:
+          if ($ftype == TType::BOOL) {
+            $xfer += $input->readBool($this->rely_cstr);
           } else {
             $xfer += $input->skip($ftype);
           }
@@ -1580,44 +1580,44 @@ class SQLNotNullConstraint {
   public function write($output) {
     $xfer = 0;
     $xfer += $output->writeStructBegin('SQLNotNullConstraint');
+    if ($this->catName !== null) {
+      $xfer += $output->writeFieldBegin('catName', TType::STRING, 1);
+      $xfer += $output->writeString($this->catName);
+      $xfer += $output->writeFieldEnd();
+    }
     if ($this->table_db !== null) {
-      $xfer += $output->writeFieldBegin('table_db', TType::STRING, 1);
+      $xfer += $output->writeFieldBegin('table_db', TType::STRING, 2);
       $xfer += $output->writeString($this->table_db);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->table_name !== null) {
-      $xfer += $output->writeFieldBegin('table_name', TType::STRING, 2);
+      $xfer += $output->writeFieldBegin('table_name', TType::STRING, 3);
       $xfer += $output->writeString($this->table_name);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->column_name !== null) {
-      $xfer += $output->writeFieldBegin('column_name', TType::STRING, 3);
+      $xfer += $output->writeFieldBegin('column_name', TType::STRING, 4);
       $xfer += $output->writeString($this->column_name);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->nn_name !== null) {
-      $xfer += $output->writeFieldBegin('nn_name', TType::STRING, 4);
+      $xfer += $output->writeFieldBegin('nn_name', TType::STRING, 5);
       $xfer += $output->writeString($this->nn_name);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->enable_cstr !== null) {
-      $xfer += $output->writeFieldBegin('enable_cstr', TType::BOOL, 5);
+      $xfer += $output->writeFieldBegin('enable_cstr', TType::BOOL, 6);
       $xfer += $output->writeBool($this->enable_cstr);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->validate_cstr !== null) {
-      $xfer += $output->writeFieldBegin('validate_cstr', TType::BOOL, 6);
+      $xfer += $output->writeFieldBegin('validate_cstr', TType::BOOL, 7);
       $xfer += $output->writeBool($this->validate_cstr);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->rely_cstr !== null) {
-      $xfer += $output->writeFieldBegin('rely_cstr', TType::BOOL, 7);
+      $xfer += $output->writeFieldBegin('rely_cstr', TType::BOOL, 8);
       $xfer += $output->writeBool($this->rely_cstr);
-      $xfer += $output->writeFieldEnd();
-    }
-    if ($this->catName !== null) {
-      $xfer += $output->writeFieldBegin('catName', TType::STRING, 9);
-      $xfer += $output->writeString($this->catName);
       $xfer += $output->writeFieldEnd();
     }
     $xfer += $output->writeFieldStop();
@@ -1630,6 +1630,10 @@ class SQLNotNullConstraint {
 class SQLDefaultConstraint {
   static $_TSPEC;
 
+  /**
+   * @var string
+   */
+  public $catName = null;
   /**
    * @var string
    */
@@ -1667,40 +1671,47 @@ class SQLDefaultConstraint {
     if (!isset(self::$_TSPEC)) {
       self::$_TSPEC = array(
         1 => array(
-          'var' => 'table_db',
+          'var' => 'catName',
           'type' => TType::STRING,
           ),
         2 => array(
-          'var' => 'table_name',
+          'var' => 'table_db',
           'type' => TType::STRING,
           ),
         3 => array(
-          'var' => 'column_name',
+          'var' => 'table_name',
           'type' => TType::STRING,
           ),
         4 => array(
-          'var' => 'default_value',
+          'var' => 'column_name',
           'type' => TType::STRING,
           ),
         5 => array(
-          'var' => 'dc_name',
+          'var' => 'default_value',
           'type' => TType::STRING,
           ),
         6 => array(
+          'var' => 'dc_name',
+          'type' => TType::STRING,
+          ),
+        7 => array(
           'var' => 'enable_cstr',
           'type' => TType::BOOL,
           ),
-        7 => array(
+        8 => array(
           'var' => 'validate_cstr',
           'type' => TType::BOOL,
           ),
-        8 => array(
+        9 => array(
           'var' => 'rely_cstr',
           'type' => TType::BOOL,
           ),
         );
     }
     if (is_array($vals)) {
+      if (isset($vals['catName'])) {
+        $this->catName = $vals['catName'];
+      }
       if (isset($vals['table_db'])) {
         $this->table_db = $vals['table_db'];
       }
@@ -1749,54 +1760,61 @@ class SQLDefaultConstraint {
       {
         case 1:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->table_db);
+            $xfer += $input->readString($this->catName);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 2:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->table_name);
+            $xfer += $input->readString($this->table_db);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 3:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->column_name);
+            $xfer += $input->readString($this->table_name);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 4:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->default_value);
+            $xfer += $input->readString($this->column_name);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 5:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->dc_name);
+            $xfer += $input->readString($this->default_value);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 6:
-          if ($ftype == TType::BOOL) {
-            $xfer += $input->readBool($this->enable_cstr);
+          if ($ftype == TType::STRING) {
+            $xfer += $input->readString($this->dc_name);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 7:
           if ($ftype == TType::BOOL) {
-            $xfer += $input->readBool($this->validate_cstr);
+            $xfer += $input->readBool($this->enable_cstr);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 8:
+          if ($ftype == TType::BOOL) {
+            $xfer += $input->readBool($this->validate_cstr);
+          } else {
+            $xfer += $input->skip($ftype);
+          }
+          break;
+        case 9:
           if ($ftype == TType::BOOL) {
             $xfer += $input->readBool($this->rely_cstr);
           } else {
@@ -1816,43 +1834,48 @@ class SQLDefaultConstraint {
   public function write($output) {
     $xfer = 0;
     $xfer += $output->writeStructBegin('SQLDefaultConstraint');
+    if ($this->catName !== null) {
+      $xfer += $output->writeFieldBegin('catName', TType::STRING, 1);
+      $xfer += $output->writeString($this->catName);
+      $xfer += $output->writeFieldEnd();
+    }
     if ($this->table_db !== null) {
-      $xfer += $output->writeFieldBegin('table_db', TType::STRING, 1);
+      $xfer += $output->writeFieldBegin('table_db', TType::STRING, 2);
       $xfer += $output->writeString($this->table_db);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->table_name !== null) {
-      $xfer += $output->writeFieldBegin('table_name', TType::STRING, 2);
+      $xfer += $output->writeFieldBegin('table_name', TType::STRING, 3);
       $xfer += $output->writeString($this->table_name);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->column_name !== null) {
-      $xfer += $output->writeFieldBegin('column_name', TType::STRING, 3);
+      $xfer += $output->writeFieldBegin('column_name', TType::STRING, 4);
       $xfer += $output->writeString($this->column_name);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->default_value !== null) {
-      $xfer += $output->writeFieldBegin('default_value', TType::STRING, 4);
+      $xfer += $output->writeFieldBegin('default_value', TType::STRING, 5);
       $xfer += $output->writeString($this->default_value);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->dc_name !== null) {
-      $xfer += $output->writeFieldBegin('dc_name', TType::STRING, 5);
+      $xfer += $output->writeFieldBegin('dc_name', TType::STRING, 6);
       $xfer += $output->writeString($this->dc_name);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->enable_cstr !== null) {
-      $xfer += $output->writeFieldBegin('enable_cstr', TType::BOOL, 6);
+      $xfer += $output->writeFieldBegin('enable_cstr', TType::BOOL, 7);
       $xfer += $output->writeBool($this->enable_cstr);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->validate_cstr !== null) {
-      $xfer += $output->writeFieldBegin('validate_cstr', TType::BOOL, 7);
+      $xfer += $output->writeFieldBegin('validate_cstr', TType::BOOL, 8);
       $xfer += $output->writeBool($this->validate_cstr);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->rely_cstr !== null) {
-      $xfer += $output->writeFieldBegin('rely_cstr', TType::BOOL, 8);
+      $xfer += $output->writeFieldBegin('rely_cstr', TType::BOOL, 9);
       $xfer += $output->writeBool($this->rely_cstr);
       $xfer += $output->writeFieldEnd();
     }
@@ -10268,42 +10291,42 @@ class UniqueConstraintsRequest {
   /**
    * @var string
    */
+  public $catName = null;
+  /**
+   * @var string
+   */
   public $db_name = null;
   /**
    * @var string
    */
   public $tbl_name = null;
-  /**
-   * @var string
-   */
-  public $catName = "hive";
 
   public function __construct($vals=null) {
     if (!isset(self::$_TSPEC)) {
       self::$_TSPEC = array(
         1 => array(
-          'var' => 'db_name',
+          'var' => 'catName',
           'type' => TType::STRING,
           ),
         2 => array(
-          'var' => 'tbl_name',
+          'var' => 'db_name',
           'type' => TType::STRING,
           ),
         3 => array(
-          'var' => 'catName',
+          'var' => 'tbl_name',
           'type' => TType::STRING,
           ),
         );
     }
     if (is_array($vals)) {
+      if (isset($vals['catName'])) {
+        $this->catName = $vals['catName'];
+      }
       if (isset($vals['db_name'])) {
         $this->db_name = $vals['db_name'];
       }
       if (isset($vals['tbl_name'])) {
         $this->tbl_name = $vals['tbl_name'];
-      }
-      if (isset($vals['catName'])) {
-        $this->catName = $vals['catName'];
       }
     }
   }
@@ -10329,21 +10352,21 @@ class UniqueConstraintsRequest {
       {
         case 1:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->db_name);
+            $xfer += $input->readString($this->catName);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 2:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->tbl_name);
+            $xfer += $input->readString($this->db_name);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 3:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->catName);
+            $xfer += $input->readString($this->tbl_name);
           } else {
             $xfer += $input->skip($ftype);
           }
@@ -10361,19 +10384,19 @@ class UniqueConstraintsRequest {
   public function write($output) {
     $xfer = 0;
     $xfer += $output->writeStructBegin('UniqueConstraintsRequest');
+    if ($this->catName !== null) {
+      $xfer += $output->writeFieldBegin('catName', TType::STRING, 1);
+      $xfer += $output->writeString($this->catName);
+      $xfer += $output->writeFieldEnd();
+    }
     if ($this->db_name !== null) {
-      $xfer += $output->writeFieldBegin('db_name', TType::STRING, 1);
+      $xfer += $output->writeFieldBegin('db_name', TType::STRING, 2);
       $xfer += $output->writeString($this->db_name);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->tbl_name !== null) {
-      $xfer += $output->writeFieldBegin('tbl_name', TType::STRING, 2);
+      $xfer += $output->writeFieldBegin('tbl_name', TType::STRING, 3);
       $xfer += $output->writeString($this->tbl_name);
-      $xfer += $output->writeFieldEnd();
-    }
-    if ($this->catName !== null) {
-      $xfer += $output->writeFieldBegin('catName', TType::STRING, 3);
-      $xfer += $output->writeString($this->catName);
       $xfer += $output->writeFieldEnd();
     }
     $xfer += $output->writeFieldStop();
@@ -10492,42 +10515,42 @@ class NotNullConstraintsRequest {
   /**
    * @var string
    */
+  public $catName = null;
+  /**
+   * @var string
+   */
   public $db_name = null;
   /**
    * @var string
    */
   public $tbl_name = null;
-  /**
-   * @var string
-   */
-  public $catName = "hive";
 
   public function __construct($vals=null) {
     if (!isset(self::$_TSPEC)) {
       self::$_TSPEC = array(
         1 => array(
-          'var' => 'db_name',
+          'var' => 'catName',
           'type' => TType::STRING,
           ),
         2 => array(
-          'var' => 'tbl_name',
+          'var' => 'db_name',
           'type' => TType::STRING,
           ),
         3 => array(
-          'var' => 'catName',
+          'var' => 'tbl_name',
           'type' => TType::STRING,
           ),
         );
     }
     if (is_array($vals)) {
+      if (isset($vals['catName'])) {
+        $this->catName = $vals['catName'];
+      }
       if (isset($vals['db_name'])) {
         $this->db_name = $vals['db_name'];
       }
       if (isset($vals['tbl_name'])) {
         $this->tbl_name = $vals['tbl_name'];
-      }
-      if (isset($vals['catName'])) {
-        $this->catName = $vals['catName'];
       }
     }
   }
@@ -10553,21 +10576,21 @@ class NotNullConstraintsRequest {
       {
         case 1:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->db_name);
+            $xfer += $input->readString($this->catName);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 2:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->tbl_name);
+            $xfer += $input->readString($this->db_name);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 3:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->catName);
+            $xfer += $input->readString($this->tbl_name);
           } else {
             $xfer += $input->skip($ftype);
           }
@@ -10585,19 +10608,19 @@ class NotNullConstraintsRequest {
   public function write($output) {
     $xfer = 0;
     $xfer += $output->writeStructBegin('NotNullConstraintsRequest');
+    if ($this->catName !== null) {
+      $xfer += $output->writeFieldBegin('catName', TType::STRING, 1);
+      $xfer += $output->writeString($this->catName);
+      $xfer += $output->writeFieldEnd();
+    }
     if ($this->db_name !== null) {
-      $xfer += $output->writeFieldBegin('db_name', TType::STRING, 1);
+      $xfer += $output->writeFieldBegin('db_name', TType::STRING, 2);
       $xfer += $output->writeString($this->db_name);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->tbl_name !== null) {
-      $xfer += $output->writeFieldBegin('tbl_name', TType::STRING, 2);
+      $xfer += $output->writeFieldBegin('tbl_name', TType::STRING, 3);
       $xfer += $output->writeString($this->tbl_name);
-      $xfer += $output->writeFieldEnd();
-    }
-    if ($this->catName !== null) {
-      $xfer += $output->writeFieldBegin('catName', TType::STRING, 3);
-      $xfer += $output->writeString($this->catName);
       $xfer += $output->writeFieldEnd();
     }
     $xfer += $output->writeFieldStop();
@@ -10716,6 +10739,10 @@ class DefaultConstraintsRequest {
   /**
    * @var string
    */
+  public $catName = null;
+  /**
+   * @var string
+   */
   public $db_name = null;
   /**
    * @var string
@@ -10726,16 +10753,23 @@ class DefaultConstraintsRequest {
     if (!isset(self::$_TSPEC)) {
       self::$_TSPEC = array(
         1 => array(
-          'var' => 'db_name',
+          'var' => 'catName',
           'type' => TType::STRING,
           ),
         2 => array(
+          'var' => 'db_name',
+          'type' => TType::STRING,
+          ),
+        3 => array(
           'var' => 'tbl_name',
           'type' => TType::STRING,
           ),
         );
     }
     if (is_array($vals)) {
+      if (isset($vals['catName'])) {
+        $this->catName = $vals['catName'];
+      }
       if (isset($vals['db_name'])) {
         $this->db_name = $vals['db_name'];
       }
@@ -10766,12 +10800,19 @@ class DefaultConstraintsRequest {
       {
         case 1:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->db_name);
+            $xfer += $input->readString($this->catName);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 2:
+          if ($ftype == TType::STRING) {
+            $xfer += $input->readString($this->db_name);
+          } else {
+            $xfer += $input->skip($ftype);
+          }
+          break;
+        case 3:
           if ($ftype == TType::STRING) {
             $xfer += $input->readString($this->tbl_name);
           } else {
@@ -10791,13 +10832,18 @@ class DefaultConstraintsRequest {
   public function write($output) {
     $xfer = 0;
     $xfer += $output->writeStructBegin('DefaultConstraintsRequest');
+    if ($this->catName !== null) {
+      $xfer += $output->writeFieldBegin('catName', TType::STRING, 1);
+      $xfer += $output->writeString($this->catName);
+      $xfer += $output->writeFieldEnd();
+    }
     if ($this->db_name !== null) {
-      $xfer += $output->writeFieldBegin('db_name', TType::STRING, 1);
+      $xfer += $output->writeFieldBegin('db_name', TType::STRING, 2);
       $xfer += $output->writeString($this->db_name);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->tbl_name !== null) {
-      $xfer += $output->writeFieldBegin('tbl_name', TType::STRING, 2);
+      $xfer += $output->writeFieldBegin('tbl_name', TType::STRING, 3);
       $xfer += $output->writeString($this->tbl_name);
       $xfer += $output->writeFieldEnd();
     }

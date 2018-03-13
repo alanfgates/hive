@@ -978,6 +978,7 @@ class SQLForeignKey:
 class SQLUniqueConstraint:
   """
   Attributes:
+   - catName
    - table_db
    - table_name
    - column_name
@@ -986,23 +987,23 @@ class SQLUniqueConstraint:
    - enable_cstr
    - validate_cstr
    - rely_cstr
-   - catName
   """
 
   thrift_spec = (
     None, # 0
-    (1, TType.STRING, 'table_db', None, None, ), # 1
-    (2, TType.STRING, 'table_name', None, None, ), # 2
-    (3, TType.STRING, 'column_name', None, None, ), # 3
-    (4, TType.I32, 'key_seq', None, None, ), # 4
-    (5, TType.STRING, 'uk_name', None, None, ), # 5
-    (6, TType.BOOL, 'enable_cstr', None, None, ), # 6
-    (7, TType.BOOL, 'validate_cstr', None, None, ), # 7
-    (8, TType.BOOL, 'rely_cstr', None, None, ), # 8
-    (9, TType.STRING, 'catName', None, "hive", ), # 9
+    (1, TType.STRING, 'catName', None, None, ), # 1
+    (2, TType.STRING, 'table_db', None, None, ), # 2
+    (3, TType.STRING, 'table_name', None, None, ), # 3
+    (4, TType.STRING, 'column_name', None, None, ), # 4
+    (5, TType.I32, 'key_seq', None, None, ), # 5
+    (6, TType.STRING, 'uk_name', None, None, ), # 6
+    (7, TType.BOOL, 'enable_cstr', None, None, ), # 7
+    (8, TType.BOOL, 'validate_cstr', None, None, ), # 8
+    (9, TType.BOOL, 'rely_cstr', None, None, ), # 9
   )
 
-  def __init__(self, table_db=None, table_name=None, column_name=None, key_seq=None, uk_name=None, enable_cstr=None, validate_cstr=None, rely_cstr=None, catName=thrift_spec[9][4],):
+  def __init__(self, catName=None, table_db=None, table_name=None, column_name=None, key_seq=None, uk_name=None, enable_cstr=None, validate_cstr=None, rely_cstr=None,):
+    self.catName = catName
     self.table_db = table_db
     self.table_name = table_name
     self.column_name = column_name
@@ -1011,7 +1012,6 @@ class SQLUniqueConstraint:
     self.enable_cstr = enable_cstr
     self.validate_cstr = validate_cstr
     self.rely_cstr = rely_cstr
-    self.catName = catName
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -1024,27 +1024,193 @@ class SQLUniqueConstraint:
         break
       if fid == 1:
         if ftype == TType.STRING:
-          self.table_db = iprot.readString()
+          self.catName = iprot.readString()
         else:
           iprot.skip(ftype)
       elif fid == 2:
         if ftype == TType.STRING:
-          self.table_name = iprot.readString()
+          self.table_db = iprot.readString()
         else:
           iprot.skip(ftype)
       elif fid == 3:
         if ftype == TType.STRING:
-          self.column_name = iprot.readString()
+          self.table_name = iprot.readString()
         else:
           iprot.skip(ftype)
       elif fid == 4:
+        if ftype == TType.STRING:
+          self.column_name = iprot.readString()
+        else:
+          iprot.skip(ftype)
+      elif fid == 5:
         if ftype == TType.I32:
           self.key_seq = iprot.readI32()
         else:
           iprot.skip(ftype)
-      elif fid == 5:
+      elif fid == 6:
         if ftype == TType.STRING:
           self.uk_name = iprot.readString()
+        else:
+          iprot.skip(ftype)
+      elif fid == 7:
+        if ftype == TType.BOOL:
+          self.enable_cstr = iprot.readBool()
+        else:
+          iprot.skip(ftype)
+      elif fid == 8:
+        if ftype == TType.BOOL:
+          self.validate_cstr = iprot.readBool()
+        else:
+          iprot.skip(ftype)
+      elif fid == 9:
+        if ftype == TType.BOOL:
+          self.rely_cstr = iprot.readBool()
+        else:
+          iprot.skip(ftype)
+      else:
+        iprot.skip(ftype)
+      iprot.readFieldEnd()
+    iprot.readStructEnd()
+
+  def write(self, oprot):
+    if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
+      oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
+      return
+    oprot.writeStructBegin('SQLUniqueConstraint')
+    if self.catName is not None:
+      oprot.writeFieldBegin('catName', TType.STRING, 1)
+      oprot.writeString(self.catName)
+      oprot.writeFieldEnd()
+    if self.table_db is not None:
+      oprot.writeFieldBegin('table_db', TType.STRING, 2)
+      oprot.writeString(self.table_db)
+      oprot.writeFieldEnd()
+    if self.table_name is not None:
+      oprot.writeFieldBegin('table_name', TType.STRING, 3)
+      oprot.writeString(self.table_name)
+      oprot.writeFieldEnd()
+    if self.column_name is not None:
+      oprot.writeFieldBegin('column_name', TType.STRING, 4)
+      oprot.writeString(self.column_name)
+      oprot.writeFieldEnd()
+    if self.key_seq is not None:
+      oprot.writeFieldBegin('key_seq', TType.I32, 5)
+      oprot.writeI32(self.key_seq)
+      oprot.writeFieldEnd()
+    if self.uk_name is not None:
+      oprot.writeFieldBegin('uk_name', TType.STRING, 6)
+      oprot.writeString(self.uk_name)
+      oprot.writeFieldEnd()
+    if self.enable_cstr is not None:
+      oprot.writeFieldBegin('enable_cstr', TType.BOOL, 7)
+      oprot.writeBool(self.enable_cstr)
+      oprot.writeFieldEnd()
+    if self.validate_cstr is not None:
+      oprot.writeFieldBegin('validate_cstr', TType.BOOL, 8)
+      oprot.writeBool(self.validate_cstr)
+      oprot.writeFieldEnd()
+    if self.rely_cstr is not None:
+      oprot.writeFieldBegin('rely_cstr', TType.BOOL, 9)
+      oprot.writeBool(self.rely_cstr)
+      oprot.writeFieldEnd()
+    oprot.writeFieldStop()
+    oprot.writeStructEnd()
+
+  def validate(self):
+    return
+
+
+  def __hash__(self):
+    value = 17
+    value = (value * 31) ^ hash(self.catName)
+    value = (value * 31) ^ hash(self.table_db)
+    value = (value * 31) ^ hash(self.table_name)
+    value = (value * 31) ^ hash(self.column_name)
+    value = (value * 31) ^ hash(self.key_seq)
+    value = (value * 31) ^ hash(self.uk_name)
+    value = (value * 31) ^ hash(self.enable_cstr)
+    value = (value * 31) ^ hash(self.validate_cstr)
+    value = (value * 31) ^ hash(self.rely_cstr)
+    return value
+
+  def __repr__(self):
+    L = ['%s=%r' % (key, value)
+      for key, value in self.__dict__.iteritems()]
+    return '%s(%s)' % (self.__class__.__name__, ', '.join(L))
+
+  def __eq__(self, other):
+    return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+
+  def __ne__(self, other):
+    return not (self == other)
+
+class SQLNotNullConstraint:
+  """
+  Attributes:
+   - catName
+   - table_db
+   - table_name
+   - column_name
+   - nn_name
+   - enable_cstr
+   - validate_cstr
+   - rely_cstr
+  """
+
+  thrift_spec = (
+    None, # 0
+    (1, TType.STRING, 'catName', None, None, ), # 1
+    (2, TType.STRING, 'table_db', None, None, ), # 2
+    (3, TType.STRING, 'table_name', None, None, ), # 3
+    (4, TType.STRING, 'column_name', None, None, ), # 4
+    (5, TType.STRING, 'nn_name', None, None, ), # 5
+    (6, TType.BOOL, 'enable_cstr', None, None, ), # 6
+    (7, TType.BOOL, 'validate_cstr', None, None, ), # 7
+    (8, TType.BOOL, 'rely_cstr', None, None, ), # 8
+  )
+
+  def __init__(self, catName=None, table_db=None, table_name=None, column_name=None, nn_name=None, enable_cstr=None, validate_cstr=None, rely_cstr=None,):
+    self.catName = catName
+    self.table_db = table_db
+    self.table_name = table_name
+    self.column_name = column_name
+    self.nn_name = nn_name
+    self.enable_cstr = enable_cstr
+    self.validate_cstr = validate_cstr
+    self.rely_cstr = rely_cstr
+
+  def read(self, iprot):
+    if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
+      fastbinary.decode_binary(self, iprot.trans, (self.__class__, self.thrift_spec))
+      return
+    iprot.readStructBegin()
+    while True:
+      (fname, ftype, fid) = iprot.readFieldBegin()
+      if ftype == TType.STOP:
+        break
+      if fid == 1:
+        if ftype == TType.STRING:
+          self.catName = iprot.readString()
+        else:
+          iprot.skip(ftype)
+      elif fid == 2:
+        if ftype == TType.STRING:
+          self.table_db = iprot.readString()
+        else:
+          iprot.skip(ftype)
+      elif fid == 3:
+        if ftype == TType.STRING:
+          self.table_name = iprot.readString()
+        else:
+          iprot.skip(ftype)
+      elif fid == 4:
+        if ftype == TType.STRING:
+          self.column_name = iprot.readString()
+        else:
+          iprot.skip(ftype)
+      elif fid == 5:
+        if ftype == TType.STRING:
+          self.nn_name = iprot.readString()
         else:
           iprot.skip(ftype)
       elif fid == 6:
@@ -1062,11 +1228,6 @@ class SQLUniqueConstraint:
           self.rely_cstr = iprot.readBool()
         else:
           iprot.skip(ftype)
-      elif fid == 9:
-        if ftype == TType.STRING:
-          self.catName = iprot.readString()
-        else:
-          iprot.skip(ftype)
       else:
         iprot.skip(ftype)
       iprot.readFieldEnd()
@@ -1076,26 +1237,26 @@ class SQLUniqueConstraint:
     if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return
-    oprot.writeStructBegin('SQLUniqueConstraint')
+    oprot.writeStructBegin('SQLNotNullConstraint')
+    if self.catName is not None:
+      oprot.writeFieldBegin('catName', TType.STRING, 1)
+      oprot.writeString(self.catName)
+      oprot.writeFieldEnd()
     if self.table_db is not None:
-      oprot.writeFieldBegin('table_db', TType.STRING, 1)
+      oprot.writeFieldBegin('table_db', TType.STRING, 2)
       oprot.writeString(self.table_db)
       oprot.writeFieldEnd()
     if self.table_name is not None:
-      oprot.writeFieldBegin('table_name', TType.STRING, 2)
+      oprot.writeFieldBegin('table_name', TType.STRING, 3)
       oprot.writeString(self.table_name)
       oprot.writeFieldEnd()
     if self.column_name is not None:
-      oprot.writeFieldBegin('column_name', TType.STRING, 3)
+      oprot.writeFieldBegin('column_name', TType.STRING, 4)
       oprot.writeString(self.column_name)
       oprot.writeFieldEnd()
-    if self.key_seq is not None:
-      oprot.writeFieldBegin('key_seq', TType.I32, 4)
-      oprot.writeI32(self.key_seq)
-      oprot.writeFieldEnd()
-    if self.uk_name is not None:
-      oprot.writeFieldBegin('uk_name', TType.STRING, 5)
-      oprot.writeString(self.uk_name)
+    if self.nn_name is not None:
+      oprot.writeFieldBegin('nn_name', TType.STRING, 5)
+      oprot.writeString(self.nn_name)
       oprot.writeFieldEnd()
     if self.enable_cstr is not None:
       oprot.writeFieldBegin('enable_cstr', TType.BOOL, 6)
@@ -1109,10 +1270,6 @@ class SQLUniqueConstraint:
       oprot.writeFieldBegin('rely_cstr', TType.BOOL, 8)
       oprot.writeBool(self.rely_cstr)
       oprot.writeFieldEnd()
-    if self.catName is not None:
-      oprot.writeFieldBegin('catName', TType.STRING, 9)
-      oprot.writeString(self.catName)
-      oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
 
@@ -1122,164 +1279,7 @@ class SQLUniqueConstraint:
 
   def __hash__(self):
     value = 17
-    value = (value * 31) ^ hash(self.table_db)
-    value = (value * 31) ^ hash(self.table_name)
-    value = (value * 31) ^ hash(self.column_name)
-    value = (value * 31) ^ hash(self.key_seq)
-    value = (value * 31) ^ hash(self.uk_name)
-    value = (value * 31) ^ hash(self.enable_cstr)
-    value = (value * 31) ^ hash(self.validate_cstr)
-    value = (value * 31) ^ hash(self.rely_cstr)
     value = (value * 31) ^ hash(self.catName)
-    return value
-
-  def __repr__(self):
-    L = ['%s=%r' % (key, value)
-      for key, value in self.__dict__.iteritems()]
-    return '%s(%s)' % (self.__class__.__name__, ', '.join(L))
-
-  def __eq__(self, other):
-    return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
-
-  def __ne__(self, other):
-    return not (self == other)
-
-class SQLNotNullConstraint:
-  """
-  Attributes:
-   - table_db
-   - table_name
-   - column_name
-   - nn_name
-   - enable_cstr
-   - validate_cstr
-   - rely_cstr
-   - catName
-  """
-
-  thrift_spec = (
-    None, # 0
-    (1, TType.STRING, 'table_db', None, None, ), # 1
-    (2, TType.STRING, 'table_name', None, None, ), # 2
-    (3, TType.STRING, 'column_name', None, None, ), # 3
-    (4, TType.STRING, 'nn_name', None, None, ), # 4
-    (5, TType.BOOL, 'enable_cstr', None, None, ), # 5
-    (6, TType.BOOL, 'validate_cstr', None, None, ), # 6
-    (7, TType.BOOL, 'rely_cstr', None, None, ), # 7
-    None, # 8
-    (9, TType.STRING, 'catName', None, "hive", ), # 9
-  )
-
-  def __init__(self, table_db=None, table_name=None, column_name=None, nn_name=None, enable_cstr=None, validate_cstr=None, rely_cstr=None, catName=thrift_spec[9][4],):
-    self.table_db = table_db
-    self.table_name = table_name
-    self.column_name = column_name
-    self.nn_name = nn_name
-    self.enable_cstr = enable_cstr
-    self.validate_cstr = validate_cstr
-    self.rely_cstr = rely_cstr
-    self.catName = catName
-
-  def read(self, iprot):
-    if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
-      fastbinary.decode_binary(self, iprot.trans, (self.__class__, self.thrift_spec))
-      return
-    iprot.readStructBegin()
-    while True:
-      (fname, ftype, fid) = iprot.readFieldBegin()
-      if ftype == TType.STOP:
-        break
-      if fid == 1:
-        if ftype == TType.STRING:
-          self.table_db = iprot.readString()
-        else:
-          iprot.skip(ftype)
-      elif fid == 2:
-        if ftype == TType.STRING:
-          self.table_name = iprot.readString()
-        else:
-          iprot.skip(ftype)
-      elif fid == 3:
-        if ftype == TType.STRING:
-          self.column_name = iprot.readString()
-        else:
-          iprot.skip(ftype)
-      elif fid == 4:
-        if ftype == TType.STRING:
-          self.nn_name = iprot.readString()
-        else:
-          iprot.skip(ftype)
-      elif fid == 5:
-        if ftype == TType.BOOL:
-          self.enable_cstr = iprot.readBool()
-        else:
-          iprot.skip(ftype)
-      elif fid == 6:
-        if ftype == TType.BOOL:
-          self.validate_cstr = iprot.readBool()
-        else:
-          iprot.skip(ftype)
-      elif fid == 7:
-        if ftype == TType.BOOL:
-          self.rely_cstr = iprot.readBool()
-        else:
-          iprot.skip(ftype)
-      elif fid == 9:
-        if ftype == TType.STRING:
-          self.catName = iprot.readString()
-        else:
-          iprot.skip(ftype)
-      else:
-        iprot.skip(ftype)
-      iprot.readFieldEnd()
-    iprot.readStructEnd()
-
-  def write(self, oprot):
-    if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
-      oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
-      return
-    oprot.writeStructBegin('SQLNotNullConstraint')
-    if self.table_db is not None:
-      oprot.writeFieldBegin('table_db', TType.STRING, 1)
-      oprot.writeString(self.table_db)
-      oprot.writeFieldEnd()
-    if self.table_name is not None:
-      oprot.writeFieldBegin('table_name', TType.STRING, 2)
-      oprot.writeString(self.table_name)
-      oprot.writeFieldEnd()
-    if self.column_name is not None:
-      oprot.writeFieldBegin('column_name', TType.STRING, 3)
-      oprot.writeString(self.column_name)
-      oprot.writeFieldEnd()
-    if self.nn_name is not None:
-      oprot.writeFieldBegin('nn_name', TType.STRING, 4)
-      oprot.writeString(self.nn_name)
-      oprot.writeFieldEnd()
-    if self.enable_cstr is not None:
-      oprot.writeFieldBegin('enable_cstr', TType.BOOL, 5)
-      oprot.writeBool(self.enable_cstr)
-      oprot.writeFieldEnd()
-    if self.validate_cstr is not None:
-      oprot.writeFieldBegin('validate_cstr', TType.BOOL, 6)
-      oprot.writeBool(self.validate_cstr)
-      oprot.writeFieldEnd()
-    if self.rely_cstr is not None:
-      oprot.writeFieldBegin('rely_cstr', TType.BOOL, 7)
-      oprot.writeBool(self.rely_cstr)
-      oprot.writeFieldEnd()
-    if self.catName is not None:
-      oprot.writeFieldBegin('catName', TType.STRING, 9)
-      oprot.writeString(self.catName)
-      oprot.writeFieldEnd()
-    oprot.writeFieldStop()
-    oprot.writeStructEnd()
-
-  def validate(self):
-    return
-
-
-  def __hash__(self):
-    value = 17
     value = (value * 31) ^ hash(self.table_db)
     value = (value * 31) ^ hash(self.table_name)
     value = (value * 31) ^ hash(self.column_name)
@@ -1287,7 +1287,6 @@ class SQLNotNullConstraint:
     value = (value * 31) ^ hash(self.enable_cstr)
     value = (value * 31) ^ hash(self.validate_cstr)
     value = (value * 31) ^ hash(self.rely_cstr)
-    value = (value * 31) ^ hash(self.catName)
     return value
 
   def __repr__(self):
@@ -1304,6 +1303,7 @@ class SQLNotNullConstraint:
 class SQLDefaultConstraint:
   """
   Attributes:
+   - catName
    - table_db
    - table_name
    - column_name
@@ -1316,17 +1316,19 @@ class SQLDefaultConstraint:
 
   thrift_spec = (
     None, # 0
-    (1, TType.STRING, 'table_db', None, None, ), # 1
-    (2, TType.STRING, 'table_name', None, None, ), # 2
-    (3, TType.STRING, 'column_name', None, None, ), # 3
-    (4, TType.STRING, 'default_value', None, None, ), # 4
-    (5, TType.STRING, 'dc_name', None, None, ), # 5
-    (6, TType.BOOL, 'enable_cstr', None, None, ), # 6
-    (7, TType.BOOL, 'validate_cstr', None, None, ), # 7
-    (8, TType.BOOL, 'rely_cstr', None, None, ), # 8
+    (1, TType.STRING, 'catName', None, None, ), # 1
+    (2, TType.STRING, 'table_db', None, None, ), # 2
+    (3, TType.STRING, 'table_name', None, None, ), # 3
+    (4, TType.STRING, 'column_name', None, None, ), # 4
+    (5, TType.STRING, 'default_value', None, None, ), # 5
+    (6, TType.STRING, 'dc_name', None, None, ), # 6
+    (7, TType.BOOL, 'enable_cstr', None, None, ), # 7
+    (8, TType.BOOL, 'validate_cstr', None, None, ), # 8
+    (9, TType.BOOL, 'rely_cstr', None, None, ), # 9
   )
 
-  def __init__(self, table_db=None, table_name=None, column_name=None, default_value=None, dc_name=None, enable_cstr=None, validate_cstr=None, rely_cstr=None,):
+  def __init__(self, catName=None, table_db=None, table_name=None, column_name=None, default_value=None, dc_name=None, enable_cstr=None, validate_cstr=None, rely_cstr=None,):
+    self.catName = catName
     self.table_db = table_db
     self.table_name = table_name
     self.column_name = column_name
@@ -1347,40 +1349,45 @@ class SQLDefaultConstraint:
         break
       if fid == 1:
         if ftype == TType.STRING:
-          self.table_db = iprot.readString()
+          self.catName = iprot.readString()
         else:
           iprot.skip(ftype)
       elif fid == 2:
         if ftype == TType.STRING:
-          self.table_name = iprot.readString()
+          self.table_db = iprot.readString()
         else:
           iprot.skip(ftype)
       elif fid == 3:
         if ftype == TType.STRING:
-          self.column_name = iprot.readString()
+          self.table_name = iprot.readString()
         else:
           iprot.skip(ftype)
       elif fid == 4:
         if ftype == TType.STRING:
-          self.default_value = iprot.readString()
+          self.column_name = iprot.readString()
         else:
           iprot.skip(ftype)
       elif fid == 5:
         if ftype == TType.STRING:
-          self.dc_name = iprot.readString()
+          self.default_value = iprot.readString()
         else:
           iprot.skip(ftype)
       elif fid == 6:
-        if ftype == TType.BOOL:
-          self.enable_cstr = iprot.readBool()
+        if ftype == TType.STRING:
+          self.dc_name = iprot.readString()
         else:
           iprot.skip(ftype)
       elif fid == 7:
         if ftype == TType.BOOL:
-          self.validate_cstr = iprot.readBool()
+          self.enable_cstr = iprot.readBool()
         else:
           iprot.skip(ftype)
       elif fid == 8:
+        if ftype == TType.BOOL:
+          self.validate_cstr = iprot.readBool()
+        else:
+          iprot.skip(ftype)
+      elif fid == 9:
         if ftype == TType.BOOL:
           self.rely_cstr = iprot.readBool()
         else:
@@ -1395,36 +1402,40 @@ class SQLDefaultConstraint:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return
     oprot.writeStructBegin('SQLDefaultConstraint')
+    if self.catName is not None:
+      oprot.writeFieldBegin('catName', TType.STRING, 1)
+      oprot.writeString(self.catName)
+      oprot.writeFieldEnd()
     if self.table_db is not None:
-      oprot.writeFieldBegin('table_db', TType.STRING, 1)
+      oprot.writeFieldBegin('table_db', TType.STRING, 2)
       oprot.writeString(self.table_db)
       oprot.writeFieldEnd()
     if self.table_name is not None:
-      oprot.writeFieldBegin('table_name', TType.STRING, 2)
+      oprot.writeFieldBegin('table_name', TType.STRING, 3)
       oprot.writeString(self.table_name)
       oprot.writeFieldEnd()
     if self.column_name is not None:
-      oprot.writeFieldBegin('column_name', TType.STRING, 3)
+      oprot.writeFieldBegin('column_name', TType.STRING, 4)
       oprot.writeString(self.column_name)
       oprot.writeFieldEnd()
     if self.default_value is not None:
-      oprot.writeFieldBegin('default_value', TType.STRING, 4)
+      oprot.writeFieldBegin('default_value', TType.STRING, 5)
       oprot.writeString(self.default_value)
       oprot.writeFieldEnd()
     if self.dc_name is not None:
-      oprot.writeFieldBegin('dc_name', TType.STRING, 5)
+      oprot.writeFieldBegin('dc_name', TType.STRING, 6)
       oprot.writeString(self.dc_name)
       oprot.writeFieldEnd()
     if self.enable_cstr is not None:
-      oprot.writeFieldBegin('enable_cstr', TType.BOOL, 6)
+      oprot.writeFieldBegin('enable_cstr', TType.BOOL, 7)
       oprot.writeBool(self.enable_cstr)
       oprot.writeFieldEnd()
     if self.validate_cstr is not None:
-      oprot.writeFieldBegin('validate_cstr', TType.BOOL, 7)
+      oprot.writeFieldBegin('validate_cstr', TType.BOOL, 8)
       oprot.writeBool(self.validate_cstr)
       oprot.writeFieldEnd()
     if self.rely_cstr is not None:
-      oprot.writeFieldBegin('rely_cstr', TType.BOOL, 8)
+      oprot.writeFieldBegin('rely_cstr', TType.BOOL, 9)
       oprot.writeBool(self.rely_cstr)
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
@@ -1436,6 +1447,7 @@ class SQLDefaultConstraint:
 
   def __hash__(self):
     value = 17
+    value = (value * 31) ^ hash(self.catName)
     value = (value * 31) ^ hash(self.table_db)
     value = (value * 31) ^ hash(self.table_name)
     value = (value * 31) ^ hash(self.column_name)
@@ -7091,22 +7103,22 @@ class ForeignKeysResponse:
 class UniqueConstraintsRequest:
   """
   Attributes:
+   - catName
    - db_name
    - tbl_name
-   - catName
   """
 
   thrift_spec = (
     None, # 0
-    (1, TType.STRING, 'db_name', None, None, ), # 1
-    (2, TType.STRING, 'tbl_name', None, None, ), # 2
-    (3, TType.STRING, 'catName', None, "hive", ), # 3
+    (1, TType.STRING, 'catName', None, None, ), # 1
+    (2, TType.STRING, 'db_name', None, None, ), # 2
+    (3, TType.STRING, 'tbl_name', None, None, ), # 3
   )
 
-  def __init__(self, db_name=None, tbl_name=None, catName=thrift_spec[3][4],):
+  def __init__(self, catName=None, db_name=None, tbl_name=None,):
+    self.catName = catName
     self.db_name = db_name
     self.tbl_name = tbl_name
-    self.catName = catName
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -7119,17 +7131,17 @@ class UniqueConstraintsRequest:
         break
       if fid == 1:
         if ftype == TType.STRING:
-          self.db_name = iprot.readString()
+          self.catName = iprot.readString()
         else:
           iprot.skip(ftype)
       elif fid == 2:
         if ftype == TType.STRING:
-          self.tbl_name = iprot.readString()
+          self.db_name = iprot.readString()
         else:
           iprot.skip(ftype)
       elif fid == 3:
         if ftype == TType.STRING:
-          self.catName = iprot.readString()
+          self.tbl_name = iprot.readString()
         else:
           iprot.skip(ftype)
       else:
@@ -7142,22 +7154,24 @@ class UniqueConstraintsRequest:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return
     oprot.writeStructBegin('UniqueConstraintsRequest')
+    if self.catName is not None:
+      oprot.writeFieldBegin('catName', TType.STRING, 1)
+      oprot.writeString(self.catName)
+      oprot.writeFieldEnd()
     if self.db_name is not None:
-      oprot.writeFieldBegin('db_name', TType.STRING, 1)
+      oprot.writeFieldBegin('db_name', TType.STRING, 2)
       oprot.writeString(self.db_name)
       oprot.writeFieldEnd()
     if self.tbl_name is not None:
-      oprot.writeFieldBegin('tbl_name', TType.STRING, 2)
+      oprot.writeFieldBegin('tbl_name', TType.STRING, 3)
       oprot.writeString(self.tbl_name)
-      oprot.writeFieldEnd()
-    if self.catName is not None:
-      oprot.writeFieldBegin('catName', TType.STRING, 3)
-      oprot.writeString(self.catName)
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
 
   def validate(self):
+    if self.catName is None:
+      raise TProtocol.TProtocolException(message='Required field catName is unset!')
     if self.db_name is None:
       raise TProtocol.TProtocolException(message='Required field db_name is unset!')
     if self.tbl_name is None:
@@ -7167,9 +7181,9 @@ class UniqueConstraintsRequest:
 
   def __hash__(self):
     value = 17
+    value = (value * 31) ^ hash(self.catName)
     value = (value * 31) ^ hash(self.db_name)
     value = (value * 31) ^ hash(self.tbl_name)
-    value = (value * 31) ^ hash(self.catName)
     return value
 
   def __repr__(self):
@@ -7262,22 +7276,22 @@ class UniqueConstraintsResponse:
 class NotNullConstraintsRequest:
   """
   Attributes:
+   - catName
    - db_name
    - tbl_name
-   - catName
   """
 
   thrift_spec = (
     None, # 0
-    (1, TType.STRING, 'db_name', None, None, ), # 1
-    (2, TType.STRING, 'tbl_name', None, None, ), # 2
-    (3, TType.STRING, 'catName', None, "hive", ), # 3
+    (1, TType.STRING, 'catName', None, None, ), # 1
+    (2, TType.STRING, 'db_name', None, None, ), # 2
+    (3, TType.STRING, 'tbl_name', None, None, ), # 3
   )
 
-  def __init__(self, db_name=None, tbl_name=None, catName=thrift_spec[3][4],):
+  def __init__(self, catName=None, db_name=None, tbl_name=None,):
+    self.catName = catName
     self.db_name = db_name
     self.tbl_name = tbl_name
-    self.catName = catName
 
   def read(self, iprot):
     if iprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and isinstance(iprot.trans, TTransport.CReadableTransport) and self.thrift_spec is not None and fastbinary is not None:
@@ -7290,17 +7304,17 @@ class NotNullConstraintsRequest:
         break
       if fid == 1:
         if ftype == TType.STRING:
-          self.db_name = iprot.readString()
+          self.catName = iprot.readString()
         else:
           iprot.skip(ftype)
       elif fid == 2:
         if ftype == TType.STRING:
-          self.tbl_name = iprot.readString()
+          self.db_name = iprot.readString()
         else:
           iprot.skip(ftype)
       elif fid == 3:
         if ftype == TType.STRING:
-          self.catName = iprot.readString()
+          self.tbl_name = iprot.readString()
         else:
           iprot.skip(ftype)
       else:
@@ -7313,22 +7327,24 @@ class NotNullConstraintsRequest:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return
     oprot.writeStructBegin('NotNullConstraintsRequest')
+    if self.catName is not None:
+      oprot.writeFieldBegin('catName', TType.STRING, 1)
+      oprot.writeString(self.catName)
+      oprot.writeFieldEnd()
     if self.db_name is not None:
-      oprot.writeFieldBegin('db_name', TType.STRING, 1)
+      oprot.writeFieldBegin('db_name', TType.STRING, 2)
       oprot.writeString(self.db_name)
       oprot.writeFieldEnd()
     if self.tbl_name is not None:
-      oprot.writeFieldBegin('tbl_name', TType.STRING, 2)
+      oprot.writeFieldBegin('tbl_name', TType.STRING, 3)
       oprot.writeString(self.tbl_name)
-      oprot.writeFieldEnd()
-    if self.catName is not None:
-      oprot.writeFieldBegin('catName', TType.STRING, 3)
-      oprot.writeString(self.catName)
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
 
   def validate(self):
+    if self.catName is None:
+      raise TProtocol.TProtocolException(message='Required field catName is unset!')
     if self.db_name is None:
       raise TProtocol.TProtocolException(message='Required field db_name is unset!')
     if self.tbl_name is None:
@@ -7338,9 +7354,9 @@ class NotNullConstraintsRequest:
 
   def __hash__(self):
     value = 17
+    value = (value * 31) ^ hash(self.catName)
     value = (value * 31) ^ hash(self.db_name)
     value = (value * 31) ^ hash(self.tbl_name)
-    value = (value * 31) ^ hash(self.catName)
     return value
 
   def __repr__(self):
@@ -7433,17 +7449,20 @@ class NotNullConstraintsResponse:
 class DefaultConstraintsRequest:
   """
   Attributes:
+   - catName
    - db_name
    - tbl_name
   """
 
   thrift_spec = (
     None, # 0
-    (1, TType.STRING, 'db_name', None, None, ), # 1
-    (2, TType.STRING, 'tbl_name', None, None, ), # 2
+    (1, TType.STRING, 'catName', None, None, ), # 1
+    (2, TType.STRING, 'db_name', None, None, ), # 2
+    (3, TType.STRING, 'tbl_name', None, None, ), # 3
   )
 
-  def __init__(self, db_name=None, tbl_name=None,):
+  def __init__(self, catName=None, db_name=None, tbl_name=None,):
+    self.catName = catName
     self.db_name = db_name
     self.tbl_name = tbl_name
 
@@ -7458,10 +7477,15 @@ class DefaultConstraintsRequest:
         break
       if fid == 1:
         if ftype == TType.STRING:
-          self.db_name = iprot.readString()
+          self.catName = iprot.readString()
         else:
           iprot.skip(ftype)
       elif fid == 2:
+        if ftype == TType.STRING:
+          self.db_name = iprot.readString()
+        else:
+          iprot.skip(ftype)
+      elif fid == 3:
         if ftype == TType.STRING:
           self.tbl_name = iprot.readString()
         else:
@@ -7476,18 +7500,24 @@ class DefaultConstraintsRequest:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return
     oprot.writeStructBegin('DefaultConstraintsRequest')
+    if self.catName is not None:
+      oprot.writeFieldBegin('catName', TType.STRING, 1)
+      oprot.writeString(self.catName)
+      oprot.writeFieldEnd()
     if self.db_name is not None:
-      oprot.writeFieldBegin('db_name', TType.STRING, 1)
+      oprot.writeFieldBegin('db_name', TType.STRING, 2)
       oprot.writeString(self.db_name)
       oprot.writeFieldEnd()
     if self.tbl_name is not None:
-      oprot.writeFieldBegin('tbl_name', TType.STRING, 2)
+      oprot.writeFieldBegin('tbl_name', TType.STRING, 3)
       oprot.writeString(self.tbl_name)
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
 
   def validate(self):
+    if self.catName is None:
+      raise TProtocol.TProtocolException(message='Required field catName is unset!')
     if self.db_name is None:
       raise TProtocol.TProtocolException(message='Required field db_name is unset!')
     if self.tbl_name is None:
@@ -7497,6 +7527,7 @@ class DefaultConstraintsRequest:
 
   def __hash__(self):
     value = 17
+    value = (value * 31) ^ hash(self.catName)
     value = (value * 31) ^ hash(self.db_name)
     value = (value * 31) ^ hash(self.tbl_name)
     return value

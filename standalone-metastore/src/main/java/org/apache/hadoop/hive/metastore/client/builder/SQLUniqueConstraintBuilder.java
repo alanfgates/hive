@@ -36,9 +36,8 @@ public class SQLUniqueConstraintBuilder extends ConstraintBuilder<SQLUniqueConst
     checkBuildable("unique_constraint");
     List<SQLUniqueConstraint> uc = new ArrayList<>(columns.size());
     for (String column : columns) {
-      SQLUniqueConstraint c = new SQLUniqueConstraint(dbName, tableName, column, getNextSeq(),
+      SQLUniqueConstraint c = new SQLUniqueConstraint(catName, dbName, tableName, column, getNextSeq(),
           constraintName, enable, validate, rely);
-      c.setCatName(catName);
       uc.add(c);
     }
     return uc;

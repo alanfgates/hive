@@ -178,8 +178,7 @@ public class TestUniqueConstraint {
     Table table = testTables[0];
     // Make sure get on a table with no key returns empty list
     UniqueConstraintsRequest rqst =
-        new UniqueConstraintsRequest(table.getDbName(), table.getTableName());
-    rqst.setCatName(table.getCatName());
+        new UniqueConstraintsRequest(table.getCatName(), table.getDbName(), table.getTableName());
     List<SQLUniqueConstraint> fetched = client.getUniqueConstraints(rqst);
     Assert.assertTrue(fetched.isEmpty());
 
@@ -190,8 +189,7 @@ public class TestUniqueConstraint {
         .build();
     client.addUniqueConstraint(uc);
 
-    rqst = new UniqueConstraintsRequest(table.getDbName(), table.getTableName());
-    rqst.setCatName(table.getCatName());
+    rqst = new UniqueConstraintsRequest(table.getCatName(), table.getDbName(), table.getTableName());
     fetched = client.getUniqueConstraints(rqst);
     Assert.assertEquals(1, fetched.size());
     Assert.assertEquals(table.getDbName(), fetched.get(0).getTable_db());
@@ -208,8 +206,7 @@ public class TestUniqueConstraint {
     // Drop a primary key
     client.dropConstraint(table.getCatName(), table.getDbName(),
         table.getTableName(), table0PkName);
-    rqst = new UniqueConstraintsRequest(table.getDbName(), table.getTableName());
-    rqst.setCatName(table.getCatName());
+    rqst = new UniqueConstraintsRequest(table.getCatName(), table.getDbName(), table.getTableName());
     fetched = client.getUniqueConstraints(rqst);
     Assert.assertTrue(fetched.isEmpty());
 
@@ -228,8 +225,8 @@ public class TestUniqueConstraint {
         .build();
     client.addUniqueConstraint(uc);
 
-    UniqueConstraintsRequest rqst = new UniqueConstraintsRequest(testTables[2].getDbName(), testTables[2].getTableName());
-    rqst.setCatName(testTables[2].getCatName());
+    UniqueConstraintsRequest rqst = new UniqueConstraintsRequest(testTables[2].getCatName(),
+        testTables[2].getDbName(), testTables[2].getTableName());
     List<SQLUniqueConstraint> fetched = client.getUniqueConstraints(rqst);
     Assert.assertEquals(1, fetched.size());
     Assert.assertEquals(testTables[2].getDbName(), fetched.get(0).getTable_db());
@@ -244,37 +241,8 @@ public class TestUniqueConstraint {
 
     client.dropConstraint(testTables[2].getCatName(), testTables[2].getDbName(),
         testTables[2].getTableName(), constraintName);
-    rqst = new UniqueConstraintsRequest(testTables[2].getDbName(), testTables[2].getTableName());
-    rqst.setCatName(testTables[2].getCatName());
-    fetched = client.getUniqueConstraints(rqst);
-    Assert.assertTrue(fetched.isEmpty());
-  }
-
-  @SuppressWarnings("deprecation")
-  @Test
-  public void deprecatedCalls() throws TException {
-    String constraintName = "dcuc";
-    List<SQLUniqueConstraint> uc = new SQLUniqueConstraintBuilder()
-        .onTable(testTables[0])
-        .addColumn("col1")
-        .setConstraintName(constraintName)
-        .build();
-    client.addUniqueConstraint(uc);
-
-    UniqueConstraintsRequest rqst = new UniqueConstraintsRequest(testTables[0].getDbName(), testTables[0].getTableName());
-    List<SQLUniqueConstraint> fetched = client.getUniqueConstraints(rqst);
-    Assert.assertEquals(1, fetched.size());
-    Assert.assertEquals(testTables[0].getDbName(), fetched.get(0).getTable_db());
-    Assert.assertEquals(testTables[0].getTableName(), fetched.get(0).getTable_name());
-    Assert.assertEquals("col1", fetched.get(0).getColumn_name());
-    Assert.assertEquals(1, fetched.get(0).getKey_seq());
-    Assert.assertEquals(constraintName, fetched.get(0).getUk_name());
-    Assert.assertTrue(fetched.get(0).isEnable_cstr());
-    Assert.assertFalse(fetched.get(0).isValidate_cstr());
-    Assert.assertFalse(fetched.get(0).isRely_cstr());
-
-    client.dropConstraint(testTables[0].getDbName(), testTables[0].getTableName(), constraintName);
-    rqst = new UniqueConstraintsRequest(testTables[0].getDbName(), testTables[0].getTableName());
+    rqst = new UniqueConstraintsRequest(testTables[2].getCatName(), testTables[2].getDbName(),
+        testTables[2].getTableName());
     fetched = client.getUniqueConstraints(rqst);
     Assert.assertTrue(fetched.isEmpty());
   }
@@ -295,8 +263,7 @@ public class TestUniqueConstraint {
         .build();
 
     client.createTableWithConstraints(table, null, null, uc, null, null);
-    UniqueConstraintsRequest rqst = new UniqueConstraintsRequest(table.getDbName(), table.getTableName());
-    rqst.setCatName(table.getCatName());
+    UniqueConstraintsRequest rqst = new UniqueConstraintsRequest(table.getCatName(), table.getDbName(), table.getTableName());
     List<SQLUniqueConstraint> fetched = client.getUniqueConstraints(rqst);
     Assert.assertEquals(1, fetched.size());
     Assert.assertEquals(table.getDbName(), fetched.get(0).getTable_db());
@@ -310,8 +277,7 @@ public class TestUniqueConstraint {
     Assert.assertEquals(table.getCatName(), fetched.get(0).getCatName());
 
     client.dropConstraint(table.getCatName(), table.getDbName(), table.getTableName(), constraintName);
-    rqst = new UniqueConstraintsRequest(table.getDbName(), table.getTableName());
-    rqst.setCatName(table.getCatName());
+    rqst = new UniqueConstraintsRequest(table.getCatName(), table.getDbName(), table.getTableName());
     fetched = client.getUniqueConstraints(rqst);
     Assert.assertTrue(fetched.isEmpty());
 
@@ -332,8 +298,7 @@ public class TestUniqueConstraint {
         .build();
 
     client.createTableWithConstraints(table, null, null, uc, null, null);
-    UniqueConstraintsRequest rqst = new UniqueConstraintsRequest(table.getDbName(), table.getTableName());
-    rqst.setCatName(table.getCatName());
+    UniqueConstraintsRequest rqst = new UniqueConstraintsRequest(table.getCatName(), table.getDbName(), table.getTableName());
     List<SQLUniqueConstraint> fetched = client.getUniqueConstraints(rqst);
     Assert.assertEquals(1, fetched.size());
     Assert.assertEquals(table.getDbName(), fetched.get(0).getTable_db());
@@ -348,8 +313,7 @@ public class TestUniqueConstraint {
     Assert.assertEquals(table.getCatName(), fetched.get(0).getCatName());
 
     client.dropConstraint(table.getCatName(), table.getDbName(), table.getTableName(), tablePkName);
-    rqst = new UniqueConstraintsRequest(table.getDbName(), table.getTableName());
-    rqst.setCatName(table.getCatName());
+    rqst = new UniqueConstraintsRequest(table.getCatName(), table.getDbName(), table.getTableName());
     fetched = client.getUniqueConstraints(rqst);
     Assert.assertTrue(fetched.isEmpty());
   }
@@ -359,8 +323,7 @@ public class TestUniqueConstraint {
     Table table = testTables[0];
     // Make sure get on a table with no key returns empty list
     UniqueConstraintsRequest rqst =
-        new UniqueConstraintsRequest(table.getDbName(), table.getTableName());
-    rqst.setCatName(table.getCatName());
+        new UniqueConstraintsRequest(table.getCatName(), table.getDbName(), table.getTableName());
     List<SQLUniqueConstraint> fetched = client.getUniqueConstraints(rqst);
     Assert.assertTrue(fetched.isEmpty());
 
@@ -400,8 +363,7 @@ public class TestUniqueConstraint {
   @Test
   public void getNoSuchTable() throws TException {
     UniqueConstraintsRequest rqst =
-        new UniqueConstraintsRequest(DEFAULT_DATABASE_NAME, "nosuch");
-    rqst.setCatName(DEFAULT_CATALOG_NAME);
+        new UniqueConstraintsRequest(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE_NAME, "nosuch");
     List<SQLUniqueConstraint> uc = client.getUniqueConstraints(rqst);
     Assert.assertTrue(uc.isEmpty());
   }
@@ -409,17 +371,15 @@ public class TestUniqueConstraint {
   @Test
   public void getNoSuchDb() throws TException {
     UniqueConstraintsRequest rqst =
-        new UniqueConstraintsRequest("nosuch", testTables[0].getTableName());
-    rqst.setCatName(DEFAULT_CATALOG_NAME);
+        new UniqueConstraintsRequest(DEFAULT_CATALOG_NAME, "nosuch", testTables[0].getTableName());
     List<SQLUniqueConstraint> uc = client.getUniqueConstraints(rqst);
     Assert.assertTrue(uc.isEmpty());
   }
 
   @Test
   public void getNoSuchCatalog() throws TException {
-    UniqueConstraintsRequest rqst =
-        new UniqueConstraintsRequest(testTables[0].getTableName(), testTables[0].getTableName());
-    rqst.setCatName("nosuch");
+    UniqueConstraintsRequest rqst = new UniqueConstraintsRequest("nosuch",
+        testTables[0].getDbName(), testTables[0].getTableName());
     List<SQLUniqueConstraint> uc = client.getUniqueConstraints(rqst);
     Assert.assertTrue(uc.isEmpty());
   }

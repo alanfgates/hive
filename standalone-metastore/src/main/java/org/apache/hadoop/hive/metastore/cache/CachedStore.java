@@ -2553,10 +2553,10 @@ public class CachedStore implements RawStore, Configurable {
   }
 
   @Override
-  public List<SQLDefaultConstraint> getDefaultConstraints(String db_name, String tbl_name)
+  public List<SQLDefaultConstraint> getDefaultConstraints(String catName, String db_name, String tbl_name)
       throws MetaException {
     // TODO constraintCache
-    return rawStore.getDefaultConstraints(db_name, tbl_name);
+    return rawStore.getDefaultConstraints(catName, db_name, tbl_name);
   }
 
   @Override

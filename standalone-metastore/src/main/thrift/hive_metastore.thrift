@@ -72,37 +72,38 @@ struct SQLForeignKey {
 }
 
 struct SQLUniqueConstraint {
-  1: string table_db,    // table schema
-  2: string table_name,  // table name
-  3: string column_name, // column name
-  4: i32 key_seq,        // sequence number within unique constraint
-  5: string uk_name,     // unique key name
-  6: bool enable_cstr,   // Enable/Disable
-  7: bool validate_cstr, // Validate/No validate
-  8: bool rely_cstr,     // Rely/No Rely
-  9: optional string catName = "hive"
+  1: string catName,     // table catalog
+  2: string table_db,    // table schema
+  3: string table_name,  // table name
+  4: string column_name, // column name
+  5: i32 key_seq,        // sequence number within unique constraint
+  6: string uk_name,     // unique key name
+  7: bool enable_cstr,   // Enable/Disable
+  8: bool validate_cstr, // Validate/No validate
+  9: bool rely_cstr,     // Rely/No Rely
 }
 
 struct SQLNotNullConstraint {
-  1: string table_db,    // table schema
-  2: string table_name,  // table name
-  3: string column_name, // column name
-  4: string nn_name,     // not null name
-  5: bool enable_cstr,   // Enable/Disable
-  6: bool validate_cstr, // Validate/No validate
-  7: bool rely_cstr,     // Rely/No Rely
-  9: optional string catName = "hive"
+  1: string catName,     // table catalog
+  2: string table_db,    // table schema
+  3: string table_name,  // table name
+  4: string column_name, // column name
+  5: string nn_name,     // not null name
+  6: bool enable_cstr,   // Enable/Disable
+  7: bool validate_cstr, // Validate/No validate
+  8: bool rely_cstr,     // Rely/No Rely
 }
 
 struct SQLDefaultConstraint {
-  1: string table_db,    // table schema
-  2: string table_name,  // table name
-  3: string column_name, // column name
-  4: string default_value,// default value
-  5: string dc_name,     // default name
-  6: bool enable_cstr,   // Enable/Disable
-  7: bool validate_cstr, // Validate/No validate
-  8: bool rely_cstr      // Rely/No Rely
+  1: string catName,     // catalog name
+  2: string table_db,    // table schema
+  3: string table_name,  // table name
+  4: string column_name, // column name
+  5: string default_value,// default value
+  6: string dc_name,     // default name
+  7: bool enable_cstr,   // Enable/Disable
+  8: bool validate_cstr, // Validate/No validate
+  9: bool rely_cstr      // Rely/No Rely
 }
 
 struct Type {
@@ -577,9 +578,9 @@ struct ForeignKeysResponse {
 }
 
 struct UniqueConstraintsRequest {
-  1: required string db_name,
-  2: required string tbl_name,
-  3: optional string catName = "hive"
+  1: required string catName,
+  2: required string db_name,
+  3: required string tbl_name,
 }
 
 struct UniqueConstraintsResponse {
@@ -587,9 +588,9 @@ struct UniqueConstraintsResponse {
 }
 
 struct NotNullConstraintsRequest {
-  1: required string db_name,
-  2: required string tbl_name,
-  3: optional string catName = "hive"
+  1: required string catName,
+  2: required string db_name,
+  3: required string tbl_name,
 }
 
 struct NotNullConstraintsResponse {
@@ -597,8 +598,9 @@ struct NotNullConstraintsResponse {
 }
 
 struct DefaultConstraintsRequest {
-  1: required string db_name,
-  2: required string tbl_name
+  1: required string catName,
+  2: required string db_name,
+  3: required string tbl_name
 }
 
 struct DefaultConstraintsResponse {

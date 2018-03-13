@@ -18,34 +18,33 @@
 package org.apache.hadoop.hive.metastore.client.builder;
 
 import org.apache.hadoop.hive.metastore.api.MetaException;
-import org.apache.hadoop.hive.metastore.api.SQLNotNullConstraint;
+import org.apache.hadoop.hive.metastore.api.SQLDefaultConstraint;
 
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Builder for {@link SQLNotNullConstraint}.  Only requires what {@link ConstraintBuilder} requires.
- */
-public class SQLNotNullConstraintBuilder extends ConstraintBuilder<SQLNotNullConstraintBuilder> {
+public class SQLDefaultConstraintBuilder extends ConstraintBuilder<SQLDefaultConstraintBuilder> {
+  private Object defaultVal;
 
-  public SQLNotNullConstraintBuilder() {
+  public SQLDefaultConstraintBuilder() {
     super.setChild(this);
   }
 
-  public SQLNotNullConstraintBuilder setColName(String colName) {
-    assert columns.isEmpty();
-    columns.add(colName);
+  public SQLDefaultConstraintBuilder setDefaultVal(Object defaultVal) {
+    this.defaultVal = defaultVal;
     return this;
   }
 
-  public List<SQLNotNullConstraint> build() throws MetaException {
-    checkBuildable("not_null_constraint");
-    List<SQLNotNullConstraint> uc = new ArrayList<>(columns.size());
-    for (String column : columns) {
-      SQLNotNullConstraint c = new SQLNotNullConstraint(catName, dbName, tableName, columns.get(0),
-          constraintName, enable, validate, rely);
-      uc.add(c);
+  public List<SQLDefaultConstraint> build() throws MetaException {
+    if (defaultVal == null) {
+      throw new MetaException("default value must be set");
     }
-    return uc;
+    checkBuildable("default_value");
+    List<SQLDefaultConstraint> dv = new ArrayList<>(columns.size());
+    for (String column : columns) {
+      dv.add(new SQLDefaultConstraint(catName, dbName, tableName, column,
+          defaultVal.toString(), constraintName, enable, validate, rely));
+    }
+    return dv;
   }
 }
