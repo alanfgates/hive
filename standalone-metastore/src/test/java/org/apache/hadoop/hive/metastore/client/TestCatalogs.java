@@ -14,7 +14,6 @@ import org.apache.hadoop.hive.metastore.client.builder.DatabaseBuilder;
 import org.apache.hadoop.hive.metastore.minihms.AbstractMetaStoreService;
 import org.apache.thrift.TException;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -29,8 +28,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -51,43 +48,14 @@ import java.util.stream.Collectors;
  */
 @RunWith(Parameterized.class)
 @Category(MetastoreCheckinTest.class)
-public class TestCatalogs {
+public class TestCatalogs extends MetaStoreClientTest {
   private static final Logger LOG = LoggerFactory.getLogger(TestCatalogs.class);
-  // Needed until there is no junit release with @BeforeParam, @AfterParam (junit 4.13)
-  // https://github.com/junit-team/junit4/commit/1bf8438b65858565dbb64736bfe13aae9cfc1b5a
-  // Then we should remove our own copy
-  private static Set<AbstractMetaStoreService> metaStoreServices = null;
   private final AbstractMetaStoreService metaStore;
   private IMetaStoreClient client;
-
-  @Parameterized.Parameters(name = "{0}")
-  public static List<Object[]> getMetaStoreToTest() throws Exception {
-    List<Object[]> result = MetaStoreFactoryForTests.getMetaStores();
-    metaStoreServices = result.stream()
-        .map(test -> (AbstractMetaStoreService)test[1])
-        .collect(Collectors.toSet());
-    return result;
-  }
 
   public TestCatalogs(String name, AbstractMetaStoreService metaStore) throws Exception {
     this.metaStore = metaStore;
     this.metaStore.start();
-  }
-
-  // Needed until there is no junit release with @BeforeParam, @AfterParam (junit 4.13)
-  // https://github.com/junit-team/junit4/commit/1bf8438b65858565dbb64736bfe13aae9cfc1b5a
-  // Then we should move this to @AfterParam
-  @AfterClass
-  public static void stopMetaStores() throws Exception {
-    for(AbstractMetaStoreService metaStoreService : metaStoreServices) {
-      try {
-        metaStoreService.stop();
-      } catch(Exception e) {
-        // Catch the exceptions, so every other metastore could be stopped as well
-        // Log it, so at least there is a slight possibility we find out about this :)
-        LOG.error("Error stopping MetaStoreService", e);
-      }
-    }
   }
 
   @Before

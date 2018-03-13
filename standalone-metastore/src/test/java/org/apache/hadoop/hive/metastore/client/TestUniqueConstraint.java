@@ -23,7 +23,6 @@ import org.apache.hadoop.hive.metastore.annotation.MetastoreCheckinTest;
 import org.apache.hadoop.hive.metastore.api.Catalog;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.InvalidObjectException;
-import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.SQLUniqueConstraint;
 import org.apache.hadoop.hive.metastore.api.Table;
@@ -36,7 +35,6 @@ import org.apache.hadoop.hive.metastore.minihms.AbstractMetaStoreService;
 import org.apache.thrift.TApplicationException;
 import org.apache.thrift.TException;
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -45,19 +43,13 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_CATALOG_NAME;
 import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_DATABASE_NAME;
 
 @RunWith(Parameterized.class)
 @Category(MetastoreCheckinTest.class)
-public class TestUniqueConstraint {
-  // Needed until there is no junit release with @BeforeParam, @AfterParam (junit 4.13)
-  // https://github.com/junit-team/junit4/commit/1bf8438b65858565dbb64736bfe13aae9cfc1b5a
-  // Then we should remove our own copy
-  private static Set<AbstractMetaStoreService> metaStoreServices = null;
+public class TestUniqueConstraint extends MetaStoreClientTest {
   private static final String OTHER_DATABASE = "test_uc_other_database";
   private static final String OTHER_CATALOG = "test_uc_other_catalog";
   private static final String DATABASE_IN_OTHER_CATALOG = "test_uc_database_in_other_catalog";
@@ -66,28 +58,9 @@ public class TestUniqueConstraint {
   private Table[] testTables = new Table[3];
   private Database inOtherCatalog;
 
-  @Parameterized.Parameters(name = "{0}")
-  public static List<Object[]> getMetaStoreToTest() throws Exception {
-    List<Object[]> result = MetaStoreFactoryForTests.getMetaStores();
-    metaStoreServices = result.stream()
-        .map(test -> (AbstractMetaStoreService)test[1])
-        .collect(Collectors.toSet());
-    return result;
-  }
-
   public TestUniqueConstraint(String name, AbstractMetaStoreService metaStore) throws Exception {
     this.metaStore = metaStore;
     this.metaStore.start();
-  }
-
-  // Needed until there is no junit release with @BeforeParam, @AfterParam (junit 4.13)
-  // https://github.com/junit-team/junit4/commit/1bf8438b65858565dbb64736bfe13aae9cfc1b5a
-  // Then we should move this to @AfterParam
-  @AfterClass
-  public static void stopMetaStores() throws Exception {
-    for(AbstractMetaStoreService metaStoreService : metaStoreServices) {
-      metaStoreService.stop();
-    }
   }
 
   @Before
