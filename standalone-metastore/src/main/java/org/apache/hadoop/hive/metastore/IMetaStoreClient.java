@@ -783,10 +783,19 @@ public interface IMetaStoreClient {
 
   /**
    * Updates the creation metadata for the materialized view.
+   * @deprecated Use {@link #updateCreationMetadata(String, String, String, CreationMetadata)}
    */
+  @Deprecated
   void updateCreationMetadata(String dbName, String tableName, CreationMetadata cm)
       throws MetaException, TException;
 
+  /**
+   * Updates the creation metadata for the materialized view.
+   */
+  void updateCreationMetadata(String catName, String dbName, String tableName, CreationMetadata cm)
+      throws MetaException, TException;
+
+  /**
   /**
    * Add a partition to a table and get back the resulting Partition object.  This creates an
    * empty default partition with just the partition values set.

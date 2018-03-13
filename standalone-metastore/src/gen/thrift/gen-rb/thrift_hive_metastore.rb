@@ -711,13 +711,13 @@ module ThriftHiveMetastore
       raise ::Thrift::ApplicationException.new(::Thrift::ApplicationException::MISSING_RESULT, 'get_materialization_invalidation_info failed: unknown result')
     end
 
-    def update_creation_metadata(dbname, tbl_name, creation_metadata)
-      send_update_creation_metadata(dbname, tbl_name, creation_metadata)
+    def update_creation_metadata(catName, dbname, tbl_name, creation_metadata)
+      send_update_creation_metadata(catName, dbname, tbl_name, creation_metadata)
       recv_update_creation_metadata()
     end
 
-    def send_update_creation_metadata(dbname, tbl_name, creation_metadata)
-      send_message('update_creation_metadata', Update_creation_metadata_args, :dbname => dbname, :tbl_name => tbl_name, :creation_metadata => creation_metadata)
+    def send_update_creation_metadata(catName, dbname, tbl_name, creation_metadata)
+      send_message('update_creation_metadata', Update_creation_metadata_args, :catName => catName, :dbname => dbname, :tbl_name => tbl_name, :creation_metadata => creation_metadata)
     end
 
     def recv_update_creation_metadata()
@@ -3874,7 +3874,7 @@ module ThriftHiveMetastore
       args = read_args(iprot, Update_creation_metadata_args)
       result = Update_creation_metadata_result.new()
       begin
-        @handler.update_creation_metadata(args.dbname, args.tbl_name, args.creation_metadata)
+        @handler.update_creation_metadata(args.catName, args.dbname, args.tbl_name, args.creation_metadata)
       rescue ::MetaException => o1
         result.o1 = o1
       rescue ::InvalidOperationException => o2
@@ -7364,11 +7364,13 @@ module ThriftHiveMetastore
 
   class Update_creation_metadata_args
     include ::Thrift::Struct, ::Thrift::Struct_Union
-    DBNAME = 1
-    TBL_NAME = 2
-    CREATION_METADATA = 3
+    CATNAME = 1
+    DBNAME = 2
+    TBL_NAME = 3
+    CREATION_METADATA = 4
 
     FIELDS = {
+      CATNAME => {:type => ::Thrift::Types::STRING, :name => 'catName'},
       DBNAME => {:type => ::Thrift::Types::STRING, :name => 'dbname'},
       TBL_NAME => {:type => ::Thrift::Types::STRING, :name => 'tbl_name'},
       CREATION_METADATA => {:type => ::Thrift::Types::STRUCT, :name => 'creation_metadata', :class => ::CreationMetadata}

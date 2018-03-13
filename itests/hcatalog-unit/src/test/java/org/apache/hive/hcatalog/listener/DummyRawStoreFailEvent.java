@@ -289,9 +289,9 @@ public class DummyRawStoreFailEvent implements RawStore, Configurable {
   }
 
   @Override
-  public void updateCreationMetadata(String dbname, String tablename, CreationMetadata cm)
+  public void updateCreationMetadata(String catName, String dbname, String tablename, CreationMetadata cm)
       throws MetaException {
-    objectStore.updateCreationMetadata(dbname, tablename, cm);
+    objectStore.updateCreationMetadata(catName, dbname, tablename, cm);
   }
 
   public void alterTable(String catName, String dbName, String name, Table newTable)

@@ -158,6 +158,7 @@ SELECT 'Finished upgrading MetaStore schema from 2.3.0 to 3.0.0';
 -- 047-HIVE-14498
 CREATE TABLE "MV_CREATION_METADATA" (
     "MV_CREATION_METADATA_ID" bigint NOT NULL,
+    "CAT_NAME" character varying(256) NOT NULL,
     "DB_NAME" character varying(128) NOT NULL,
     "TBL_NAME" character varying(256) NOT NULL,
     "TXN_LIST" text

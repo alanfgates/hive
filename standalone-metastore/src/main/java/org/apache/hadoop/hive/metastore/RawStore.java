@@ -369,7 +369,15 @@ public interface RawStore extends Configurable {
   void alterTable(String catName, String dbname, String name, Table newTable)
       throws InvalidObjectException, MetaException;
 
-  void updateCreationMetadata(String dbname, String tablename, CreationMetadata cm)
+  /**
+   * Update creation metadata for a materialized view.
+   * @param catName catalog name.
+   * @param dbname database name.
+   * @param tablename table name.
+   * @param cm new creation metadata
+   * @throws MetaException error accessing the RDBMS.
+   */
+  void updateCreationMetadata(String catName, String dbname, String tablename, CreationMetadata cm)
       throws MetaException;
 
   /**

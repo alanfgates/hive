@@ -27,6 +27,7 @@ import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.annotation.MetastoreCheckinTest;
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException;
 import org.apache.hadoop.hive.metastore.api.Catalog;
+import org.apache.hadoop.hive.metastore.api.CreationMetadata;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.EnvironmentContext;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -1113,24 +1114,22 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
       // Make one a materialized view
       if (i == 3) {
         builder.setType(TableType.MATERIALIZED_VIEW.name())
-            .setRewriteEnabled(true);
+            .setRewriteEnabled(true)
+            .addMaterializedViewReferencedTable(dbName + "." + tableNames[0]);
       }
       client.createTable(builder.build());
     }
 
     // Add partitions for the partitioned table
-    /*
-    // TODO CAT Add this once add_partition works with catalogs
     String[] partVals = new String[3];
     Table partitionedTable = client.getTable(catName, dbName, tableNames[2]);
     for (int i = 0; i < partVals.length; i++) {
       partVals[i] = "part" + i;
       client.add_partition(new PartitionBuilder()
-          .onTable(partitionedTable)
+          .inTable(partitionedTable)
           .addValue(partVals[i])
           .build());
     }
-    */
 
     // Get tables, make sure the locations are correct
     for (int i = 0; i < tableNames.length; i++) {
@@ -1199,7 +1198,11 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
       // NOP
     }
 
-    /*
+    // Update the metadata for the materialized view
+    CreationMetadata cm = client.getTable(catName, dbName, tableNames[3]).getCreationMetadata();
+    cm.addToTablesUsed(dbName + "." + tableNames[1]);
+    client.updateCreationMetadata(catName, dbName, tableNames[3], cm);
+
     List<String> partNames = new ArrayList<>();
     for (String partVal : partVals) partNames.add("pcol1=" + partVal);
     // Truncate a table
@@ -1209,32 +1212,32 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     try {
       client.truncateTable(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE_NAME, tableNames[0], partNames);
       Assert.fail();
-    } catch (MetaException e) {
+    } catch (NoSuchObjectException|TApplicationException e) {
       // NOP
     }
-    */
 
     // Drop a table from the wrong catalog
     try {
       client.dropTable(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE_NAME, tableNames[0], true, false);
       Assert.fail();
-    } catch (NoSuchObjectException e) {
+    } catch (NoSuchObjectException|TApplicationException e) {
       // NOP
     }
 
     // Should ignore the failure
     client.dropTable(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE_NAME, tableNames[0], false, true);
 
-    for (String tableName : tableNames) {
-      t = client.getTable(catName, dbName, tableName);
+    // Have to do this in reverse order so that we drop the materialized view first.
+    for (int i = tableNames.length - 1; i >= 0; i--) {
+      t = client.getTable(catName, dbName, tableNames[i]);
       File tableDir = new File(new URI(t.getSd().getLocation()).getPath());
       Assert.assertTrue(tableDir.exists() && tableDir.isDirectory());
 
-      if (tableName.equalsIgnoreCase(tableNames[0])) {
-        client.dropTable(catName, dbName, tableName, false, false);
+      if (tableNames[i].equalsIgnoreCase(tableNames[0])) {
+        client.dropTable(catName, dbName, tableNames[i], false, false);
         Assert.assertTrue(tableDir.exists() && tableDir.isDirectory());
       } else {
-        client.dropTable(catName, dbName, tableName);
+        client.dropTable(catName, dbName, tableNames[i]);
         Assert.assertFalse(tableDir.exists());
       }
     }
@@ -1254,7 +1257,10 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
       // Make one partitioned
       if (i == 2) builder.addPartCol("pcol1", ColumnType.STRING_TYPE_NAME);
       // Make one a materialized view
-      if (i == 3) builder.setType(TableType.MATERIALIZED_VIEW.name());
+      if (i == 3) {
+        builder.setType(TableType.MATERIALIZED_VIEW.name())
+            .addMaterializedViewReferencedTable(DEFAULT_DATABASE_NAME + "." + tableNames[0]);
+      }
       client.createTable(builder.build());
     }
 
@@ -1294,14 +1300,19 @@ public class TestTablesCreateDropAlterTruncate extends MetaStoreClientTest {
     t = client.getTable(DEFAULT_DATABASE_NAME, tableNames[0]).deepCopy();
     Assert.assertEquals("test", t.getParameters().get("test"));
 
+    // Update the metadata for the materialized view
+    CreationMetadata cm = client.getTable(DEFAULT_DATABASE_NAME, tableNames[3]).getCreationMetadata();
+    cm.addToTablesUsed(DEFAULT_DATABASE_NAME + "." + tableNames[1]);
+    client.updateCreationMetadata(DEFAULT_DATABASE_NAME, tableNames[3], cm);
+
     List<String> partNames = new ArrayList<>();
     for (String partVal : partVals) partNames.add("pcol1=" + partVal);
     // Truncate a table
     client.truncateTable(DEFAULT_DATABASE_NAME, tableNames[0], partNames);
 
-    for (String tableName : tableNames) {
-      t = client.getTable(DEFAULT_DATABASE_NAME, tableName);
-      client.dropTable(DEFAULT_DATABASE_NAME, tableName, false, false);
+    // Have to do this in reverse order so that we drop the materialized view first.
+    for (int i = tableNames.length - 1; i >= 0; i--) {
+      client.dropTable(DEFAULT_DATABASE_NAME, tableNames[i], false, false);
     }
     fetchedNames = new HashSet<>(client.getAllTables(DEFAULT_DATABASE_NAME));
     for (String tableName : tableNames) Assert.assertFalse(fetchedNames.contains(tableName));

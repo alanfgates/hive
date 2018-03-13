@@ -985,10 +985,11 @@ struct BasicTxnInfo {
 }
 
 struct CreationMetadata {
-    1: required string dbName,
-    2: required string tblName,
-    3: required set<string> tablesUsed,
-    4: optional string validTxnList
+    1: required string catName
+    2: required string dbName,
+    3: required string tblName,
+    4: required set<string> tablesUsed,
+    5: optional string validTxnList,
 }
 
 struct NotificationEventRequest {
@@ -1614,7 +1615,7 @@ service ThriftHiveMetastore extends fb303.FacebookService
 				   throws (1:MetaException o1, 2:InvalidOperationException o2, 3:UnknownDBException o3)
   map<string, Materialization> get_materialization_invalidation_info(1:string dbname, 2:list<string> tbl_names)
 				   throws (1:MetaException o1, 2:InvalidOperationException o2, 3:UnknownDBException o3)
-  void update_creation_metadata(1:string dbname, 2:string tbl_name, 3:CreationMetadata creation_metadata)
+  void update_creation_metadata(1: string catName, 2:string dbname, 3:string tbl_name, 4:CreationMetadata creation_metadata)
                    throws (1:MetaException o1, 2:InvalidOperationException o2, 3:UnknownDBException o3)
 
   // Get a list of table names that match a filter.

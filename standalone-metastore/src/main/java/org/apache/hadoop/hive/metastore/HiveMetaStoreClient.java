@@ -1504,7 +1504,14 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   @Override
   public void updateCreationMetadata(String dbName, String tableName, CreationMetadata cm)
       throws MetaException, InvalidOperationException, UnknownDBException, TException {
-    client.update_creation_metadata(dbName, tableName, cm);
+    client.update_creation_metadata(DEFAULT_CATALOG_NAME, dbName, tableName, cm);
+  }
+
+  @Override
+  public void updateCreationMetadata(String catName, String dbName, String tableName,
+                                     CreationMetadata cm) throws MetaException, TException {
+    client.update_creation_metadata(catName, dbName, tableName, cm);
+
   }
 
   /** {@inheritDoc} */

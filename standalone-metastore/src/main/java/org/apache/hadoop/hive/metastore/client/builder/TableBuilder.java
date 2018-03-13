@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hive.metastore.client.builder;
 
+import org.apache.hadoop.hive.common.ValidTxnList;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.Warehouse;
 import org.apache.hadoop.hive.metastore.api.BasicTxnInfo;
@@ -31,20 +32,24 @@ import org.apache.hadoop.hive.metastore.utils.SecurityUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Build a {@link Table}.  The database name and table name must be provided, plus whatever is
  * needed by the underlying {@link StorageDescriptorBuilder}.
  */
 public class TableBuilder extends StorageDescriptorBuilder<TableBuilder> {
-  private String catName, dbName, tableName, owner, viewOriginalText, viewExpandedText, type;
+  private String catName, dbName, tableName, owner, viewOriginalText, viewExpandedText, type,
+      mvValidTxnList;
   private List<FieldSchema> partCols;
   private int createTime, lastAccessTime, retention;
   private Map<String, String> tableParams;
   private boolean rewriteEnabled, temporary;
-  private CreationMetadata creationMetadata;
+  private Set<String> mvReferencedTables;
+
 
   public TableBuilder() {
     // Set some reasonable defaults
@@ -55,6 +60,8 @@ public class TableBuilder extends StorageDescriptorBuilder<TableBuilder> {
     retention = 0;
     partCols = new ArrayList<>();
     type = TableType.MANAGED_TABLE.name();
+    mvReferencedTables = new HashSet<>();
+    temporary = false;
     super.setChild(this);
   }
 
@@ -151,9 +158,13 @@ public class TableBuilder extends StorageDescriptorBuilder<TableBuilder> {
     return this;
   }
 
-  public TableBuilder setCreationMetadata(
-      CreationMetadata creationMetadata) {
-    this.creationMetadata = creationMetadata;
+  public TableBuilder addMaterializedViewReferencedTable(String tableName) {
+    mvReferencedTables.add(tableName);
+    return this;
+  }
+
+  public TableBuilder setMaterializedViewValidTxnList(ValidTxnList validTxnList) {
+    mvValidTxnList = validTxnList.writeToString();
     return this;
   }
 
@@ -173,7 +184,11 @@ public class TableBuilder extends StorageDescriptorBuilder<TableBuilder> {
     if (rewriteEnabled) t.setRewriteEnabled(true);
     if (temporary) t.setTemporary(temporary);
     t.setCatName(catName);
-    if (creationMetadata != null) t.setCreationMetadata(creationMetadata);
+    if (!mvReferencedTables.isEmpty()) {
+      CreationMetadata cm = new CreationMetadata(catName, dbName, tableName, mvReferencedTables);
+      if (mvValidTxnList != null) cm.setValidTxnList(mvValidTxnList);
+      t.setCreationMetadata(cm);
+    }
     return t;
   }
 

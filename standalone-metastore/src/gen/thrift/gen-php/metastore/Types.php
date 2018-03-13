@@ -19193,6 +19193,10 @@ class CreationMetadata {
   /**
    * @var string
    */
+  public $catName = null;
+  /**
+   * @var string
+   */
   public $dbName = null;
   /**
    * @var string
@@ -19211,14 +19215,18 @@ class CreationMetadata {
     if (!isset(self::$_TSPEC)) {
       self::$_TSPEC = array(
         1 => array(
-          'var' => 'dbName',
+          'var' => 'catName',
           'type' => TType::STRING,
           ),
         2 => array(
-          'var' => 'tblName',
+          'var' => 'dbName',
           'type' => TType::STRING,
           ),
         3 => array(
+          'var' => 'tblName',
+          'type' => TType::STRING,
+          ),
+        4 => array(
           'var' => 'tablesUsed',
           'type' => TType::SET,
           'etype' => TType::STRING,
@@ -19226,13 +19234,16 @@ class CreationMetadata {
             'type' => TType::STRING,
             ),
           ),
-        4 => array(
+        5 => array(
           'var' => 'validTxnList',
           'type' => TType::STRING,
           ),
         );
     }
     if (is_array($vals)) {
+      if (isset($vals['catName'])) {
+        $this->catName = $vals['catName'];
+      }
       if (isset($vals['dbName'])) {
         $this->dbName = $vals['dbName'];
       }
@@ -19269,19 +19280,26 @@ class CreationMetadata {
       {
         case 1:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->dbName);
+            $xfer += $input->readString($this->catName);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 2:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->tblName);
+            $xfer += $input->readString($this->dbName);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 3:
+          if ($ftype == TType::STRING) {
+            $xfer += $input->readString($this->tblName);
+          } else {
+            $xfer += $input->skip($ftype);
+          }
+          break;
+        case 4:
           if ($ftype == TType::SET) {
             $this->tablesUsed = array();
             $_size583 = 0;
@@ -19302,7 +19320,7 @@ class CreationMetadata {
             $xfer += $input->skip($ftype);
           }
           break;
-        case 4:
+        case 5:
           if ($ftype == TType::STRING) {
             $xfer += $input->readString($this->validTxnList);
           } else {
@@ -19322,13 +19340,18 @@ class CreationMetadata {
   public function write($output) {
     $xfer = 0;
     $xfer += $output->writeStructBegin('CreationMetadata');
+    if ($this->catName !== null) {
+      $xfer += $output->writeFieldBegin('catName', TType::STRING, 1);
+      $xfer += $output->writeString($this->catName);
+      $xfer += $output->writeFieldEnd();
+    }
     if ($this->dbName !== null) {
-      $xfer += $output->writeFieldBegin('dbName', TType::STRING, 1);
+      $xfer += $output->writeFieldBegin('dbName', TType::STRING, 2);
       $xfer += $output->writeString($this->dbName);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->tblName !== null) {
-      $xfer += $output->writeFieldBegin('tblName', TType::STRING, 2);
+      $xfer += $output->writeFieldBegin('tblName', TType::STRING, 3);
       $xfer += $output->writeString($this->tblName);
       $xfer += $output->writeFieldEnd();
     }
@@ -19336,7 +19359,7 @@ class CreationMetadata {
       if (!is_array($this->tablesUsed)) {
         throw new TProtocolException('Bad type in structure.', TProtocolException::INVALID_DATA);
       }
-      $xfer += $output->writeFieldBegin('tablesUsed', TType::SET, 3);
+      $xfer += $output->writeFieldBegin('tablesUsed', TType::SET, 4);
       {
         $output->writeSetBegin(TType::STRING, count($this->tablesUsed));
         {
@@ -19354,7 +19377,7 @@ class CreationMetadata {
       $xfer += $output->writeFieldEnd();
     }
     if ($this->validTxnList !== null) {
-      $xfer += $output->writeFieldBegin('validTxnList', TType::STRING, 4);
+      $xfer += $output->writeFieldBegin('validTxnList', TType::STRING, 5);
       $xfer += $output->writeString($this->validTxnList);
       $xfer += $output->writeFieldEnd();
     }

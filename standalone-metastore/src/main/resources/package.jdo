@@ -213,6 +213,9 @@
       <datastore-identity>
         <column name="MV_CREATION_METADATA_ID"/>
       </datastore-identity>
+      <field name="catalogName">
+        <column name="CAT_NAME" length="256" jdbc-type="VARCHAR"/>
+      </field>
       <field name="dbName">
         <column name="DB_NAME" length="128" jdbc-type="VARCHAR"/>
       </field>

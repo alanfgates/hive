@@ -2805,8 +2805,8 @@ public class HiveMetaStore extends ThriftHiveMetastore {
     }
 
     @Override
-    public void update_creation_metadata(final String dbName, final String tableName, CreationMetadata cm) throws MetaException {
-      getMS().updateCreationMetadata(dbName, tableName, cm);
+    public void update_creation_metadata(String catName, final String dbName, final String tableName, CreationMetadata cm) throws MetaException {
+      getMS().updateCreationMetadata(catName, dbName, tableName, cm);
     }
 
     private void assertClientHasCapability(ClientCapabilities client,

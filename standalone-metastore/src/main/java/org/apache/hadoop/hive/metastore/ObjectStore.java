@@ -1396,7 +1396,7 @@ public class ObjectStore implements RawStore, Configurable {
         preDropStorageDescriptor(tbl.getSd());
 
         if (materializedView) {
-          dropCreationMetadata(
+          dropCreationMetadata(tbl.getDatabase().getCatalogName(),
               tbl.getDatabase().getName(), tbl.getTableName());
         }
 
@@ -1416,12 +1416,12 @@ public class ObjectStore implements RawStore, Configurable {
     return success;
   }
 
-  private boolean dropCreationMetadata(String dbName, String tableName) throws MetaException,
+  private boolean dropCreationMetadata(String catName, String dbName, String tableName) throws MetaException,
       NoSuchObjectException, InvalidObjectException, InvalidInputException {
     boolean success = false;
     try {
       openTransaction();
-      MCreationMetadata mcm = getCreationMetadata(dbName, tableName);
+      MCreationMetadata mcm = getCreationMetadata(catName, dbName, tableName);
       pm.retrieve(mcm);
       if (mcm != null) {
         pm.deletePersistentAll(mcm);
@@ -1493,7 +1493,7 @@ public class ObjectStore implements RawStore, Configurable {
       // Retrieve creation metadata if needed
       if (tbl != null && TableType.MATERIALIZED_VIEW.toString().equals(tbl.getTableType())) {
         tbl.setCreationMetadata(
-            convertToCreationMetadata(getCreationMetadata(dbName, tableName)));
+            convertToCreationMetadata(getCreationMetadata(catName, dbName, tableName)));
       }
       commited = commitTransaction();
     } finally {
@@ -1771,17 +1771,17 @@ public class ObjectStore implements RawStore, Configurable {
     return nmtbl;
   }
 
-  private MCreationMetadata getCreationMetadata(String dbName, String tblName) {
+  private MCreationMetadata getCreationMetadata(String catName, String dbName, String tblName) {
     boolean commited = false;
     MCreationMetadata mcm = null;
     Query query = null;
     try {
       openTransaction();
       query = pm.newQuery(
-          MCreationMetadata.class, "tblName == table && dbName == db");
-      query.declareParameters("java.lang.String table, java.lang.String db");
+          MCreationMetadata.class, "tblName == table && dbName == db && catalogName == cat");
+      query.declareParameters("java.lang.String table, java.lang.String db, java.lang.String cat");
       query.setUnique(true);
-      mcm = (MCreationMetadata) query.execute(tblName, dbName);
+      mcm = (MCreationMetadata) query.execute(tblName, dbName, catName);
       pm.retrieve(mcm);
       commited = commitTransaction();
     } finally {
@@ -2137,10 +2137,9 @@ public class ObjectStore implements RawStore, Configurable {
     Set<MTable> tablesUsed = new HashSet<>();
     for (String fullyQualifiedName : m.getTablesUsed()) {
       String[] names =  fullyQualifiedName.split("\\.");
-      // TODO CAT
-      tablesUsed.add(getMTable(DEFAULT_CATALOG_NAME, names[0], names[1], false).mtbl);
+      tablesUsed.add(getMTable(m.getCatName(), names[0], names[1], false).mtbl);
     }
-    return new MCreationMetadata(m.getDbName(), m.getTblName(),
+    return new MCreationMetadata(m.getCatName(), m.getDbName(), m.getTblName(),
         tablesUsed, m.getValidTxnList());
   }
 
@@ -2155,7 +2154,7 @@ public class ObjectStore implements RawStore, Configurable {
           Warehouse.getQualifiedName(
               mtbl.getDatabase().getName(), mtbl.getTableName()));
     }
-    CreationMetadata r = new CreationMetadata(
+    CreationMetadata r = new CreationMetadata(s.getCatalogName(),
         s.getDbName(), s.getTblName(), tablesUsed);
     if (s.getTxnList() != null) {
       r.setValidTxnList(s.getTxnList());
@@ -3928,16 +3927,17 @@ public class ObjectStore implements RawStore, Configurable {
   }
 
   @Override
-  public void updateCreationMetadata(String dbname, String tablename, CreationMetadata cm)
+  public void updateCreationMetadata(String catName, String dbname, String tablename, CreationMetadata cm)
       throws MetaException {
     boolean success = false;
     try {
       openTransaction();
+      catName = normalizeIdentifier(catName);
       dbname = normalizeIdentifier(dbname);
       tablename = normalizeIdentifier(tablename);
       // Update creation metadata
       MCreationMetadata newMcm = convertToMCreationMetadata(cm);
-      MCreationMetadata mcm = getCreationMetadata(dbname, tablename);
+      MCreationMetadata mcm = getCreationMetadata(catName, dbname, tablename);
       mcm.setTables(newMcm.getTables());
       mcm.setTxnList(newMcm.getTxnList());
       // commit the changes

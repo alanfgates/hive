@@ -13438,6 +13438,7 @@ class BasicTxnInfo:
 class CreationMetadata:
   """
   Attributes:
+   - catName
    - dbName
    - tblName
    - tablesUsed
@@ -13446,13 +13447,15 @@ class CreationMetadata:
 
   thrift_spec = (
     None, # 0
-    (1, TType.STRING, 'dbName', None, None, ), # 1
-    (2, TType.STRING, 'tblName', None, None, ), # 2
-    (3, TType.SET, 'tablesUsed', (TType.STRING,None), None, ), # 3
-    (4, TType.STRING, 'validTxnList', None, None, ), # 4
+    (1, TType.STRING, 'catName', None, None, ), # 1
+    (2, TType.STRING, 'dbName', None, None, ), # 2
+    (3, TType.STRING, 'tblName', None, None, ), # 3
+    (4, TType.SET, 'tablesUsed', (TType.STRING,None), None, ), # 4
+    (5, TType.STRING, 'validTxnList', None, None, ), # 5
   )
 
-  def __init__(self, dbName=None, tblName=None, tablesUsed=None, validTxnList=None,):
+  def __init__(self, catName=None, dbName=None, tblName=None, tablesUsed=None, validTxnList=None,):
+    self.catName = catName
     self.dbName = dbName
     self.tblName = tblName
     self.tablesUsed = tablesUsed
@@ -13469,15 +13472,20 @@ class CreationMetadata:
         break
       if fid == 1:
         if ftype == TType.STRING:
-          self.dbName = iprot.readString()
+          self.catName = iprot.readString()
         else:
           iprot.skip(ftype)
       elif fid == 2:
         if ftype == TType.STRING:
-          self.tblName = iprot.readString()
+          self.dbName = iprot.readString()
         else:
           iprot.skip(ftype)
       elif fid == 3:
+        if ftype == TType.STRING:
+          self.tblName = iprot.readString()
+        else:
+          iprot.skip(ftype)
+      elif fid == 4:
         if ftype == TType.SET:
           self.tablesUsed = set()
           (_etype584, _size581) = iprot.readSetBegin()
@@ -13487,7 +13495,7 @@ class CreationMetadata:
           iprot.readSetEnd()
         else:
           iprot.skip(ftype)
-      elif fid == 4:
+      elif fid == 5:
         if ftype == TType.STRING:
           self.validTxnList = iprot.readString()
         else:
@@ -13502,29 +13510,35 @@ class CreationMetadata:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return
     oprot.writeStructBegin('CreationMetadata')
+    if self.catName is not None:
+      oprot.writeFieldBegin('catName', TType.STRING, 1)
+      oprot.writeString(self.catName)
+      oprot.writeFieldEnd()
     if self.dbName is not None:
-      oprot.writeFieldBegin('dbName', TType.STRING, 1)
+      oprot.writeFieldBegin('dbName', TType.STRING, 2)
       oprot.writeString(self.dbName)
       oprot.writeFieldEnd()
     if self.tblName is not None:
-      oprot.writeFieldBegin('tblName', TType.STRING, 2)
+      oprot.writeFieldBegin('tblName', TType.STRING, 3)
       oprot.writeString(self.tblName)
       oprot.writeFieldEnd()
     if self.tablesUsed is not None:
-      oprot.writeFieldBegin('tablesUsed', TType.SET, 3)
+      oprot.writeFieldBegin('tablesUsed', TType.SET, 4)
       oprot.writeSetBegin(TType.STRING, len(self.tablesUsed))
       for iter587 in self.tablesUsed:
         oprot.writeString(iter587)
       oprot.writeSetEnd()
       oprot.writeFieldEnd()
     if self.validTxnList is not None:
-      oprot.writeFieldBegin('validTxnList', TType.STRING, 4)
+      oprot.writeFieldBegin('validTxnList', TType.STRING, 5)
       oprot.writeString(self.validTxnList)
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
     oprot.writeStructEnd()
 
   def validate(self):
+    if self.catName is None:
+      raise TProtocol.TProtocolException(message='Required field catName is unset!')
     if self.dbName is None:
       raise TProtocol.TProtocolException(message='Required field dbName is unset!')
     if self.tblName is None:
@@ -13536,6 +13550,7 @@ class CreationMetadata:
 
   def __hash__(self):
     value = 17
+    value = (value * 31) ^ hash(self.catName)
     value = (value * 31) ^ hash(self.dbName)
     value = (value * 31) ^ hash(self.tblName)
     value = (value * 31) ^ hash(self.tablesUsed)

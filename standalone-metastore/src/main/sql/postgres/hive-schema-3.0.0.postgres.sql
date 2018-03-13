@@ -395,6 +395,7 @@ CREATE TABLE "TBLS" (
 
 CREATE TABLE "MV_CREATION_METADATA" (
     "MV_CREATION_METADATA_ID" bigint NOT NULL,
+    "CAT_NAME" character varying(256) NOT NULL,
     "DB_NAME" character varying(128) NOT NULL,
     "TBL_NAME" character varying(256) NOT NULL,
     "TXN_LIST" text

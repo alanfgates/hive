@@ -329,6 +329,7 @@ interface ThriftHiveMetastoreIf extends \FacebookServiceIf {
    */
   public function get_materialization_invalidation_info($dbname, array $tbl_names);
   /**
+   * @param string $catName
    * @param string $dbname
    * @param string $tbl_name
    * @param \metastore\CreationMetadata $creation_metadata
@@ -336,7 +337,7 @@ interface ThriftHiveMetastoreIf extends \FacebookServiceIf {
    * @throws \metastore\InvalidOperationException
    * @throws \metastore\UnknownDBException
    */
-  public function update_creation_metadata($dbname, $tbl_name, \metastore\CreationMetadata $creation_metadata);
+  public function update_creation_metadata($catName, $dbname, $tbl_name, \metastore\CreationMetadata $creation_metadata);
   /**
    * @param string $dbname
    * @param string $filter
@@ -3884,15 +3885,16 @@ class ThriftHiveMetastoreClient extends \FacebookServiceClient implements \metas
     throw new \Exception("get_materialization_invalidation_info failed: unknown result");
   }
 
-  public function update_creation_metadata($dbname, $tbl_name, \metastore\CreationMetadata $creation_metadata)
+  public function update_creation_metadata($catName, $dbname, $tbl_name, \metastore\CreationMetadata $creation_metadata)
   {
-    $this->send_update_creation_metadata($dbname, $tbl_name, $creation_metadata);
+    $this->send_update_creation_metadata($catName, $dbname, $tbl_name, $creation_metadata);
     $this->recv_update_creation_metadata();
   }
 
-  public function send_update_creation_metadata($dbname, $tbl_name, \metastore\CreationMetadata $creation_metadata)
+  public function send_update_creation_metadata($catName, $dbname, $tbl_name, \metastore\CreationMetadata $creation_metadata)
   {
     $args = new \metastore\ThriftHiveMetastore_update_creation_metadata_args();
+    $args->catName = $catName;
     $args->dbname = $dbname;
     $args->tbl_name = $tbl_name;
     $args->creation_metadata = $creation_metadata;
@@ -22294,6 +22296,10 @@ class ThriftHiveMetastore_update_creation_metadata_args {
   /**
    * @var string
    */
+  public $catName = null;
+  /**
+   * @var string
+   */
   public $dbname = null;
   /**
    * @var string
@@ -22308,14 +22314,18 @@ class ThriftHiveMetastore_update_creation_metadata_args {
     if (!isset(self::$_TSPEC)) {
       self::$_TSPEC = array(
         1 => array(
-          'var' => 'dbname',
+          'var' => 'catName',
           'type' => TType::STRING,
           ),
         2 => array(
-          'var' => 'tbl_name',
+          'var' => 'dbname',
           'type' => TType::STRING,
           ),
         3 => array(
+          'var' => 'tbl_name',
+          'type' => TType::STRING,
+          ),
+        4 => array(
           'var' => 'creation_metadata',
           'type' => TType::STRUCT,
           'class' => '\metastore\CreationMetadata',
@@ -22323,6 +22333,9 @@ class ThriftHiveMetastore_update_creation_metadata_args {
         );
     }
     if (is_array($vals)) {
+      if (isset($vals['catName'])) {
+        $this->catName = $vals['catName'];
+      }
       if (isset($vals['dbname'])) {
         $this->dbname = $vals['dbname'];
       }
@@ -22356,19 +22369,26 @@ class ThriftHiveMetastore_update_creation_metadata_args {
       {
         case 1:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->dbname);
+            $xfer += $input->readString($this->catName);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 2:
           if ($ftype == TType::STRING) {
-            $xfer += $input->readString($this->tbl_name);
+            $xfer += $input->readString($this->dbname);
           } else {
             $xfer += $input->skip($ftype);
           }
           break;
         case 3:
+          if ($ftype == TType::STRING) {
+            $xfer += $input->readString($this->tbl_name);
+          } else {
+            $xfer += $input->skip($ftype);
+          }
+          break;
+        case 4:
           if ($ftype == TType::STRUCT) {
             $this->creation_metadata = new \metastore\CreationMetadata();
             $xfer += $this->creation_metadata->read($input);
@@ -22389,13 +22409,18 @@ class ThriftHiveMetastore_update_creation_metadata_args {
   public function write($output) {
     $xfer = 0;
     $xfer += $output->writeStructBegin('ThriftHiveMetastore_update_creation_metadata_args');
+    if ($this->catName !== null) {
+      $xfer += $output->writeFieldBegin('catName', TType::STRING, 1);
+      $xfer += $output->writeString($this->catName);
+      $xfer += $output->writeFieldEnd();
+    }
     if ($this->dbname !== null) {
-      $xfer += $output->writeFieldBegin('dbname', TType::STRING, 1);
+      $xfer += $output->writeFieldBegin('dbname', TType::STRING, 2);
       $xfer += $output->writeString($this->dbname);
       $xfer += $output->writeFieldEnd();
     }
     if ($this->tbl_name !== null) {
-      $xfer += $output->writeFieldBegin('tbl_name', TType::STRING, 2);
+      $xfer += $output->writeFieldBegin('tbl_name', TType::STRING, 3);
       $xfer += $output->writeString($this->tbl_name);
       $xfer += $output->writeFieldEnd();
     }
@@ -22403,7 +22428,7 @@ class ThriftHiveMetastore_update_creation_metadata_args {
       if (!is_object($this->creation_metadata)) {
         throw new TProtocolException('Bad type in structure.', TProtocolException::INVALID_DATA);
       }
-      $xfer += $output->writeFieldBegin('creation_metadata', TType::STRUCT, 3);
+      $xfer += $output->writeFieldBegin('creation_metadata', TType::STRUCT, 4);
       $xfer += $this->creation_metadata->write($output);
       $xfer += $output->writeFieldEnd();
     }

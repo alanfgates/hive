@@ -10470,13 +10470,21 @@ uint32_t ThriftHiveMetastore_update_creation_metadata_args::read(::apache::thrif
     {
       case 1:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
+          xfer += iprot->readString(this->catName);
+          this->__isset.catName = true;
+        } else {
+          xfer += iprot->skip(ftype);
+        }
+        break;
+      case 2:
+        if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->dbname);
           this->__isset.dbname = true;
         } else {
           xfer += iprot->skip(ftype);
         }
         break;
-      case 2:
+      case 3:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->tbl_name);
           this->__isset.tbl_name = true;
@@ -10484,7 +10492,7 @@ uint32_t ThriftHiveMetastore_update_creation_metadata_args::read(::apache::thrif
           xfer += iprot->skip(ftype);
         }
         break;
-      case 3:
+      case 4:
         if (ftype == ::apache::thrift::protocol::T_STRUCT) {
           xfer += this->creation_metadata.read(iprot);
           this->__isset.creation_metadata = true;
@@ -10509,15 +10517,19 @@ uint32_t ThriftHiveMetastore_update_creation_metadata_args::write(::apache::thri
   apache::thrift::protocol::TOutputRecursionTracker tracker(*oprot);
   xfer += oprot->writeStructBegin("ThriftHiveMetastore_update_creation_metadata_args");
 
-  xfer += oprot->writeFieldBegin("dbname", ::apache::thrift::protocol::T_STRING, 1);
+  xfer += oprot->writeFieldBegin("catName", ::apache::thrift::protocol::T_STRING, 1);
+  xfer += oprot->writeString(this->catName);
+  xfer += oprot->writeFieldEnd();
+
+  xfer += oprot->writeFieldBegin("dbname", ::apache::thrift::protocol::T_STRING, 2);
   xfer += oprot->writeString(this->dbname);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("tbl_name", ::apache::thrift::protocol::T_STRING, 2);
+  xfer += oprot->writeFieldBegin("tbl_name", ::apache::thrift::protocol::T_STRING, 3);
   xfer += oprot->writeString(this->tbl_name);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("creation_metadata", ::apache::thrift::protocol::T_STRUCT, 3);
+  xfer += oprot->writeFieldBegin("creation_metadata", ::apache::thrift::protocol::T_STRUCT, 4);
   xfer += this->creation_metadata.write(oprot);
   xfer += oprot->writeFieldEnd();
 
@@ -10536,15 +10548,19 @@ uint32_t ThriftHiveMetastore_update_creation_metadata_pargs::write(::apache::thr
   apache::thrift::protocol::TOutputRecursionTracker tracker(*oprot);
   xfer += oprot->writeStructBegin("ThriftHiveMetastore_update_creation_metadata_pargs");
 
-  xfer += oprot->writeFieldBegin("dbname", ::apache::thrift::protocol::T_STRING, 1);
+  xfer += oprot->writeFieldBegin("catName", ::apache::thrift::protocol::T_STRING, 1);
+  xfer += oprot->writeString((*(this->catName)));
+  xfer += oprot->writeFieldEnd();
+
+  xfer += oprot->writeFieldBegin("dbname", ::apache::thrift::protocol::T_STRING, 2);
   xfer += oprot->writeString((*(this->dbname)));
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("tbl_name", ::apache::thrift::protocol::T_STRING, 2);
+  xfer += oprot->writeFieldBegin("tbl_name", ::apache::thrift::protocol::T_STRING, 3);
   xfer += oprot->writeString((*(this->tbl_name)));
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("creation_metadata", ::apache::thrift::protocol::T_STRUCT, 3);
+  xfer += oprot->writeFieldBegin("creation_metadata", ::apache::thrift::protocol::T_STRUCT, 4);
   xfer += (*(this->creation_metadata)).write(oprot);
   xfer += oprot->writeFieldEnd();
 
@@ -50940,18 +50956,19 @@ void ThriftHiveMetastoreClient::recv_get_materialization_invalidation_info(std::
   throw ::apache::thrift::TApplicationException(::apache::thrift::TApplicationException::MISSING_RESULT, "get_materialization_invalidation_info failed: unknown result");
 }
 
-void ThriftHiveMetastoreClient::update_creation_metadata(const std::string& dbname, const std::string& tbl_name, const CreationMetadata& creation_metadata)
+void ThriftHiveMetastoreClient::update_creation_metadata(const std::string& catName, const std::string& dbname, const std::string& tbl_name, const CreationMetadata& creation_metadata)
 {
-  send_update_creation_metadata(dbname, tbl_name, creation_metadata);
+  send_update_creation_metadata(catName, dbname, tbl_name, creation_metadata);
   recv_update_creation_metadata();
 }
 
-void ThriftHiveMetastoreClient::send_update_creation_metadata(const std::string& dbname, const std::string& tbl_name, const CreationMetadata& creation_metadata)
+void ThriftHiveMetastoreClient::send_update_creation_metadata(const std::string& catName, const std::string& dbname, const std::string& tbl_name, const CreationMetadata& creation_metadata)
 {
   int32_t cseqid = 0;
   oprot_->writeMessageBegin("update_creation_metadata", ::apache::thrift::protocol::T_CALL, cseqid);
 
   ThriftHiveMetastore_update_creation_metadata_pargs args;
+  args.catName = &catName;
   args.dbname = &dbname;
   args.tbl_name = &tbl_name;
   args.creation_metadata = &creation_metadata;
@@ -63389,7 +63406,7 @@ void ThriftHiveMetastoreProcessor::process_update_creation_metadata(int32_t seqi
 
   ThriftHiveMetastore_update_creation_metadata_result result;
   try {
-    iface_->update_creation_metadata(args.dbname, args.tbl_name, args.creation_metadata);
+    iface_->update_creation_metadata(args.catName, args.dbname, args.tbl_name, args.creation_metadata);
   } catch (MetaException &o1) {
     result.o1 = o1;
     result.__isset.o1 = true;
@@ -76448,19 +76465,20 @@ void ThriftHiveMetastoreConcurrentClient::recv_get_materialization_invalidation_
   } // end while(true)
 }
 
-void ThriftHiveMetastoreConcurrentClient::update_creation_metadata(const std::string& dbname, const std::string& tbl_name, const CreationMetadata& creation_metadata)
+void ThriftHiveMetastoreConcurrentClient::update_creation_metadata(const std::string& catName, const std::string& dbname, const std::string& tbl_name, const CreationMetadata& creation_metadata)
 {
-  int32_t seqid = send_update_creation_metadata(dbname, tbl_name, creation_metadata);
+  int32_t seqid = send_update_creation_metadata(catName, dbname, tbl_name, creation_metadata);
   recv_update_creation_metadata(seqid);
 }
 
-int32_t ThriftHiveMetastoreConcurrentClient::send_update_creation_metadata(const std::string& dbname, const std::string& tbl_name, const CreationMetadata& creation_metadata)
+int32_t ThriftHiveMetastoreConcurrentClient::send_update_creation_metadata(const std::string& catName, const std::string& dbname, const std::string& tbl_name, const CreationMetadata& creation_metadata)
 {
   int32_t cseqid = this->sync_.generateSeqId();
   ::apache::thrift::async::TConcurrentSendSentry sentry(&this->sync_);
   oprot_->writeMessageBegin("update_creation_metadata", ::apache::thrift::protocol::T_CALL, cseqid);
 
   ThriftHiveMetastore_update_creation_metadata_pargs args;
+  args.catName = &catName;
   args.dbname = &dbname;
   args.tbl_name = &tbl_name;
   args.creation_metadata = &creation_metadata;

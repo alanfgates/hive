@@ -64,7 +64,7 @@ class ThriftHiveMetastoreIf : virtual public  ::facebook::fb303::FacebookService
   virtual void get_table_req(GetTableResult& _return, const GetTableRequest& req) = 0;
   virtual void get_table_objects_by_name_req(GetTablesResult& _return, const GetTablesRequest& req) = 0;
   virtual void get_materialization_invalidation_info(std::map<std::string, Materialization> & _return, const std::string& dbname, const std::vector<std::string> & tbl_names) = 0;
-  virtual void update_creation_metadata(const std::string& dbname, const std::string& tbl_name, const CreationMetadata& creation_metadata) = 0;
+  virtual void update_creation_metadata(const std::string& catName, const std::string& dbname, const std::string& tbl_name, const CreationMetadata& creation_metadata) = 0;
   virtual void get_table_names_by_filter(std::vector<std::string> & _return, const std::string& dbname, const std::string& filter, const int16_t max_tables) = 0;
   virtual void alter_table(const std::string& dbname, const std::string& tbl_name, const Table& new_tbl) = 0;
   virtual void alter_table_with_environment_context(const std::string& dbname, const std::string& tbl_name, const Table& new_tbl, const EnvironmentContext& environment_context) = 0;
@@ -377,7 +377,7 @@ class ThriftHiveMetastoreNull : virtual public ThriftHiveMetastoreIf , virtual p
   void get_materialization_invalidation_info(std::map<std::string, Materialization> & /* _return */, const std::string& /* dbname */, const std::vector<std::string> & /* tbl_names */) {
     return;
   }
-  void update_creation_metadata(const std::string& /* dbname */, const std::string& /* tbl_name */, const CreationMetadata& /* creation_metadata */) {
+  void update_creation_metadata(const std::string& /* catName */, const std::string& /* dbname */, const std::string& /* tbl_name */, const CreationMetadata& /* creation_metadata */) {
     return;
   }
   void get_table_names_by_filter(std::vector<std::string> & /* _return */, const std::string& /* dbname */, const std::string& /* filter */, const int16_t /* max_tables */) {
@@ -5986,7 +5986,8 @@ class ThriftHiveMetastore_get_materialization_invalidation_info_presult {
 };
 
 typedef struct _ThriftHiveMetastore_update_creation_metadata_args__isset {
-  _ThriftHiveMetastore_update_creation_metadata_args__isset() : dbname(false), tbl_name(false), creation_metadata(false) {}
+  _ThriftHiveMetastore_update_creation_metadata_args__isset() : catName(false), dbname(false), tbl_name(false), creation_metadata(false) {}
+  bool catName :1;
   bool dbname :1;
   bool tbl_name :1;
   bool creation_metadata :1;
@@ -5997,15 +5998,18 @@ class ThriftHiveMetastore_update_creation_metadata_args {
 
   ThriftHiveMetastore_update_creation_metadata_args(const ThriftHiveMetastore_update_creation_metadata_args&);
   ThriftHiveMetastore_update_creation_metadata_args& operator=(const ThriftHiveMetastore_update_creation_metadata_args&);
-  ThriftHiveMetastore_update_creation_metadata_args() : dbname(), tbl_name() {
+  ThriftHiveMetastore_update_creation_metadata_args() : catName(), dbname(), tbl_name() {
   }
 
   virtual ~ThriftHiveMetastore_update_creation_metadata_args() throw();
+  std::string catName;
   std::string dbname;
   std::string tbl_name;
   CreationMetadata creation_metadata;
 
   _ThriftHiveMetastore_update_creation_metadata_args__isset __isset;
+
+  void __set_catName(const std::string& val);
 
   void __set_dbname(const std::string& val);
 
@@ -6015,6 +6019,8 @@ class ThriftHiveMetastore_update_creation_metadata_args {
 
   bool operator == (const ThriftHiveMetastore_update_creation_metadata_args & rhs) const
   {
+    if (!(catName == rhs.catName))
+      return false;
     if (!(dbname == rhs.dbname))
       return false;
     if (!(tbl_name == rhs.tbl_name))
@@ -6040,6 +6046,7 @@ class ThriftHiveMetastore_update_creation_metadata_pargs {
 
 
   virtual ~ThriftHiveMetastore_update_creation_metadata_pargs() throw();
+  const std::string* catName;
   const std::string* dbname;
   const std::string* tbl_name;
   const CreationMetadata* creation_metadata;
@@ -25282,8 +25289,8 @@ class ThriftHiveMetastoreClient : virtual public ThriftHiveMetastoreIf, public  
   void get_materialization_invalidation_info(std::map<std::string, Materialization> & _return, const std::string& dbname, const std::vector<std::string> & tbl_names);
   void send_get_materialization_invalidation_info(const std::string& dbname, const std::vector<std::string> & tbl_names);
   void recv_get_materialization_invalidation_info(std::map<std::string, Materialization> & _return);
-  void update_creation_metadata(const std::string& dbname, const std::string& tbl_name, const CreationMetadata& creation_metadata);
-  void send_update_creation_metadata(const std::string& dbname, const std::string& tbl_name, const CreationMetadata& creation_metadata);
+  void update_creation_metadata(const std::string& catName, const std::string& dbname, const std::string& tbl_name, const CreationMetadata& creation_metadata);
+  void send_update_creation_metadata(const std::string& catName, const std::string& dbname, const std::string& tbl_name, const CreationMetadata& creation_metadata);
   void recv_update_creation_metadata();
   void get_table_names_by_filter(std::vector<std::string> & _return, const std::string& dbname, const std::string& filter, const int16_t max_tables);
   void send_get_table_names_by_filter(const std::string& dbname, const std::string& filter, const int16_t max_tables);
@@ -26593,13 +26600,13 @@ class ThriftHiveMetastoreMultiface : virtual public ThriftHiveMetastoreIf, publi
     return;
   }
 
-  void update_creation_metadata(const std::string& dbname, const std::string& tbl_name, const CreationMetadata& creation_metadata) {
+  void update_creation_metadata(const std::string& catName, const std::string& dbname, const std::string& tbl_name, const CreationMetadata& creation_metadata) {
     size_t sz = ifaces_.size();
     size_t i = 0;
     for (; i < (sz - 1); ++i) {
-      ifaces_[i]->update_creation_metadata(dbname, tbl_name, creation_metadata);
+      ifaces_[i]->update_creation_metadata(catName, dbname, tbl_name, creation_metadata);
     }
-    ifaces_[i]->update_creation_metadata(dbname, tbl_name, creation_metadata);
+    ifaces_[i]->update_creation_metadata(catName, dbname, tbl_name, creation_metadata);
   }
 
   void get_table_names_by_filter(std::vector<std::string> & _return, const std::string& dbname, const std::string& filter, const int16_t max_tables) {
@@ -28239,8 +28246,8 @@ class ThriftHiveMetastoreConcurrentClient : virtual public ThriftHiveMetastoreIf
   void get_materialization_invalidation_info(std::map<std::string, Materialization> & _return, const std::string& dbname, const std::vector<std::string> & tbl_names);
   int32_t send_get_materialization_invalidation_info(const std::string& dbname, const std::vector<std::string> & tbl_names);
   void recv_get_materialization_invalidation_info(std::map<std::string, Materialization> & _return, const int32_t seqid);
-  void update_creation_metadata(const std::string& dbname, const std::string& tbl_name, const CreationMetadata& creation_metadata);
-  int32_t send_update_creation_metadata(const std::string& dbname, const std::string& tbl_name, const CreationMetadata& creation_metadata);
+  void update_creation_metadata(const std::string& catName, const std::string& dbname, const std::string& tbl_name, const CreationMetadata& creation_metadata);
+  int32_t send_update_creation_metadata(const std::string& catName, const std::string& dbname, const std::string& tbl_name, const CreationMetadata& creation_metadata);
   void recv_update_creation_metadata(const int32_t seqid);
   void get_table_names_by_filter(std::vector<std::string> & _return, const std::string& dbname, const std::string& filter, const int16_t max_tables);
   int32_t send_get_table_names_by_filter(const std::string& dbname, const std::string& filter, const int16_t max_tables);

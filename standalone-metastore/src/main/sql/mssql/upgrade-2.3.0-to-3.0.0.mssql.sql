@@ -143,6 +143,7 @@ SELECT 'Finished upgrading MetaStore schema from 2.3.0 to 3.0.0' AS MESSAGE;
 CREATE TABLE MV_CREATION_METADATA
 (
     MV_CREATION_METADATA_ID bigint NOT NULL,
+    CAT_NAME nvarchar(256) NOT NULL,
     DB_NAME nvarchar(128) NOT NULL,
     TBL_NAME nvarchar(256) NOT NULL,
     TXN_LIST text NULL

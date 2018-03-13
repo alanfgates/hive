@@ -8023,16 +8023,19 @@ class CreationMetadata {
 
   CreationMetadata(const CreationMetadata&);
   CreationMetadata& operator=(const CreationMetadata&);
-  CreationMetadata() : dbName(), tblName(), validTxnList() {
+  CreationMetadata() : catName(), dbName(), tblName(), validTxnList() {
   }
 
   virtual ~CreationMetadata() throw();
+  std::string catName;
   std::string dbName;
   std::string tblName;
   std::set<std::string>  tablesUsed;
   std::string validTxnList;
 
   _CreationMetadata__isset __isset;
+
+  void __set_catName(const std::string& val);
 
   void __set_dbName(const std::string& val);
 
@@ -8044,6 +8047,8 @@ class CreationMetadata {
 
   bool operator == (const CreationMetadata & rhs) const
   {
+    if (!(catName == rhs.catName))
+      return false;
     if (!(dbName == rhs.dbName))
       return false;
     if (!(tblName == rhs.tblName))

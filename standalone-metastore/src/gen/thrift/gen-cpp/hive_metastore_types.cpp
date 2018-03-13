@@ -19391,6 +19391,10 @@ CreationMetadata::~CreationMetadata() throw() {
 }
 
 
+void CreationMetadata::__set_catName(const std::string& val) {
+  this->catName = val;
+}
+
 void CreationMetadata::__set_dbName(const std::string& val) {
   this->dbName = val;
 }
@@ -19420,6 +19424,7 @@ uint32_t CreationMetadata::read(::apache::thrift::protocol::TProtocol* iprot) {
 
   using ::apache::thrift::protocol::TProtocolException;
 
+  bool isset_catName = false;
   bool isset_dbName = false;
   bool isset_tblName = false;
   bool isset_tablesUsed = false;
@@ -19434,13 +19439,21 @@ uint32_t CreationMetadata::read(::apache::thrift::protocol::TProtocol* iprot) {
     {
       case 1:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
+          xfer += iprot->readString(this->catName);
+          isset_catName = true;
+        } else {
+          xfer += iprot->skip(ftype);
+        }
+        break;
+      case 2:
+        if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->dbName);
           isset_dbName = true;
         } else {
           xfer += iprot->skip(ftype);
         }
         break;
-      case 2:
+      case 3:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->tblName);
           isset_tblName = true;
@@ -19448,7 +19461,7 @@ uint32_t CreationMetadata::read(::apache::thrift::protocol::TProtocol* iprot) {
           xfer += iprot->skip(ftype);
         }
         break;
-      case 3:
+      case 4:
         if (ftype == ::apache::thrift::protocol::T_SET) {
           {
             this->tablesUsed.clear();
@@ -19469,7 +19482,7 @@ uint32_t CreationMetadata::read(::apache::thrift::protocol::TProtocol* iprot) {
           xfer += iprot->skip(ftype);
         }
         break;
-      case 4:
+      case 5:
         if (ftype == ::apache::thrift::protocol::T_STRING) {
           xfer += iprot->readString(this->validTxnList);
           this->__isset.validTxnList = true;
@@ -19486,6 +19499,8 @@ uint32_t CreationMetadata::read(::apache::thrift::protocol::TProtocol* iprot) {
 
   xfer += iprot->readStructEnd();
 
+  if (!isset_catName)
+    throw TProtocolException(TProtocolException::INVALID_DATA);
   if (!isset_dbName)
     throw TProtocolException(TProtocolException::INVALID_DATA);
   if (!isset_tblName)
@@ -19500,15 +19515,19 @@ uint32_t CreationMetadata::write(::apache::thrift::protocol::TProtocol* oprot) c
   apache::thrift::protocol::TOutputRecursionTracker tracker(*oprot);
   xfer += oprot->writeStructBegin("CreationMetadata");
 
-  xfer += oprot->writeFieldBegin("dbName", ::apache::thrift::protocol::T_STRING, 1);
+  xfer += oprot->writeFieldBegin("catName", ::apache::thrift::protocol::T_STRING, 1);
+  xfer += oprot->writeString(this->catName);
+  xfer += oprot->writeFieldEnd();
+
+  xfer += oprot->writeFieldBegin("dbName", ::apache::thrift::protocol::T_STRING, 2);
   xfer += oprot->writeString(this->dbName);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("tblName", ::apache::thrift::protocol::T_STRING, 2);
+  xfer += oprot->writeFieldBegin("tblName", ::apache::thrift::protocol::T_STRING, 3);
   xfer += oprot->writeString(this->tblName);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("tablesUsed", ::apache::thrift::protocol::T_SET, 3);
+  xfer += oprot->writeFieldBegin("tablesUsed", ::apache::thrift::protocol::T_SET, 4);
   {
     xfer += oprot->writeSetBegin(::apache::thrift::protocol::T_STRING, static_cast<uint32_t>(this->tablesUsed.size()));
     std::set<std::string> ::const_iterator _iter771;
@@ -19521,7 +19540,7 @@ uint32_t CreationMetadata::write(::apache::thrift::protocol::TProtocol* oprot) c
   xfer += oprot->writeFieldEnd();
 
   if (this->__isset.validTxnList) {
-    xfer += oprot->writeFieldBegin("validTxnList", ::apache::thrift::protocol::T_STRING, 4);
+    xfer += oprot->writeFieldBegin("validTxnList", ::apache::thrift::protocol::T_STRING, 5);
     xfer += oprot->writeString(this->validTxnList);
     xfer += oprot->writeFieldEnd();
   }
@@ -19532,6 +19551,7 @@ uint32_t CreationMetadata::write(::apache::thrift::protocol::TProtocol* oprot) c
 
 void swap(CreationMetadata &a, CreationMetadata &b) {
   using ::std::swap;
+  swap(a.catName, b.catName);
   swap(a.dbName, b.dbName);
   swap(a.tblName, b.tblName);
   swap(a.tablesUsed, b.tablesUsed);
@@ -19540,6 +19560,7 @@ void swap(CreationMetadata &a, CreationMetadata &b) {
 }
 
 CreationMetadata::CreationMetadata(const CreationMetadata& other772) {
+  catName = other772.catName;
   dbName = other772.dbName;
   tblName = other772.tblName;
   tablesUsed = other772.tablesUsed;
@@ -19547,6 +19568,7 @@ CreationMetadata::CreationMetadata(const CreationMetadata& other772) {
   __isset = other772.__isset;
 }
 CreationMetadata& CreationMetadata::operator=(const CreationMetadata& other773) {
+  catName = other773.catName;
   dbName = other773.dbName;
   tblName = other773.tblName;
   tablesUsed = other773.tablesUsed;
@@ -19557,7 +19579,8 @@ CreationMetadata& CreationMetadata::operator=(const CreationMetadata& other773) 
 void CreationMetadata::printTo(std::ostream& out) const {
   using ::apache::thrift::to_string;
   out << "CreationMetadata(";
-  out << "dbName=" << to_string(dbName);
+  out << "catName=" << to_string(catName);
+  out << ", " << "dbName=" << to_string(dbName);
   out << ", " << "tblName=" << to_string(tblName);
   out << ", " << "tablesUsed=" << to_string(tablesUsed);
   out << ", " << "validTxnList="; (__isset.validTxnList ? (out << to_string(validTxnList)) : (out << "<null>"));

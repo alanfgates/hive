@@ -340,9 +340,10 @@ class Iface(fb303.FacebookService.Iface):
     """
     pass
 
-  def update_creation_metadata(self, dbname, tbl_name, creation_metadata):
+  def update_creation_metadata(self, catName, dbname, tbl_name, creation_metadata):
     """
     Parameters:
+     - catName
      - dbname
      - tbl_name
      - creation_metadata
@@ -3032,19 +3033,21 @@ class Client(fb303.FacebookService.Client, Iface):
       raise result.o3
     raise TApplicationException(TApplicationException.MISSING_RESULT, "get_materialization_invalidation_info failed: unknown result")
 
-  def update_creation_metadata(self, dbname, tbl_name, creation_metadata):
+  def update_creation_metadata(self, catName, dbname, tbl_name, creation_metadata):
     """
     Parameters:
+     - catName
      - dbname
      - tbl_name
      - creation_metadata
     """
-    self.send_update_creation_metadata(dbname, tbl_name, creation_metadata)
+    self.send_update_creation_metadata(catName, dbname, tbl_name, creation_metadata)
     self.recv_update_creation_metadata()
 
-  def send_update_creation_metadata(self, dbname, tbl_name, creation_metadata):
+  def send_update_creation_metadata(self, catName, dbname, tbl_name, creation_metadata):
     self._oprot.writeMessageBegin('update_creation_metadata', TMessageType.CALL, self._seqid)
     args = update_creation_metadata_args()
+    args.catName = catName
     args.dbname = dbname
     args.tbl_name = tbl_name
     args.creation_metadata = creation_metadata
@@ -9906,7 +9909,7 @@ class Processor(fb303.FacebookService.Processor, Iface, TProcessor):
     iprot.readMessageEnd()
     result = update_creation_metadata_result()
     try:
-      self._handler.update_creation_metadata(args.dbname, args.tbl_name, args.creation_metadata)
+      self._handler.update_creation_metadata(args.catName, args.dbname, args.tbl_name, args.creation_metadata)
       msg_type = TMessageType.REPLY
     except (TTransport.TTransportException, KeyboardInterrupt, SystemExit):
       raise
@@ -20776,6 +20779,7 @@ class get_materialization_invalidation_info_result:
 class update_creation_metadata_args:
   """
   Attributes:
+   - catName
    - dbname
    - tbl_name
    - creation_metadata
@@ -20783,12 +20787,14 @@ class update_creation_metadata_args:
 
   thrift_spec = (
     None, # 0
-    (1, TType.STRING, 'dbname', None, None, ), # 1
-    (2, TType.STRING, 'tbl_name', None, None, ), # 2
-    (3, TType.STRUCT, 'creation_metadata', (CreationMetadata, CreationMetadata.thrift_spec), None, ), # 3
+    (1, TType.STRING, 'catName', None, None, ), # 1
+    (2, TType.STRING, 'dbname', None, None, ), # 2
+    (3, TType.STRING, 'tbl_name', None, None, ), # 3
+    (4, TType.STRUCT, 'creation_metadata', (CreationMetadata, CreationMetadata.thrift_spec), None, ), # 4
   )
 
-  def __init__(self, dbname=None, tbl_name=None, creation_metadata=None,):
+  def __init__(self, catName=None, dbname=None, tbl_name=None, creation_metadata=None,):
+    self.catName = catName
     self.dbname = dbname
     self.tbl_name = tbl_name
     self.creation_metadata = creation_metadata
@@ -20804,15 +20810,20 @@ class update_creation_metadata_args:
         break
       if fid == 1:
         if ftype == TType.STRING:
-          self.dbname = iprot.readString()
+          self.catName = iprot.readString()
         else:
           iprot.skip(ftype)
       elif fid == 2:
         if ftype == TType.STRING:
-          self.tbl_name = iprot.readString()
+          self.dbname = iprot.readString()
         else:
           iprot.skip(ftype)
       elif fid == 3:
+        if ftype == TType.STRING:
+          self.tbl_name = iprot.readString()
+        else:
+          iprot.skip(ftype)
+      elif fid == 4:
         if ftype == TType.STRUCT:
           self.creation_metadata = CreationMetadata()
           self.creation_metadata.read(iprot)
@@ -20828,16 +20839,20 @@ class update_creation_metadata_args:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return
     oprot.writeStructBegin('update_creation_metadata_args')
+    if self.catName is not None:
+      oprot.writeFieldBegin('catName', TType.STRING, 1)
+      oprot.writeString(self.catName)
+      oprot.writeFieldEnd()
     if self.dbname is not None:
-      oprot.writeFieldBegin('dbname', TType.STRING, 1)
+      oprot.writeFieldBegin('dbname', TType.STRING, 2)
       oprot.writeString(self.dbname)
       oprot.writeFieldEnd()
     if self.tbl_name is not None:
-      oprot.writeFieldBegin('tbl_name', TType.STRING, 2)
+      oprot.writeFieldBegin('tbl_name', TType.STRING, 3)
       oprot.writeString(self.tbl_name)
       oprot.writeFieldEnd()
     if self.creation_metadata is not None:
-      oprot.writeFieldBegin('creation_metadata', TType.STRUCT, 3)
+      oprot.writeFieldBegin('creation_metadata', TType.STRUCT, 4)
       self.creation_metadata.write(oprot)
       oprot.writeFieldEnd()
     oprot.writeFieldStop()
@@ -20849,6 +20864,7 @@ class update_creation_metadata_args:
 
   def __hash__(self):
     value = 17
+    value = (value * 31) ^ hash(self.catName)
     value = (value * 31) ^ hash(self.dbname)
     value = (value * 31) ^ hash(self.tbl_name)
     value = (value * 31) ^ hash(self.creation_metadata)

@@ -1309,9 +1309,9 @@ public class CachedStore implements RawStore, Configurable {
   }
 
   @Override
-  public void updateCreationMetadata(String dbname, String tablename, CreationMetadata cm)
+  public void updateCreationMetadata(String catName, String dbname, String tablename, CreationMetadata cm)
       throws MetaException {
-    rawStore.updateCreationMetadata(dbname, tablename, cm);
+    rawStore.updateCreationMetadata(catName, dbname, tablename, cm);
   }
 
   public List<String> getTables(String catName, String dbName, String pattern)
