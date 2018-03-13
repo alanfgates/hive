@@ -436,7 +436,7 @@ public class TestForeignKey {
         .setConstraintName(constraintName)
         .build();
 
-    client.createTableWithConstraints(table, null, fk, null, null);
+    client.createTableWithConstraints(table, null, fk, null, null, null);
 
     ForeignKeysRequest rqst = new ForeignKeysRequest(parentTable.getDbName(), parentTable
         .getTableName(),
@@ -483,7 +483,7 @@ public class TestForeignKey {
         .setConstraintName(constraintName)
         .build();
 
-    client.createTableWithConstraints(table, null, fk, null, null);
+    client.createTableWithConstraints(table, null, fk, null, null, null);
 
     ForeignKeysRequest rqst = new ForeignKeysRequest(parentTable.getDbName(), parentTable
         .getTableName(),

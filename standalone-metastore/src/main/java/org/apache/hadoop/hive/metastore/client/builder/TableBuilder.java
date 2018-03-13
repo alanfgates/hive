@@ -20,6 +20,7 @@ package org.apache.hadoop.hive.metastore.client.builder;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.Warehouse;
 import org.apache.hadoop.hive.metastore.api.BasicTxnInfo;
+import org.apache.hadoop.hive.metastore.api.CreationMetadata;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.MetaException;
@@ -43,14 +44,13 @@ public class TableBuilder extends StorageDescriptorBuilder<TableBuilder> {
   private int createTime, lastAccessTime, retention;
   private Map<String, String> tableParams;
   private boolean rewriteEnabled, temporary;
-  private Map<String, BasicTxnInfo> creationMetadata;
+  private CreationMetadata creationMetadata;
 
   public TableBuilder() {
     // Set some reasonable defaults
     catName = Warehouse.DEFAULT_CATALOG_NAME;
     dbName = Warehouse.DEFAULT_DATABASE_NAME;
     tableParams = new HashMap<>();
-    creationMetadata = new HashMap<>();
     createTime = lastAccessTime = (int)(System.currentTimeMillis() / 1000);
     retention = 0;
     partCols = new ArrayList<>();
@@ -151,8 +151,9 @@ public class TableBuilder extends StorageDescriptorBuilder<TableBuilder> {
     return this;
   }
 
-  public TableBuilder addCreationMetadata(String key, BasicTxnInfo value) {
-    creationMetadata.put(key, value);
+  public TableBuilder setCreationMetadata(
+      CreationMetadata creationMetadata) {
+    this.creationMetadata = creationMetadata;
     return this;
   }
 
@@ -172,7 +173,7 @@ public class TableBuilder extends StorageDescriptorBuilder<TableBuilder> {
     if (rewriteEnabled) t.setRewriteEnabled(true);
     if (temporary) t.setTemporary(temporary);
     t.setCatName(catName);
-    t.setCreationMetadata(creationMetadata);
+    if (creationMetadata != null) t.setCreationMetadata(creationMetadata);
     return t;
   }
 

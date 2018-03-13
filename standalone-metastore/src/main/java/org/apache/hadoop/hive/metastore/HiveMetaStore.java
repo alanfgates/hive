@@ -1760,7 +1760,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
               }
             }
           }
-          int notNullConstraintSize =  notNullConstraints.size();
+          int notNullConstraintSize =  0;
           if (notNullConstraints != null) {
             for (int i = 0; i < notNullConstraints.size(); i++) {
               if (notNullConstraints.get(i).getNn_name() == null) {
@@ -7451,7 +7451,8 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         throws TException {
       String db_name = request.getDb_name();
       String tbl_name = request.getTbl_name();
-      startTableFunction("get_default_constraints", db_name, tbl_name);
+      // TODO CAT
+      startTableFunction("get_default_constraints", DEFAULT_CATALOG_NAME, db_name, tbl_name);
       List<SQLDefaultConstraint> ret = null;
       Exception ex = null;
       try {

@@ -357,7 +357,7 @@ public class TestPrimaryKey {
         .setConstraintName(constraintName)
         .build();
 
-    client.createTableWithConstraints(table, pk, null, null, null);
+    client.createTableWithConstraints(table, pk, null, null, null, null);
     PrimaryKeysRequest rqst = new PrimaryKeysRequest(table.getDbName(), table.getTableName());
     rqst.setCatName(table.getCatName());
     List<SQLPrimaryKey> fetched = client.getPrimaryKeys(rqst);
@@ -394,7 +394,7 @@ public class TestPrimaryKey {
         .addColumn("col1")
         .build();
 
-    client.createTableWithConstraints(table, pk, null, null, null);
+    client.createTableWithConstraints(table, pk, null, null, null, null);
     PrimaryKeysRequest rqst = new PrimaryKeysRequest(table.getDbName(), table.getTableName());
     rqst.setCatName(table.getCatName());
     List<SQLPrimaryKey> fetched = client.getPrimaryKeys(rqst);

@@ -1245,11 +1245,22 @@ public class ObjectStore implements RawStore, Configurable {
       // Add constraints.
       // We need not do a deep retrieval of the Table Column Descriptor while persisting the
       // constraints since this transaction involving create table is not yet committed.
-      List<String> constraintNames = addForeignKeys(foreignKeys, false, primaryKeys, uniqueConstraints);
-      constraintNames.addAll(addPrimaryKeys(primaryKeys, false));
-      constraintNames.addAll(addUniqueConstraints(uniqueConstraints, false));
-      constraintNames.addAll(addNotNullConstraints(notNullConstraints, false));
-      constraintNames.addAll(addDefaultConstraints(defaultConstraints, false));
+      List<String> constraintNames = new ArrayList<>();
+      if (foreignKeys != null) {
+        constraintNames.addAll(addForeignKeys(foreignKeys, false, primaryKeys, uniqueConstraints));
+      }
+      if (primaryKeys != null) {
+        constraintNames.addAll(addPrimaryKeys(primaryKeys, false));
+      }
+      if (uniqueConstraints != null) {
+        constraintNames.addAll(addUniqueConstraints(uniqueConstraints, false));
+      }
+      if (notNullConstraints != null) {
+        constraintNames.addAll(addNotNullConstraints(notNullConstraints, false));
+      }
+      if (defaultConstraints != null) {
+        constraintNames.addAll(addDefaultConstraints(defaultConstraints, false));
+      }
       success = commitTransaction();
       return constraintNames;
     } finally {

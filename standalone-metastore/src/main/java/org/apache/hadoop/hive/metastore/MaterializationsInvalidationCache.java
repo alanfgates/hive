@@ -134,8 +134,8 @@ public final class MaterializationsInvalidationCache {
           for (String dbName : store.getAllDatabases(catName)) {
             for (Table mv : store.getTableObjectsByName(catName, dbName,
                 store.getTables(catName, dbName, null, TableType.MATERIALIZED_VIEW))) {
-              addMaterializedView(mv, ImmutableSet.copyOf(mv.getCreationMetadata().keySet()),
-                  OpType.LOAD);
+              addMaterializedView(mv.getDbName(), mv.getTableName(), ImmutableSet.copyOf(mv.getCreationMetadata().getTablesUsed()),
+                  mv.getCreationMetadata().getValidTxnList(), OpType.LOAD);
             }
           }
         }

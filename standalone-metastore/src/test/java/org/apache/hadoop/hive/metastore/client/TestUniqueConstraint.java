@@ -294,7 +294,7 @@ public class TestUniqueConstraint {
         .setConstraintName(constraintName)
         .build();
 
-    client.createTableWithConstraints(table, null, null, uc, null);
+    client.createTableWithConstraints(table, null, null, uc, null, null);
     UniqueConstraintsRequest rqst = new UniqueConstraintsRequest(table.getDbName(), table.getTableName());
     rqst.setCatName(table.getCatName());
     List<SQLUniqueConstraint> fetched = client.getUniqueConstraints(rqst);
@@ -331,7 +331,7 @@ public class TestUniqueConstraint {
         .addColumn("col1")
         .build();
 
-    client.createTableWithConstraints(table, null, null, uc, null);
+    client.createTableWithConstraints(table, null, null, uc, null, null);
     UniqueConstraintsRequest rqst = new UniqueConstraintsRequest(table.getDbName(), table.getTableName());
     rqst.setCatName(table.getCatName());
     List<SQLUniqueConstraint> fetched = client.getUniqueConstraints(rqst);
@@ -378,7 +378,7 @@ public class TestUniqueConstraint {
           .build();
       client.addUniqueConstraint(uc);
       Assert.fail();
-    } catch (MetaException e) {
+    } catch (InvalidObjectException|TApplicationException e) {
       // NOP
     }
   }

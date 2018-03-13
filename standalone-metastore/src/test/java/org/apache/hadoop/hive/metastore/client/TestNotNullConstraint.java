@@ -291,7 +291,7 @@ public class TestNotNullConstraint {
         .setConstraintName(constraintName)
         .build();
 
-    client.createTableWithConstraints(table, null, null, null, nn);
+    client.createTableWithConstraints(table, null, null, null, nn, null);
     NotNullConstraintsRequest rqst = new NotNullConstraintsRequest(table.getDbName(), table.getTableName());
     rqst.setCatName(table.getCatName());
     List<SQLNotNullConstraint> fetched = client.getNotNullConstraints(rqst);
@@ -327,7 +327,7 @@ public class TestNotNullConstraint {
         .addColumn("col1")
         .build();
 
-    client.createTableWithConstraints(table, null, null, null, nn);
+    client.createTableWithConstraints(table, null, null, null, nn, null);
     NotNullConstraintsRequest rqst = new NotNullConstraintsRequest(table.getDbName(), table.getTableName());
     rqst.setCatName(table.getCatName());
     List<SQLNotNullConstraint> fetched = client.getNotNullConstraints(rqst);
@@ -373,7 +373,7 @@ public class TestNotNullConstraint {
           .build();
       client.addNotNullConstraint(nn);
       Assert.fail();
-    } catch (MetaException e) {
+    } catch (InvalidObjectException|TApplicationException e) {
       // NOP
     }
   }
