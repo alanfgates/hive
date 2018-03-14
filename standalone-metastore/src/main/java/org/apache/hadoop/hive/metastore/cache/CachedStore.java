@@ -1027,8 +1027,8 @@ public class CachedStore implements RawStore, Configurable {
     if (succ) {
       String dbName = normalizeIdentifier(part.getDbName());
       String tblName = normalizeIdentifier(part.getTableName());
-      // TODO CAT
-      if (!shouldCacheTable(DEFAULT_CATALOG_NAME, dbName, tblName)) {
+      String catName = part.isSetCatName() ? normalizeIdentifier(part.getCatName()) : DEFAULT_CATALOG_NAME;
+      if (!shouldCacheTable(catName, dbName, tblName)) {
         return succ;
       }
       SharedCache sharedCache = sharedCacheWrapper.get();
@@ -1039,8 +1039,7 @@ public class CachedStore implements RawStore, Configurable {
         // Wait if background cache update is happening
         partitionCacheLock.readLock().lock();
         isPartitionCacheDirty.set(true);
-        // TODO CAT
-        sharedCache.addPartitionToCache(DEFAULT_CATALOG_NAME, dbName, tblName, part);
+        sharedCache.addPartitionToCache(catName, dbName, tblName, part);
       } finally {
         partitionCacheLock.readLock().unlock();
       }
@@ -1049,8 +1048,7 @@ public class CachedStore implements RawStore, Configurable {
         // Wait if background cache update is happening
         partitionAggrColStatsCacheLock.readLock().lock();
         isPartitionAggrColStatsCacheDirty.set(true);
-        // TODO CAT
-        sharedCache.removeAggrPartitionColStatsFromCache(DEFAULT_CATALOG_NAME, dbName, tblName);
+        sharedCache.removeAggrPartitionColStatsFromCache(catName, dbName, tblName);
       } finally {
         partitionAggrColStatsCacheLock.readLock().unlock();
       }
@@ -1258,8 +1256,7 @@ public class CachedStore implements RawStore, Configurable {
         // Wait if background cache update is happening
         partitionCacheLock.readLock().lock();
         isPartitionCacheDirty.set(true);
-        // TODO CAT
-        sharedCache.alterTableInPartitionCache(DEFAULT_CATALOG_NAME, normalizeIdentifier(dbName),
+        sharedCache.alterTableInPartitionCache(normalizeIdentifier(catName), normalizeIdentifier(dbName),
             normalizeIdentifier(tblName), newTable);
       } finally {
         partitionCacheLock.readLock().unlock();
@@ -1281,8 +1278,7 @@ public class CachedStore implements RawStore, Configurable {
         // Wait if background cache update is happening
         partitionCacheLock.readLock().lock();
         isPartitionCacheDirty.set(true);
-        // TODO CAT
-        sharedCache.removePartitionsFromCache(DEFAULT_CATALOG_NAME, dbName, tblName);
+        sharedCache.removePartitionsFromCache(catName, dbName, tblName);
       } finally {
         partitionCacheLock.readLock().unlock();
       }
@@ -1300,8 +1296,7 @@ public class CachedStore implements RawStore, Configurable {
         // Wait if background cache update is happening
         partitionAggrColStatsCacheLock.readLock().lock();
         isPartitionAggrColStatsCacheDirty.set(true);
-        // TODO CAT
-        sharedCache.alterTableInAggrPartitionColStatsCache(DEFAULT_CATALOG_NAME, dbName, tblName, newTable);
+        sharedCache.alterTableInAggrPartitionColStatsCache(catName, dbName, tblName, newTable);
       } finally {
         partitionAggrColStatsCacheLock.readLock().unlock();
       }
@@ -1560,8 +1555,9 @@ public class CachedStore implements RawStore, Configurable {
   private boolean getPartitionNamesPrunedByExprNoTxn(Table table, byte[] expr,
       String defaultPartName, short maxParts, List<String> result, SharedCache sharedCache)
           throws MetaException, NoSuchObjectException {
-    // TODO CAT
-    List<Partition> parts = sharedCache.listCachedPartitions(DEFAULT_CATALOG_NAME,
+    String catName = table.isSetCatName() ? normalizeIdentifier(table.getCatName()) :
+        DEFAULT_CATALOG_NAME;
+    List<Partition> parts = sharedCache.listCachedPartitions(catName,
         normalizeIdentifier(table.getDbName()),
         normalizeIdentifier(table.getTableName()), maxParts);
     for (Partition part : parts) {
@@ -2569,14 +2565,14 @@ public class CachedStore implements RawStore, Configurable {
         foreignKeys, uniqueConstraints, notNullConstraints, defaultConstraints);
     String dbName = normalizeIdentifier(tbl.getDbName());
     String tblName = normalizeIdentifier(tbl.getTableName());
-    // TODO CAT
-    if (!shouldCacheTable(DEFAULT_CATALOG_NAME, dbName, tblName)) {
+    String catName = tbl.isSetCatName() ? normalizeIdentifier(tbl.getCatName()) :
+        DEFAULT_CATALOG_NAME;
+    if (!shouldCacheTable(catName, dbName, tblName)) {
       return constraintNames;
     }
     SharedCache sharedCache = sharedCacheWrapper.get();
     if (sharedCache == null) return constraintNames;
-    // TODO CAT
-    sharedCache.addTableToCache(DEFAULT_CATALOG_NAME, normalizeIdentifier(tbl.getDbName()),
+    sharedCache.addTableToCache(catName, normalizeIdentifier(tbl.getDbName()),
         normalizeIdentifier(tbl.getTableName()), tbl);
     return constraintNames;
   }

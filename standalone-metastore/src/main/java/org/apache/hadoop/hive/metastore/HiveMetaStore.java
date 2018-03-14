@@ -171,6 +171,7 @@ import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TServerSocket;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportFactory;
+import org.iq80.leveldb.DB;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -3629,6 +3630,8 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         String sourceDbName, String sourceTableName, String destDbName,
         String destTableName) throws TException {
       exchange_partitions(partitionSpecs, sourceDbName, sourceTableName, destDbName, destTableName);
+      // Wouldn't it make more sense to return the first element of the list returned by the
+      // previous call?
       return new Partition();
     }
 
@@ -3640,10 +3643,14 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       boolean pathCreated = false;
       RawStore ms = getMS();
       ms.openTransaction();
-      // TODO CAT
-      Table destinationTable = ms.getTable(DEFAULT_CATALOG_NAME, destDbName, destTableName);
-      // TODO CAT
-      Table sourceTable = ms.getTable(DEFAULT_CATALOG_NAME, sourceDbName, sourceTableName);
+      String[] parsedDestDbName = parseDbName(destDbName);
+      String[] parsedSourceDbName = parseDbName(sourceDbName);
+
+      if (!parsedDestDbName[CAT_NAME].equals(parsedSourceDbName[CAT_NAME])) {
+        throw new MetaException("You cannot move a partition across catalogs");
+      }
+      Table destinationTable = ms.getTable(parsedDestDbName[CAT_NAME], parsedDestDbName[DB_NAME], destTableName);
+      Table sourceTable = ms.getTable(parsedSourceDbName[CAT_NAME], parsedSourceDbName[DB_NAME], sourceTableName);
       List<String> partVals = MetaStoreUtils.getPvals(sourceTable.getPartitionKeys(),
           partitionSpecs);
       List<String> partValsPresent = new ArrayList<> ();
@@ -3657,6 +3664,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
         }
         i++;
       }
+      // Passed the unparsed DB name here, as get_partitions_ps expects to parse it
       List<Partition> partitionsToExchange = get_partitions_ps(sourceDbName, sourceTableName,
           partVals, (short)-1);
       if (partitionsToExchange == null || partitionsToExchange.isEmpty()) {
@@ -3684,15 +3692,14 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       try {
         for (Partition partition: partitionsToExchange) {
           Partition destPartition = new Partition(partition);
-          destPartition.setDbName(destDbName);
+          destPartition.setDbName(parsedDestDbName[DB_NAME]);
           destPartition.setTableName(destinationTable.getTableName());
           Path destPartitionPath = new Path(destinationTable.getSd().getLocation(),
               Warehouse.makePartName(destinationTable.getPartitionKeys(), partition.getValues()));
           destPartition.getSd().setLocation(destPartitionPath.toString());
           ms.addPartition(destPartition);
           destPartitions.add(destPartition);
-          String catName = partition.isSetCatName() ? partition.getCatName() : DEFAULT_CATALOG_NAME;
-          ms.dropPartition(catName, partition.getDbName(), sourceTable.getTableName(),
+          ms.dropPartition(parsedSourceDbName[CAT_NAME], partition.getDbName(), sourceTable.getTableName(),
             partition.getValues());
         }
         Path destParentPath = destPath.getParent();
@@ -4815,6 +4822,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       startFunction("get_fields_with_environment_context", ": db=" + db + "tbl=" + tableName);
       String[] names = tableName.split("\\.");
       String base_table_name = names[0];
+      String[] parsedDbName = parseDbName(db);
 
       Table tbl;
       List<FieldSchema> ret = null;
@@ -4822,8 +4830,7 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       ClassLoader orgHiveLoader = null;
       try {
         try {
-          // TODO CAT
-          tbl = get_table_core(DEFAULT_CATALOG_NAME, db, base_table_name);
+          tbl = get_table_core(parsedDbName[CAT_NAME], parsedDbName[DB_NAME], base_table_name);
         } catch (NoSuchObjectException e) {
           throw new UnknownTableException(e.getMessage());
         }
@@ -4916,14 +4923,15 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       try {
         String[] names = tableName.split("\\.");
         String base_table_name = names[0];
+        String[] parsedDbName = parseDbName(db);
 
         Table tbl;
         try {
-          // TODO CAT
-          tbl = get_table_core(DEFAULT_CATALOG_NAME, db, base_table_name);
+          tbl = get_table_core(parsedDbName[CAT_NAME], parsedDbName[DB_NAME], base_table_name);
         } catch (NoSuchObjectException e) {
           throw new UnknownTableException(e.getMessage());
         }
+        // Pass unparsed db name here
         List<FieldSchema> fieldSchemas = get_fields_with_environment_context(db, base_table_name,envContext);
 
         if (tbl == null || fieldSchemas == null) {
@@ -7246,7 +7254,6 @@ public class HiveMetaStore extends ThriftHiveMetastore {
       ms.openTransaction();
       boolean success = false;
       try {
-        // TODO CAT
         Table tbl = ms.getTable(DEFAULT_CATALOG_NAME, dbName, tblName);
         if (tbl == null) {
           throw new NoSuchObjectException(dbName + "." + tblName + " not found");
@@ -7272,7 +7279,6 @@ public class HiveMetaStore extends ThriftHiveMetastore {
           if (partName != null) {
             partNames = Lists.newArrayList(partName);
           } else if (isAllPart) {
-            // TODO CAT
             partNames = ms.listPartitionNames(DEFAULT_CATALOG_NAME, dbName, tblName, (short)-1);
           } else {
             throw new MetaException("Table is partitioned");
@@ -7286,7 +7292,6 @@ public class HiveMetaStore extends ThriftHiveMetastore {
             int currentBatchSize = Math.min(batchSize, partNames.size() - index);
             List<String> nameBatch = partNames.subList(index, index + currentBatchSize);
             index += currentBatchSize;
-            // TODO CAT
             List<Partition> parts = ms.getPartitionsByNames(DEFAULT_CATALOG_NAME, dbName, tblName, nameBatch);
             for (Partition part : parts) {
               if (!part.isSetSd() || !part.getSd().isSetLocation()) {

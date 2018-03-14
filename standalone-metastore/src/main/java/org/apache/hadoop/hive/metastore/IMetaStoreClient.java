@@ -950,14 +950,61 @@ public interface IMetaStoreClient {
   Partition getPartition(String catName, String dbName, String tblName, List<String> partVals)
       throws NoSuchObjectException, MetaException, TException;
   /**
-   * @param partitionSpecs
-   * @param sourceDb
-   * @param sourceTable
-   * @param destdb
-   * @param destTableName
+   * Move a partition from one table to another
+   * @param partitionSpecs key value pairs that describe the partition to be moved.
+   * @param sourceDb database of the source table
+   * @param sourceTable name of the source table
+   * @param destdb database of the destination table
+   * @param destTableName name of the destination table
    * @return partition object
+   * @throws MetaException error accessing the RDBMS or storage
+   * @throws NoSuchObjectException no such table, for either source or destination table
+   * @throws InvalidObjectException error in partition specifications
+   * @throws TException thrift transport error
+   * @deprecated Use {@link #exchange_partition(Map, String, String, String, String, String, String)}
    */
+  @Deprecated
   Partition exchange_partition(Map<String, String> partitionSpecs,
+      String sourceDb, String sourceTable, String destdb,
+      String destTableName) throws MetaException, NoSuchObjectException,
+      InvalidObjectException, TException;
+
+  /**
+   * Move a partition from one table to another
+   * @param partitionSpecs key value pairs that describe the partition to be moved.
+   * @param sourceCat catalog of the source table
+   * @param sourceDb database of the source table
+   * @param sourceTable name of the source table
+   * @param destCat catalog of the destination table, for now must the same as sourceCat
+   * @param destdb database of the destination table
+   * @param destTableName name of the destination table
+   * @return partition object
+   * @throws MetaException error accessing the RDBMS or storage
+   * @throws NoSuchObjectException no such table, for either source or destination table
+   * @throws InvalidObjectException error in partition specifications
+   * @throws TException thrift transport error
+   */
+  Partition exchange_partition(Map<String, String> partitionSpecs, String sourceCat,
+                               String sourceDb, String sourceTable, String destCat, String destdb,
+                               String destTableName) throws MetaException, NoSuchObjectException,
+      InvalidObjectException, TException;
+
+  /**
+   * With the one partitionSpecs to exchange, multiple partitions could be exchanged.
+   * e.g., year=2015/month/day, exchanging partition year=2015 results to all the partitions
+   * belonging to it exchanged. This function returns the list of affected partitions.
+   * @param partitionSpecs key value pairs that describe the partition(s) to be moved.
+   * @param sourceDb database of the source table
+   * @param sourceTable name of the source table
+   * @param destdb database of the destination table
+   * @param destTableName name of the destination table
+   * @throws MetaException error accessing the RDBMS or storage
+   * @throws NoSuchObjectException no such table, for either source or destination table
+   * @throws InvalidObjectException error in partition specifications
+   * @throws TException thrift transport error
+   * @return the list of the new partitions
+   */
+  List<Partition> exchange_partitions(Map<String, String> partitionSpecs,
       String sourceDb, String sourceTable, String destdb,
       String destTableName) throws MetaException, NoSuchObjectException,
       InvalidObjectException, TException;
@@ -966,17 +1013,23 @@ public interface IMetaStoreClient {
    * With the one partitionSpecs to exchange, multiple partitions could be exchanged.
    * e.g., year=2015/month/day, exchanging partition year=2015 results to all the partitions
    * belonging to it exchanged. This function returns the list of affected partitions.
-   * @param partitionSpecs
-   * @param sourceDb
-   * @param sourceTable
-   * @param destdb
-   * @param destTableName
+   * @param partitionSpecs key value pairs that describe the partition(s) to be moved.
+   * @param sourceCat catalog of the source table
+   * @param sourceDb database of the source table
+   * @param sourceTable name of the source table
+   * @param destCat catalog of the destination table, for now must the same as sourceCat
+   * @param destdb database of the destination table
+   * @param destTableName name of the destination table
+   * @throws MetaException error accessing the RDBMS or storage
+   * @throws NoSuchObjectException no such table, for either source or destination table
+   * @throws InvalidObjectException error in partition specifications
+   * @throws TException thrift transport error
    * @return the list of the new partitions
    */
-  List<Partition> exchange_partitions(Map<String, String> partitionSpecs,
-      String sourceDb, String sourceTable, String destdb,
-      String destTableName) throws MetaException, NoSuchObjectException,
-      InvalidObjectException, TException;
+  List<Partition> exchange_partitions(Map<String, String> partitionSpecs, String sourceCat,
+                                      String sourceDb, String sourceTable, String destCat,
+                                      String destdb, String destTableName)
+      throws MetaException, NoSuchObjectException, InvalidObjectException, TException;
 
   /**
    * @param dbName database name.
@@ -2228,30 +2281,64 @@ public interface IMetaStoreClient {
       throws InvalidOperationException, MetaException, TException;
 
   /**
-   * @param db
-   * @param tableName
-   * @throws UnknownTableException
-   * @throws UnknownDBException
-   * @throws MetaException
-   * @throws TException
-   * @see org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore.Iface#get_fields(java.lang.String,
-   *      java.lang.String)
+   * Get schema for a table, excluding the partition columns.
+   * @param db database name
+   * @param tableName table name
+   * @return  list of field schemas describing the table's schema
+   * @throws UnknownTableException no such table
+   * @throws UnknownDBException no such database
+   * @throws MetaException error accessing the RDBMS
+   * @throws TException thrift transport error
+   * @deprecated Use {@link #getFields(String, String, String)}
    */
+  @Deprecated
   List<FieldSchema> getFields(String db, String tableName)
       throws MetaException, TException, UnknownTableException,
       UnknownDBException;
 
   /**
-   * @param db
-   * @param tableName
-   * @throws UnknownTableException
-   * @throws UnknownDBException
-   * @throws MetaException
-   * @throws TException
-   * @see org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore.Iface#get_schema(java.lang.String,
-   *      java.lang.String)
+   * Get schema for a table, excluding the partition columns.
+   * @param catName catalog name
+   * @param db database name
+   * @param tableName table name
+   * @return  list of field schemas describing the table's schema
+   * @throws UnknownTableException no such table
+   * @throws UnknownDBException no such database
+   * @throws MetaException error accessing the RDBMS
+   * @throws TException thrift transport error
    */
+  List<FieldSchema> getFields(String catName, String db, String tableName)
+      throws MetaException, TException, UnknownTableException,
+      UnknownDBException;
+
+  /**
+   * Get schema for a table, including the partition columns.
+   * @param db database name
+   * @param tableName table name
+   * @return  list of field schemas describing the table's schema
+   * @throws UnknownTableException no such table
+   * @throws UnknownDBException no such database
+   * @throws MetaException error accessing the RDBMS
+   * @throws TException thrift transport error
+   * @deprecated Use {@link #getSchema(String, String, String)}
+   */
+  @Deprecated
   List<FieldSchema> getSchema(String db, String tableName)
+      throws MetaException, TException, UnknownTableException,
+      UnknownDBException;
+
+  /**
+   * Get schema for a table, including the partition columns.
+   * @param catName catalog name
+   * @param db database name
+   * @param tableName table name
+   * @return  list of field schemas describing the table's schema
+   * @throws UnknownTableException no such table
+   * @throws UnknownDBException no such database
+   * @throws MetaException error accessing the RDBMS
+   * @throws TException thrift transport error
+   */
+  List<FieldSchema> getSchema(String catName, String db, String tableName)
       throws MetaException, TException, UnknownTableException,
       UnknownDBException;
 

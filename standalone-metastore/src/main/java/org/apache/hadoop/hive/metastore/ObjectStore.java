@@ -1359,22 +1359,22 @@ public class ObjectStore implements RawStore, Configurable {
       if (tbl != null) {
         materializedView = TableType.MATERIALIZED_VIEW.toString().equals(tbl.getTableType());
         // first remove all the grants
-        List<MTablePrivilege> tabGrants = listAllTableGrants(dbName, tableName);
+        List<MTablePrivilege> tabGrants = listAllTableGrants(catName, dbName, tableName);
         if (CollectionUtils.isNotEmpty(tabGrants)) {
           pm.deletePersistentAll(tabGrants);
         }
-        List<MTableColumnPrivilege> tblColGrants = listTableAllColumnGrants(dbName,
+        List<MTableColumnPrivilege> tblColGrants = listTableAllColumnGrants(catName, dbName,
             tableName);
         if (CollectionUtils.isNotEmpty(tblColGrants)) {
           pm.deletePersistentAll(tblColGrants);
         }
 
-        List<MPartitionPrivilege> partGrants = this.listTableAllPartitionGrants(dbName, tableName);
+        List<MPartitionPrivilege> partGrants = this.listTableAllPartitionGrants(catName, dbName, tableName);
         if (CollectionUtils.isNotEmpty(partGrants)) {
           pm.deletePersistentAll(partGrants);
         }
 
-        List<MPartitionColumnPrivilege> partColGrants = listTableAllPartitionColumnGrants(dbName,
+        List<MPartitionColumnPrivilege> partColGrants = listTableAllPartitionColumnGrants(catName, dbName,
             tableName);
         if (CollectionUtils.isNotEmpty(partColGrants)) {
           pm.deletePersistentAll(partColGrants);
@@ -2172,8 +2172,8 @@ public class ObjectStore implements RawStore, Configurable {
       List<MTableColumnPrivilege> tabColumnGrants = null;
       MTable table = this.getMTable(catName, dbName, tblName);
       if ("TRUE".equalsIgnoreCase(table.getParameters().get("PARTITION_LEVEL_PRIVILEGE"))) {
-        tabGrants = this.listAllTableGrants(dbName, tblName);
-        tabColumnGrants = this.listTableAllColumnGrants(dbName, tblName);
+        tabGrants = this.listAllTableGrants(catName, dbName, tblName);
+        tabColumnGrants = this.listTableAllColumnGrants(catName, dbName, tblName);
       }
       List<Object> toPersist = new ArrayList<>();
       for (Partition part : parts) {
@@ -2237,8 +2237,8 @@ public class ObjectStore implements RawStore, Configurable {
       List<MTableColumnPrivilege> tabColumnGrants = null;
       MTable table = this.getMTable(catName, dbName, tblName);
       if ("TRUE".equalsIgnoreCase(table.getParameters().get("PARTITION_LEVEL_PRIVILEGE"))) {
-        tabGrants = this.listAllTableGrants(dbName, tblName);
-        tabColumnGrants = this.listTableAllColumnGrants(dbName, tblName);
+        tabGrants = this.listAllTableGrants(catName, dbName, tblName);
+        tabColumnGrants = this.listTableAllColumnGrants(catName, dbName, tblName);
       }
 
       if (!partitionSpec.getTableName().equals(tblName) || !partitionSpec.getDbName().equals(dbName)) {
@@ -2289,14 +2289,14 @@ public class ObjectStore implements RawStore, Configurable {
     boolean success = false;
     boolean commited = false;
     try {
-      MTable table = this.getMTable(part.getCatName(), part.getDbName(), part.getTableName());
+      String catName = part.isSetCatName() ? part.getCatName() : DEFAULT_CATALOG_NAME;
+      MTable table = this.getMTable(catName, part.getDbName(), part.getTableName());
       List<MTablePrivilege> tabGrants = null;
       List<MTableColumnPrivilege> tabColumnGrants = null;
       if ("TRUE".equalsIgnoreCase(table.getParameters().get("PARTITION_LEVEL_PRIVILEGE"))) {
-        tabGrants = this.listAllTableGrants(part
-            .getDbName(), part.getTableName());
+        tabGrants = this.listAllTableGrants(catName, part.getDbName(), part.getTableName());
         tabColumnGrants = this.listTableAllColumnGrants(
-            part.getDbName(), part.getTableName());
+            catName, part.getDbName(), part.getTableName());
       }
       openTransaction();
       MPartition mpart = convertToMPart(part, true);
@@ -2545,6 +2545,7 @@ public class ObjectStore implements RawStore, Configurable {
         }
 
         List<MPartitionColumnPrivilege> partColumnGrants = listPartitionAllColumnGrants(
+            part.getTable().getDatabase().getCatalogName(),
             part.getTable().getDatabase().getName(),
             part.getTable().getTableName(),
             Lists.newArrayList(partName));
@@ -6251,22 +6252,23 @@ public class ObjectStore implements RawStore, Configurable {
   }
 
   @SuppressWarnings("unchecked")
-  public List<MTablePrivilege> listAllTableGrants(String dbName, String tableName) {
+  private List<MTablePrivilege> listAllTableGrants(String catName, String dbName, String tableName) {
     boolean success = false;
     Query query = null;
-    tableName = normalizeIdentifier(tableName);
-    dbName = normalizeIdentifier(dbName);
     List<MTablePrivilege> mSecurityTabList = new ArrayList<>();
     tableName = normalizeIdentifier(tableName);
     dbName = normalizeIdentifier(dbName);
+    catName = normalizeIdentifier(catName);
     try {
       LOG.debug("Executing listAllTableGrants");
 
       openTransaction();
-      String queryStr = "table.tableName == t1 && table.database.name == t2";
+      String queryStr = "table.tableName == t1 && table.database.name == t2" +
+          "&& table.database.catalogName == t3";
       query = pm.newQuery(MTablePrivilege.class, queryStr);
-      query.declareParameters("java.lang.String t1, java.lang.String t2");
-      List<MTablePrivilege> mPrivs  = (List<MTablePrivilege>) query.executeWithArray(tableName, dbName);
+      query.declareParameters("java.lang.String t1, java.lang.String t2, java.lang.String t3");
+      List<MTablePrivilege> mPrivs  =
+          (List<MTablePrivilege>) query.executeWithArray(tableName, dbName, catName);
       LOG.debug("Done executing query for listAllTableGrants");
       pm.retrieveAll(mPrivs);
       success = commitTransaction();
@@ -6281,9 +6283,10 @@ public class ObjectStore implements RawStore, Configurable {
   }
 
   @SuppressWarnings("unchecked")
-  public List<MPartitionPrivilege> listTableAllPartitionGrants(String dbName, String tableName) {
+  private List<MPartitionPrivilege> listTableAllPartitionGrants(String catName, String dbName, String tableName) {
     tableName = normalizeIdentifier(tableName);
     dbName = normalizeIdentifier(dbName);
+    catName = normalizeIdentifier(catName);
     boolean success = false;
     Query query = null;
     List<MPartitionPrivilege> mSecurityTabPartList = new ArrayList<>();
@@ -6291,10 +6294,12 @@ public class ObjectStore implements RawStore, Configurable {
       LOG.debug("Executing listTableAllPartitionGrants");
 
       openTransaction();
-      String queryStr = "partition.table.tableName == t1 && partition.table.database.name == t2";
+      String queryStr = "partition.table.tableName == t1 && partition.table.database.name == t2 " +
+          "&& partition.table.database.catalogName == t3";
       query = pm.newQuery(MPartitionPrivilege.class, queryStr);
-      query.declareParameters("java.lang.String t1, java.lang.String t2");
-      List<MPartitionPrivilege> mPrivs = (List<MPartitionPrivilege>) query.executeWithArray(tableName, dbName);
+      query.declareParameters("java.lang.String t1, java.lang.String t2, java.lang.String t3");
+      List<MPartitionPrivilege> mPrivs =
+          (List<MPartitionPrivilege>) query.executeWithArray(tableName, dbName, catName);
       pm.retrieveAll(mPrivs);
       success = commitTransaction();
 
@@ -6308,21 +6313,24 @@ public class ObjectStore implements RawStore, Configurable {
   }
 
   @SuppressWarnings("unchecked")
-  public List<MTableColumnPrivilege> listTableAllColumnGrants(String dbName, String tableName) {
+  private List<MTableColumnPrivilege> listTableAllColumnGrants(
+      String catName, String dbName, String tableName) {
     boolean success = false;
     Query query = null;
     List<MTableColumnPrivilege> mTblColPrivilegeList = new ArrayList<>();
     tableName = normalizeIdentifier(tableName);
     dbName = normalizeIdentifier(dbName);
+    catName = normalizeIdentifier(catName);
     try {
       LOG.debug("Executing listTableAllColumnGrants");
 
       openTransaction();
-      String queryStr = "table.tableName == t1 && table.database.name == t2";
+      String queryStr = "table.tableName == t1 && table.database.name == t2 &&" +
+          "table.database.catalogName == t3";
       query = pm.newQuery(MTableColumnPrivilege.class, queryStr);
-      query.declareParameters("java.lang.String t1, java.lang.String t2");
+      query.declareParameters("java.lang.String t1, java.lang.String t2, java.lang.String t3");
       List<MTableColumnPrivilege> mPrivs =
-          (List<MTableColumnPrivilege>) query.executeWithArray(tableName, dbName);
+          (List<MTableColumnPrivilege>) query.executeWithArray(tableName, dbName, catName);
       pm.retrieveAll(mPrivs);
       success = commitTransaction();
 
@@ -6336,22 +6344,24 @@ public class ObjectStore implements RawStore, Configurable {
   }
 
   @SuppressWarnings("unchecked")
-  public List<MPartitionColumnPrivilege> listTableAllPartitionColumnGrants(String dbName,
-      String tableName) {
+  private List<MPartitionColumnPrivilege> listTableAllPartitionColumnGrants(
+      String catName, String dbName, String tableName) {
     boolean success = false;
     Query query = null;
     tableName = normalizeIdentifier(tableName);
     dbName = normalizeIdentifier(dbName);
+    catName = normalizeIdentifier(catName);
     List<MPartitionColumnPrivilege> mSecurityColList = new ArrayList<>();
     try {
       LOG.debug("Executing listTableAllPartitionColumnGrants");
 
       openTransaction();
-      String queryStr = "partition.table.tableName == t1 && partition.table.database.name == t2";
+      String queryStr = "partition.table.tableName == t1 && partition.table.database.name == t2 " +
+          "&& partition.table.database.catalogName == t3";
       query = pm.newQuery(MPartitionColumnPrivilege.class, queryStr);
-      query.declareParameters("java.lang.String t1, java.lang.String t2");
+      query.declareParameters("java.lang.String t1, java.lang.String t2, java.lang.String t3");
       List<MPartitionColumnPrivilege> mPrivs =
-          (List<MPartitionColumnPrivilege>) query.executeWithArray(tableName, dbName);
+          (List<MPartitionColumnPrivilege>) query.executeWithArray(tableName, dbName, catName);
       pm.retrieveAll(mPrivs);
       success = commitTransaction();
 
@@ -6365,18 +6375,18 @@ public class ObjectStore implements RawStore, Configurable {
   }
 
   @SuppressWarnings("unchecked")
-  public List<MPartitionColumnPrivilege> listPartitionAllColumnGrants(String dbName,
-      String tableName, List<String> partNames) {
+  private List<MPartitionColumnPrivilege> listPartitionAllColumnGrants(
+      String catName, String dbName, String tableName, List<String> partNames) {
     boolean success = false;
     tableName = normalizeIdentifier(tableName);
     dbName = normalizeIdentifier(dbName);
+    catName = normalizeIdentifier(catName);
 
     List<MPartitionColumnPrivilege> mSecurityColList = null;
     try {
       openTransaction();
       LOG.debug("Executing listPartitionAllColumnGrants");
-      // TODO CAT
-      mSecurityColList = queryByPartitionNames(DEFAULT_CATALOG_NAME,
+      mSecurityColList = queryByPartitionNames(catName,
           dbName, tableName, partNames, MPartitionColumnPrivilege.class,
           "partition.table.tableName", "partition.table.database.name", "partition.partitionName",
           "partition.table.database.catalogName");
@@ -10168,7 +10178,8 @@ public class ObjectStore implements RawStore, Configurable {
     try {
       openTransaction();
       MSchemaVersion mSchemaVersion = getMSchemaVersion(version.getSchema().getCatName(),
-          version.getSchema().getDbName(), version.getSchema().getSchemaName(), version.getVersion());
+          version.getSchema().getDbName(),
+          version.getSchema().getSchemaName(), version.getVersion());
       if (mSchemaVersion != null) {
         pm.deletePersistentAll(mSchemaVersion);
       } else {

@@ -728,10 +728,17 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   @Override
   public Partition exchange_partition(Map<String, String> partitionSpecs,
       String sourceDb, String sourceTable, String destDb,
-      String destinationTableName) throws MetaException,
-      NoSuchObjectException, InvalidObjectException, TException {
-    return client.exchange_partition(partitionSpecs, sourceDb, sourceTable,
-        destDb, destinationTableName);
+      String destinationTableName) throws TException {
+    return exchange_partition(partitionSpecs, DEFAULT_CATALOG_NAME, sourceDb, sourceTable,
+        DEFAULT_CATALOG_NAME, destDb, destinationTableName);
+  }
+
+  @Override
+  public Partition exchange_partition(Map<String, String> partitionSpecs, String sourceCat,
+                                      String sourceDb, String sourceTable, String destCat,
+                                      String destDb, String destTableName) throws TException {
+    return client.exchange_partition(partitionSpecs, prependCatalogToDbName(sourceCat, sourceDb),
+        sourceTable, prependCatalogToDbName(destCat, destDb), destTableName);
   }
 
   /**
@@ -744,10 +751,17 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   @Override
   public List<Partition> exchange_partitions(Map<String, String> partitionSpecs,
       String sourceDb, String sourceTable, String destDb,
-      String destinationTableName) throws MetaException,
-      NoSuchObjectException, InvalidObjectException, TException {
-    return client.exchange_partitions(partitionSpecs, sourceDb, sourceTable,
-        destDb, destinationTableName);
+      String destinationTableName) throws TException {
+    return exchange_partitions(partitionSpecs, DEFAULT_CATALOG_NAME, sourceDb, sourceTable,
+        DEFAULT_CATALOG_NAME, destDb, destinationTableName);
+  }
+
+  @Override
+  public List<Partition> exchange_partitions(Map<String, String> partitionSpecs, String sourceCat,
+                                             String sourceDb, String sourceTable, String destCat,
+                                             String destDb, String destTableName) throws TException {
+    return client.exchange_partitions(partitionSpecs, prependCatalogToDbName(sourceCat, sourceDb),
+        sourceTable, prependCatalogToDbName(destCat, destDb), destTableName);
   }
 
   @Override
@@ -1492,12 +1506,10 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
     return deepCopyTables(filterHook.filterTables(tabs));
   }
 
-  /** {@inheritDoc} */
   @Override
   public Map<String, Materialization> getMaterializationsInvalidationInfo(String dbName, List<String> viewNames)
       throws MetaException, InvalidOperationException, UnknownDBException, TException {
     return client.get_materialization_invalidation_info(
-        // TODO CAT
         dbName, filterHook.filterTableNames(DEFAULT_CATALOG_NAME, dbName, viewNames));
   }
 
@@ -1729,21 +1741,15 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
     client.alter_database(prependCatalogToDbName(catName, dbName), newDb);
   }
 
-  /**
-   * @param db
-   * @param tableName
-   * @throws UnknownTableException
-   * @throws UnknownDBException
-   * @throws MetaException
-   * @throws TException
-   * @see org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore.Iface#get_fields(java.lang.String,
-   *      java.lang.String)
-   */
   @Override
-  public List<FieldSchema> getFields(String db, String tableName)
-      throws MetaException, TException, UnknownTableException,
-      UnknownDBException {
-    List<FieldSchema> fields = client.get_fields(db, tableName);
+  public List<FieldSchema> getFields(String db, String tableName) throws TException {
+    return getFields(DEFAULT_CATALOG_NAME, db, tableName);
+  }
+
+  @Override
+  public List<FieldSchema> getFields(String catName, String db, String tableName)
+      throws TException {
+    List<FieldSchema> fields = client.get_fields(prependCatalogToDbName(catName, db), tableName);
     return deepCopyFieldSchemas(fields);
   }
 
@@ -1861,29 +1867,23 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
         tableName, colName);
   }
 
-  /**
-   * @param db
-   * @param tableName
-   * @throws UnknownTableException
-   * @throws UnknownDBException
-   * @throws MetaException
-   * @throws TException
-   * @see org.apache.hadoop.hive.metastore.api.ThriftHiveMetastore.Iface#get_schema(java.lang.String,
-   *      java.lang.String)
-   */
   @Override
-  public List<FieldSchema> getSchema(String db, String tableName)
-      throws MetaException, TException, UnknownTableException,
-      UnknownDBException {
-      EnvironmentContext envCxt = null;
-      String addedJars = MetastoreConf.getVar(conf, ConfVars.ADDED_JARS);
-      if(org.apache.commons.lang.StringUtils.isNotBlank(addedJars)) {
-         Map<String, String> props = new HashMap<String, String>();
-         props.put("hive.added.jars.path", addedJars);
-         envCxt = new EnvironmentContext(props);
-       }
+  public List<FieldSchema> getSchema(String db, String tableName) throws TException {
+    return getSchema(DEFAULT_CATALOG_NAME, db, tableName);
+  }
 
-    List<FieldSchema> fields = client.get_schema_with_environment_context(db, tableName, envCxt);
+  @Override
+  public List<FieldSchema> getSchema(String catName, String db, String tableName) throws TException {
+    EnvironmentContext envCxt = null;
+    String addedJars = MetastoreConf.getVar(conf, ConfVars.ADDED_JARS);
+    if(org.apache.commons.lang.StringUtils.isNotBlank(addedJars)) {
+      Map<String, String> props = new HashMap<>();
+      props.put("hive.added.jars.path", addedJars);
+      envCxt = new EnvironmentContext(props);
+    }
+
+    List<FieldSchema> fields = client.get_schema_with_environment_context(prependCatalogToDbName(
+        catName, db), tableName, envCxt);
     return deepCopyFieldSchemas(fields);
   }
 
