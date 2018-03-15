@@ -404,7 +404,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   }
 
   @Override
-  public void alterTable(String catName, String dbName, String tblName, Table newTable,
+  public void alter_table(String catName, String dbName, String tblName, Table newTable,
                          EnvironmentContext envContext) throws TException {
     client.alter_table_with_environment_context(prependCatalogToDbName(catName,
         dbName, conf), tblName, newTable, envContext);
@@ -1235,16 +1235,9 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
     return result;
   }
 
-  /** {@inheritDoc} */
   @Override
-  public List<String> getDatabases(String databasePattern)
-    throws MetaException {
-    try {
-      return filterHook.filterDatabases(client.get_databases(databasePattern));
-    } catch (Exception e) {
-      MetaStoreUtils.logAndThrowMetaException(e);
-    }
-    return null;
+  public List<String> getDatabases(String databasePattern) throws TException {
+    return getDatabases(getDefaultCatalog(conf), databasePattern);
   }
 
   @Override
@@ -1253,20 +1246,14 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
         catName, databasePattern, conf)));
   }
 
-  /** {@inheritDoc} */
   @Override
-  public List<String> getAllDatabases() throws MetaException {
-    try {
-      return filterHook.filterDatabases(client.get_all_databases());
-    } catch (Exception e) {
-      MetaStoreUtils.logAndThrowMetaException(e);
-    }
-    return null;
+  public List<String> getAllDatabases() throws TException {
+    return getAllDatabases(getDefaultCatalog(conf));
   }
 
   @Override
   public List<String> getAllDatabases(String catName) throws TException {
-    return filterHook.filterDatabases(client.get_databases(prependCatalogToDbName(catName, null)));
+    return filterHook.filterDatabases(client.get_databases(prependCatalogToDbName(catName, null, conf)));
   }
 
   @Override

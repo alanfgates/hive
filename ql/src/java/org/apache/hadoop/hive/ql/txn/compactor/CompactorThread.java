@@ -46,7 +46,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_CATALOG_NAME;
+import static org.apache.hadoop.hive.metastore.utils.MetaStoreUtils.getDefaultCatalog;
 
 /**
  * Superclass for all threads in the compactor.
@@ -104,8 +104,7 @@ abstract class CompactorThread extends Thread implements MetaStoreThread {
    */
   protected Table resolveTable(CompactionInfo ci) throws MetaException {
     try {
-      // TODO CAT
-      return rs.getTable(DEFAULT_CATALOG_NAME, ci.dbname, ci.tableName);
+      return rs.getTable(getDefaultCatalog(conf), ci.dbname, ci.tableName);
     } catch (MetaException e) {
       LOG.error("Unable to find table " + ci.getFullTableName() + ", " + e.getMessage());
       throw e;
@@ -123,8 +122,7 @@ abstract class CompactorThread extends Thread implements MetaStoreThread {
     if (ci.partName != null) {
       List<Partition> parts;
       try {
-        // TODO CAT
-        parts = rs.getPartitionsByNames(DEFAULT_CATALOG_NAME, ci.dbname, ci.tableName,
+        parts = rs.getPartitionsByNames(getDefaultCatalog(conf), ci.dbname, ci.tableName,
             Collections.singletonList(ci.partName));
         if (parts == null || parts.size() == 0) {
           // The partition got dropped before we went looking for it.

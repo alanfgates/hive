@@ -12607,14 +12607,14 @@ public class SemanticAnalyzer extends BaseSemanticAnalyzer {
         break;
       case HiveParser.TOK_TABCOLLIST:
         cols = getColumns(child, true, primaryKeys, foreignKeys,
-            uniqueConstraints, notNullConstraints, defaultConstraints);
+            uniqueConstraints, notNullConstraints, defaultConstraints, conf);
         break;
       case HiveParser.TOK_TABLECOMMENT:
         comment = unescapeSQLString(child.getChild(0).getText());
         break;
       case HiveParser.TOK_TABLEPARTCOLS:
         partCols = getColumns(child, false, primaryKeys, foreignKeys,
-            uniqueConstraints, notNullConstraints, defaultConstraints);
+            uniqueConstraints, notNullConstraints, defaultConstraints, conf);
         if(hasConstraints(partCols, defaultConstraints, notNullConstraints)) {
           //TODO: these constraints should be supported for partition columns
           throw new SemanticException(

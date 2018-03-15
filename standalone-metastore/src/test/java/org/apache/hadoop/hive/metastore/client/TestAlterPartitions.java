@@ -286,19 +286,6 @@ public class TestAlterPartitions extends MetaStoreClientTest {
     Assert.assertEquals(catName, fetched.getCatName());
     Assert.assertTrue(fetched.getSd().getLocation().contains("somewhere"));
 
-    // TODO CAT - won't work until we're done with partition stats
-    /*
-    newPart =
-        client.getPartition(catName, dbName, tableName, Collections.singletonList("a3"));
-    newPart.setValues(Collections.singletonList("b3"));
-    client.renamePartition(catName, dbName, tableName, Collections.singletonList("a3"), newPart);
-    fetched =
-        client.getPartition(catName, dbName, tableName, Collections.singletonList("b3"));
-    Assert.assertEquals(catName, fetched.getCatName());
-    Assert.assertEquals(1, fetched.getValuesSize());
-    Assert.assertEquals("b3", fetched.getValues().get(0));
-    */
-
     newPart =
         client.getPartition(catName, dbName, tableName, Collections.singletonList("a4"));
     newPart.getParameters().put("test_key", "test_value");

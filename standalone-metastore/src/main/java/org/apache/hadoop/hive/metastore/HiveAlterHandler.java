@@ -468,7 +468,6 @@ public class HiveAlterHandler implements AlterHandler {
 
         // PartitionView does not have SD. We do not need update its column stats
         if (oldPart.getSd() != null) {
-          // TODO CAT
           updateOrGetPartitionColumnStats(msdb, catName, dbname, name, new_part.getValues(),
               oldPart.getSd().getCols(), tbl, new_part, null);
         }

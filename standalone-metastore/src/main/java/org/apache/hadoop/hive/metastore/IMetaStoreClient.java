@@ -1592,7 +1592,7 @@ public interface IMetaStoreClient {
 
   /**
    * Alter a table. Equivalent to
-   * {@link #alterTable(String, String, String, Table, EnvironmentContext)} with
+   * {@link #alter_table(String, String, String, Table, EnvironmentContext)} with
    * EnvironmentContext set to null.
    * @param catName catalog name.
    * @param dbName database name.
@@ -1604,9 +1604,9 @@ public interface IMetaStoreClient {
    * @throws MetaException something went wrong, usually in the RDBMS
    * @throws TException general thrift exception
    */
-  default void alterTable(String catName, String dbName, String tblName, Table newTable)
+  default void alter_table(String catName, String dbName, String tblName, Table newTable)
       throws InvalidOperationException, MetaException, TException {
-    alterTable(catName, dbName, tblName, newTable, null);
+    alter_table(catName, dbName, tblName, newTable, null);
   }
 
   /**
@@ -1622,7 +1622,7 @@ public interface IMetaStoreClient {
    * @throws MetaException something went wrong, usually in the RDBMS
    * @throws TException general thrift exception
    */
-  void alterTable(String catName, String dbName, String tblName, Table newTable,
+  void alter_table(String catName, String dbName, String tblName, Table newTable,
                   EnvironmentContext envContext)
       throws InvalidOperationException, MetaException, TException;
 

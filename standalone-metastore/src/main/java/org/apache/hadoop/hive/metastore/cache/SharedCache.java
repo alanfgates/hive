@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.StatObjectConverter;
 import org.apache.hadoop.hive.metastore.Warehouse;
 import org.apache.hadoop.hive.metastore.api.AggrStats;
@@ -61,6 +62,7 @@ public class SharedCache {
   private Map<String, ColumnStatisticsObj> tableColStatsCache = new TreeMap<>();
   private Map<ByteArrayWrapper, StorageDescriptorWrapper> sdCache = new HashMap<>();
   private Map<String, List<ColumnStatisticsObj>> aggrColStatsCache = new HashMap<>();
+  private Configuration conf;
   private static MessageDigest md;
 
   enum StatsType {
@@ -85,6 +87,10 @@ public class SharedCache {
     } catch (NoSuchAlgorithmException e) {
       throw new RuntimeException("should not happen", e);
     }
+  }
+
+  public void setConf(Configuration conf) {
+    this.conf = conf;
   }
 
   public synchronized Catalog getCatalogFromCache(String name) {
@@ -498,7 +504,7 @@ public class SharedCache {
     int count = 0;
     for (PartitionWrapper wrapper : partitionCache.values()) {
       String pCatName = wrapper.getPartition().isSetCatName() ?
-          wrapper.getPartition().getCatName() : Warehouse.DEFAULT_CATALOG_NAME;
+          wrapper.getPartition().getCatName() : MetaStoreUtils.getDefaultCatalog(conf);
       if (pCatName.equals(catName) && wrapper.getPartition().getDbName().equals(dbName)
           && wrapper.getPartition().getTableName().equals(tblName)
           && (max == -1 || count < max)) {
@@ -575,8 +581,7 @@ public class SharedCache {
       try {
         partVals = Warehouse.getPartValuesFromPartName(colStatWithSourceInfo.getPartName());
         ColumnStatisticsObj colStatObj = colStatWithSourceInfo.getColStatsObj();
-        // TODO CAT
-        String key = CacheUtils.buildPartColKey(Warehouse.DEFAULT_CATALOG_NAME,
+        String key = CacheUtils.buildPartColKey(colStatWithSourceInfo.getCatName(),
             colStatWithSourceInfo.getDbName(),
             colStatWithSourceInfo.getTblName(), partVals, colStatObj.getColName());
         partitionColStatsCache.put(key, colStatObj);

@@ -21,6 +21,7 @@ package org.apache.hadoop.hive.ql.exec;
 import com.google.common.collect.ImmutableSet;
 import org.apache.hadoop.hive.common.ValidTxnList;
 import org.apache.hadoop.hive.metastore.api.CreationMetadata;
+import org.apache.hadoop.hive.metastore.utils.MetaStoreUtils;
 import org.apache.hadoop.hive.ql.DriverContext;
 import org.apache.hadoop.hive.ql.metadata.Hive;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
@@ -65,8 +66,8 @@ public class MaterializedViewTask extends Task<MaterializedViewDesc> implements 
         Hive db = Hive.get(conf);
         Table mvTable = db.getTable(getWork().getViewName());
         CreationMetadata cm =
-            // TODO CAT
-            new CreationMetadata(DEFAULT_CATALOG_NAME, mvTable.getDbName(), mvTable.getTableName(),
+            new CreationMetadata(MetaStoreUtils.getDefaultCatalog(conf), mvTable.getDbName(),
+                mvTable.getTableName(),
                 ImmutableSet.copyOf(mvTable.getCreationMetadata().getTablesUsed()));
         cm.setValidTxnList(conf.get(ValidTxnList.VALID_TXNS_KEY));
         db.updateCreationMetadata(mvTable.getDbName(), mvTable.getTableName(), cm);

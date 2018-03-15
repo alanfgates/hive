@@ -2756,6 +2756,7 @@ public class CachedStore implements RawStore, Configurable {
         assert initState == InitState.NOT_ENABLED;
         initState = InitState.INITIALIZING;
       }
+      instance.setConf(conf);
       // The first iteration of the update thread will prewarm the cache.
       startCacheUpdateService(conf);
     }

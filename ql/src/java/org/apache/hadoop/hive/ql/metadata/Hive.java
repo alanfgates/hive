@@ -25,8 +25,8 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_CATALOG_NAME;
 import static org.apache.hadoop.hive.metastore.api.hive_metastoreConstants.META_TABLE_STORAGE;
+import static org.apache.hadoop.hive.metastore.utils.MetaStoreUtils.getDefaultCatalog;
 import static org.apache.hadoop.hive.serde.serdeConstants.SERIALIZATION_FORMAT;
 import static org.apache.hadoop.hive.serde.serdeConstants.STRING_TYPE_NAME;
 
@@ -1404,8 +1404,7 @@ public class Hive {
    */
   private List<String> getMaterializedViewsForRewriting(String dbName) throws HiveException {
     try {
-      // TODO CAT
-      return getMSC().getMaterializedViewsForRewriting(DEFAULT_CATALOG_NAME, dbName);
+      return getMSC().getMaterializedViewsForRewriting(dbName);
     } catch (Exception e) {
       throw new HiveException(e);
     }
@@ -4479,8 +4478,7 @@ private void constructOneLBLocationMap(FileStatus fSta,
 
   public List<SQLUniqueConstraint> getUniqueConstraintList(String dbName, String tblName) throws HiveException, NoSuchObjectException {
     try {
-      // TODO CAT
-      return getMSC().getUniqueConstraints(new UniqueConstraintsRequest(DEFAULT_CATALOG_NAME, dbName, tblName));
+      return getMSC().getUniqueConstraints(new UniqueConstraintsRequest(getDefaultCatalog(conf), dbName, tblName));
     } catch (NoSuchObjectException e) {
       throw e;
     } catch (Exception e) {
@@ -4490,8 +4488,7 @@ private void constructOneLBLocationMap(FileStatus fSta,
 
   public List<SQLNotNullConstraint> getNotNullConstraintList(String dbName, String tblName) throws HiveException, NoSuchObjectException {
     try {
-      // TODO CAT
-      return getMSC().getNotNullConstraints(new NotNullConstraintsRequest(DEFAULT_CATALOG_NAME, dbName, tblName));
+      return getMSC().getNotNullConstraints(new NotNullConstraintsRequest(getDefaultCatalog(conf), dbName, tblName));
     } catch (NoSuchObjectException e) {
       throw e;
     } catch (Exception e) {
@@ -4501,8 +4498,7 @@ private void constructOneLBLocationMap(FileStatus fSta,
 
   public List<SQLDefaultConstraint> getDefaultConstraintList(String dbName, String tblName) throws HiveException, NoSuchObjectException {
     try {
-      // TODO CAT
-      return getMSC().getDefaultConstraints(new DefaultConstraintsRequest(DEFAULT_CATALOG_NAME, dbName, tblName));
+      return getMSC().getDefaultConstraints(new DefaultConstraintsRequest(getDefaultCatalog(conf), dbName, tblName));
     } catch (NoSuchObjectException e) {
       throw e;
     } catch (Exception e) {
@@ -4618,8 +4614,7 @@ private void constructOneLBLocationMap(FileStatus fSta,
       throws HiveException {
     try {
       List<SQLUniqueConstraint> uniqueConstraints = getMSC().getUniqueConstraints(
-          // TODO CAT
-              new UniqueConstraintsRequest(DEFAULT_CATALOG_NAME, dbName, tblName));
+              new UniqueConstraintsRequest(getDefaultCatalog(conf), dbName, tblName));
       if (onlyReliable && uniqueConstraints != null && !uniqueConstraints.isEmpty()) {
         uniqueConstraints = uniqueConstraints.stream()
           .filter(uk -> uk.isRely_cstr())
@@ -4667,8 +4662,7 @@ private void constructOneLBLocationMap(FileStatus fSta,
       throws HiveException {
     try {
       List<SQLNotNullConstraint> notNullConstraints = getMSC().getNotNullConstraints(
-          // TODO CAT
-              new NotNullConstraintsRequest(DEFAULT_CATALOG_NAME, dbName, tblName));
+              new NotNullConstraintsRequest(getDefaultCatalog(conf), dbName, tblName));
       if (notNullConstraints != null && !notNullConstraints.isEmpty()) {
         notNullConstraints = notNullConstraints.stream()
           .filter(nnc -> nnc.isEnable_cstr())
@@ -4692,8 +4686,7 @@ private void constructOneLBLocationMap(FileStatus fSta,
       throws HiveException {
     try {
       List<SQLDefaultConstraint> defaultConstraints = getMSC().getDefaultConstraints(
-          // TODO CAT
-          new DefaultConstraintsRequest(DEFAULT_CATALOG_NAME, dbName, tblName));
+          new DefaultConstraintsRequest(getDefaultCatalog(conf), dbName, tblName));
       if (defaultConstraints != null && !defaultConstraints.isEmpty()) {
         defaultConstraints = defaultConstraints.stream()
             .filter(nnc -> nnc.isEnable_cstr())
@@ -4709,8 +4702,7 @@ private void constructOneLBLocationMap(FileStatus fSta,
       throws HiveException {
     try {
       List<SQLNotNullConstraint> notNullConstraints = getMSC().getNotNullConstraints(
-          // TODO CAT
-              new NotNullConstraintsRequest(DEFAULT_CATALOG_NAME, dbName, tblName));
+              new NotNullConstraintsRequest(getDefaultCatalog(conf), dbName, tblName));
       if (onlyReliable && notNullConstraints != null && !notNullConstraints.isEmpty()) {
         notNullConstraints = notNullConstraints.stream()
           .filter(nnc -> nnc.isRely_cstr())
@@ -4726,8 +4718,7 @@ private void constructOneLBLocationMap(FileStatus fSta,
       throws HiveException {
     try {
       List<SQLDefaultConstraint> defaultConstraints = getMSC().getDefaultConstraints(
-          // TODO CAT
-          new DefaultConstraintsRequest(DEFAULT_CATALOG_NAME, dbName, tblName));
+          new DefaultConstraintsRequest(getDefaultCatalog(conf), dbName, tblName));
       if (defaultConstraints != null && !defaultConstraints.isEmpty()) {
         defaultConstraints = defaultConstraints.stream()
             .collect(Collectors.toList());

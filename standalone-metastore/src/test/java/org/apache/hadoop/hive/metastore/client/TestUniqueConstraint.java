@@ -69,10 +69,10 @@ public class TestUniqueConstraint extends MetaStoreClientTest {
     client = metaStore.getClient();
 
     // Clean up the database
-    client.dropDatabase(DEFAULT_CATALOG_NAME, OTHER_DATABASE, true, true, true);
+    client.dropDatabase(OTHER_DATABASE, true, true, true);
     // Drop every table in the default database
-    for(String tableName : client.getAllTables(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE_NAME)) {
-      client.dropTable(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE_NAME, tableName, true, true, true);
+    for(String tableName : client.getAllTables(DEFAULT_DATABASE_NAME)) {
+      client.dropTable(DEFAULT_DATABASE_NAME, tableName, true, true, true);
     }
 
     client.dropDatabase(OTHER_CATALOG, DATABASE_IN_OTHER_CATALOG, true, true, true);

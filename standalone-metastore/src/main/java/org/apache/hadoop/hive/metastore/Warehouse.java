@@ -205,13 +205,20 @@ public class Warehouse {
     return new Path(db.getLocationUri());
   }
 
-  // TODO CAT - I don't think this is going to do what we want.  Without the catalog name in here
-  // it is unlikely to produce the desired result.
   public Path getDefaultDatabasePath(String dbName) throws MetaException {
-    if (dbName.equalsIgnoreCase(DEFAULT_DATABASE_NAME)) {
-      return getWhRoot();
+    String catName = MetaStoreUtils.getDefaultCatalog(conf);
+    if (catName.equalsIgnoreCase(DEFAULT_CATALOG_NAME)) {
+      if (dbName.equalsIgnoreCase(DEFAULT_DATABASE_NAME)) {
+        return getWhRoot();
+      }
+      return new Path(getWhRoot(), dbName.toLowerCase() + DATABASE_WAREHOUSE_SUFFIX);
+    } else {
+      // TODO CAT - need to fix this, but I'm not sure how honestly.  We don't have a reference
+      // to a client here.  I suspect we may need to find the places that call this and change
+      // how they get the db path.
+      throw new RuntimeException("Unable to determine default path since we don't know the " +
+          "catalog we're in");
     }
-    return new Path(getWhRoot(), dbName.toLowerCase() + DATABASE_WAREHOUSE_SUFFIX);
   }
 
   /**

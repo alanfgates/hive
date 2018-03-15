@@ -47,7 +47,6 @@ import org.junit.runners.Parameterized;
 
 import java.util.List;
 
-import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_CATALOG_NAME;
 import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_DATABASE_NAME;
 
 @RunWith(Parameterized.class)
@@ -72,10 +71,10 @@ public class TestForeignKey extends MetaStoreClientTest {
     client = metaStore.getClient();
 
     // Clean up the database
-    client.dropDatabase(DEFAULT_CATALOG_NAME, OTHER_DATABASE, true, true, true);
+    client.dropDatabase(OTHER_DATABASE, true, true, true);
     // Drop every table in the default database
-    for(String tableName : client.getAllTables(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE_NAME)) {
-      client.dropTable(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE_NAME, tableName, true, true, true);
+    for(String tableName : client.getAllTables(DEFAULT_DATABASE_NAME)) {
+      client.dropTable(DEFAULT_DATABASE_NAME, tableName, true, true, true);
     }
 
     client.dropDatabase(OTHER_CATALOG, DATABASE_IN_OTHER_CATALOG, true, true, true);
@@ -325,60 +324,6 @@ public class TestForeignKey extends MetaStoreClientTest {
     rqst = new ForeignKeysRequest(parentTable.getDbName(), parentTable.getTableName(),
         table.getDbName(), table.getTableName());
     rqst.setCatName(table.getCatName());
-    fetched = client.getForeignKeys(rqst);
-    Assert.assertTrue(fetched.isEmpty());
-
-    // Make sure I can add it back
-    client.addForeignKey(fk);
-  }
-
-  @SuppressWarnings("deprecation")
-  @Test
-  public void deprecatedCalls() throws TException {
-    Table parentTable = testTables[1];
-    Table table = testTables[0];
-    String constraintName = "deprecatedfk";
-
-    // Single column unnamed primary key in default catalog and database
-    List<SQLPrimaryKey> pk = new SQLPrimaryKeyBuilder()
-        .onTable(parentTable)
-        .addColumn("col1")
-        .build();
-    client.addPrimaryKey(pk);
-
-    List<SQLForeignKey> fk = new SQLForeignKeyBuilder()
-        .fromPrimaryKey(pk)
-        .setDbName(table.getDbName())
-        .setTableName(table.getTableName())
-        .addColumn("col1")
-        .setConstraintName(constraintName)
-        .build();
-    client.addForeignKey(fk);
-
-
-    ForeignKeysRequest rqst = new ForeignKeysRequest(parentTable.getDbName(),
-        parentTable.getTableName(), table.getDbName(), table.getTableName());
-    List<SQLForeignKey> fetched = client.getForeignKeys(rqst);
-    Assert.assertEquals(1, fetched.size());
-    Assert.assertEquals(table.getDbName(), fetched.get(0).getFktable_db());
-    Assert.assertEquals(table.getTableName(), fetched.get(0).getFktable_name());
-    Assert.assertEquals("col1", fetched.get(0).getFkcolumn_name());
-    Assert.assertEquals(parentTable.getDbName(), fetched.get(0).getPktable_db());
-    Assert.assertEquals(parentTable.getTableName(), fetched.get(0).getPktable_name());
-    Assert.assertEquals("col1", fetched.get(0).getFkcolumn_name());
-    Assert.assertEquals(1, fetched.get(0).getKey_seq());
-    Assert.assertEquals(parentTable.getTableName() + "_primary_key", fetched.get(0).getPk_name());
-    Assert.assertEquals(constraintName, fetched.get(0).getFk_name());
-    String table0FkName = fetched.get(0).getFk_name();
-    Assert.assertTrue(fetched.get(0).isEnable_cstr());
-    Assert.assertFalse(fetched.get(0).isValidate_cstr());
-    Assert.assertFalse(fetched.get(0).isRely_cstr());
-    Assert.assertEquals(table.getCatName(), fetched.get(0).getCatName());
-
-    // Drop a foreign key
-    client.dropConstraint(table.getDbName(), table.getTableName(), table0FkName);
-    rqst = new ForeignKeysRequest(parentTable.getDbName(), parentTable.getTableName(),
-        table.getDbName(), table.getTableName());
     fetched = client.getForeignKeys(rqst);
     Assert.assertTrue(fetched.isEmpty());
 

@@ -45,7 +45,6 @@ import org.junit.runners.Parameterized;
 
 import java.util.List;
 
-import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_CATALOG_NAME;
 import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_DATABASE_NAME;
 
 @RunWith(Parameterized.class)
@@ -70,10 +69,10 @@ public class TestPrimaryKey extends MetaStoreClientTest {
     client = metaStore.getClient();
 
     // Clean up the database
-    client.dropDatabase(DEFAULT_CATALOG_NAME, OTHER_DATABASE, true, true, true);
+    client.dropDatabase(OTHER_DATABASE, true, true, true);
     // Drop every table in the default database
-    for(String tableName : client.getAllTables(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE_NAME)) {
-      client.dropTable(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE_NAME, tableName, true, true, true);
+    for(String tableName : client.getAllTables(DEFAULT_DATABASE_NAME)) {
+      client.dropTable(DEFAULT_DATABASE_NAME, tableName, true, true, true);
     }
 
     client.dropDatabase(OTHER_CATALOG, DATABASE_IN_OTHER_CATALOG, true, true, true);
@@ -281,40 +280,6 @@ public class TestPrimaryKey extends MetaStoreClientTest {
     Assert.assertTrue(fetched.isEmpty());
   }
 
-  @SuppressWarnings("deprecation")
-  @Test
-  public void deprecatedCalls() throws TException {
-    PrimaryKeysRequest rqst =
-        new PrimaryKeysRequest(testTables[0].getDbName(), testTables[0].getTableName());
-    List<SQLPrimaryKey> fetched = client.getPrimaryKeys(rqst);
-    Assert.assertTrue(fetched.isEmpty());
-
-    String constraintName = "dcpk";
-    List<SQLPrimaryKey> pk = new SQLPrimaryKeyBuilder()
-        .onTable(testTables[0])
-        .addColumn("col1")
-        .setConstraintName(constraintName)
-        .build();
-    client.addPrimaryKey(pk);
-
-    rqst = new PrimaryKeysRequest(testTables[0].getDbName(), testTables[0].getTableName());
-    fetched = client.getPrimaryKeys(rqst);
-    Assert.assertEquals(1, fetched.size());
-    Assert.assertEquals(testTables[0].getDbName(), fetched.get(0).getTable_db());
-    Assert.assertEquals(testTables[0].getTableName(), fetched.get(0).getTable_name());
-    Assert.assertEquals("col1", fetched.get(0).getColumn_name());
-    Assert.assertEquals(1, fetched.get(0).getKey_seq());
-    Assert.assertEquals(constraintName, fetched.get(0).getPk_name());
-    Assert.assertTrue(fetched.get(0).isEnable_cstr());
-    Assert.assertFalse(fetched.get(0).isValidate_cstr());
-    Assert.assertFalse(fetched.get(0).isRely_cstr());
-
-    client.dropConstraint(testTables[0].getDbName(), testTables[0].getTableName(), constraintName);
-    rqst = new PrimaryKeysRequest(testTables[0].getDbName(), testTables[0].getTableName());
-    fetched = client.getPrimaryKeys(rqst);
-    Assert.assertTrue(fetched.isEmpty());
-  }
-
   @Test
   public void createTableWithConstraintsPk() throws TException {
     String constraintName = "ctwcpk";
@@ -437,7 +402,6 @@ public class TestPrimaryKey extends MetaStoreClientTest {
   public void getNoSuchTable() throws TException {
     PrimaryKeysRequest rqst =
         new PrimaryKeysRequest(DEFAULT_DATABASE_NAME, "nosuch");
-    rqst.setCatName(DEFAULT_CATALOG_NAME);
     List<SQLPrimaryKey> pk = client.getPrimaryKeys(rqst);
     Assert.assertTrue(pk.isEmpty());
   }
@@ -446,7 +410,6 @@ public class TestPrimaryKey extends MetaStoreClientTest {
   public void getNoSuchDb() throws TException {
     PrimaryKeysRequest rqst =
         new PrimaryKeysRequest("nosuch", testTables[0].getTableName());
-    rqst.setCatName(DEFAULT_CATALOG_NAME);
     List<SQLPrimaryKey> pk = client.getPrimaryKeys(rqst);
     Assert.assertTrue(pk.isEmpty());
   }
