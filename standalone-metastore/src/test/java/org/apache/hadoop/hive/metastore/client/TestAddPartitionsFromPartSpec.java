@@ -56,8 +56,6 @@ import org.junit.runners.Parameterized;
 
 import com.google.common.collect.Lists;
 
-import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_CATALOG_NAME;
-
 /**
  * Tests for creating partitions from partition spec.
  */
@@ -264,7 +262,7 @@ public class TestAddPartitionsFromPartSpec extends MetaStoreClientTest {
     client.add_partitions_pspec(partitionSpecProxy);
 
     Partition resultPart =
-        client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(DEFAULT_YEAR_VALUE));
+        client.getPartition(DB_NAME, TABLE_NAME, Lists.newArrayList(DEFAULT_YEAR_VALUE));
     Assert.assertNotNull(resultPart);
   }
 
@@ -282,7 +280,7 @@ public class TestAddPartitionsFromPartSpec extends MetaStoreClientTest {
     client.add_partitions_pspec(partitionSpecProxy);
 
     Partition resultPart =
-        client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(DEFAULT_YEAR_VALUE));
+        client.getPartition(DB_NAME, TABLE_NAME, Lists.newArrayList(DEFAULT_YEAR_VALUE));
     Assert.assertNotNull(resultPart);
   }
 
@@ -345,7 +343,7 @@ public class TestAddPartitionsFromPartSpec extends MetaStoreClientTest {
     } catch (MetaException e) {
       // Expected exception
     } finally {
-      client.dropDatabase(DEFAULT_CATALOG_NAME, "NewPartDB", true, true, true);
+      client.dropDatabase("NewPartDB", true, true, true);
     }
   }
 
@@ -407,7 +405,7 @@ public class TestAddPartitionsFromPartSpec extends MetaStoreClientTest {
     PartitionSpecProxy partitionSpecProxy = PartitionSpecProxy.Factory.get(partitionSpec);
     client.add_partitions_pspec(partitionSpecProxy);
 
-    List<String> partitionNames = client.listPartitionNames(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, MAX);
+    List<String> partitionNames = client.listPartitionNames(DB_NAME, TABLE_NAME, MAX);
     Assert.assertNotNull(partitionNames);
     Assert.assertTrue(partitionNames.size() == 1);
     Assert.assertEquals("year=2013", partitionNames.get(0));
@@ -425,7 +423,7 @@ public class TestAddPartitionsFromPartSpec extends MetaStoreClientTest {
         buildPartitionSpec(DB_NAME, TABLE_NAME, rootPath1, Lists.newArrayList(partition));
     client.add_partitions_pspec(partitionSpecProxy);
 
-    Partition resultPart = client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList("2007"));
+    Partition resultPart = client.getPartition(DB_NAME, TABLE_NAME, Lists.newArrayList("2007"));
     Assert.assertEquals(rootPath + "part2007", resultPart.getSd().getLocation());
   }
 
@@ -442,7 +440,7 @@ public class TestAddPartitionsFromPartSpec extends MetaStoreClientTest {
     partitionSpecProxy.setRootLocation(rootPath1);
     client.add_partitions_pspec(partitionSpecProxy);
 
-    Partition resultPart = client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList("2007"));
+    Partition resultPart = client.getPartition(DB_NAME, TABLE_NAME, Lists.newArrayList("2007"));
     Assert.assertEquals(rootPath1 + "part2007", resultPart.getSd().getLocation());
   }
 
@@ -500,7 +498,7 @@ public class TestAddPartitionsFromPartSpec extends MetaStoreClientTest {
     partitionSpecProxy.setRootLocation(rootPath1);
     client.add_partitions_pspec(partitionSpecProxy);
 
-    Partition resultPart = client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList("2014"));
+    Partition resultPart = client.getPartition(DB_NAME, TABLE_NAME, Lists.newArrayList("2014"));
     Assert.assertEquals(rootPath1 + "partwithoutsd0", resultPart.getSd().getLocation());
   }
 
@@ -515,7 +513,7 @@ public class TestAddPartitionsFromPartSpec extends MetaStoreClientTest {
         buildPartitionSpecWithSharedSD(Lists.newArrayList(partition), buildSD(location));
     client.add_partitions_pspec(partitionSpecProxy);
 
-    Partition part = client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, "year=2014");
+    Partition part = client.getPartition(DB_NAME, TABLE_NAME, "year=2014");
     Assert.assertNotNull(part);
     Assert.assertEquals(table.getSd().getLocation() + "/sharedSDTest/null",
         part.getSd().getLocation());
@@ -634,7 +632,7 @@ public class TestAddPartitionsFromPartSpec extends MetaStoreClientTest {
     client.add_partitions_pspec(partitionSpecProxy);
 
     Partition resultPart =
-        client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(DEFAULT_YEAR_VALUE));
+        client.getPartition(DB_NAME, TABLE_NAME, Lists.newArrayList(DEFAULT_YEAR_VALUE));
     Assert.assertEquals(table.getSd().getLocation() + "/year=2017",
         resultPart.getSd().getLocation());
     Assert.assertTrue(metaStore.isPathExists(new Path(resultPart.getSd().getLocation())));
@@ -650,7 +648,7 @@ public class TestAddPartitionsFromPartSpec extends MetaStoreClientTest {
     client.add_partitions_pspec(partitionSpecProxy);
 
     Partition resultPart =
-        client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(DEFAULT_YEAR_VALUE));
+        client.getPartition(DB_NAME, TABLE_NAME, Lists.newArrayList(DEFAULT_YEAR_VALUE));
     Assert.assertEquals(table.getSd().getLocation() + "/year=2017",
         resultPart.getSd().getLocation());
     Assert.assertTrue(metaStore.isPathExists(new Path(resultPart.getSd().getLocation())));
@@ -666,7 +664,7 @@ public class TestAddPartitionsFromPartSpec extends MetaStoreClientTest {
     client.add_partitions_pspec(partitionSpecProxy);
 
     Partition resultPart =
-        client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(DEFAULT_YEAR_VALUE));
+        client.getPartition(DB_NAME, TABLE_NAME, Lists.newArrayList(DEFAULT_YEAR_VALUE));
     Assert.assertEquals(table.getSd().getLocation() + "/year=2017",
         resultPart.getSd().getLocation());
     Assert.assertTrue(metaStore.isPathExists(new Path(resultPart.getSd().getLocation())));
@@ -751,7 +749,7 @@ public class TestAddPartitionsFromPartSpec extends MetaStoreClientTest {
         buildPartitionSpecWithSharedSD(Lists.newArrayList(partition), buildSD(location));
     client.add_partitions_pspec(partitionSpecProxy);
 
-    List<String> partitionNames = client.listPartitionNames(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, MAX);
+    List<String> partitionNames = client.listPartitionNames(DB_NAME, TABLE_NAME, MAX);
     Assert.assertNotNull(partitionNames);
     Assert.assertTrue(partitionNames.size() == 1);
     Assert.assertEquals("year=__HIVE_DEFAULT_PARTITION__", partitionNames.get(0));
@@ -781,11 +779,11 @@ public class TestAddPartitionsFromPartSpec extends MetaStoreClientTest {
         Lists.newArrayList(partition1, partition2), buildSD(location));
     client.add_partitions_pspec(partitionSpecProxy);
 
-    Partition resultPart1 = client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList("2007"));
+    Partition resultPart1 = client.getPartition(DB_NAME, TABLE_NAME, Lists.newArrayList("2007"));
     Assert.assertEquals(location + "null", resultPart1.getSd().getLocation());
     Assert.assertTrue(metaStore.isPathExists(new Path(resultPart1.getSd().getLocation())));
 
-    Partition resultPart2 = client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList("2008"));
+    Partition resultPart2 = client.getPartition(DB_NAME, TABLE_NAME, Lists.newArrayList("2008"));
     Assert.assertEquals(location + "null", resultPart2.getSd().getLocation());
     Assert.assertTrue(metaStore.isPathExists(new Path(resultPart2.getSd().getLocation())));
   }
@@ -809,7 +807,7 @@ public class TestAddPartitionsFromPartSpec extends MetaStoreClientTest {
       // This is expected
     }
 
-    List<Partition> parts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, MAX);
+    List<Partition> parts = client.listPartitions(DB_NAME, TABLE_NAME, MAX);
     Assert.assertNotNull(parts);
     Assert.assertTrue(parts.isEmpty());
     // TODO: This does not work correctly. None of the partitions is created, but the folder
@@ -850,7 +848,7 @@ public class TestAddPartitionsFromPartSpec extends MetaStoreClientTest {
         .setLocation(location)
         .build();
     client.createTable(table);
-    return client.getTable(DEFAULT_CATALOG_NAME, dbName, tableName);
+    return client.getTable(dbName, tableName);
   }
 
   private Partition buildPartition(String dbName, String tableName, String value)
@@ -910,7 +908,7 @@ public class TestAddPartitionsFromPartSpec extends MetaStoreClientTest {
   private void verifyPartition(Table table, String name, List<String> values, int index)
       throws Exception {
 
-    Partition part = client.getPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), name);
+    Partition part = client.getPartition(table.getDbName(), table.getTableName(), name);
     Assert.assertNotNull("The partition should not be null.", part);
     Assert.assertEquals("The table name in the partition is not correct.", table.getTableName(),
         part.getTableName());
@@ -1033,7 +1031,7 @@ public class TestAddPartitionsFromPartSpec extends MetaStoreClientTest {
   private void verifyPartitionSharedSD(Table table, String name, List<String> values, int index)
       throws Exception {
 
-    Partition part = client.getPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), name);
+    Partition part = client.getPartition(table.getDbName(), table.getTableName(), name);
     Assert.assertNotNull(part);
     Assert.assertEquals(table.getTableName(), part.getTableName());
     List<String> partValues = part.getValues();

@@ -19,9 +19,9 @@
 package org.apache.hadoop.hive.metastore;
 
 import static org.apache.commons.lang.StringUtils.join;
-import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_CATALOG_NAME;
 import static org.apache.hadoop.hive.metastore.Warehouse.getCatalogQualifiedDbName;
 import static org.apache.hadoop.hive.metastore.Warehouse.getCatalogQualifiedTableName;
+import static org.apache.hadoop.hive.metastore.utils.MetaStoreUtils.getDefaultCatalog;
 import static org.apache.hadoop.hive.metastore.utils.StringUtils.normalizeIdentifier;
 
 import java.io.IOException;
@@ -1883,7 +1883,7 @@ public class ObjectStore implements RawStore, Configurable {
       return null;
     }
     MDatabase mdb = null;
-    String catName = tbl.isSetCatName() ? tbl.getCatName() : DEFAULT_CATALOG_NAME;
+    String catName = tbl.isSetCatName() ? tbl.getCatName() : getDefaultCatalog(conf);
     try {
       mdb = getMDatabase(catName, tbl.getDbName());
     } catch (NoSuchObjectException e) {
@@ -2289,7 +2289,7 @@ public class ObjectStore implements RawStore, Configurable {
     boolean success = false;
     boolean commited = false;
     try {
-      String catName = part.isSetCatName() ? part.getCatName() : DEFAULT_CATALOG_NAME;
+      String catName = part.isSetCatName() ? part.getCatName() : getDefaultCatalog(conf);
       MTable table = this.getMTable(catName, part.getDbName(), part.getTableName());
       List<MTablePrivilege> tabGrants = null;
       List<MTableColumnPrivilege> tabColumnGrants = null;
@@ -4296,10 +4296,10 @@ public class ObjectStore implements RawStore, Configurable {
       for (int i = 0; i < foreignKeys.size(); i++) {
         if (catName == null) {
           catName = normalizeIdentifier(foreignKeys.get(i).isSetCatName() ? foreignKeys.get(i).getCatName() :
-              DEFAULT_CATALOG_NAME);
+              getDefaultCatalog(conf));
         } else {
           String tmpCatName = normalizeIdentifier(foreignKeys.get(i).isSetCatName() ?
-              foreignKeys.get(i).getCatName() : DEFAULT_CATALOG_NAME);
+              foreignKeys.get(i).getCatName() : getDefaultCatalog(conf));
           if (!catName.equals(tmpCatName)) {
             throw new InvalidObjectException("Foreign keys cannot span catalogs");
           }
@@ -5564,7 +5564,7 @@ public class ObjectStore implements RawStore, Configurable {
           }
 
           String catName = hiveObject.isSetCatName() ? hiveObject.getCatName() :
-              DEFAULT_CATALOG_NAME;
+              getDefaultCatalog(conf);
           if (hiveObject.getObjectType() == HiveObjectType.GLOBAL) {
             List<MGlobalPrivilege> globalPrivs = this
                 .listPrincipalMGlobalGrants(userName, principalType);
@@ -5776,7 +5776,7 @@ public class ObjectStore implements RawStore, Configurable {
           PrincipalType principalType = privDef.getPrincipalType();
 
           String catName = hiveObject.isSetCatName() ? hiveObject.getCatName() :
-              DEFAULT_CATALOG_NAME;
+              getDefaultCatalog(conf);
           if (hiveObject.getObjectType() == HiveObjectType.GLOBAL) {
             List<MGlobalPrivilege> mSecUser = this.listPrincipalMGlobalGrants(
                 userName, principalType);
@@ -7848,7 +7848,7 @@ public class ObjectStore implements RawStore, Configurable {
 
       // DataNucleus objects get detached all over the place for no (real) reason.
       // So let's not use them anywhere unless absolutely necessary.
-      String catName = statsDesc.isSetCatName() ? statsDesc.getCatName() : DEFAULT_CATALOG_NAME;
+      String catName = statsDesc.isSetCatName() ? statsDesc.getCatName() : getDefaultCatalog(conf);
       Table table = ensureGetTable(catName, statsDesc.getDbName(), statsDesc.getTableName());
       List<String> colNames = new ArrayList<>();
       for (ColumnStatisticsObj statsObj : statsObjs) {
@@ -7918,7 +7918,7 @@ public class ObjectStore implements RawStore, Configurable {
       openTransaction();
       List<ColumnStatisticsObj> statsObjs = colStats.getStatsObj();
       ColumnStatisticsDesc statsDesc = colStats.getStatsDesc();
-      String catName = statsDesc.isSetCatName() ? statsDesc.getCatName() : DEFAULT_CATALOG_NAME;
+      String catName = statsDesc.isSetCatName() ? statsDesc.getCatName() : getDefaultCatalog(conf);
       Table table = ensureGetTable(catName, statsDesc.getDbName(), statsDesc.getTableName());
       Partition partition = convertToPart(getMPartition(
           catName, statsDesc.getDbName(), statsDesc.getTableName(), partVals));
@@ -8206,7 +8206,7 @@ public class ObjectStore implements RawStore, Configurable {
       int i = 0;
       params[i++] = table.getTableName();
       params[i++] = table.getDbName();
-      params[i++] = table.isSetCatName() ? table.getCatName() : DEFAULT_CATALOG_NAME;
+      params[i++] = table.isSetCatName() ? table.getCatName() : getDefaultCatalog(conf);
       int firstI = i;
       for (String s : partNames) {
         filter += ((i == firstI) ? "" : " || ") + "partitionName == p" + i;
@@ -8838,7 +8838,7 @@ public class ObjectStore implements RawStore, Configurable {
     }
 
     MDatabase mdb = null;
-    String catName = func.isSetCatName() ? func.getCatName() : DEFAULT_CATALOG_NAME;
+    String catName = func.isSetCatName() ? func.getCatName() : getDefaultCatalog(conf);
     try {
       mdb = getMDatabase(catName, func.getDbName());
     } catch (NoSuchObjectException e) {
@@ -8901,7 +8901,7 @@ public class ObjectStore implements RawStore, Configurable {
     boolean success = false;
     try {
       String newFuncCat = newFunction.isSetCatName() ? newFunction.getCatName() :
-          DEFAULT_CATALOG_NAME;
+          getDefaultCatalog(conf);
       if (!newFuncCat.equalsIgnoreCase(catName)) {
         throw new InvalidObjectException("You cannot move a function between catalogs");
       }
@@ -9237,7 +9237,7 @@ public class ObjectStore implements RawStore, Configurable {
       openTransaction();
       long fromEventId = rqst.getFromEventId();
       String inputDbName = rqst.getDbName();
-      String catName = rqst.isSetCatName() ? rqst.getCatName() : DEFAULT_CATALOG_NAME;
+      String catName = rqst.isSetCatName() ? rqst.getCatName() : getDefaultCatalog(conf);
       String queryStr = "select count(eventId) from " + MNotificationLog.class.getName()
                 + " where eventId > fromEventId && dbName == inputDbName && catalogName == catName";
       query = pm.newQuery(queryStr);
@@ -9256,7 +9256,7 @@ public class ObjectStore implements RawStore, Configurable {
     dbEntry.setEventId(entry.getEventId());
     dbEntry.setEventTime(entry.getEventTime());
     dbEntry.setEventType(entry.getEventType());
-    dbEntry.setCatalogName(entry.isSetCatName() ? entry.getCatName() : DEFAULT_CATALOG_NAME);
+    dbEntry.setCatalogName(entry.isSetCatName() ? entry.getCatName() : getDefaultCatalog(conf));
     dbEntry.setDbName(entry.getDbName());
     dbEntry.setTableName(entry.getTableName());
     dbEntry.setMessage(entry.getMessage());

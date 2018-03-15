@@ -19,7 +19,7 @@
 package org.apache.hadoop.hive.metastore;
 
 import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_DATABASE_NAME;
-import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_CATALOG_NAME;
+import static org.apache.hadoop.hive.metastore.utils.MetaStoreUtils.getDefaultCatalog;
 import static org.apache.hadoop.hive.metastore.utils.MetaStoreUtils.prependCatalogToDbName;
 
 import java.io.IOException;
@@ -399,7 +399,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   @Override
   public void alter_table_with_environmentContext(String dbname, String tbl_name, Table new_tbl,
                                                   EnvironmentContext envContext) throws TException {
-    client.alter_table_with_environment_context(prependCatalogToDbName(dbname),
+    client.alter_table_with_environment_context(prependCatalogToDbName(dbname, conf),
         tbl_name, new_tbl, envContext);
   }
 
@@ -407,19 +407,19 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   public void alterTable(String catName, String dbName, String tblName, Table newTable,
                          EnvironmentContext envContext) throws TException {
     client.alter_table_with_environment_context(prependCatalogToDbName(catName,
-        dbName), tblName, newTable, envContext);
+        dbName, conf), tblName, newTable, envContext);
   }
 
   @Override
   public void renamePartition(final String dbname, final String tableName, final List<String> part_vals,
                               final Partition newPart) throws TException {
-    renamePartition(DEFAULT_CATALOG_NAME, dbname, tableName, part_vals, newPart);
+    renamePartition(getDefaultCatalog(conf), dbname, tableName, part_vals, newPart);
   }
 
   @Override
   public void renamePartition(String catName, String dbname, String tableName, List<String> part_vals,
                               Partition newPart) throws TException {
-    client.rename_partition(prependCatalogToDbName(catName, dbname), tableName, part_vals, newPart);
+    client.rename_partition(prependCatalogToDbName(catName, dbname, conf), tableName, part_vals, newPart);
 
   }
 
@@ -672,7 +672,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
     Partition part = parts.get(0);
     AddPartitionsRequest req = new AddPartitionsRequest(
         part.getDbName(), part.getTableName(), parts, ifNotExists);
-    req.setCatName(part.isSetCatName() ? part.getCatName() : DEFAULT_CATALOG_NAME);
+    req.setCatName(part.isSetCatName() ? part.getCatName() : getDefaultCatalog(conf));
     req.setNeedResult(needResults);
     AddPartitionsResult result = client.add_partitions_req(req);
     return needResults ? filterHook.filterPartitions(result.getPartitions()) : null;
@@ -686,20 +686,20 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   @Override
   public Partition appendPartition(String db_name, String table_name,
       List<String> part_vals) throws TException {
-    return appendPartition(DEFAULT_CATALOG_NAME, db_name, table_name, part_vals);
+    return appendPartition(getDefaultCatalog(conf), db_name, table_name, part_vals);
   }
 
   @Override
   public Partition appendPartition(String dbName, String tableName, String partName)
       throws TException {
-    return appendPartition(DEFAULT_CATALOG_NAME, dbName, tableName, partName);
+    return appendPartition(getDefaultCatalog(conf), dbName, tableName, partName);
   }
 
   @Override
   public Partition appendPartition(String catName, String dbName, String tableName,
                                    String name) throws TException {
     Partition p = client.append_partition_by_name(prependCatalogToDbName(
-        catName, dbName), tableName, name);
+        catName, dbName, conf), tableName, name);
     return deepCopy(p);
   }
 
@@ -707,14 +707,14 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   public Partition appendPartition(String catName, String dbName, String tableName,
                                    List<String> partVals) throws TException {
     Partition p = client.append_partition(prependCatalogToDbName(
-        catName, dbName), tableName, partVals);
+        catName, dbName, conf), tableName, partVals);
     return deepCopy(p);
   }
 
   @Deprecated
   public Partition appendPartition(String dbName, String tableName, List<String> partVals,
                                    EnvironmentContext ec) throws TException {
-    return client.append_partition_with_environment_context(prependCatalogToDbName(dbName),
+    return client.append_partition_with_environment_context(prependCatalogToDbName(dbName, conf),
         tableName, partVals, ec).deepCopy();
   }
 
@@ -729,16 +729,16 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   public Partition exchange_partition(Map<String, String> partitionSpecs,
       String sourceDb, String sourceTable, String destDb,
       String destinationTableName) throws TException {
-    return exchange_partition(partitionSpecs, DEFAULT_CATALOG_NAME, sourceDb, sourceTable,
-        DEFAULT_CATALOG_NAME, destDb, destinationTableName);
+    return exchange_partition(partitionSpecs, getDefaultCatalog(conf), sourceDb, sourceTable,
+        getDefaultCatalog(conf), destDb, destinationTableName);
   }
 
   @Override
   public Partition exchange_partition(Map<String, String> partitionSpecs, String sourceCat,
                                       String sourceDb, String sourceTable, String destCat,
                                       String destDb, String destTableName) throws TException {
-    return client.exchange_partition(partitionSpecs, prependCatalogToDbName(sourceCat, sourceDb),
-        sourceTable, prependCatalogToDbName(destCat, destDb), destTableName);
+    return client.exchange_partition(partitionSpecs, prependCatalogToDbName(sourceCat, sourceDb, conf),
+        sourceTable, prependCatalogToDbName(destCat, destDb, conf), destTableName);
   }
 
   /**
@@ -752,16 +752,16 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   public List<Partition> exchange_partitions(Map<String, String> partitionSpecs,
       String sourceDb, String sourceTable, String destDb,
       String destinationTableName) throws TException {
-    return exchange_partitions(partitionSpecs, DEFAULT_CATALOG_NAME, sourceDb, sourceTable,
-        DEFAULT_CATALOG_NAME, destDb, destinationTableName);
+    return exchange_partitions(partitionSpecs, getDefaultCatalog(conf), sourceDb, sourceTable,
+        getDefaultCatalog(conf), destDb, destinationTableName);
   }
 
   @Override
   public List<Partition> exchange_partitions(Map<String, String> partitionSpecs, String sourceCat,
                                              String sourceDb, String sourceTable, String destCat,
                                              String destDb, String destTableName) throws TException {
-    return client.exchange_partitions(partitionSpecs, prependCatalogToDbName(sourceCat, sourceDb),
-        sourceTable, prependCatalogToDbName(destCat, destDb), destTableName);
+    return client.exchange_partitions(partitionSpecs, prependCatalogToDbName(sourceCat, sourceDb, conf),
+        sourceTable, prependCatalogToDbName(destCat, destDb, conf), destTableName);
   }
 
   @Override
@@ -782,7 +782,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   @Override
   public void createDatabase(Database db)
       throws AlreadyExistsException, InvalidObjectException, MetaException, TException {
-    if (!db.isSetCatalogName()) db.setCatalogName(DEFAULT_CATALOG_NAME);
+    if (!db.isSetCatalogName()) db.setCatalogName(getDefaultCatalog(conf));
     client.create_database(db);
   }
 
@@ -855,7 +855,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   @Override
   public void dropConstraint(String dbName, String tableName, String constraintName)
       throws TException {
-    dropConstraint(DEFAULT_CATALOG_NAME, dbName, tableName, constraintName);
+    dropConstraint(getDefaultCatalog(conf), dbName, tableName, constraintName);
   }
 
   @Override
@@ -919,19 +919,19 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   @Override
   public void dropDatabase(String name)
       throws NoSuchObjectException, InvalidOperationException, MetaException, TException {
-    dropDatabase(DEFAULT_CATALOG_NAME, name, true, false, false);
+    dropDatabase(getDefaultCatalog(conf), name, true, false, false);
   }
 
   @Override
   public void dropDatabase(String name, boolean deleteData, boolean ignoreUnknownDb)
       throws NoSuchObjectException, InvalidOperationException, MetaException, TException {
-    dropDatabase(DEFAULT_CATALOG_NAME, name, deleteData, ignoreUnknownDb, false);
+    dropDatabase(getDefaultCatalog(conf), name, deleteData, ignoreUnknownDb, false);
   }
 
   @Override
   public void dropDatabase(String name, boolean deleteData, boolean ignoreUnknownDb, boolean cascade)
       throws NoSuchObjectException, InvalidOperationException, MetaException, TException {
-    dropDatabase(DEFAULT_CATALOG_NAME, name, deleteData, ignoreUnknownDb, cascade);
+    dropDatabase(getDefaultCatalog(conf), name, deleteData, ignoreUnknownDb, cascade);
   }
 
   public void dropDatabase(String catalogName, String dbName, boolean deleteData,
@@ -957,20 +957,20 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
          }
         }
     }
-    client.drop_database(prependCatalogToDbName(catalogName, dbName), deleteData, cascade);
+    client.drop_database(prependCatalogToDbName(catalogName, dbName, conf), deleteData, cascade);
   }
 
   @Override
   public boolean dropPartition(String dbName, String tableName, String partName, boolean deleteData)
       throws TException {
-    return dropPartition(DEFAULT_CATALOG_NAME, dbName, tableName, partName, deleteData);
+    return dropPartition(getDefaultCatalog(conf), dbName, tableName, partName, deleteData);
   }
 
   @Override
   public boolean dropPartition(String catName, String db_name, String tbl_name, String name,
                                boolean deleteData) throws TException {
     return client.drop_partition_by_name_with_environment_context(prependCatalogToDbName(
-        catName, db_name), tbl_name, name, deleteData, null);
+        catName, db_name, conf), tbl_name, name, deleteData, null);
   }
 
   private static EnvironmentContext getEnvironmentContextWithIfPurgeSet() {
@@ -986,27 +986,27 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   @Deprecated
   public boolean dropPartition(String db_name, String tbl_name, List<String> part_vals,
       EnvironmentContext env_context) throws TException {
-    return client.drop_partition_with_environment_context(prependCatalogToDbName(db_name),
+    return client.drop_partition_with_environment_context(prependCatalogToDbName(db_name, conf),
         tbl_name, part_vals, true, env_context);
   }
 
   @Deprecated
   public boolean dropPartition(String dbName, String tableName, String partName, boolean dropData,
                                EnvironmentContext ec) throws TException {
-    return client.drop_partition_by_name_with_environment_context(prependCatalogToDbName(dbName),
+    return client.drop_partition_by_name_with_environment_context(prependCatalogToDbName(dbName, conf),
         tableName, partName, dropData, ec);
   }
 
   @Deprecated
   public boolean dropPartition(String dbName, String tableName, List<String> partVals)
       throws TException {
-    return client.drop_partition(prependCatalogToDbName(dbName), tableName, partVals, true);
+    return client.drop_partition(prependCatalogToDbName(dbName, conf), tableName, partVals, true);
   }
 
   @Override
   public boolean dropPartition(String db_name, String tbl_name,
       List<String> part_vals, boolean deleteData) throws TException {
-    return dropPartition(DEFAULT_CATALOG_NAME, db_name, tbl_name, part_vals,
+    return dropPartition(getDefaultCatalog(conf), db_name, tbl_name, part_vals,
         PartitionDropOptions.instance()
             .deleteData(deleteData));
   }
@@ -1021,7 +1021,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   @Override
   public boolean dropPartition(String db_name, String tbl_name,
       List<String> part_vals, PartitionDropOptions options) throws TException {
-    return dropPartition(DEFAULT_CATALOG_NAME, db_name, tbl_name, part_vals, options);
+    return dropPartition(getDefaultCatalog(conf), db_name, tbl_name, part_vals, options);
   }
 
   @Override
@@ -1029,7 +1029,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
                                List<String> part_vals, PartitionDropOptions options)
       throws TException {
     return client.drop_partition_with_environment_context(prependCatalogToDbName(
-        catName, db_name), tbl_name, part_vals, options.deleteData,
+        catName, db_name, conf), tbl_name, part_vals, options.deleteData,
         options.purgeData ? getEnvironmentContextWithIfPurgeSet() : null);
   }
 
@@ -1038,7 +1038,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
                                         List<ObjectPair<Integer, byte[]>> partExprs,
                                         PartitionDropOptions options)
       throws TException {
-    return dropPartitions(DEFAULT_CATALOG_NAME, dbName, tblName, partExprs, options);
+    return dropPartitions(getDefaultCatalog(conf), dbName, tblName, partExprs, options);
   }
 
   @Override
@@ -1046,7 +1046,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
       List<ObjectPair<Integer, byte[]>> partExprs, boolean deleteData,
       boolean ifExists, boolean needResult) throws NoSuchObjectException, MetaException, TException {
 
-    return dropPartitions(DEFAULT_CATALOG_NAME, dbName, tblName, partExprs,
+    return dropPartitions(getDefaultCatalog(conf), dbName, tblName, partExprs,
                           PartitionDropOptions.instance()
                                               .deleteData(deleteData)
                                               .ifExists(ifExists)
@@ -1059,7 +1059,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
       List<ObjectPair<Integer, byte[]>> partExprs, boolean deleteData,
       boolean ifExists) throws NoSuchObjectException, MetaException, TException {
     // By default, we need the results from dropPartitions();
-    return dropPartitions(DEFAULT_CATALOG_NAME, dbName, tblName, partExprs,
+    return dropPartitions(getDefaultCatalog(conf), dbName, tblName, partExprs,
                           PartitionDropOptions.instance()
                                               .deleteData(deleteData)
                                               .ifExists(ifExists));
@@ -1094,18 +1094,18 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   public void dropTable(String dbname, String name, boolean deleteData,
       boolean ignoreUnknownTab) throws MetaException, TException,
       NoSuchObjectException, UnsupportedOperationException {
-    dropTable(DEFAULT_CATALOG_NAME, dbname, name, deleteData, ignoreUnknownTab, null);
+    dropTable(getDefaultCatalog(conf), dbname, name, deleteData, ignoreUnknownTab, null);
   }
 
   @Override
   public void dropTable(String dbname, String name, boolean deleteData,
       boolean ignoreUnknownTab, boolean ifPurge) throws TException {
-    dropTable(DEFAULT_CATALOG_NAME, dbname, name, deleteData, ignoreUnknownTab, ifPurge);
+    dropTable(getDefaultCatalog(conf), dbname, name, deleteData, ignoreUnknownTab, ifPurge);
   }
 
   @Override
   public void dropTable(String dbname, String name) throws TException {
-    dropTable(DEFAULT_CATALOG_NAME, dbname, name, true, true, null);
+    dropTable(getDefaultCatalog(conf), dbname, name, true, true, null);
   }
 
   @Override
@@ -1183,13 +1183,13 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
 
   @Override
   public void truncateTable(String dbName, String tableName, List<String> partNames) throws TException {
-    truncateTable(DEFAULT_CATALOG_NAME, dbName, tableName, partNames);
+    truncateTable(getDefaultCatalog(conf), dbName, tableName, partNames);
   }
 
   @Override
   public void truncateTable(String catName, String dbName, String tableName, List<String> partNames)
       throws TException {
-    client.truncate_table(prependCatalogToDbName(catName, dbName), tableName, partNames);
+    client.truncate_table(prependCatalogToDbName(catName, dbName, conf), tableName, partNames);
   }
 
   /**
@@ -1250,7 +1250,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   @Override
   public List<String> getDatabases(String catName, String databasePattern) throws TException {
     return filterHook.filterDatabases(client.get_databases(prependCatalogToDbName(
-        catName, databasePattern)));
+        catName, databasePattern, conf)));
   }
 
   /** {@inheritDoc} */
@@ -1272,39 +1272,39 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   @Override
   public List<Partition> listPartitions(String db_name, String tbl_name, short max_parts)
       throws TException {
-    return listPartitions(DEFAULT_CATALOG_NAME, db_name, tbl_name, max_parts);
+    return listPartitions(getDefaultCatalog(conf), db_name, tbl_name, max_parts);
   }
 
   @Override
   public List<Partition> listPartitions(String catName, String db_name, String tbl_name,
                                         int max_parts) throws TException {
-    List<Partition> parts = client.get_partitions(prependCatalogToDbName(catName, db_name),
+    List<Partition> parts = client.get_partitions(prependCatalogToDbName(catName, db_name, conf),
         tbl_name, shrinkMaxtoShort(max_parts));
     return deepCopyPartitions(filterHook.filterPartitions(parts));
   }
 
   @Override
   public PartitionSpecProxy listPartitionSpecs(String dbName, String tableName, int maxParts) throws TException {
-    return listPartitionSpecs(DEFAULT_CATALOG_NAME, dbName, tableName, maxParts);
+    return listPartitionSpecs(getDefaultCatalog(conf), dbName, tableName, maxParts);
   }
 
   @Override
   public PartitionSpecProxy listPartitionSpecs(String catName, String dbName, String tableName,
                                                int maxParts) throws TException {
     return PartitionSpecProxy.Factory.get(filterHook.filterPartitionSpecs(
-        client.get_partitions_pspec(prependCatalogToDbName(catName, dbName), tableName, maxParts)));
+        client.get_partitions_pspec(prependCatalogToDbName(catName, dbName, conf), tableName, maxParts)));
   }
 
   @Override
   public List<Partition> listPartitions(String db_name, String tbl_name,
                                         List<String> part_vals, short max_parts) throws TException {
-    return listPartitions(DEFAULT_CATALOG_NAME, db_name, tbl_name, part_vals, max_parts);
+    return listPartitions(getDefaultCatalog(conf), db_name, tbl_name, part_vals, max_parts);
   }
 
   @Override
   public List<Partition> listPartitions(String catName, String db_name, String tbl_name,
                                         List<String> part_vals, int max_parts) throws TException {
-    List<Partition> parts = client.get_partitions_ps(prependCatalogToDbName(catName, db_name),
+    List<Partition> parts = client.get_partitions_ps(prependCatalogToDbName(catName, db_name, conf),
         tbl_name, part_vals, shrinkMaxtoShort(max_parts));
     return deepCopyPartitions(filterHook.filterPartitions(parts));
   }
@@ -1313,7 +1313,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   public List<Partition> listPartitionsWithAuthInfo(String db_name, String tbl_name,
                                                     short max_parts, String user_name,
                                                     List<String> group_names) throws TException {
-    return listPartitionsWithAuthInfo(DEFAULT_CATALOG_NAME, db_name, tbl_name, max_parts, user_name,
+    return listPartitionsWithAuthInfo(getDefaultCatalog(conf), db_name, tbl_name, max_parts, user_name,
         group_names);
   }
 
@@ -1322,7 +1322,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
                                                     int maxParts, String userName,
                                                     List<String> groupNames) throws TException {
     List<Partition> parts = client.get_partitions_with_auth(prependCatalogToDbName(catName,
-        dbName), tableName, shrinkMaxtoShort(maxParts), userName, groupNames);
+        dbName, conf), tableName, shrinkMaxtoShort(maxParts), userName, groupNames);
     return deepCopyPartitions(filterHook.filterPartitions(parts));
   }
 
@@ -1331,7 +1331,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
                                                     List<String> part_vals, short max_parts,
                                                     String user_name, List<String> group_names)
       throws TException {
-    return listPartitionsWithAuthInfo(DEFAULT_CATALOG_NAME, db_name, tbl_name, part_vals, max_parts,
+    return listPartitionsWithAuthInfo(getDefaultCatalog(conf), db_name, tbl_name, part_vals, max_parts,
         user_name, group_names);
   }
 
@@ -1341,21 +1341,21 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
                                                     String userName, List<String> groupNames)
       throws TException {
     List<Partition> parts = client.get_partitions_ps_with_auth(prependCatalogToDbName(catName,
-        dbName), tableName, partialPvals, shrinkMaxtoShort(maxParts), userName, groupNames);
+        dbName, conf), tableName, partialPvals, shrinkMaxtoShort(maxParts), userName, groupNames);
     return deepCopyPartitions(filterHook.filterPartitions(parts));
   }
 
   @Override
   public List<Partition> listPartitionsByFilter(String db_name, String tbl_name,
       String filter, short max_parts) throws TException {
-    return listPartitionsByFilter(DEFAULT_CATALOG_NAME, db_name, tbl_name, filter, max_parts);
+    return listPartitionsByFilter(getDefaultCatalog(conf), db_name, tbl_name, filter, max_parts);
   }
 
   @Override
   public List<Partition> listPartitionsByFilter(String catName, String db_name, String tbl_name,
                                                 String filter, int max_parts) throws TException {
     List<Partition> parts =client.get_partitions_by_filter(prependCatalogToDbName(
-        catName, db_name), tbl_name, filter, shrinkMaxtoShort(max_parts));
+        catName, db_name, conf), tbl_name, filter, shrinkMaxtoShort(max_parts));
     return deepCopyPartitions(filterHook.filterPartitions(parts));
   }
 
@@ -1363,7 +1363,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   public PartitionSpecProxy listPartitionSpecsByFilter(String db_name, String tbl_name,
                                                        String filter, int max_parts)
       throws TException {
-    return listPartitionSpecsByFilter(DEFAULT_CATALOG_NAME, db_name, tbl_name, filter, max_parts);
+    return listPartitionSpecsByFilter(getDefaultCatalog(conf), db_name, tbl_name, filter, max_parts);
   }
 
   @Override
@@ -1371,7 +1371,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
                                                        String tbl_name, String filter,
                                                        int max_parts) throws TException {
     return PartitionSpecProxy.Factory.get(filterHook.filterPartitionSpecs(
-        client.get_part_specs_by_filter(prependCatalogToDbName(catName, db_name), tbl_name, filter,
+        client.get_part_specs_by_filter(prependCatalogToDbName(catName, db_name, conf), tbl_name, filter,
             max_parts)));
   }
 
@@ -1379,7 +1379,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   public boolean listPartitionsByExpr(String db_name, String tbl_name, byte[] expr,
                                       String default_partition_name, short max_parts,
                                       List<Partition> result) throws TException {
-    return listPartitionsByExpr(DEFAULT_CATALOG_NAME, db_name, tbl_name, expr,
+    return listPartitionsByExpr(getDefaultCatalog(conf), db_name, tbl_name, expr,
         default_partition_name, max_parts, result);
   }
 
@@ -1416,39 +1416,39 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
 
   @Override
   public Database getDatabase(String name) throws TException {
-    return getDatabase(DEFAULT_CATALOG_NAME, name);
+    return getDatabase(getDefaultCatalog(conf), name);
   }
 
   @Override
   public Database getDatabase(String catalogName, String databaseName) throws TException {
-    Database d = client.get_database(prependCatalogToDbName(catalogName, databaseName));
+    Database d = client.get_database(prependCatalogToDbName(catalogName, databaseName, conf));
     return deepCopy(filterHook.filterDatabase(d));
   }
 
   @Override
   public Partition getPartition(String db_name, String tbl_name, List<String> part_vals)
       throws TException {
-    return getPartition(DEFAULT_CATALOG_NAME, db_name, tbl_name, part_vals);
+    return getPartition(getDefaultCatalog(conf), db_name, tbl_name, part_vals);
   }
 
   @Override
   public Partition getPartition(String catName, String dbName, String tblName,
                                 List<String> partVals) throws TException {
-    Partition p = client.get_partition(prependCatalogToDbName(catName, dbName), tblName, partVals);
+    Partition p = client.get_partition(prependCatalogToDbName(catName, dbName, conf), tblName, partVals);
     return deepCopy(filterHook.filterPartition(p));
   }
 
   @Override
   public List<Partition> getPartitionsByNames(String db_name, String tbl_name,
       List<String> part_names) throws TException {
-    return getPartitionsByNames(DEFAULT_CATALOG_NAME, db_name, tbl_name, part_names);
+    return getPartitionsByNames(getDefaultCatalog(conf), db_name, tbl_name, part_names);
   }
 
   @Override
   public List<Partition> getPartitionsByNames(String catName, String db_name, String tbl_name,
                                               List<String> part_names) throws TException {
     List<Partition> parts =
-        client.get_partitions_by_names(prependCatalogToDbName(catName, db_name), tbl_name, part_names);
+        client.get_partitions_by_names(prependCatalogToDbName(catName, db_name, conf), tbl_name, part_names);
     return deepCopyPartitions(filterHook.filterPartitions(parts));
   }
 
@@ -1462,7 +1462,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   public Partition getPartitionWithAuthInfo(String db_name, String tbl_name,
       List<String> part_vals, String user_name, List<String> group_names)
       throws TException {
-    return getPartitionWithAuthInfo(DEFAULT_CATALOG_NAME, db_name, tbl_name, part_vals,
+    return getPartitionWithAuthInfo(getDefaultCatalog(conf), db_name, tbl_name, part_vals,
         user_name, group_names);
   }
 
@@ -1470,14 +1470,14 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   public Partition getPartitionWithAuthInfo(String catName, String dbName, String tableName,
                                             List<String> pvals, String userName,
                                             List<String> groupNames) throws TException {
-    Partition p = client.get_partition_with_auth(prependCatalogToDbName(catName, dbName), tableName,
+    Partition p = client.get_partition_with_auth(prependCatalogToDbName(catName, dbName, conf), tableName,
         pvals, userName, groupNames);
     return deepCopy(filterHook.filterPartition(p));
   }
 
   @Override
   public Table getTable(String dbname, String name) throws TException {
-    return getTable(DEFAULT_CATALOG_NAME, dbname, name);
+    return getTable(getDefaultCatalog(conf), dbname, name);
   }
 
   @Override
@@ -1492,7 +1492,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   @Override
   public List<Table> getTableObjectsByName(String dbName, List<String> tableNames)
       throws TException {
-    return getTableObjectsByName(DEFAULT_CATALOG_NAME, dbName, tableNames);
+    return getTableObjectsByName(getDefaultCatalog(conf), dbName, tableNames);
   }
 
   @Override
@@ -1510,13 +1510,13 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   public Map<String, Materialization> getMaterializationsInvalidationInfo(String dbName, List<String> viewNames)
       throws MetaException, InvalidOperationException, UnknownDBException, TException {
     return client.get_materialization_invalidation_info(
-        dbName, filterHook.filterTableNames(DEFAULT_CATALOG_NAME, dbName, viewNames));
+        dbName, filterHook.filterTableNames(getDefaultCatalog(conf), dbName, viewNames));
   }
 
   @Override
   public void updateCreationMetadata(String dbName, String tableName, CreationMetadata cm)
       throws MetaException, InvalidOperationException, UnknownDBException, TException {
-    client.update_creation_metadata(DEFAULT_CATALOG_NAME, dbName, tableName, cm);
+    client.update_creation_metadata(getDefaultCatalog(conf), dbName, tableName, cm);
   }
 
   @Override
@@ -1530,14 +1530,14 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   @Override
   public List<String> listTableNamesByFilter(String dbName, String filter, short maxTables)
       throws TException {
-    return listTableNamesByFilter(DEFAULT_CATALOG_NAME, dbName, filter, maxTables);
+    return listTableNamesByFilter(getDefaultCatalog(conf), dbName, filter, maxTables);
   }
 
   @Override
   public List<String> listTableNamesByFilter(String catName, String dbName, String filter,
                                              int maxTables) throws TException {
     return filterHook.filterTableNames(catName, dbName,
-        client.get_table_names_by_filter(prependCatalogToDbName(catName, dbName), filter,
+        client.get_table_names_by_filter(prependCatalogToDbName(catName, dbName, conf), filter,
             shrinkMaxtoShort(maxTables)));
   }
 
@@ -1556,7 +1556,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   @Override
   public List<String> getTables(String dbname, String tablePattern) throws MetaException {
     try {
-      return getTables(DEFAULT_CATALOG_NAME, dbname, tablePattern);
+      return getTables(getDefaultCatalog(conf), dbname, tablePattern);
     } catch (Exception e) {
       MetaStoreUtils.logAndThrowMetaException(e);
     }
@@ -1567,13 +1567,13 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   public List<String> getTables(String catName, String dbName, String tablePattern)
       throws TException {
     return filterHook.filterTableNames(catName, dbName,
-        client.get_tables(prependCatalogToDbName(catName, dbName), tablePattern));
+        client.get_tables(prependCatalogToDbName(catName, dbName, conf), tablePattern));
   }
 
   @Override
   public List<String> getTables(String dbname, String tablePattern, TableType tableType) throws MetaException {
     try {
-      return getTables(DEFAULT_CATALOG_NAME, dbname, tablePattern, tableType);
+      return getTables(getDefaultCatalog(conf), dbname, tablePattern, tableType);
     } catch (Exception e) {
       MetaStoreUtils.logAndThrowMetaException(e);
     }
@@ -1584,17 +1584,21 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   public List<String> getTables(String catName, String dbName, String tablePattern,
                                 TableType tableType) throws TException {
     return filterHook.filterTableNames(catName, dbName,
-        client.get_tables_by_type(prependCatalogToDbName(catName, dbName), tablePattern,
+        client.get_tables_by_type(prependCatalogToDbName(catName, dbName, conf), tablePattern,
             tableType.toString()));
   }
 
-  /** {@inheritDoc} */
+  @Override
+  public List<String> getMaterializedViewsForRewriting(String dbName) throws TException {
+    return getMaterializedViewsForRewriting(getDefaultCatalog(conf), dbName);
+  }
+
   @Override
   public List<String> getMaterializedViewsForRewriting(String catName, String dbname)
       throws MetaException {
     try {
       return filterHook.filterTableNames(catName, dbname,
-          client.get_materialized_views_for_rewriting(prependCatalogToDbName(catName, dbname)));
+          client.get_materialized_views_for_rewriting(prependCatalogToDbName(catName, dbname, conf)));
     } catch (Exception e) {
       MetaStoreUtils.logAndThrowMetaException(e);
     }
@@ -1605,7 +1609,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   public List<TableMeta> getTableMeta(String dbPatterns, String tablePatterns, List<String> tableTypes)
       throws MetaException {
     try {
-      return getTableMeta(DEFAULT_CATALOG_NAME, dbPatterns, tablePatterns, tableTypes);
+      return getTableMeta(getDefaultCatalog(conf), dbPatterns, tablePatterns, tableTypes);
     } catch (Exception e) {
       MetaStoreUtils.logAndThrowMetaException(e);
     }
@@ -1616,13 +1620,13 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   public List<TableMeta> getTableMeta(String catName, String dbPatterns, String tablePatterns,
                                       List<String> tableTypes) throws TException {
     return filterHook.filterTableMetas(client.get_table_meta(prependCatalogToDbName(
-        catName, dbPatterns), tablePatterns, tableTypes));
+        catName, dbPatterns, conf), tablePatterns, tableTypes));
   }
 
   @Override
   public List<String> getAllTables(String dbname) throws MetaException {
     try {
-      return getAllTables(DEFAULT_CATALOG_NAME, dbname);
+      return getAllTables(getDefaultCatalog(conf), dbname);
     } catch (Exception e) {
       MetaStoreUtils.logAndThrowMetaException(e);
     }
@@ -1632,12 +1636,12 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   @Override
   public List<String> getAllTables(String catName, String dbName) throws TException {
     return filterHook.filterTableNames(catName, dbName, client.get_all_tables(
-        prependCatalogToDbName(catName, dbName)));
+        prependCatalogToDbName(catName, dbName, conf)));
   }
 
   @Override
   public boolean tableExists(String databaseName, String tableName) throws TException {
-    return tableExists(DEFAULT_CATALOG_NAME, databaseName, tableName);
+    return tableExists(getDefaultCatalog(conf), databaseName, tableName);
   }
 
   @Override
@@ -1655,101 +1659,101 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   @Override
   public List<String> listPartitionNames(String dbName, String tblName,
       short max) throws NoSuchObjectException, MetaException, TException {
-    return listPartitionNames(DEFAULT_CATALOG_NAME, dbName, tblName, max);
+    return listPartitionNames(getDefaultCatalog(conf), dbName, tblName, max);
   }
 
   @Override
   public List<String> listPartitionNames(String catName, String dbName, String tableName,
                                          int maxParts) throws TException {
     return filterHook.filterPartitionNames(catName, dbName, tableName,
-        client.get_partition_names(prependCatalogToDbName(catName, dbName), tableName, shrinkMaxtoShort(maxParts)));
+        client.get_partition_names(prependCatalogToDbName(catName, dbName, conf), tableName, shrinkMaxtoShort(maxParts)));
   }
 
   @Override
   public List<String> listPartitionNames(String db_name, String tbl_name,
       List<String> part_vals, short max_parts) throws TException {
-    return listPartitionNames(DEFAULT_CATALOG_NAME, db_name, tbl_name, part_vals, max_parts);
+    return listPartitionNames(getDefaultCatalog(conf), db_name, tbl_name, part_vals, max_parts);
   }
 
   @Override
   public List<String> listPartitionNames(String catName, String db_name, String tbl_name,
                                          List<String> part_vals, int max_parts) throws TException {
     return filterHook.filterPartitionNames(catName, db_name, tbl_name,
-        client.get_partition_names_ps(prependCatalogToDbName(catName, db_name), tbl_name,
+        client.get_partition_names_ps(prependCatalogToDbName(catName, db_name, conf), tbl_name,
             part_vals, shrinkMaxtoShort(max_parts)));
   }
 
   @Override
   public int getNumPartitionsByFilter(String db_name, String tbl_name,
                                       String filter) throws TException {
-    return getNumPartitionsByFilter(DEFAULT_CATALOG_NAME, db_name, tbl_name, filter);
+    return getNumPartitionsByFilter(getDefaultCatalog(conf), db_name, tbl_name, filter);
   }
 
   @Override
   public int getNumPartitionsByFilter(String catName, String dbName, String tableName,
                                       String filter) throws TException {
-    return client.get_num_partitions_by_filter(prependCatalogToDbName(catName, dbName), tableName,
+    return client.get_num_partitions_by_filter(prependCatalogToDbName(catName, dbName, conf), tableName,
         filter);
   }
 
   @Override
   public void alter_partition(String dbName, String tblName, Partition newPart)
       throws InvalidOperationException, MetaException, TException {
-    alter_partition(DEFAULT_CATALOG_NAME, dbName, tblName, newPart, null);
+    alter_partition(getDefaultCatalog(conf), dbName, tblName, newPart, null);
   }
 
   @Override
   public void alter_partition(String dbName, String tblName, Partition newPart, EnvironmentContext environmentContext)
       throws InvalidOperationException, MetaException, TException {
-    alter_partition(DEFAULT_CATALOG_NAME, dbName, tblName, newPart, environmentContext);
+    alter_partition(getDefaultCatalog(conf), dbName, tblName, newPart, environmentContext);
   }
 
   @Override
   public void alter_partition(String catName, String dbName, String tblName, Partition newPart,
                               EnvironmentContext environmentContext) throws TException {
-    client.alter_partition_with_environment_context(prependCatalogToDbName(catName, dbName), tblName,
+    client.alter_partition_with_environment_context(prependCatalogToDbName(catName, dbName, conf), tblName,
         newPart, environmentContext);
   }
 
   @Override
   public void alter_partitions(String dbName, String tblName, List<Partition> newParts)
       throws TException {
-    alter_partitions(DEFAULT_CATALOG_NAME, dbName, tblName, newParts, null);
+    alter_partitions(getDefaultCatalog(conf), dbName, tblName, newParts, null);
   }
 
   @Override
   public void alter_partitions(String dbName, String tblName, List<Partition> newParts,
                                EnvironmentContext environmentContext) throws TException {
-    alter_partitions(DEFAULT_CATALOG_NAME, dbName, tblName, newParts, environmentContext);
+    alter_partitions(getDefaultCatalog(conf), dbName, tblName, newParts, environmentContext);
   }
 
   @Override
   public void alter_partitions(String catName, String dbName, String tblName,
                                List<Partition> newParts,
                                EnvironmentContext environmentContext) throws TException {
-    client.alter_partitions_with_environment_context(prependCatalogToDbName(catName, dbName),
+    client.alter_partitions_with_environment_context(prependCatalogToDbName(catName, dbName, conf),
         tblName, newParts, environmentContext);
   }
 
   @Override
   public void alterDatabase(String dbName, Database db) throws TException {
-    alterDatabase(DEFAULT_CATALOG_NAME, dbName, db);
+    alterDatabase(getDefaultCatalog(conf), dbName, db);
   }
 
   @Override
   public void alterDatabase(String catName, String dbName, Database newDb) throws TException {
-    client.alter_database(prependCatalogToDbName(catName, dbName), newDb);
+    client.alter_database(prependCatalogToDbName(catName, dbName, conf), newDb);
   }
 
   @Override
   public List<FieldSchema> getFields(String db, String tableName) throws TException {
-    return getFields(DEFAULT_CATALOG_NAME, db, tableName);
+    return getFields(getDefaultCatalog(conf), db, tableName);
   }
 
   @Override
   public List<FieldSchema> getFields(String catName, String db, String tableName)
       throws TException {
-    List<FieldSchema> fields = client.get_fields(prependCatalogToDbName(catName, db), tableName);
+    List<FieldSchema> fields = client.get_fields(prependCatalogToDbName(catName, db, conf), tableName);
     return deepCopyFieldSchemas(fields);
   }
 
@@ -1810,7 +1814,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   @Override
   public List<ColumnStatisticsObj> getTableColumnStatistics(String dbName, String tableName,
       List<String> colNames) throws TException {
-    return getTableColumnStatistics(DEFAULT_CATALOG_NAME, dbName, tableName, colNames);
+    return getTableColumnStatistics(getDefaultCatalog(conf), dbName, tableName, colNames);
   }
 
   @Override
@@ -1826,7 +1830,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   public Map<String, List<ColumnStatisticsObj>> getPartitionColumnStatistics(
       String dbName, String tableName, List<String> partNames, List<String> colNames)
           throws TException {
-    return getPartitionColumnStatistics(DEFAULT_CATALOG_NAME, dbName, tableName, partNames, colNames);
+    return getPartitionColumnStatistics(getDefaultCatalog(conf), dbName, tableName, partNames, colNames);
   }
 
   @Override
@@ -1842,7 +1846,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   @Override
   public boolean deletePartitionColumnStatistics(String dbName, String tableName, String partName,
     String colName) throws TException {
-    return deletePartitionColumnStatistics(DEFAULT_CATALOG_NAME, dbName, tableName, partName,
+    return deletePartitionColumnStatistics(getDefaultCatalog(conf), dbName, tableName, partName,
         colName);
   }
 
@@ -1850,26 +1854,26 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   public boolean deletePartitionColumnStatistics(String catName, String dbName, String tableName,
                                                  String partName, String colName)
       throws TException {
-    return client.delete_partition_column_statistics(prependCatalogToDbName(catName, dbName),
+    return client.delete_partition_column_statistics(prependCatalogToDbName(catName, dbName, conf),
         tableName, partName, colName);
   }
 
   @Override
   public boolean deleteTableColumnStatistics(String dbName, String tableName, String colName)
     throws TException {
-    return deleteTableColumnStatistics(DEFAULT_CATALOG_NAME, dbName, tableName, colName);
+    return deleteTableColumnStatistics(getDefaultCatalog(conf), dbName, tableName, colName);
   }
 
   @Override
   public boolean deleteTableColumnStatistics(String catName, String dbName, String tableName,
                                              String colName) throws TException {
-    return client.delete_table_column_statistics(prependCatalogToDbName(catName, dbName),
+    return client.delete_table_column_statistics(prependCatalogToDbName(catName, dbName, conf),
         tableName, colName);
   }
 
   @Override
   public List<FieldSchema> getSchema(String db, String tableName) throws TException {
-    return getSchema(DEFAULT_CATALOG_NAME, db, tableName);
+    return getSchema(getDefaultCatalog(conf), db, tableName);
   }
 
   @Override
@@ -1883,7 +1887,7 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
     }
 
     List<FieldSchema> fields = client.get_schema_with_environment_context(prependCatalogToDbName(
-        catName, db), tableName, envCxt);
+        catName, db, conf), tableName, envCxt);
     return deepCopyFieldSchemas(fields);
   }
 
@@ -1895,13 +1899,13 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
 
   @Override
   public Partition getPartition(String db, String tableName, String partName) throws TException {
-    return getPartition(DEFAULT_CATALOG_NAME, db, tableName, partName);
+    return getPartition(getDefaultCatalog(conf), db, tableName, partName);
   }
 
   @Override
   public Partition getPartition(String catName, String dbName, String tblName, String name)
       throws TException {
-    Partition p = client.get_partition_by_name(prependCatalogToDbName(catName, dbName), tblName,
+    Partition p = client.get_partition_by_name(prependCatalogToDbName(catName, dbName, conf), tblName,
         name);
     return deepCopy(filterHook.filterPartition(p));
   }
@@ -2517,14 +2521,14 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   @Override
   public void markPartitionForEvent(String db_name, String tbl_name, Map<String,String> partKVs, PartitionEventType eventType)
       throws TException {
-    markPartitionForEvent(DEFAULT_CATALOG_NAME, db_name, tbl_name, partKVs, eventType);
+    markPartitionForEvent(getDefaultCatalog(conf), db_name, tbl_name, partKVs, eventType);
   }
 
   @Override
   public void markPartitionForEvent(String catName, String db_name, String tbl_name,
                                     Map<String, String> partKVs,
                                     PartitionEventType eventType) throws TException {
-    client.markPartitionForEvent(prependCatalogToDbName(catName, db_name), tbl_name, partKVs,
+    client.markPartitionForEvent(prependCatalogToDbName(catName, db_name, conf), tbl_name, partKVs,
         eventType);
 
   }
@@ -2532,14 +2536,14 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   @Override
   public boolean isPartitionMarkedForEvent(String db_name, String tbl_name, Map<String,String> partKVs, PartitionEventType eventType)
       throws TException {
-    return isPartitionMarkedForEvent(DEFAULT_CATALOG_NAME, db_name, tbl_name, partKVs, eventType);
+    return isPartitionMarkedForEvent(getDefaultCatalog(conf), db_name, tbl_name, partKVs, eventType);
   }
 
   @Override
   public boolean isPartitionMarkedForEvent(String catName, String db_name, String tbl_name,
                                            Map<String, String> partKVs,
                                            PartitionEventType eventType) throws TException {
-    return client.isPartitionMarkedForEvent(prependCatalogToDbName(catName, db_name), tbl_name,
+    return client.isPartitionMarkedForEvent(prependCatalogToDbName(catName, db_name, conf), tbl_name,
         partKVs, eventType);
   }
 
@@ -2551,43 +2555,43 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
   @Override
   public void alterFunction(String dbName, String funcName, Function newFunction)
       throws TException {
-    alterFunction(DEFAULT_CATALOG_NAME, dbName, funcName, newFunction);
+    alterFunction(getDefaultCatalog(conf), dbName, funcName, newFunction);
   }
 
   @Override
   public void alterFunction(String catName, String dbName, String funcName,
                             Function newFunction) throws TException {
-    client.alter_function(prependCatalogToDbName(catName, dbName), funcName, newFunction);
+    client.alter_function(prependCatalogToDbName(catName, dbName, conf), funcName, newFunction);
   }
 
   @Override
   public void dropFunction(String dbName, String funcName) throws TException {
-    dropFunction(DEFAULT_CATALOG_NAME, dbName, funcName);
+    dropFunction(getDefaultCatalog(conf), dbName, funcName);
   }
 
   @Override
   public void dropFunction(String catName, String dbName, String funcName) throws TException {
-    client.drop_function(prependCatalogToDbName(catName, dbName), funcName);
+    client.drop_function(prependCatalogToDbName(catName, dbName, conf), funcName);
   }
 
   @Override
   public Function getFunction(String dbName, String funcName) throws TException {
-    return getFunction(DEFAULT_CATALOG_NAME, dbName, funcName);
+    return getFunction(getDefaultCatalog(conf), dbName, funcName);
   }
 
   @Override
   public Function getFunction(String catName, String dbName, String funcName) throws TException {
-    return deepCopy(client.get_function(prependCatalogToDbName(catName, dbName), funcName));
+    return deepCopy(client.get_function(prependCatalogToDbName(catName, dbName, conf), funcName));
   }
 
   @Override
   public List<String> getFunctions(String dbName, String pattern) throws TException {
-    return getFunctions(DEFAULT_CATALOG_NAME, dbName, pattern);
+    return getFunctions(getDefaultCatalog(conf), dbName, pattern);
   }
 
   @Override
   public List<String> getFunctions(String catName, String dbName, String pattern) throws TException {
-    return client.get_functions(prependCatalogToDbName(catName, dbName), pattern);
+    return client.get_functions(prependCatalogToDbName(catName, dbName, conf), pattern);
   }
 
   @Override
@@ -2603,14 +2607,14 @@ public class HiveMetaStoreClient implements IMetaStoreClient, AutoCloseable {
 
   protected void drop_table_with_environment_context(String catName, String dbname, String name,
       boolean deleteData, EnvironmentContext envContext) throws TException {
-    client.drop_table_with_environment_context(prependCatalogToDbName(catName, dbname),
+    client.drop_table_with_environment_context(prependCatalogToDbName(catName, dbname, conf),
         name, deleteData, envContext);
   }
 
   @Override
   public AggrStats getAggrColStatsFor(String dbName, String tblName,
     List<String> colNames, List<String> partNames) throws NoSuchObjectException, MetaException, TException {
-    return getAggrColStatsFor(DEFAULT_CATALOG_NAME, dbName, tblName, colNames, partNames);
+    return getAggrColStatsFor(getDefaultCatalog(conf), dbName, tblName, colNames, partNames);
   }
 
   @Override

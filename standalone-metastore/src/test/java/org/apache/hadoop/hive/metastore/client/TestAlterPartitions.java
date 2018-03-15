@@ -55,7 +55,6 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import static java.util.stream.Collectors.joining;
-import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_CATALOG_NAME;
 import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_DATABASE_NAME;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -87,7 +86,7 @@ public class TestAlterPartitions extends MetaStoreClientTest {
     client = metaStore.getClient();
 
     // Clean up the database
-    client.dropDatabase(DEFAULT_CATALOG_NAME, DB_NAME, true, true, true);
+    client.dropDatabase(DB_NAME, true, true, true);
     metaStore.cleanWarehouseDirs();
     createDB(DB_NAME);
   }
@@ -210,15 +209,15 @@ public class TestAlterPartitions extends MetaStoreClientTest {
   @Test
   public void testAlterPartition() throws Exception {
     List<List<String>> testValues = createTable4PartColsParts(client);
-    List<Partition> oldParts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> oldParts = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
     Partition oldPart = oldParts.get(3);
 
     assertPartitionUnchanged(oldPart, testValues.get(3), PARTCOL_SCHEMA);
     makeTestChangesOnPartition(oldPart);
 
-    client.alter_partition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, oldPart);
+    client.alter_partition(DB_NAME, TABLE_NAME, oldPart);
 
-    List<Partition> newParts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> newParts = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
     Partition newPart = newParts.get(3);
     assertPartitionChanged(newPart, testValues.get(3), PARTCOL_SCHEMA);
     assertPartitionsHaveCorrectValues(newParts, testValues);
@@ -384,71 +383,71 @@ public class TestAlterPartitions extends MetaStoreClientTest {
   @Test(expected = InvalidOperationException.class)
   public void testAlterPartitionUnknownPartition() throws Exception {
     createTable4PartColsParts(client);
-    Table t = client.getTable(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME);
+    Table t = client.getTable(DB_NAME, TABLE_NAME);
     PartitionBuilder builder = new PartitionBuilder();
     Partition part = builder.inTable(t).addValue("1111").addValue("11").addValue("11").build();
-    client.alter_partition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, part);
+    client.alter_partition(DB_NAME, TABLE_NAME, part);
   }
 
   @Test(expected = MetaException.class)
   public void testAlterPartitionIncompletePartitionVals() throws Exception {
     createTable4PartColsParts(client);
-    Table t = client.getTable(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME);
+    Table t = client.getTable(DB_NAME, TABLE_NAME);
     PartitionBuilder builder = new PartitionBuilder();
     Partition part = builder.inTable(t).addValue("2017").build();
-    client.alter_partition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, part);
+    client.alter_partition(DB_NAME, TABLE_NAME, part);
   }
 
   @Test(expected = MetaException.class)
   public void testAlterPartitionMissingPartitionVals() throws Exception {
     createTable4PartColsParts(client);
-    Table t = client.getTable(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME);
+    Table t = client.getTable(DB_NAME, TABLE_NAME);
     PartitionBuilder builder = new PartitionBuilder();
     Partition part = builder.inTable(t).build();
-    client.alter_partition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, part);
+    client.alter_partition(DB_NAME, TABLE_NAME, part);
   }
 
   @Test(expected = InvalidOperationException.class)
   public void testAlterPartitionBogusCatalogName() throws Exception {
     createTable4PartColsParts(client);
-    List<Partition> partitions = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> partitions = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
     client.alter_partition("nosuch", DB_NAME, TABLE_NAME, partitions.get(3));
   }
 
   @Test(expected = InvalidOperationException.class)
   public void testAlterPartitionNoDbName() throws Exception {
     createTable4PartColsParts(client);
-    List<Partition> partitions = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
-    client.alter_partition(DEFAULT_CATALOG_NAME, "", TABLE_NAME, partitions.get(3));
+    List<Partition> partitions = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
+    client.alter_partition("", TABLE_NAME, partitions.get(3));
   }
 
   @Test(expected = MetaException.class)
   public void testAlterPartitionNullDbName() throws Exception {
     createTable4PartColsParts(client);
-    List<Partition> partitions = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
-    client.alter_partition(DEFAULT_CATALOG_NAME, null, TABLE_NAME, partitions.get(3));
+    List<Partition> partitions = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
+    client.alter_partition(null, TABLE_NAME, partitions.get(3));
   }
 
   @Test(expected = InvalidOperationException.class)
   public void testAlterPartitionNoTblName() throws Exception {
     createTable4PartColsParts(client);
-    List<Partition> partitions = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
-    client.alter_partition(DEFAULT_CATALOG_NAME, DB_NAME, "", partitions.get(3));
+    List<Partition> partitions = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
+    client.alter_partition(DB_NAME, "", partitions.get(3));
   }
 
   @Test(expected = MetaException.class)
   public void testAlterPartitionNullTblName() throws Exception {
     createTable4PartColsParts(client);
-    List<Partition> partitions = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
-    client.alter_partition(DEFAULT_CATALOG_NAME, DB_NAME, null, partitions.get(3));
+    List<Partition> partitions = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
+    client.alter_partition(DB_NAME, null, partitions.get(3));
   }
 
   @Test
   public void testAlterPartitionNullPartition() throws Exception {
     try {
       createTable4PartColsParts(client);
-      List<Partition> partitions = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
-      client.alter_partition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, null);
+      List<Partition> partitions = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
+      client.alter_partition(DB_NAME, TABLE_NAME, null);
       fail("Should have thrown exception");
     } catch (NullPointerException | TTransportException e) {
       //TODO: should not throw different exceptions for different HMS deployment types
@@ -458,28 +457,28 @@ public class TestAlterPartitions extends MetaStoreClientTest {
   @Test(expected = MetaException.class)
   public void testAlterPartitionChangeDbName() throws Exception {
     createTable4PartColsParts(client);
-    List<Partition> partitions = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> partitions = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
     Partition partition = partitions.get(3);
     partition.setDbName(DB_NAME+"_changed");
-    client.alter_partition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, partition);
+    client.alter_partition(DB_NAME, TABLE_NAME, partition);
   }
 
   @Test(expected = MetaException.class)
   public void testAlterPartitionChangeTableName() throws Exception {
     createTable4PartColsParts(client);
-    List<Partition> partitions = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> partitions = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
     Partition partition = partitions.get(3);
     partition.setTableName(TABLE_NAME+"_changed");
-    client.alter_partition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, partition);
+    client.alter_partition(DB_NAME, TABLE_NAME, partition);
   }
 
   @Test(expected = InvalidOperationException.class)
   public void testAlterPartitionChangeValues() throws Exception {
     createTable4PartColsParts(client);
-    List<Partition> partitions = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> partitions = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
     Partition partition = partitions.get(3);
     partition.setValues(Lists.newArrayList("1", "2", "3"));
-    client.alter_partition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, partition);
+    client.alter_partition(DB_NAME, TABLE_NAME, partition);
   }
 
 
@@ -497,84 +496,84 @@ public class TestAlterPartitions extends MetaStoreClientTest {
     });
 
     List<List<String>> testValues = createTable4PartColsParts(client);
-    List<Partition> oldParts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> oldParts = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
     Partition partition = oldParts.get(3);
 
     assertPartitionUnchanged(partition, testValues.get(3), PARTCOL_SCHEMA);
     makeTestChangesOnPartition(partition);
 
-    client.alter_partition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, partition, context);
+    client.alter_partition(DB_NAME, TABLE_NAME, partition, context);
 
-    List<Partition> newParts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> newParts = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
     partition = newParts.get(3);
     assertPartitionChanged(partition, testValues.get(3), PARTCOL_SCHEMA);
     assertPartitionsHaveCorrectValues(newParts, testValues);
 
-    client.alter_partition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, partition, new EnvironmentContext());
-    client.alter_partition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, partition, null);
+    client.alter_partition(DB_NAME, TABLE_NAME, partition, new EnvironmentContext());
+    client.alter_partition(DB_NAME, TABLE_NAME, partition, null);
   }
 
   @Test(expected = InvalidOperationException.class)
   public void testAlterPartitionWithEnvironmentCtxUnknownPartition() throws Exception {
     createTable4PartColsParts(client);
-    Table t = client.getTable(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME);
+    Table t = client.getTable(DB_NAME, TABLE_NAME);
     PartitionBuilder builder = new PartitionBuilder();
     Partition part = builder.inTable(t).addValue("1111").addValue("11").addValue("11").build();
-    client.alter_partition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, part, new EnvironmentContext());
+    client.alter_partition(DB_NAME, TABLE_NAME, part, new EnvironmentContext());
   }
 
   @Test(expected = MetaException.class)
   public void testAlterPartitionWithEnvironmentCtxIncompletePartitionVals() throws Exception {
     createTable4PartColsParts(client);
-    Table t = client.getTable(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME);
+    Table t = client.getTable(DB_NAME, TABLE_NAME);
     PartitionBuilder builder = new PartitionBuilder();
     Partition part = builder.inTable(t).addValue("2017").build();
-    client.alter_partition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, part, new EnvironmentContext());
+    client.alter_partition(DB_NAME, TABLE_NAME, part, new EnvironmentContext());
   }
 
   @Test(expected = MetaException.class)
   public void testAlterPartitionWithEnvironmentCtxMissingPartitionVals() throws Exception {
     createTable4PartColsParts(client);
-    Table t = client.getTable(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME);
+    Table t = client.getTable(DB_NAME, TABLE_NAME);
     PartitionBuilder builder = new PartitionBuilder();
     Partition part = builder.inTable(t).build();
-    client.alter_partition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, part, new EnvironmentContext());
+    client.alter_partition(DB_NAME, TABLE_NAME, part, new EnvironmentContext());
   }
 
   @Test(expected = InvalidOperationException.class)
   public void testAlterPartitionWithEnvironmentCtxNoDbName() throws Exception {
     createTable4PartColsParts(client);
-    List<Partition> partitions = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
-    client.alter_partition(DEFAULT_CATALOG_NAME, "", TABLE_NAME, partitions.get(3), new EnvironmentContext());
+    List<Partition> partitions = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
+    client.alter_partition("", TABLE_NAME, partitions.get(3), new EnvironmentContext());
   }
 
   @Test(expected = MetaException.class)
   public void testAlterPartitionWithEnvironmentCtxNullDbName() throws Exception {
     createTable4PartColsParts(client);
-    List<Partition> partitions = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
-    client.alter_partition(DEFAULT_CATALOG_NAME, null, TABLE_NAME, partitions.get(3), new EnvironmentContext());
+    List<Partition> partitions = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
+    client.alter_partition(null, TABLE_NAME, partitions.get(3), new EnvironmentContext());
   }
 
   @Test(expected = InvalidOperationException.class)
   public void testAlterPartitionWithEnvironmentCtxNoTblName() throws Exception {
     createTable4PartColsParts(client);
-    List<Partition> partitions = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
-    client.alter_partition(DEFAULT_CATALOG_NAME, DB_NAME, "", partitions.get(3), new EnvironmentContext());
+    List<Partition> partitions = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
+    client.alter_partition(DB_NAME, "", partitions.get(3), new EnvironmentContext());
   }
 
   @Test(expected = MetaException.class)
   public void testAlterPartitionWithEnvironmentCtxNullTblName() throws Exception {
     createTable4PartColsParts(client);
-    List<Partition> partitions = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
-    client.alter_partition(DEFAULT_CATALOG_NAME, DB_NAME, null, partitions.get(3), new EnvironmentContext());
+    List<Partition> partitions = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
+    client.alter_partition(DB_NAME, null, partitions.get(3), new EnvironmentContext());
   }
 
   @Test
   public void testAlterPartitionWithEnvironmentCtxNullPartition() throws Exception {
     try {
       createTable4PartColsParts(client);
-      List<Partition> partitions = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short) -1);
-      client.alter_partition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, null, new EnvironmentContext());
+      List<Partition> partitions = client.listPartitions(DB_NAME, TABLE_NAME, (short) -1);
+      client.alter_partition(DB_NAME, TABLE_NAME, null, new EnvironmentContext());
       fail("Should have thrown exception");
     } catch (NullPointerException | TTransportException e) {
       //TODO: should not throw different exceptions for different HMS deployment types
@@ -584,28 +583,28 @@ public class TestAlterPartitions extends MetaStoreClientTest {
   @Test(expected = MetaException.class)
   public void testAlterPartitionWithEnvironmentCtxChangeDbName() throws Exception {
     createTable4PartColsParts(client);
-    List<Partition> partitions = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> partitions = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
     Partition partition = partitions.get(3);
     partition.setDbName(DB_NAME+"_changed");
-    client.alter_partition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, partition, new EnvironmentContext());
+    client.alter_partition(DB_NAME, TABLE_NAME, partition, new EnvironmentContext());
   }
 
   @Test(expected = MetaException.class)
   public void testAlterPartitionWithEnvironmentCtxChangeTableName() throws Exception {
     createTable4PartColsParts(client);
-    List<Partition> partitions = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> partitions = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
     Partition partition = partitions.get(3);
     partition.setTableName(TABLE_NAME+"_changed");
-    client.alter_partition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, partition, new EnvironmentContext());
+    client.alter_partition(DB_NAME, TABLE_NAME, partition, new EnvironmentContext());
   }
 
   @Test(expected = InvalidOperationException.class)
   public void testAlterPartitionWithEnvironmentCtxChangeValues() throws Exception {
     createTable4PartColsParts(client);
-    List<Partition> partitions = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> partitions = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
     Partition partition = partitions.get(3);
     partition.setValues(Lists.newArrayList("1", "2", "3"));
-    client.alter_partition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, partition, new EnvironmentContext());
+    client.alter_partition(DB_NAME, TABLE_NAME, partition, new EnvironmentContext());
   }
 
 
@@ -618,16 +617,16 @@ public class TestAlterPartitions extends MetaStoreClientTest {
   @Test
   public void testAlterPartitions() throws Exception {
     List<List<String>> testValues = createTable4PartColsParts(client);
-    List<Partition> oldParts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> oldParts = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
 
     for (int i = 0; i < testValues.size(); ++i) {
       assertPartitionUnchanged(oldParts.get(i), testValues.get(i), PARTCOL_SCHEMA);
     }
     oldParts.forEach(p -> makeTestChangesOnPartition(p));
 
-    client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, oldParts);
+    client.alter_partitions(DB_NAME, TABLE_NAME, oldParts);
 
-    List<Partition> newParts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> newParts = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
 
     for (int i = 0; i < testValues.size(); ++i) {
       assertPartitionChanged(oldParts.get(i), testValues.get(i), PARTCOL_SCHEMA);
@@ -637,7 +636,7 @@ public class TestAlterPartitions extends MetaStoreClientTest {
 
   @Test(expected = InvalidOperationException.class)
   public void testAlterPartitionsEmptyPartitionList() throws Exception {
-    client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList());
+    client.alter_partitions(DB_NAME, TABLE_NAME, Lists.newArrayList());
   }
 
   @Test
@@ -645,15 +644,15 @@ public class TestAlterPartitions extends MetaStoreClientTest {
     Partition part1 = null;
     try {
       createTable4PartColsParts(client);
-      Table t = client.getTable(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME);
+      Table t = client.getTable(DB_NAME, TABLE_NAME);
       PartitionBuilder builder = new PartitionBuilder();
       Partition part = builder.inTable(t).addValue("1111").addValue("11").addValue("11").build();
-      part1 = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short) -1).get(0);
+      part1 = client.listPartitions(DB_NAME, TABLE_NAME, (short) -1).get(0);
       makeTestChangesOnPartition(part1);
-      client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(part, part1));
+      client.alter_partitions(DB_NAME, TABLE_NAME, Lists.newArrayList(part, part1));
       fail("Should have thrown InvalidOperationException");
     } catch (InvalidOperationException e) {
-      part1 = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short) -1).get(0);
+      part1 = client.listPartitions(DB_NAME, TABLE_NAME, (short) -1).get(0);
       assertPartitionUnchanged(part1, part1.getValues(), PARTCOL_SCHEMA);
     }
   }
@@ -661,78 +660,78 @@ public class TestAlterPartitions extends MetaStoreClientTest {
   @Test(expected = MetaException.class)
   public void testAlterPartitionsIncompletePartitionVals() throws Exception {
     createTable4PartColsParts(client);
-    Table t = client.getTable(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME);
+    Table t = client.getTable(DB_NAME, TABLE_NAME);
     PartitionBuilder builder = new PartitionBuilder();
     Partition part = builder.inTable(t).addValue("2017").build();
-    Partition part1 = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1).get(0);
-    client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(part, part1));
+    Partition part1 = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1).get(0);
+    client.alter_partitions(DB_NAME, TABLE_NAME, Lists.newArrayList(part, part1));
   }
 
   @Test(expected = MetaException.class)
   public void testAlterPartitionsMissingPartitionVals() throws Exception {
     createTable4PartColsParts(client);
-    Table t = client.getTable(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME);
+    Table t = client.getTable(DB_NAME, TABLE_NAME);
     PartitionBuilder builder = new PartitionBuilder();
     Partition part = builder.inTable(t).build();
-    Partition part1 = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1).get(0);
-    client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(part, part1));
+    Partition part1 = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1).get(0);
+    client.alter_partitions(DB_NAME, TABLE_NAME, Lists.newArrayList(part, part1));
   }
 
   @Test(expected = InvalidOperationException.class)
   public void testAlterPartitionsBogusCatalogName() throws Exception {
     createTable4PartColsParts(client);
-    Partition part = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1).get(0);
+    Partition part = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1).get(0);
     client.alter_partitions("nosuch", DB_NAME, TABLE_NAME, Lists.newArrayList(part));
   }
 
   @Test(expected = InvalidOperationException.class)
   public void testAlterPartitionsNoDbName() throws Exception {
     createTable4PartColsParts(client);
-    Partition part = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1).get(0);
-    client.alter_partitions(DEFAULT_CATALOG_NAME, "", TABLE_NAME, Lists.newArrayList(part));
+    Partition part = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1).get(0);
+    client.alter_partitions("", TABLE_NAME, Lists.newArrayList(part));
   }
 
   @Test(expected = MetaException.class)
   public void testAlterPartitionsNullDbName() throws Exception {
     createTable4PartColsParts(client);
-    Partition part = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1).get(0);
-    client.alter_partitions(DEFAULT_CATALOG_NAME, null, TABLE_NAME, Lists.newArrayList(part));
+    Partition part = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1).get(0);
+    client.alter_partitions(null, TABLE_NAME, Lists.newArrayList(part));
   }
 
   @Test(expected = InvalidOperationException.class)
   public void testAlterPartitionsNoTblName() throws Exception {
     createTable4PartColsParts(client);
-    Partition part = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1).get(0);
-    client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, "", Lists.newArrayList(part));
+    Partition part = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1).get(0);
+    client.alter_partitions(DB_NAME, "", Lists.newArrayList(part));
   }
 
   @Test(expected = MetaException.class)
   public void testAlterPartitionsNullTblName() throws Exception {
     createTable4PartColsParts(client);
-    Partition part = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1).get(0);
-    client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, null, Lists.newArrayList(part));
+    Partition part = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1).get(0);
+    client.alter_partitions(DB_NAME, null, Lists.newArrayList(part));
   }
 
   @Test(expected = NullPointerException.class)
   public void testAlterPartitionsNullPartition() throws Exception {
     createTable4PartColsParts(client);
-    Partition part = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1).get(0);
-    client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(part, null));
+    Partition part = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1).get(0);
+    client.alter_partitions(DB_NAME, TABLE_NAME, Lists.newArrayList(part, null));
   }
 
   @Test(expected = NullPointerException.class)
   public void testAlterPartitionsNullPartitions() throws Exception {
     createTable4PartColsParts(client);
-    Partition part = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1).get(0);
-    client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(null, null));
+    Partition part = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1).get(0);
+    client.alter_partitions(DB_NAME, TABLE_NAME, Lists.newArrayList(null, null));
   }
 
   @Test
   public void testAlterPartitionsNullPartitionList() throws Exception {
     try {
       createTable4PartColsParts(client);
-      Partition part = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1).get(0);
-      client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, null);
+      Partition part = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1).get(0);
+      client.alter_partitions(DB_NAME, TABLE_NAME, null);
       fail("Should have thrown exception");
     } catch (NullPointerException | TTransportException e) {
       //TODO: should not throw different exceptions for different HMS deployment types
@@ -742,28 +741,28 @@ public class TestAlterPartitions extends MetaStoreClientTest {
   @Test(expected = MetaException.class)
   public void testAlterPartitionsChangeDbName() throws Exception {
     createTable4PartColsParts(client);
-    List<Partition> partitions = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> partitions = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
     Partition p = partitions.get(3);
     p.setDbName(DB_NAME+"_changed");
-    client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(p));
+    client.alter_partitions(DB_NAME, TABLE_NAME, Lists.newArrayList(p));
   }
 
   @Test(expected = MetaException.class)
   public void testAlterPartitionsChangeTableName() throws Exception {
     createTable4PartColsParts(client);
-    List<Partition> partitions = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> partitions = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
     Partition p = partitions.get(3);
     p.setTableName(TABLE_NAME+"_changed");
-    client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(p));
+    client.alter_partitions(DB_NAME, TABLE_NAME, Lists.newArrayList(p));
   }
 
   @Test(expected = InvalidOperationException.class)
   public void testAlterPartitionsChangeValues() throws Exception {
     createTable4PartColsParts(client);
-    List<Partition> partitions = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> partitions = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
     Partition p = partitions.get(3);
     p.setValues(Lists.newArrayList("1", "2", "3"));
-    client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(p));
+    client.alter_partitions(DB_NAME, TABLE_NAME, Lists.newArrayList(p));
   }
 
 
@@ -783,24 +782,24 @@ public class TestAlterPartitions extends MetaStoreClientTest {
     });
 
     List<List<String>> testValues = createTable4PartColsParts(client);
-    List<Partition> oldParts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> oldParts = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
 
     for (int i = 0; i < testValues.size(); ++i) {
       assertPartitionUnchanged(oldParts.get(i), testValues.get(i), PARTCOL_SCHEMA);
     }
     oldParts.forEach(p -> makeTestChangesOnPartition(p));
 
-    client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, oldParts, context);
+    client.alter_partitions(DB_NAME, TABLE_NAME, oldParts, context);
 
-    List<Partition> newParts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> newParts = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
 
     for (int i = 0; i < testValues.size(); ++i) {
       assertPartitionChanged(oldParts.get(i), testValues.get(i), PARTCOL_SCHEMA);
     }
     assertPartitionsHaveCorrectValues(newParts, testValues);
 
-    client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, newParts, new EnvironmentContext());
-    client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, newParts, null);
+    client.alter_partitions(DB_NAME, TABLE_NAME, newParts, new EnvironmentContext());
+    client.alter_partitions(DB_NAME, TABLE_NAME, newParts, null);
 
     for (int i = 0; i < testValues.size(); ++i) {
       assertPartitionChanged(oldParts.get(i), testValues.get(i), PARTCOL_SCHEMA);
@@ -809,90 +808,90 @@ public class TestAlterPartitions extends MetaStoreClientTest {
 
   @Test(expected = InvalidOperationException.class)
   public void testAlterPartitionsWithEnvironmentCtxEmptyPartitionList() throws Exception {
-    client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(), new EnvironmentContext());
+    client.alter_partitions(DB_NAME, TABLE_NAME, Lists.newArrayList(), new EnvironmentContext());
   }
 
   @Test(expected = InvalidOperationException.class)
   public void testAlterPartitionsWithEnvironmentCtxUnknownPartition() throws Exception {
     createTable4PartColsParts(client);
-    Table t = client.getTable(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME);
+    Table t = client.getTable(DB_NAME, TABLE_NAME);
     PartitionBuilder builder = new PartitionBuilder();
     Partition part = builder.inTable(t).addValue("1111").addValue("11").addValue("11").build();
-    Partition part1 = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1).get(0);
-    client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(part, part1),
+    Partition part1 = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1).get(0);
+    client.alter_partitions(DB_NAME, TABLE_NAME, Lists.newArrayList(part, part1),
             new EnvironmentContext());
   }
 
   @Test(expected = MetaException.class)
   public void testAlterPartitionsWithEnvironmentCtxIncompletePartitionVals() throws Exception {
     createTable4PartColsParts(client);
-    Table t = client.getTable(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME);
+    Table t = client.getTable(DB_NAME, TABLE_NAME);
     PartitionBuilder builder = new PartitionBuilder();
     Partition part = builder.inTable(t).addValue("2017").build();
-    Partition part1 = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1).get(0);
-    client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(part, part1),
+    Partition part1 = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1).get(0);
+    client.alter_partitions(DB_NAME, TABLE_NAME, Lists.newArrayList(part, part1),
             new EnvironmentContext());
   }
 
   @Test(expected = MetaException.class)
   public void testAlterPartitionsWithEnvironmentCtxMissingPartitionVals() throws Exception {
     createTable4PartColsParts(client);
-    Table t = client.getTable(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME);
+    Table t = client.getTable(DB_NAME, TABLE_NAME);
     PartitionBuilder builder = new PartitionBuilder();
     Partition part = builder.inTable(t).build();
-    Partition part1 = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1).get(0);
-    client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(part, part1),
+    Partition part1 = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1).get(0);
+    client.alter_partitions(DB_NAME, TABLE_NAME, Lists.newArrayList(part, part1),
             new EnvironmentContext());
   }
 
   @Test(expected = InvalidOperationException.class)
   public void testAlterPartitionsWithEnvironmentCtxBogusCatalogName() throws Exception {
     createTable4PartColsParts(client);
-    Partition part = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1).get(0);
+    Partition part = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1).get(0);
     client.alter_partitions("nosuch", DB_NAME, TABLE_NAME, Lists.newArrayList(part), new EnvironmentContext());
   }
 
   @Test(expected = InvalidOperationException.class)
   public void testAlterPartitionsWithEnvironmentCtxNoDbName() throws Exception {
     createTable4PartColsParts(client);
-    Partition part = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1).get(0);
-    client.alter_partitions(DEFAULT_CATALOG_NAME, "", TABLE_NAME, Lists.newArrayList(part), new EnvironmentContext());
+    Partition part = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1).get(0);
+    client.alter_partitions("", TABLE_NAME, Lists.newArrayList(part), new EnvironmentContext());
   }
 
   @Test(expected = MetaException.class)
   public void testAlterPartitionsWithEnvironmentCtxNullDbName() throws Exception {
     createTable4PartColsParts(client);
-    Partition part = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1).get(0);
-    client.alter_partitions(DEFAULT_CATALOG_NAME, null, TABLE_NAME, Lists.newArrayList(part), new EnvironmentContext());
+    Partition part = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1).get(0);
+    client.alter_partitions(null, TABLE_NAME, Lists.newArrayList(part), new EnvironmentContext());
   }
 
   @Test(expected = InvalidOperationException.class)
   public void testAlterPartitionsWithEnvironmentCtxNoTblName() throws Exception {
     createTable4PartColsParts(client);
-    Partition part = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1).get(0);
-    client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, "", Lists.newArrayList(part), new EnvironmentContext());
+    Partition part = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1).get(0);
+    client.alter_partitions(DB_NAME, "", Lists.newArrayList(part), new EnvironmentContext());
   }
 
   @Test(expected = MetaException.class)
   public void testAlterPartitionsWithEnvironmentCtxNullTblName() throws Exception {
     createTable4PartColsParts(client);
-    Partition part = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1).get(0);
-    client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, null, Lists.newArrayList(part), new EnvironmentContext());
+    Partition part = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1).get(0);
+    client.alter_partitions(DB_NAME, null, Lists.newArrayList(part), new EnvironmentContext());
   }
 
   @Test(expected = NullPointerException.class)
   public void testAlterPartitionsWithEnvironmentCtxNullPartition() throws Exception {
     createTable4PartColsParts(client);
-    Partition part = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1).get(0);
-    client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(part, null),
+    Partition part = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1).get(0);
+    client.alter_partitions(DB_NAME, TABLE_NAME, Lists.newArrayList(part, null),
             new EnvironmentContext());
   }
 
   @Test(expected = NullPointerException.class)
   public void testAlterPartitionsWithEnvironmentCtxNullPartitions() throws Exception {
     createTable4PartColsParts(client);
-    Partition part = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1).get(0);
-    client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(null, null),
+    Partition part = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1).get(0);
+    client.alter_partitions(DB_NAME, TABLE_NAME, Lists.newArrayList(null, null),
             new EnvironmentContext());
   }
 
@@ -900,8 +899,8 @@ public class TestAlterPartitions extends MetaStoreClientTest {
   public void testAlterPartitionsWithEnvironmentCtxNullPartitionList() throws Exception {
     try {
       createTable4PartColsParts(client);
-      Partition part = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1).get(0);
-      client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, null, new EnvironmentContext());
+      Partition part = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1).get(0);
+      client.alter_partitions(DB_NAME, TABLE_NAME, null, new EnvironmentContext());
       fail("Should have thrown exception");
     } catch (NullPointerException | TTransportException e) {
       //TODO: should not throw different exceptions for different HMS deployment types
@@ -911,28 +910,28 @@ public class TestAlterPartitions extends MetaStoreClientTest {
   @Test(expected = MetaException.class)
   public void testAlterPartitionsWithEnvironmentCtxChangeDbName() throws Exception {
     createTable4PartColsParts(client);
-    List<Partition> partitions = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> partitions = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
     Partition p = partitions.get(3);
     p.setDbName(DB_NAME+"_changed");
-    client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(p), new EnvironmentContext());
+    client.alter_partitions(DB_NAME, TABLE_NAME, Lists.newArrayList(p), new EnvironmentContext());
   }
 
   @Test(expected = MetaException.class)
   public void testAlterPartitionsWithEnvironmentCtxChangeTableName() throws Exception {
     createTable4PartColsParts(client);
-    List<Partition> partitions = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> partitions = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
     Partition p = partitions.get(3);
     p.setTableName(TABLE_NAME+"_changed");
-    client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(p), new EnvironmentContext());
+    client.alter_partitions(DB_NAME, TABLE_NAME, Lists.newArrayList(p), new EnvironmentContext());
   }
 
   @Test(expected = InvalidOperationException.class)
   public void testAlterPartitionsWithEnvironmentCtxChangeValues() throws Exception {
     createTable4PartColsParts(client);
-    List<Partition> partitions = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> partitions = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
     Partition p = partitions.get(3);
     p.setValues(Lists.newArrayList("1", "2", "3"));
-    client.alter_partitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(p), new EnvironmentContext());
+    client.alter_partitions(DB_NAME, TABLE_NAME, Lists.newArrayList(p), new EnvironmentContext());
   }
 
   /**
@@ -950,14 +949,14 @@ public class TestAlterPartitions extends MetaStoreClientTest {
     newValues.addAll(oldValues.subList(0, 3));
     newValues.add(newVal);
 
-    List<Partition> oldParts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> oldParts = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
 
     Partition partToRename = oldParts.get(3);
     partToRename.setValues(newVal);
     makeTestChangesOnPartition(partToRename);
-    client.renamePartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, oldValues.get(3), partToRename);
+    client.renamePartition(DB_NAME, TABLE_NAME, oldValues.get(3), partToRename);
 
-    List<Partition> newParts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> newParts = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
     assertPartitionsHaveCorrectValues(newParts, newValues);
 
 
@@ -970,82 +969,82 @@ public class TestAlterPartitions extends MetaStoreClientTest {
 
 
 
-    assertTrue(client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, oldValues.get(3), (short)-1).isEmpty());
+    assertTrue(client.listPartitions(DB_NAME, TABLE_NAME, oldValues.get(3), (short)-1).isEmpty());
   }
 
   @Test(expected = InvalidOperationException.class)
   public void testRenamePartitionTargetAlreadyExisting() throws Exception {
     List<List<String>> oldValues = createTable4PartColsParts(client);
-    List<Partition> oldParts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> oldParts = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
 
     Partition partToRename = oldParts.get(3);
     partToRename.setValues(Lists.newArrayList("2018", "01", "16"));
-    client.renamePartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, oldValues.get(3), oldParts.get(2));
+    client.renamePartition(DB_NAME, TABLE_NAME, oldValues.get(3), oldParts.get(2));
   }
 
   @Test(expected = InvalidOperationException.class)
   public void testRenamePartitionNoSuchOldPartition() throws Exception {
     List<List<String>> oldValues = createTable4PartColsParts(client);
-    List<Partition> oldParts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> oldParts = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
 
     Partition partToRename = oldParts.get(3);
     partToRename.setValues(Lists.newArrayList("2018", "01", "16"));
-    client.renamePartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList("1", "2", ""), partToRename);
+    client.renamePartition(DB_NAME, TABLE_NAME, Lists.newArrayList("1", "2", ""), partToRename);
   }
 
   @Test(expected = MetaException.class)
   public void testRenamePartitionNullTableInPartition() throws Exception {
     List<List<String>> oldValues = createTable4PartColsParts(client);
-    List<Partition> oldParts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> oldParts = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
 
     Partition partToRename = oldParts.get(3);
     partToRename.setValues(Lists.newArrayList("2018", "01", "16"));
     partToRename.setTableName(null);
-    client.renamePartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList("2017", "11", "27"),
+    client.renamePartition(DB_NAME, TABLE_NAME, Lists.newArrayList("2017", "11", "27"),
             partToRename);
   }
 
   @Test(expected = MetaException.class)
   public void testRenamePartitionNullDbInPartition() throws Exception {
     List<List<String>> oldValues = createTable4PartColsParts(client);
-    List<Partition> oldParts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> oldParts = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
 
     Partition partToRename = oldParts.get(3);
     partToRename.setValues(Lists.newArrayList("2018", "01", "16"));
     partToRename.setDbName(null);
-    client.renamePartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList("2017", "11", "27"),
+    client.renamePartition(DB_NAME, TABLE_NAME, Lists.newArrayList("2017", "11", "27"),
             partToRename);
   }
 
   @Test(expected = InvalidOperationException.class)
   public void testRenamePartitionEmptyOldPartList() throws Exception {
     createTable4PartColsParts(client);
-    List<Partition> oldParts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> oldParts = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
 
     Partition partToRename = oldParts.get(3);
     partToRename.setValues(Lists.newArrayList("2018", "01", "16"));
-    client.renamePartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(), partToRename);
+    client.renamePartition(DB_NAME, TABLE_NAME, Lists.newArrayList(), partToRename);
   }
 
   @Test(expected = InvalidOperationException.class)
   public void testRenamePartitionNullOldPartList() throws Exception {
     createTable4PartColsParts(client);
-    List<Partition> oldParts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> oldParts = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
 
     Partition partToRename = oldParts.get(3);
     partToRename.setValues(Lists.newArrayList("2018", "01", "16"));
-    client.renamePartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, null, partToRename);
+    client.renamePartition(DB_NAME, TABLE_NAME, null, partToRename);
   }
 
   @Test
   public void testRenamePartitionNullNewPart() throws Exception {
     try {
       List<List<String>> oldValues = createTable4PartColsParts(client);
-      List<Partition> oldParts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short) -1);
+      List<Partition> oldParts = client.listPartitions(DB_NAME, TABLE_NAME, (short) -1);
 
       Partition partToRename = oldParts.get(3);
       partToRename.setValues(Lists.newArrayList("2018", "01", "16"));
-      client.renamePartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, oldValues.get(3), null);
+      client.renamePartition(DB_NAME, TABLE_NAME, oldValues.get(3), null);
     } catch (NullPointerException | TTransportException e) {
     }
   }
@@ -1053,7 +1052,7 @@ public class TestAlterPartitions extends MetaStoreClientTest {
   @Test(expected = InvalidOperationException.class)
   public void testRenamePartitionBogusCatalogName() throws Exception {
     List<List<String>> oldValues = createTable4PartColsParts(client);
-    List<Partition> oldParts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> oldParts = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
 
     Partition partToRename = oldParts.get(3);
     partToRename.setValues(Lists.newArrayList("2018", "01", "16"));
@@ -1063,68 +1062,68 @@ public class TestAlterPartitions extends MetaStoreClientTest {
   @Test(expected = InvalidOperationException.class)
   public void testRenamePartitionNoDbName() throws Exception {
     List<List<String>> oldValues = createTable4PartColsParts(client);
-    List<Partition> oldParts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> oldParts = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
 
     Partition partToRename = oldParts.get(3);
     partToRename.setValues(Lists.newArrayList("2018", "01", "16"));
-    client.renamePartition(DEFAULT_CATALOG_NAME, "", TABLE_NAME, oldValues.get(3), partToRename);
+    client.renamePartition("", TABLE_NAME, oldValues.get(3), partToRename);
   }
 
   @Test(expected = InvalidOperationException.class)
   public void testRenamePartitionNoTblName() throws Exception {
     List<List<String>> oldValues = createTable4PartColsParts(client);
-    List<Partition> oldParts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> oldParts = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
 
     Partition partToRename = oldParts.get(3);
     partToRename.setValues(Lists.newArrayList("2018", "01", "16"));
-    client.renamePartition(DEFAULT_CATALOG_NAME, DB_NAME, "", oldValues.get(3), partToRename);
+    client.renamePartition(DB_NAME, "", oldValues.get(3), partToRename);
   }
 
   @Test(expected = MetaException.class)
   public void testRenamePartitionNullDbName() throws Exception {
     List<List<String>> oldValues = createTable4PartColsParts(client);
-    List<Partition> oldParts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> oldParts = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
 
     Partition partToRename = oldParts.get(3);
     partToRename.setValues(Lists.newArrayList("2018", "01", "16"));
-    client.renamePartition(DEFAULT_CATALOG_NAME, null, TABLE_NAME, oldValues.get(3), partToRename);
+    client.renamePartition(null, TABLE_NAME, oldValues.get(3), partToRename);
   }
 
   @Test(expected = MetaException.class)
   public void testRenamePartitionNullTblName() throws Exception {
     List<List<String>> oldValues = createTable4PartColsParts(client);
-    List<Partition> oldParts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> oldParts = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
 
     Partition partToRename = oldParts.get(3);
     partToRename.setValues(Lists.newArrayList("2018", "01", "16"));
-    client.renamePartition(DEFAULT_CATALOG_NAME, DB_NAME, null, oldValues.get(3), partToRename);
+    client.renamePartition(DB_NAME, null, oldValues.get(3), partToRename);
   }
 
   @Test(expected = MetaException.class)
   public void testRenamePartitionChangeTblName() throws Exception {
     List<List<String>> oldValues = createTable4PartColsParts(client);
-    List<Partition> oldParts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> oldParts = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
 
     Partition partToRename = oldParts.get(3);
     partToRename.setValues(Lists.newArrayList("2018", "01", "16"));
     partToRename.setTableName(TABLE_NAME + "_2");
-    client.renamePartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, oldValues.get(3), partToRename);
+    client.renamePartition(DB_NAME, TABLE_NAME, oldValues.get(3), partToRename);
   }
 
   @Test(expected = MetaException.class)
   public void testRenamePartitionChangeDbName() throws Exception {
     List<List<String>> oldValues = createTable4PartColsParts(client);
-    List<Partition> oldParts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short)-1);
+    List<Partition> oldParts = client.listPartitions(DB_NAME, TABLE_NAME, (short)-1);
 
     Partition partToRename = oldParts.get(3);
     partToRename.setValues(Lists.newArrayList("2018", "01", "16"));
     partToRename.setDbName(DB_NAME + "_2");
-    client.renamePartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, oldValues.get(3), partToRename);
+    client.renamePartition(DB_NAME, TABLE_NAME, oldValues.get(3), partToRename);
   }
 
   @Test(expected = InvalidOperationException.class)
   public void testRenamePartitionNoTable() throws Exception {
-    client.renamePartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList("2018", "01", "16"),
+    client.renamePartition(DB_NAME, TABLE_NAME, Lists.newArrayList("2018", "01", "16"),
             new Partition());
   }
 

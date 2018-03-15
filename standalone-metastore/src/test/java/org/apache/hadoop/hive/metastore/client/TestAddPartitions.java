@@ -87,7 +87,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
     client = metaStore.getClient();
 
     // Clean up the database
-    client.dropDatabase(DEFAULT_CATALOG_NAME, DB_NAME, true, true, true);
+    client.dropDatabase(DB_NAME, true, true, true);
     metaStore.cleanWarehouseDirs();
     Database db = new DatabaseBuilder().
         setName(DB_NAME).
@@ -179,43 +179,6 @@ public class TestAddPartitions extends MetaStoreClientTest {
     client.dropCatalog(catName);
   }
 
-  @SuppressWarnings("deprecation")
-  @Test
-  public void deprecatedCalls() throws TException {
-    String tableName = "table_for_deprecated_calls";
-    Table table = new TableBuilder()
-        .setTableName(tableName)
-        .addCol("id", "int")
-        .addCol("name", "string")
-        .addPartCol("partcol", "string")
-        .build();
-    client.createTable(table);
-
-    Partition[] parts = new Partition[5];
-    for (int i = 0; i < 5; i++) {
-      parts[i] = new PartitionBuilder()
-          .setDbName(DEFAULT_DATABASE_NAME)
-          .setTableName(tableName)
-          .addCol("id", "int")
-          .addCol("name", "string")
-          .addValue("a" + i)
-          .build();
-    }
-    client.add_partition(parts[0]);
-    Assert.assertEquals(2, client.add_partitions(Arrays.asList(parts[1], parts[2])));
-    client.add_partitions(Arrays.asList(parts), true, false);
-
-    for (int i = 0; i < 5; i++) {
-      Partition fetched = client.getPartition(DEFAULT_DATABASE_NAME, tableName,
-          Collections.singletonList("a" + i));
-      Assert.assertEquals(DEFAULT_CATALOG_NAME, fetched.getCatName());
-      Assert.assertEquals(DEFAULT_DATABASE_NAME, fetched.getDbName());
-      Assert.assertEquals(tableName, fetched.getTableName());
-    }
-
-    client.dropTable(DEFAULT_DATABASE_NAME, tableName);
-  }
-
   @Test(expected = InvalidObjectException.class)
   public void noSuchCatalog() throws TException {
     String tableName = "table_for_no_such_catalog";
@@ -253,7 +216,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
     client.add_partition(partition);
 
     // Check if the default values are set for all unfilled attributes
-    Partition part = client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, "year=2017");
+    Partition part = client.getPartition(DB_NAME, TABLE_NAME, "year=2017");
     Assert.assertNotNull(part);
     Assert.assertEquals(TABLE_NAME, part.getTableName());
     Assert.assertEquals(DB_NAME, part.getDbName());
@@ -275,7 +238,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
     Partition partition = buildPartition(Lists.newArrayList("APRIL"), getMonthPartCol(), 1);
     client.add_partition(partition);
 
-    Partition part = client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, "month=APRIL");
+    Partition part = client.getPartition(DB_NAME, TABLE_NAME, "month=APRIL");
     Assert.assertNotNull(part);
     Assert.assertEquals(TABLE_NAME, part.getTableName());
     Assert.assertEquals(DB_NAME, part.getDbName());
@@ -347,7 +310,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
     client.add_partition(partition1);
     client.add_partition(partition2);
 
-    Partition part = client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, "month=MAY");
+    Partition part = client.getPartition(DB_NAME, TABLE_NAME, "month=MAY");
     Assert.assertEquals(DEFAULT_PARAM_VALUE + "2",
         part.getParameters().get(DEFAULT_PARAM_KEY + "2"));
     Assert.assertEquals(metaStore.getWarehouseRoot() + "/" + TABLE_NAME + "/month=MAY",
@@ -374,7 +337,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
     // TODO: Not sure that this is the correct behavior. It doesn't make sense to create the
     // partition without column info. This should be investigated later.
     Partition part =
-        client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(DEFAULT_YEAR_VALUE));
+        client.getPartition(DB_NAME, TABLE_NAME, Lists.newArrayList(DEFAULT_YEAR_VALUE));
     Assert.assertNotNull(part);
     Assert.assertNull(part.getSd().getCols());
   }
@@ -390,7 +353,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
     // TODO: Not sure that this is the correct behavior. It doesn't make sense to create the
     // partition without column info. This should be investigated later.
     Partition part =
-        client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(DEFAULT_YEAR_VALUE));
+        client.getPartition(DB_NAME, TABLE_NAME, Lists.newArrayList(DEFAULT_YEAR_VALUE));
     Assert.assertNotNull(part);
     Assert.assertTrue(part.getSd().getCols().isEmpty());
   }
@@ -424,7 +387,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
     // TODO: Not sure that this is the correct behavior. It doesn't make sense to create the
     // partition with column with invalid type. This should be investigated later.
     Partition part =
-        client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(DEFAULT_YEAR_VALUE));
+        client.getPartition(DB_NAME, TABLE_NAME, Lists.newArrayList(DEFAULT_YEAR_VALUE));
     Assert.assertNotNull(part);
     Assert.assertEquals("xyz", part.getSd().getCols().get(0).getType());
   }
@@ -444,7 +407,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
     createTable(DB_NAME, TABLE_NAME, metaStore.getWarehouseRoot() + "/addparttest2");
     Partition partition = buildPartition(DB_NAME, TABLE_NAME, DEFAULT_YEAR_VALUE, null);
     client.add_partition(partition);
-    Partition part = client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, "year=2017");
+    Partition part = client.getPartition(DB_NAME, TABLE_NAME, "year=2017");
     Assert.assertEquals(metaStore.getWarehouseRoot() + "/addparttest2/year=2017",
         part.getSd().getLocation());
     Assert.assertTrue(metaStore.isPathExists(new Path(part.getSd().getLocation())));
@@ -456,7 +419,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
     createTable(DB_NAME, TABLE_NAME, metaStore.getWarehouseRoot() + "/addparttest3");
     Partition partition = buildPartition(DB_NAME, TABLE_NAME, DEFAULT_YEAR_VALUE, "");
     client.add_partition(partition);
-    Partition part = client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, "year=2017");
+    Partition part = client.getPartition(DB_NAME, TABLE_NAME, "year=2017");
     Assert.assertEquals(metaStore.getWarehouseRoot() + "/addparttest3/year=2017",
         part.getSd().getLocation());
     Assert.assertTrue(metaStore.isPathExists(new Path(part.getSd().getLocation())));
@@ -468,7 +431,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
     createTable(DB_NAME, TABLE_NAME, null);
     Partition partition = buildPartition(DB_NAME, TABLE_NAME, DEFAULT_YEAR_VALUE, null);
     client.add_partition(partition);
-    Partition part = client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, "year=2017");
+    Partition part = client.getPartition(DB_NAME, TABLE_NAME, "year=2017");
     Assert.assertEquals(
         metaStore.getWarehouseRoot() + "/test_partition_db.db/test_partition_table/year=2017",
         part.getSd().getLocation());
@@ -502,7 +465,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
     Partition partition = buildPartition(DB_NAME, tableName, DEFAULT_YEAR_VALUE, partitionLocation);
     client.add_partition(partition);
     Partition resultPart =
-        client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, tableName, Lists.newArrayList(DEFAULT_YEAR_VALUE));
+        client.getPartition(DB_NAME, tableName, Lists.newArrayList(DEFAULT_YEAR_VALUE));
     Assert.assertNotNull(resultPart);
     Assert.assertNotNull(resultPart.getSd());
     Assert.assertEquals(partitionLocation, resultPart.getSd().getLocation());
@@ -516,7 +479,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
     Partition partition = buildPartition(DB_NAME, tableName, DEFAULT_YEAR_VALUE, null);
     client.add_partition(partition);
     Partition resultPart =
-        client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, tableName, Lists.newArrayList(DEFAULT_YEAR_VALUE));
+        client.getPartition(DB_NAME, tableName, Lists.newArrayList(DEFAULT_YEAR_VALUE));
     Assert.assertNotNull(resultPart);
     Assert.assertNotNull(resultPart.getSd());
     String defaultTableLocation = metaStore.getWarehouseRoot() + "/" + DB_NAME + ".db/" + tableName;
@@ -572,7 +535,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
         .build();
 
     client.add_partition(partition);
-    Partition part = client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, "year=1000");
+    Partition part = client.getPartition(DB_NAME, TABLE_NAME, "year=1000");
     Assert.assertNotNull(part);
     Assert.assertEquals(TABLE_NAME, part.getTableName());
     Assert.assertEquals("1000", part.getValues().get(0));
@@ -629,7 +592,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
     createTable();
     Partition partition = buildPartition(DB_NAME, TABLE_NAME, "");
     client.add_partition(partition);
-    List<String> partitionNames = client.listPartitionNames(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, (short) 10);
+    List<String> partitionNames = client.listPartitionNames(DB_NAME, TABLE_NAME, (short) 10);
     Assert.assertNotNull(partitionNames);
     Assert.assertTrue(partitionNames.size() == 1);
     Assert.assertEquals("year=__HIVE_DEFAULT_PARTITION__", partitionNames.get(0));
@@ -708,7 +671,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
 
     // Check if the default values are set for all unfilled attributes
     List<Partition> parts =
-        client.getPartitionsByNames(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList("year=2017"));
+        client.getPartitionsByNames(DB_NAME, TABLE_NAME, Lists.newArrayList("year=2017"));
     Assert.assertEquals(1, parts.size());
     Partition part = parts.get(0);
     Assert.assertNotNull(part);
@@ -779,7 +742,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
     } catch (MetaException e) {
       // Expected exception
     }
-    client.dropDatabase(DEFAULT_CATALOG_NAME, "parttestdb2", true, true, true);
+    client.dropDatabase("parttestdb2", true, true, true);
   }
 
   @Test(expected = MetaException.class)
@@ -813,7 +776,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
     partitions.add(partition3);
     client.add_partitions(partitions);
 
-    List<String> parts = client.listPartitionNames(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, MAX);
+    List<String> parts = client.listPartitionNames(DB_NAME, TABLE_NAME, MAX);
     Assert.assertEquals(3, parts.size());
     Assert.assertTrue(parts.contains("year=this"));
     Assert.assertTrue(parts.contains("year=next"));
@@ -941,7 +904,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
       // Expected exception
     }
 
-    List<Partition> parts = client.listPartitions(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, MAX);
+    List<Partition> parts = client.listPartitions(DB_NAME, TABLE_NAME, MAX);
     Assert.assertNotNull(parts);
     Assert.assertTrue(parts.isEmpty());
     // TODO: This does not work correctly. None of the partitions is created, but the folder
@@ -977,7 +940,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
     // TODO: Not sure that this is the correct behavior. It doesn't make sense to create the
     // partition without column info. This should be investigated later.
     Partition part =
-        client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(DEFAULT_YEAR_VALUE));
+        client.getPartition(DB_NAME, TABLE_NAME, Lists.newArrayList(DEFAULT_YEAR_VALUE));
     Assert.assertNotNull(part);
     Assert.assertNull(part.getSd().getCols());
   }
@@ -993,7 +956,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
     // TODO: Not sure that this is the correct behavior. It doesn't make sense to create the
     // partition without column info. This should be investigated later.
     Partition part =
-        client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(DEFAULT_YEAR_VALUE));
+        client.getPartition(DB_NAME, TABLE_NAME, Lists.newArrayList(DEFAULT_YEAR_VALUE));
     Assert.assertNotNull(part);
     Assert.assertTrue(part.getSd().getCols().isEmpty());
   }
@@ -1027,7 +990,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
     // TODO: Not sure that this is the correct behavior. It doesn't make sense to create the
     // partition with column with invalid type. This should be investigated later.
     Partition part =
-        client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, Lists.newArrayList(DEFAULT_YEAR_VALUE));
+        client.getPartition(DB_NAME, TABLE_NAME, Lists.newArrayList(DEFAULT_YEAR_VALUE));
     Assert.assertNotNull(part);
     Assert.assertEquals("xyz", part.getSd().getCols().get(0).getType());
   }
@@ -1053,11 +1016,11 @@ public class TestAddPartitions extends MetaStoreClientTest {
     partitions.add(partition2);
     client.add_partitions(partitions);
 
-    Partition part1 = client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, "year=2017");
+    Partition part1 = client.getPartition(DB_NAME, TABLE_NAME, "year=2017");
     Assert.assertEquals(metaStore.getWarehouseRoot() + "/addparttest2/year=2017",
         part1.getSd().getLocation());
     Assert.assertTrue(metaStore.isPathExists(new Path(part1.getSd().getLocation())));
-    Partition part2 = client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, "year=2016");
+    Partition part2 = client.getPartition(DB_NAME, TABLE_NAME, "year=2016");
     Assert.assertEquals(metaStore.getWarehouseRoot() + "/addparttest2/year=2016",
         part2.getSd().getLocation());
     Assert.assertTrue(metaStore.isPathExists(new Path(part2.getSd().getLocation())));
@@ -1072,7 +1035,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
     partitions.add(partition);
     client.add_partitions(partitions);
 
-    Partition part = client.getPartition(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, "year=2017");
+    Partition part = client.getPartition(DB_NAME, TABLE_NAME, "year=2017");
     Assert.assertEquals(
         metaStore.getWarehouseRoot() + "/test_partition_db.db/test_partition_table/year=2017",
         part.getSd().getLocation());
@@ -1110,7 +1073,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
     List<Partition> partitions = Lists.newArrayList(partition1, partition2);
     client.add_partitions(partitions);
 
-    List<Partition> resultParts = client.getPartitionsByNames(DEFAULT_CATALOG_NAME, DB_NAME, tableName,
+    List<Partition> resultParts = client.getPartitionsByNames(DB_NAME, tableName,
         Lists.newArrayList("year=2017", "year=2018"));
     Assert.assertNotNull(resultParts);
     Assert.assertEquals(2, resultParts.size());
@@ -1133,7 +1096,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
     List<Partition> partitions = Lists.newArrayList(partition1, partition2);
     client.add_partitions(partitions);
 
-    List<Partition> resultParts = client.getPartitionsByNames(DEFAULT_CATALOG_NAME, DB_NAME, tableName,
+    List<Partition> resultParts = client.getPartitionsByNames(DB_NAME, tableName,
         Lists.newArrayList("year=2017", "year=2018"));
     Assert.assertNotNull(resultParts);
     Assert.assertEquals(2, resultParts.size());
@@ -1210,7 +1173,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
     partitions.add(partition);
     client.add_partitions(partitions);
 
-    List<String> partitionNames = client.listPartitionNames(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, MAX);
+    List<String> partitionNames = client.listPartitionNames(DB_NAME, TABLE_NAME, MAX);
     Assert.assertNotNull(partitionNames);
     Assert.assertTrue(partitionNames.size() == 1);
     Assert.assertEquals("year=__HIVE_DEFAULT_PARTITION__", partitionNames.get(0));
@@ -1319,7 +1282,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
     } catch (MetaException e) {
       // Expected exception
     }
-    client.dropDatabase(DEFAULT_CATALOG_NAME, "parttestdb2", true, true, true);
+    client.dropDatabase("parttestdb2", true, true, true);
   }
 
   @Test(expected = MetaException.class)
@@ -1373,7 +1336,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
     partitions.add(partition3);
     List<Partition> addedPartitions = client.add_partitions(partitions, true, true);
     Assert.assertEquals(2, addedPartitions.size());
-    List<String> partitionNames = client.listPartitionNames(DEFAULT_CATALOG_NAME, DB_NAME, TABLE_NAME, MAX);
+    List<String> partitionNames = client.listPartitionNames(DB_NAME, TABLE_NAME, MAX);
     Assert.assertEquals(3, partitionNames.size());
     Assert.assertTrue(partitionNames.contains("year=2015"));
     Assert.assertTrue(partitionNames.contains("year=2016"));
@@ -1418,7 +1381,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
         .setLocation(location)
         .build();
     client.createTable(table);
-    return client.getTable(DEFAULT_CATALOG_NAME, dbName, tableName);
+    return client.getTable(dbName, tableName);
   }
 
   private void createExternalTable(String tableName, String location) throws Exception {
@@ -1497,7 +1460,7 @@ public class TestAddPartitions extends MetaStoreClientTest {
   private void verifyPartition(Table table, String name, List<String> values, int index)
       throws Exception {
 
-    Partition part = client.getPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), name);
+    Partition part = client.getPartition(table.getDbName(), table.getTableName(), name);
     Assert.assertNotNull("The partition should not be null.", part);
     Assert.assertEquals("The table name in the partition is not correct.", table.getTableName(),
         part.getTableName());

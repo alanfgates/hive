@@ -27,6 +27,7 @@ import java.util.Map.Entry;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
+import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.ValidTxnList;
 import org.apache.hadoop.hive.common.ValidTxnWriteIdList;
@@ -125,6 +126,7 @@ import org.apache.hadoop.hive.metastore.api.WMResourcePlan;
 import org.apache.hadoop.hive.metastore.api.WMTrigger;
 import org.apache.hadoop.hive.metastore.api.WMValidateResourcePlanResponse;
 import org.apache.hadoop.hive.metastore.partition.spec.PartitionSpecProxy;
+import org.apache.hadoop.hive.metastore.utils.MetaStoreUtils;
 import org.apache.hadoop.hive.metastore.utils.ObjectPair;
 import org.apache.thrift.TException;
 
@@ -245,44 +247,39 @@ public interface IMetaStoreClient {
   }
 
   /**
-   * Get the names of all databases in the MetaStore that match the given pattern.
-   * @param databasePattern
+   * Get the names of all databases in the default catalog that match the given pattern.
+   * @param databasePattern pattern for the database name to patch
    * @return List of database names.
-   * @throws MetaException
-   * @throws TException
-   * @deprecated Use {@link #getDatabases(String, String)}
+   * @throws MetaException error accessing RDBMS.
+   * @throws TException thrift transport error
    */
-  @Deprecated
   List<String> getDatabases(String databasePattern) throws MetaException, TException;
 
   /**
    * Get all databases in a catalog whose names match a pattern.
-   * @param catName  catalog name.  Can be null, in which case * {@link Warehouse#DEFAULT_CATALOG_NAME} is assumed.
+   * @param catName  catalog name.  Can be null, in which case the default catalog is assumed.
    * @param databasePattern pattern for the database name to match
    * @return list of database names
-   * @throws MetaException something went wrong, usually in the database.
-   * @throws TException general thrift exception.
+   * @throws MetaException error accessing RDBMS.
+   * @throws TException thrift transport error
    */
   List<String> getDatabases(String catName, String databasePattern)
       throws MetaException, TException;
 
   /**
    * Get the names of all databases in the MetaStore.
-   * @return List of database names.
-   * @throws MetaException
-   * @throws TException
-   * @deprecated Use {@link #getAllDatabases(String)}
+   * @return List of database names in the default catalog.
+   * @throws MetaException error accessing RDBMS.
+   * @throws TException thrift transport error
    */
-  @Deprecated
   List<String> getAllDatabases() throws MetaException, TException;
 
   /**
    * Get all databases in a catalog.
-   * @param catName catalog name.  Can be null, in which case
-   * {@link Warehouse#DEFAULT_CATALOG_NAME} is assumed.
+   * @param catName catalog name.  Can be null, in which case the default catalog is assumed.
    * @return list of all database names
-   * @throws MetaException something went wrong, usually in the database.
-   * @throws TException general thrift exception.
+   * @throws MetaException error accessing RDBMS.
+   * @throws TException thrift transport error
    */
   List<String> getAllDatabases(String catName) throws MetaException, TException;
 
@@ -293,11 +290,9 @@ public interface IMetaStoreClient {
    * @param tablePattern pattern for table name to conform to
    * @return List of table names.
    * @throws MetaException error fetching information from the RDBMS
-   * @throws TException general thrift error
+   * @throws TException thrift transport error
    * @throws UnknownDBException indicated database to search in does not exist.
-   * @deprecated Use {@link #getTables(String, String, String)}
    */
-  @Deprecated
   List<String> getTables(String dbName, String tablePattern)
       throws MetaException, TException, UnknownDBException;
 
@@ -326,9 +321,7 @@ public interface IMetaStoreClient {
    * @throws MetaException error fetching information from the RDBMS
    * @throws TException thrift transport error
    * @throws UnknownDBException indicated database does not exist.
-   * @deprecated Use {@link #getTables(String, String, String, TableType)}.
    */
-  @Deprecated
   List<String> getTables(String dbName, String tablePattern, TableType tableType)
       throws MetaException, TException, UnknownDBException;
 
@@ -345,6 +338,17 @@ public interface IMetaStoreClient {
    * @throws UnknownDBException indicated database does not exist.
    */
   List<String> getTables(String catName, String dbName, String tablePattern, TableType tableType)
+      throws MetaException, TException, UnknownDBException;
+
+  /**
+   * Get materialized views that have rewriting enabled.  This will use the default catalog.
+   * @param dbName Name of the database to fetch materialized views from.
+   * @return List of materialized view names.
+   * @throws MetaException error fetching from the RDBMS
+   * @throws TException thrift transport error
+   * @throws UnknownDBException no such database
+   */
+  List<String> getMaterializedViewsForRewriting(String dbName)
       throws MetaException, TException, UnknownDBException;
 
   /**
@@ -370,9 +374,7 @@ public interface IMetaStoreClient {
    * @throws MetaException something went wrong with the fetch from the RDBMS
    * @throws TException thrift transport error
    * @throws UnknownDBException No databases match the provided pattern.
-   * @deprecated Use {@link #getTableMeta(String, String, String, List)}.
    */
-  @Deprecated
   List<TableMeta> getTableMeta(String dbPatterns, String tablePatterns, List<String> tableTypes)
       throws MetaException, TException, UnknownDBException;
 
@@ -400,9 +402,7 @@ public interface IMetaStoreClient {
    * @throws MetaException something went wrong with the fetch from the RDBMS
    * @throws TException thrift transport error
    * @throws UnknownDBException No databases match the provided pattern.
-   * @deprecated Use {@link #getAllTables(String, String)}.
    */
-  @Deprecated
   List<String> getAllTables(String dbName) throws MetaException, TException, UnknownDBException;
 
   /**
@@ -455,9 +455,7 @@ public interface IMetaStoreClient {
    * @throws InvalidOperationException invalid filter
    * @throws UnknownDBException no such database
    * @throws TException thrift transport error
-   * @deprecated Use {@link #listTableNamesByFilter(String, String, String, int)}.
    */
-  @Deprecated
   List<String> listTableNamesByFilter(String dbName, String filter, short maxTables)
       throws TException, InvalidOperationException, UnknownDBException;
 
@@ -521,30 +519,50 @@ public interface IMetaStoreClient {
    *           The table wasn't found.
    * @throws TException
    *           A thrift communication error occurred
-   * @deprecated Use {@link #dropTable(String, String, String, boolean, boolean)}.
    *
    */
-  @Deprecated
   void dropTable(String dbname, String tableName, boolean deleteData,
       boolean ignoreUnknownTab) throws MetaException, TException,
       NoSuchObjectException;
 
   /**
+   * Drop the table.
+   *
+   * @param dbname
+   *          The database for this table
+   * @param tableName
+   *          The table to drop
+   * @param deleteData
+   *          Should we delete the underlying data
+   * @param ignoreUnknownTab
+   *          don't throw if the requested table doesn't exist
    * @param ifPurge
    *          completely purge the table (skipping trash) while removing data from warehouse
-   * @see #dropTable(String, String, boolean, boolean)
-   * @deprecated Use {@link #dropTable(String, String, String, boolean, boolean, boolean)}.
+   * @throws MetaException
+   *           Could not drop table properly.
+   * @throws NoSuchObjectException
+   *           The table wasn't found.
+   * @throws TException
+   *           A thrift communication error occurred
    */
-  @Deprecated
   void dropTable(String dbname, String tableName, boolean deleteData,
       boolean ignoreUnknownTab, boolean ifPurge) throws MetaException, TException,
       NoSuchObjectException;
 
   /**
-   * @see #dropTable(String, String, boolean, boolean)
-   * @deprecated Use {@link #dropTable(String, String, String)}.
+   * Drop the table.
+   *
+   * @param dbname
+   *          The database for this table
+   * @param tableName
+   *          The table to drop
+   * @throws MetaException
+   *           Could not drop table properly.
+   * @throws NoSuchObjectException
+   *           The table wasn't found.
+   * @throws TException
+   *           A thrift communication error occurred
    */
-  @Deprecated
   void dropTable(String dbname, String tableName)
       throws MetaException, TException, NoSuchObjectException;
 
@@ -613,9 +631,7 @@ public interface IMetaStoreClient {
    *          List of partitions to truncate. NULL will truncate the whole table/all partitions
    * @throws MetaException Failure in the RDBMS or storage
    * @throws TException Thrift transport exception
-   * @deprecated Use {@link #truncateTable(String, String, String, List)}.
    */
-  @Deprecated
   void truncateTable(String dbName, String tableName, List<String> partNames) throws MetaException, TException;
 
   /**
@@ -643,16 +659,14 @@ public interface IMetaStoreClient {
   CmRecycleResponse recycleDirToCmPath(CmRecycleRequest request) throws MetaException, TException;
 
   /**
-   * Check whether a table exists.
+   * Check whether a table exists in the default catalog.
    * @param databaseName database name
    * @param tableName table name
    * @return true if the indicated table exists, false if not
    * @throws MetaException error fetching form the RDBMS
    * @throws TException thrift transport error
    * @throws UnknownDBException the indicated database does not exist.
-   * @deprecated Use {@link #tableExists(String, String, String)}.
    */
-  @Deprecated
   boolean tableExists(String databaseName, String tableName)
       throws MetaException, TException, UnknownDBException;
 
@@ -670,15 +684,13 @@ public interface IMetaStoreClient {
       throws MetaException, TException, UnknownDBException;
 
   /**
-   * Get a Database Object
+   * Get a Database Object in the default catalog
    * @param databaseName  name of the database to fetch
    * @return the database
    * @throws NoSuchObjectException The database does not exist
    * @throws MetaException Could not fetch the database
    * @throws TException A thrift communication error occurred
-   * @deprecated Use {@link #getDatabase(String, String)}
    */
-  @Deprecated
   Database getDatabase(String databaseName)
       throws NoSuchObjectException, MetaException, TException;
 
@@ -696,7 +708,7 @@ public interface IMetaStoreClient {
       throws NoSuchObjectException, MetaException, TException;
 
   /**
-   * Get a table object.
+   * Get a table object in the default catalog.
    *
    * @param dbName
    *          The database the table is located in.
@@ -709,9 +721,7 @@ public interface IMetaStoreClient {
    *           A thrift communication error occurred
    * @throws NoSuchObjectException
    *           In case the table wasn't found.
-   * @deprecated Use {@link #getTable(String, String, String)}.
    */
-  @Deprecated
   Table getTable(String dbName, String tableName) throws MetaException,
       TException, NoSuchObjectException;
 
@@ -745,9 +755,7 @@ public interface IMetaStoreClient {
    *          A thrift communication error occurred
    * @throws MetaException
    *          Any other errors
-   * @deprecated Use {@link #getTableObjectsByName(String, String, List)}.
    */
-  @Deprecated
   List<Table> getTableObjectsByName(String dbName, List<String> tableNames)
       throws MetaException, InvalidOperationException, UnknownDBException, TException;
 
@@ -783,9 +791,7 @@ public interface IMetaStoreClient {
 
   /**
    * Updates the creation metadata for the materialized view.
-   * @deprecated Use {@link #updateCreationMetadata(String, String, String, CreationMetadata)}
    */
-  @Deprecated
   void updateCreationMetadata(String dbName, String tableName, CreationMetadata cm)
       throws MetaException, TException;
 
@@ -807,9 +813,7 @@ public interface IMetaStoreClient {
    * @throws AlreadyExistsException a partition with these values already exists
    * @throws MetaException error accessing the RDBMS
    * @throws TException thrift transport error
-   * @deprecated Use {@link #appendPartition(String, String, String, List)}.
    */
-  @Deprecated
   Partition appendPartition(String dbName, String tableName, List<String> partVals)
       throws InvalidObjectException, AlreadyExistsException, MetaException, TException;
 
@@ -840,9 +844,7 @@ public interface IMetaStoreClient {
    * @throws AlreadyExistsException Partition of this name already exists.
    * @throws MetaException error accessing the RDBMS
    * @throws TException thrift transport error
-   * @deprecated Use {@link #appendPartition(String, String, String, String)}.
    */
-  @Deprecated
   Partition appendPartition(String dbName, String tableName, String name)
       throws InvalidObjectException, AlreadyExistsException, MetaException, TException;
 
@@ -922,6 +924,7 @@ public interface IMetaStoreClient {
       throws InvalidObjectException, AlreadyExistsException, MetaException, TException;
 
   /**
+   * Get a partition.
    * @param dbName database name
    * @param tblName table name
    * @param partVals partition values for this partition, must be in the same order as the
@@ -930,13 +933,12 @@ public interface IMetaStoreClient {
    * @throws NoSuchObjectException no such partition
    * @throws MetaException error access the RDBMS.
    * @throws TException thrift transport error
-   * @deprecated Use {@link #getPartition(String, String, String, List)}
    */
-  @Deprecated
   Partition getPartition(String dbName, String tblName, List<String> partVals)
       throws NoSuchObjectException, MetaException, TException;
 
   /**
+   * Get a partition.
    * @param catName catalog name
    * @param dbName database name
    * @param tblName table name
@@ -949,6 +951,7 @@ public interface IMetaStoreClient {
    */
   Partition getPartition(String catName, String dbName, String tblName, List<String> partVals)
       throws NoSuchObjectException, MetaException, TException;
+
   /**
    * Move a partition from one table to another
    * @param partitionSpecs key value pairs that describe the partition to be moved.
@@ -961,9 +964,7 @@ public interface IMetaStoreClient {
    * @throws NoSuchObjectException no such table, for either source or destination table
    * @throws InvalidObjectException error in partition specifications
    * @throws TException thrift transport error
-   * @deprecated Use {@link #exchange_partition(Map, String, String, String, String, String, String)}
    */
-  @Deprecated
   Partition exchange_partition(Map<String, String> partitionSpecs,
       String sourceDb, String sourceTable, String destdb,
       String destTableName) throws MetaException, NoSuchObjectException,
@@ -1032,19 +1033,19 @@ public interface IMetaStoreClient {
       throws MetaException, NoSuchObjectException, InvalidObjectException, TException;
 
   /**
+   * Get a Partition by name.
    * @param dbName database name.
    * @param tblName table name.
    * @param name - partition name i.e. 'ds=2010-02-03/ts=2010-02-03 18%3A16%3A01'
    * @return the partition object
    * @throws MetaException error access the RDBMS.
    * @throws TException thrift transport error
-   * @deprecated Use {@link #getPartition(String, String, String, String)}.
    */
-  @Deprecated
   Partition getPartition(String dbName, String tblName, String name)
       throws MetaException, UnknownTableException, NoSuchObjectException, TException;
 
   /**
+   * Get a Partition by name.
    * @param catName catalog name.
    * @param dbName database name.
    * @param tblName table name.
@@ -1058,6 +1059,7 @@ public interface IMetaStoreClient {
 
 
   /**
+   * Get a Partition along with authorization information.
    * @param dbName database name
    * @param tableName table name
    * @param pvals partition values, must be in the same order as the tables partition keys
@@ -1068,14 +1070,13 @@ public interface IMetaStoreClient {
    * @throws UnknownTableException no such table
    * @throws NoSuchObjectException no such partition
    * @throws TException thrift transport error
-   * @deprecated Use {@link #getPartitionWithAuthInfo(String, String, String, List, String, List)}
    */
-  @Deprecated
   Partition getPartitionWithAuthInfo(String dbName, String tableName,
       List<String> pvals, String userName, List<String> groupNames)
       throws MetaException, UnknownTableException, NoSuchObjectException, TException;
 
   /**
+   * Get a Partition along with authorization information.
    * @param catName catalog name
    * @param dbName database name
    * @param tableName table name
@@ -1093,6 +1094,7 @@ public interface IMetaStoreClient {
       throws MetaException, UnknownTableException, NoSuchObjectException, TException;
 
   /**
+   * Get a list of partittions for a table.
    * @param db_name database name
    * @param tbl_name table name
    * @param max_parts maximum number of parts to return, -1 for all
@@ -1100,13 +1102,12 @@ public interface IMetaStoreClient {
    * @throws NoSuchObjectException No such table.
    * @throws MetaException error accessing RDBMS.
    * @throws TException thrift transport error
-   * @deprecated Use {@link #listPartitions(String, String, String, int)}.
    */
-  @Deprecated
   List<Partition> listPartitions(String db_name, String tbl_name, short max_parts)
       throws NoSuchObjectException, MetaException, TException;
 
   /**
+   * Get a list of partittions for a table.
    * @param catName catalog name
    * @param db_name database name
    * @param tbl_name table name
@@ -1126,9 +1127,7 @@ public interface IMetaStoreClient {
    * @param maxParts maximum number of partitions to return, or -1 for all
    * @return a PartitionSpecProxy
    * @throws TException thrift transport error
-   * @deprecated Use {@link #listPartitionSpecs(String, String, String, int)}
    */
-  @Deprecated
   PartitionSpecProxy listPartitionSpecs(String dbName, String tableName, int maxParts)
     throws TException;
 
@@ -1155,9 +1154,7 @@ public interface IMetaStoreClient {
    * @throws NoSuchObjectException no such table.
    * @throws MetaException error accessing the database or processing the partition values.
    * @throws TException thrift transport error.
-   * @deprecated Use {@link #listPartitions(String, String, String, List, int)}
    */
-  @Deprecated
   List<Partition> listPartitions(String db_name, String tbl_name,
       List<String> part_vals, short max_parts) throws NoSuchObjectException, MetaException, TException;
 
@@ -1187,9 +1184,7 @@ public interface IMetaStoreClient {
    * @throws NoSuchObjectException No such table.
    * @throws MetaException Error accessing the RDBMS.
    * @throws TException thrift transport error
-   * @deprecated Use {@link #listPartitionNames(String, String, String, int)}.
    */
-  @Deprecated
   List<String> listPartitionNames(String db_name, String tbl_name,
       short max_parts) throws NoSuchObjectException, MetaException, TException;
 
@@ -1220,9 +1215,7 @@ public interface IMetaStoreClient {
    * @throws MetaException error accessing the RDBMS.
    * @throws TException thrift transport error.
    * @throws NoSuchObjectException no such table.
-   * @deprecated Use {@link #listPartitionNames(String, String, String, List, int)}.
    */
-  @Deprecated
   List<String> listPartitionNames(String db_name, String tbl_name,
       List<String> part_vals, short max_parts)
       throws MetaException, TException, NoSuchObjectException;
@@ -1268,9 +1261,7 @@ public interface IMetaStoreClient {
    * @throws MetaException error accessing RDBMS or processing the filter
    * @throws NoSuchObjectException no such table
    * @throws TException thrift transport error
-   * @deprecated Use {@link #getNumPartitionsByFilter(String, String, String, String)}
    */
-  @Deprecated
   int getNumPartitionsByFilter(String dbName, String tableName,
                                String filter) throws MetaException, NoSuchObjectException, TException;
 
@@ -1304,9 +1295,7 @@ public interface IMetaStoreClient {
    * @throws MetaException Error accessing the RDBMS or processing the filter.
    * @throws NoSuchObjectException No such table.
    * @throws TException thrift transport error
-   * @deprecated Use {@link #listPartitionsByFilter(String, String, String, String, int)}.
    */
-  @Deprecated
   List<Partition> listPartitionsByFilter(String db_name, String tbl_name,
       String filter, short max_parts) throws MetaException, NoSuchObjectException, TException;
 
@@ -1340,9 +1329,7 @@ public interface IMetaStoreClient {
    * @throws MetaException error accessing RDBMS or processing the filter
    * @throws NoSuchObjectException No table matches the request
    * @throws TException thrift transport error
-   * @deprecated Use {@link #listPartitionSpecsByFilter(String, String, String, String, int)}
    */
-  @Deprecated
   PartitionSpecProxy listPartitionSpecsByFilter(String db_name, String tbl_name,
                                                 String filter, int max_parts)
       throws MetaException, NoSuchObjectException, TException;
@@ -1376,9 +1363,7 @@ public interface IMetaStoreClient {
    * @param result the resulting list of partitions
    * @return whether the resulting list contains partitions which may or may not match the expr
    * @throws TException thrift transport error or error executing the filter.
-   * @deprecated Use {@link #listPartitionsByExpr(String, String, String, byte[], String, int, List)}
    */
-  @Deprecated
   boolean listPartitionsByExpr(String db_name, String tbl_name,
       byte[] expr, String default_partition_name, short max_parts, List<Partition> result)
           throws TException;
@@ -1412,9 +1397,7 @@ public interface IMetaStoreClient {
    * @throws NoSuchObjectException no partitions matching the criteria were found
    * @throws MetaException error accessing the RDBMS
    * @throws TException thrift transport error
-   * @deprecated Use {@link #listPartitionsWithAuthInfo(String, String, String, int, String, List)}
    */
-  @Deprecated
   List<Partition> listPartitionsWithAuthInfo(String dbName,
       String tableName, short maxParts, String userName, List<String> groupNames)
       throws MetaException, TException, NoSuchObjectException;
@@ -1445,9 +1428,7 @@ public interface IMetaStoreClient {
    * @throws NoSuchObjectException No such partitions
    * @throws MetaException error accessing the RDBMS.
    * @throws TException thrift transport error
-   * @deprecated Use {@link #getPartitionsByNames(String, String, String, List)}.
    */
-  @Deprecated
   List<Partition> getPartitionsByNames(String db_name, String tbl_name,
       List<String> part_names) throws NoSuchObjectException, MetaException, TException;
 
@@ -1478,9 +1459,7 @@ public interface IMetaStoreClient {
    * @throws NoSuchObjectException no partitions matching the criteria were found
    * @throws MetaException error accessing the RDBMS
    * @throws TException thrift transport error
-   * @deprecated Use {@link #listPartitionsWithAuthInfo(String, String, String, List, int, String, List)}
    */
-  @Deprecated
   List<Partition> listPartitionsWithAuthInfo(String dbName,
       String tableName, List<String> partialPvals, short maxParts, String userName,
       List<String> groupNames) throws MetaException, TException, NoSuchObjectException;
@@ -1516,9 +1495,7 @@ public interface IMetaStoreClient {
    * @throws UnknownDBException no such database
    * @throws UnknownPartitionException no such partition
    * @throws InvalidPartitionException partition partKVs is invalid
-   * @deprecated Use {@link #markPartitionForEvent(String, String, String, Map, PartitionEventType)}
    */
-  @Deprecated
   void markPartitionForEvent(String db_name, String tbl_name, Map<String,String> partKVs,
       PartitionEventType eventType) throws MetaException, NoSuchObjectException, TException,
       UnknownTableException, UnknownDBException, UnknownPartitionException, InvalidPartitionException;
@@ -1555,9 +1532,7 @@ public interface IMetaStoreClient {
    * @throws UnknownDBException no such database
    * @throws UnknownPartitionException no such partition
    * @throws InvalidPartitionException partition partKVs is invalid
-   * @deprecated Use {@link #isPartitionMarkedForEvent(String, String, String, Map, PartitionEventType)}
    */
-  @Deprecated
   boolean isPartitionMarkedForEvent(String db_name, String tbl_name, Map<String,String> partKVs,
       PartitionEventType eventType) throws MetaException, NoSuchObjectException, TException,
       UnknownTableException, UnknownDBException, UnknownPartitionException, InvalidPartitionException;
@@ -1611,9 +1586,7 @@ public interface IMetaStoreClient {
    * operation was attempted that is not allowed (such as changing partition columns).
    * @throws MetaException something went wrong, usually in the RDBMS
    * @throws TException general thrift exception
-   * @deprecated Use {@link #alterTable(String, String, String, Table)}.
    */
-  @Deprecated
   void alter_table(String databaseName, String tblName, Table table)
       throws InvalidOperationException, MetaException, TException;
 
@@ -1672,9 +1645,7 @@ public interface IMetaStoreClient {
    * operation was attempted that is not allowed (such as changing partition columns).
    * @throws MetaException something went wrong, usually in the RDBMS
    * @throws TException general thrift exception
-   * @deprecated Use {@link #alterTable(String, String, String, Table, EnvironmentContext)}.
    */
-  @Deprecated
   void alter_table_with_environmentContext(String databaseName, String tblName, Table table,
       EnvironmentContext environmentContext) throws InvalidOperationException, MetaException,
       TException;
@@ -1699,9 +1670,7 @@ public interface IMetaStoreClient {
    * @throws InvalidOperationException The database cannot be dropped because it is not empty.
    * @throws MetaException something went wrong, usually either in the RDMBS or in storage.
    * @throws TException general thrift error.
-   * @deprecated Use {@link #dropDatabase(String, String, boolean, boolean, boolean)}.
    */
-  @Deprecated
   void dropDatabase(String name)
       throws NoSuchObjectException, InvalidOperationException, MetaException, TException;
 
@@ -1716,9 +1685,7 @@ public interface IMetaStoreClient {
    * @throws InvalidOperationException The database cannot be dropped because it is not empty.
    * @throws MetaException something went wrong, usually either in the RDMBS or in storage.
    * @throws TException general thrift error.
-   * @deprecated Use {@link #dropDatabase(String, String, boolean, boolean, boolean)}.
    */
-  @Deprecated
   void dropDatabase(String name, boolean deleteData, boolean ignoreUnknownDb)
       throws NoSuchObjectException, InvalidOperationException, MetaException, TException;
 
@@ -1735,9 +1702,7 @@ public interface IMetaStoreClient {
    * @throws InvalidOperationException The database contains objects and cascade is false.
    * @throws MetaException something went wrong, usually either in the RDBMS or storage.
    * @throws TException general thrift error.
-   * @deprecated Use {@link #dropDatabase(String, String, boolean, boolean, boolean)}.
    */
-  @Deprecated
   void dropDatabase(String name, boolean deleteData, boolean ignoreUnknownDb, boolean cascade)
       throws NoSuchObjectException, InvalidOperationException, MetaException, TException;
 
@@ -1806,9 +1771,7 @@ public interface IMetaStoreClient {
    * @throws NoSuchObjectException No database of this name exists in the specified catalog.
    * @throws MetaException something went wrong, usually in the RDBMS.
    * @throws TException general thrift error.
-   * @deprecated Use {@link #alterDatabase(String, String, Database)}.
    */
-  @Deprecated
   void alterDatabase(String name, Database db)
       throws NoSuchObjectException, MetaException, TException;
 
@@ -1836,9 +1799,7 @@ public interface IMetaStoreClient {
    * @throws NoSuchObjectException partition does not exist
    * @throws MetaException error accessing the RDBMS or the storage.
    * @throws TException thrift transport error
-   * @deprecated Use {@link #dropPartition(String, String, String, List, boolean)}
    */
-  @Deprecated
   boolean dropPartition(String db_name, String tbl_name,
       List<String> part_vals, boolean deleteData) throws NoSuchObjectException,
       MetaException, TException;
@@ -1871,9 +1832,7 @@ public interface IMetaStoreClient {
    * @throws NoSuchObjectException partition does not exist
    * @throws MetaException error accessing the RDBMS or the storage.
    * @throws TException thrift transport error.
-   * @deprecated Use {@link #dropPartition(String, String, String, List, PartitionDropOptions)}
    */
-  @Deprecated
   boolean dropPartition(String db_name, String tbl_name, List<String> part_vals,
                         PartitionDropOptions options)
       throws NoSuchObjectException, MetaException, TException;
@@ -1910,9 +1869,7 @@ public interface IMetaStoreClient {
    * @throws NoSuchObjectException No partition matches the expression(s), and ifExists was false.
    * @throws MetaException error access the RDBMS or storage.
    * @throws TException Thrift transport error.
-   * @deprecated Use {@link #dropPartitions(String, String, String, List, boolean, boolean)}
    */
-  @Deprecated
   List<Partition> dropPartitions(String dbName, String tblName,
                                  List<ObjectPair<Integer, byte[]>> partExprs, boolean deleteData,
                                  boolean ifExists) throws NoSuchObjectException, MetaException, TException;
@@ -2007,9 +1964,7 @@ public interface IMetaStoreClient {
    * @throws NoSuchObjectException No partition matches the expression(s), and ifExists was false.
    * @throws MetaException error access the RDBMS or storage.
    * @throws TException On failure
-   * @deprecated Use {@link #dropPartitions(String, String, String, List, PartitionDropOptions)}
    */
-  @Deprecated
   List<Partition> dropPartitions(String dbName, String tblName,
                                  List<ObjectPair<Integer, byte[]>> partExprs,
                                  PartitionDropOptions options)
@@ -2042,9 +1997,7 @@ public interface IMetaStoreClient {
    * @throws NoSuchObjectException no such partition.
    * @throws MetaException error accessing the RDBMS or storage
    * @throws TException thrift transport error
-   * @deprecated Use {@link #dropPartition(String, String, String, String, boolean)}
    */
-  @Deprecated
   boolean dropPartition(String db_name, String tbl_name,
       String name, boolean deleteData) throws NoSuchObjectException,
       MetaException, TException;
@@ -2080,7 +2033,6 @@ public interface IMetaStoreClient {
    *           if error in updating metadata
    * @throws TException
    *           if error in communicating with metastore server
-   * @deprecated Use {@link #alter_partition(String, String, String, Partition)}.
    */
   void alter_partition(String dbName, String tblName, Partition newPart)
       throws InvalidOperationException, MetaException, TException;
@@ -2121,9 +2073,7 @@ public interface IMetaStoreClient {
    *           if error in updating metadata
    * @throws TException
    *           if error in communicating with metastore server
-   * @deprecated Use {@link #alter_partition(String, String, String, Partition, EnvironmentContext)}
    */
-  @Deprecated
   void alter_partition(String dbName, String tblName, Partition newPart, EnvironmentContext environmentContext)
       throws InvalidOperationException, MetaException, TException;
 
@@ -2162,9 +2112,7 @@ public interface IMetaStoreClient {
    *           if error in updating metadata
    * @throws TException
    *           if error in communicating with metastore server
-   * @deprecated Use {@link #alter_partition(String, String, String, Partition)}
    */
-  @Deprecated
   void alter_partitions(String dbName, String tblName, List<Partition> newParts)
       throws InvalidOperationException, MetaException, TException;
 
@@ -2184,9 +2132,7 @@ public interface IMetaStoreClient {
    *           if error in updating metadata
    * @throws TException
    *           if error in communicating with metastore server
-   * @deprecated Use {@link #alter_partitions(String, String, String, List, EnvironmentContext)}
    */
-  @Deprecated
   void alter_partitions(String dbName, String tblName, List<Partition> newParts,
       EnvironmentContext environmentContext)
       throws InvalidOperationException, MetaException, TException;
@@ -2251,9 +2197,7 @@ public interface IMetaStoreClient {
    *          if error in updating metadata
    * @throws TException
    *          if error in communicating with metastore server
-   * @deprecated Use {@link #renamePartition(String, String, String, List, Partition)}.
    */
-  @Deprecated
   void renamePartition(final String dbname, final String tableName, final List<String> part_vals,
                        final Partition newPart)
       throws InvalidOperationException, MetaException, TException;
@@ -2289,9 +2233,7 @@ public interface IMetaStoreClient {
    * @throws UnknownDBException no such database
    * @throws MetaException error accessing the RDBMS
    * @throws TException thrift transport error
-   * @deprecated Use {@link #getFields(String, String, String)}
    */
-  @Deprecated
   List<FieldSchema> getFields(String db, String tableName)
       throws MetaException, TException, UnknownTableException,
       UnknownDBException;
@@ -2320,9 +2262,7 @@ public interface IMetaStoreClient {
    * @throws UnknownDBException no such database
    * @throws MetaException error accessing the RDBMS
    * @throws TException thrift transport error
-   * @deprecated Use {@link #getSchema(String, String, String)}
    */
-  @Deprecated
   List<FieldSchema> getSchema(String db, String tableName)
       throws MetaException, TException, UnknownTableException,
       UnknownDBException;
@@ -2384,9 +2324,7 @@ public interface IMetaStoreClient {
    * @throws MetaException
    * @throws TException
    * @throws InvalidInputException
-   * @deprecated Use {@link #setPartitionColumnStatistics(SetPartitionsStatsRequest)}
    */
-  @Deprecated
   boolean updateTableColumnStatistics(ColumnStatistics statsObj)
     throws NoSuchObjectException, InvalidObjectException, MetaException, TException,
     InvalidInputException;
@@ -2400,9 +2338,7 @@ public interface IMetaStoreClient {
    * @throws MetaException
    * @throws TException
    * @throws InvalidInputException
-   * @deprecated Use {@link #setPartitionColumnStatistics(SetPartitionsStatsRequest)}
    */
-  @Deprecated
   boolean updatePartitionColumnStatistics(ColumnStatistics statsObj)
    throws NoSuchObjectException, InvalidObjectException, MetaException, TException,
    InvalidInputException;
@@ -2418,9 +2354,7 @@ public interface IMetaStoreClient {
    * @throws NoSuchObjectException no such table
    * @throws MetaException error accessing the RDBMS
    * @throws TException thrift transport error
-   * @deprecated Use {@link #getTableColumnStatistics(String, String, String, List)}.
    */
-  @Deprecated
   List<ColumnStatisticsObj> getTableColumnStatistics(String dbName, String tableName,
       List<String> colNames) throws NoSuchObjectException, MetaException, TException;
 
@@ -2452,9 +2386,7 @@ public interface IMetaStoreClient {
    * @throws NoSuchObjectException no such partition
    * @throws MetaException error accessing the RDBMS
    * @throws TException thrift transport error
-   * @deprecated Use {@link #getPartitionColumnStatistics(String, String, String, List, List)}
    */
-  @Deprecated
   Map<String, List<ColumnStatisticsObj>> getPartitionColumnStatistics(String dbName,
       String tableName,  List<String> partNames, List<String> colNames)
           throws NoSuchObjectException, MetaException, TException;
@@ -2489,9 +2421,7 @@ public interface IMetaStoreClient {
    * @throws MetaException error accessing the RDBMS
    * @throws TException thrift transport error
    * @throws InvalidInputException input is invalid or null.
-   * @deprecated Use {@link #deletePartitionColumnStatistics(String, String, String, String, String)}
    */
-  @Deprecated
   boolean deletePartitionColumnStatistics(String dbName, String tableName,
     String partName, String colName) throws NoSuchObjectException, MetaException,
     InvalidObjectException, TException, InvalidInputException;
@@ -2527,9 +2457,7 @@ public interface IMetaStoreClient {
    * @throws InvalidObjectException error dropping the stats
    * @throws TException thrift transport error
    * @throws InvalidInputException bad input, like a null table name.
-   * @deprecated Use {@link #deleteTableColumnStatistics(String, String, String, String)}
    */
-  @Deprecated
    boolean deleteTableColumnStatistics(String dbName, String tableName, String colName) throws
     NoSuchObjectException, MetaException, InvalidObjectException, TException, InvalidInputException;
 
@@ -2728,9 +2656,7 @@ public interface IMetaStoreClient {
    * @throws InvalidObjectException the function object is invalid
    * @throws MetaException error accessing the RDBMS
    * @throws TException thrift transport error
-   * @deprecated Use {@link #alterFunction(String, String, String, Function)}
    */
-  @Deprecated
   void alterFunction(String dbName, String funcName, Function newFunction)
       throws InvalidObjectException, MetaException, TException;
 
@@ -2756,9 +2682,7 @@ public interface IMetaStoreClient {
    * @throws InvalidObjectException not sure when this is thrown
    * @throws InvalidInputException not sure when this is thrown
    * @throws TException thrift transport error
-   * @deprecated Use {@link #dropFunction(String, String, String)}
    */
-  @Deprecated
   void dropFunction(String dbName, String funcName) throws MetaException,
       NoSuchObjectException, InvalidObjectException, InvalidInputException, TException;
 
@@ -2782,9 +2706,7 @@ public interface IMetaStoreClient {
    * @param funcName function name.
    * @throws MetaException error accessing the RDBMS
    * @throws TException thrift transport error
-   * @deprecated Use {@link #getFunction(String, String, String)}
    */
-  @Deprecated
   Function getFunction(String dbName, String funcName)
       throws MetaException, TException;
 
@@ -2805,9 +2727,7 @@ public interface IMetaStoreClient {
    * @param pattern to match.  This is a java regex pattern.
    * @throws MetaException error accessing the RDBMS
    * @throws TException thrift transport error
-   * @deprecated Use {@link #getFunctions(String, String, String)}
    */
-  @Deprecated
   List<String> getFunctions(String dbName, String pattern)
       throws MetaException, TException;
 
@@ -3384,9 +3304,7 @@ public interface IMetaStoreClient {
    * @throws MetaException RDBMS access error
    * @throws NoSuchObjectException no such constraint exists
    * @throws TException thrift transport error
-   * @deprecated Use {@link #dropConstraint(String, String, String, String)}.
    */
-  @Deprecated
   void dropConstraint(String dbName, String tableName, String constraintName)
       throws MetaException, NoSuchObjectException, TException;
 
@@ -3494,20 +3412,20 @@ public interface IMetaStoreClient {
       throws NoSuchObjectException, InvalidObjectException, MetaException, TException;
 
   void alterWMPool(WMNullablePool pool, String poolPath)
-      throws NoSuchObjectException, InvalidObjectException, MetaException, TException;
+      throws NoSuchObjectException, InvalidObjectException, TException;
 
   void dropWMPool(String resourcePlanName, String poolPath)
-      throws NoSuchObjectException, MetaException, TException;
+      throws TException;
 
   void createOrUpdateWMMapping(WMMapping mapping, boolean isUpdate)
-      throws NoSuchObjectException, InvalidObjectException, MetaException, TException;
+      throws TException;
 
   void dropWMMapping(WMMapping mapping)
-      throws NoSuchObjectException, MetaException, TException;
+      throws TException;
 
   void createOrDropTriggerToPoolMapping(String resourcePlanName, String triggerName,
-      String poolPath, boolean shouldDrop) throws AlreadyExistsException, NoSuchObjectException,
-      InvalidObjectException, MetaException, TException;
+      String poolPath, boolean shouldDrop) throws
+      TException;
 
   /**
    * Create a new schema.  This is really a schema container, as there will be specific versions

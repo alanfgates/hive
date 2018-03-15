@@ -57,7 +57,6 @@ import org.junit.runners.Parameterized;
 
 import com.google.common.collect.Lists;
 
-import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_CATALOG_NAME;
 import static org.apache.hadoop.hive.metastore.Warehouse.DEFAULT_DATABASE_NAME;
 
 /**
@@ -85,7 +84,7 @@ public class TestAppendPartitions extends MetaStoreClientTest {
     client = metaStore.getClient();
 
     // Clean up the database
-    client.dropDatabase(DEFAULT_CATALOG_NAME, DB_NAME, true, true, true);
+    client.dropDatabase(DB_NAME, true, true, true);
     metaStore.cleanWarehouseDirs();
     Database db = new DatabaseBuilder()
         .setName(DB_NAME)
@@ -118,11 +117,11 @@ public class TestAppendPartitions extends MetaStoreClientTest {
     Table table = tableWithPartitions;
 
     Partition appendedPart =
-        client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), partitionValues);
+        client.appendPartition(table.getDbName(), table.getTableName(), partitionValues);
 
     Assert.assertNotNull(appendedPart);
     Partition partition =
-        client.getPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), partitionValues);
+        client.getPartition(table.getDbName(), table.getTableName(), partitionValues);
     Assert.assertEquals(partition, appendedPart);
     verifyPartition(partition, table, partitionValues, "year=2017/month=may");
     verifyPartitionNames(table, Lists.newArrayList("year=2017/month=march", "year=2017/month=april",
@@ -136,11 +135,11 @@ public class TestAppendPartitions extends MetaStoreClientTest {
     Table table = externalTable;
 
     Partition appendedPart =
-        client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), partitionValues);
+        client.appendPartition(table.getDbName(), table.getTableName(), partitionValues);
 
     Assert.assertNotNull(appendedPart);
     Partition partition =
-        client.getPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), partitionValues);
+        client.getPartition(table.getDbName(), table.getTableName(), partitionValues);
     Assert.assertEquals(partition, appendedPart);
     verifyPartition(partition, table, partitionValues, "year=2017/month=may");
     verifyPartitionNames(table, Lists.newArrayList("year=2017/month=may"));
@@ -155,9 +154,9 @@ public class TestAppendPartitions extends MetaStoreClientTest {
 
     Table table = tableWithPartitions;
 
-    client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), partitionValues1);
-    client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), partitionValues2);
-    client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), partitionValues3);
+    client.appendPartition(table.getDbName(), table.getTableName(), partitionValues1);
+    client.appendPartition(table.getDbName(), table.getTableName(), partitionValues2);
+    client.appendPartition(table.getDbName(), table.getTableName(), partitionValues3);
 
     verifyPartitionNames(table,
         Lists.newArrayList("year=2017/month=may", "year=2018/month=may", "year=2017/month=june",
@@ -169,7 +168,7 @@ public class TestAppendPartitions extends MetaStoreClientTest {
 
     List<String> partitionValues = Lists.newArrayList("2017", "may");
     Table table = tableNoPartColumns;
-    client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), partitionValues);
+    client.appendPartition(table.getDbName(), table.getTableName(), partitionValues);
   }
 
   @Test(expected = MetaException.class)
@@ -177,7 +176,7 @@ public class TestAppendPartitions extends MetaStoreClientTest {
 
     List<String> partitionValues = Lists.newArrayList("2017", "may");
     Table table = tableView;
-    client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), partitionValues);
+    client.appendPartition(table.getDbName(), table.getTableName(), partitionValues);
   }
 
   @Test(expected = AlreadyExistsException.class)
@@ -185,56 +184,56 @@ public class TestAppendPartitions extends MetaStoreClientTest {
 
     List<String> partitionValues = Lists.newArrayList("2017", "april");
     Table table = tableWithPartitions;
-    client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), partitionValues);
+    client.appendPartition(table.getDbName(), table.getTableName(), partitionValues);
   }
 
   @Test(expected = InvalidObjectException.class)
   public void testAppendPartitionNonExistingDB() throws Exception {
 
     List<String> partitionValues = Lists.newArrayList("2017", "may");
-    client.appendPartition(DEFAULT_CATALOG_NAME, "nonexistingdb", tableWithPartitions.getTableName(), partitionValues);
+    client.appendPartition("nonexistingdb", tableWithPartitions.getTableName(), partitionValues);
   }
 
   @Test(expected = InvalidObjectException.class)
   public void testAppendPartitionNonExistingTable() throws Exception {
 
     List<String> partitionValues = Lists.newArrayList("2017", "may");
-    client.appendPartition(DEFAULT_CATALOG_NAME, tableWithPartitions.getDbName(), "nonexistingtable", partitionValues);
+    client.appendPartition(tableWithPartitions.getDbName(), "nonexistingtable", partitionValues);
   }
 
   @Test(expected = InvalidObjectException.class)
   public void testAppendPartitionEmptyDB() throws Exception {
 
     List<String> partitionValues = Lists.newArrayList("2017", "may");
-    client.appendPartition(DEFAULT_CATALOG_NAME, "", tableWithPartitions.getTableName(), partitionValues);
+    client.appendPartition("", tableWithPartitions.getTableName(), partitionValues);
   }
 
   @Test(expected = InvalidObjectException.class)
   public void testAppendPartitionEmptyTable() throws Exception {
 
     List<String> partitionValues = Lists.newArrayList("2017", "may");
-    client.appendPartition(DEFAULT_CATALOG_NAME, tableWithPartitions.getDbName(), "", partitionValues);
+    client.appendPartition(tableWithPartitions.getDbName(), "", partitionValues);
   }
 
   @Test(expected = MetaException.class)
   public void testAppendPartitionNullDB() throws Exception {
 
     List<String> partitionValues = Lists.newArrayList("2017", "may");
-    client.appendPartition(DEFAULT_CATALOG_NAME, null, tableWithPartitions.getTableName(), partitionValues);
+    client.appendPartition(null, tableWithPartitions.getTableName(), partitionValues);
   }
 
   @Test(expected = MetaException.class)
   public void testAppendPartitionNullTable() throws Exception {
 
     List<String> partitionValues = Lists.newArrayList("2017", "may");
-    client.appendPartition(DEFAULT_CATALOG_NAME, tableWithPartitions.getDbName(), null, partitionValues);
+    client.appendPartition(tableWithPartitions.getDbName(), null, partitionValues);
   }
 
   @Test(expected = MetaException.class)
   public void testAppendPartitionEmptyPartValues() throws Exception {
 
     Table table = tableWithPartitions;
-    client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), new ArrayList<>());
+    client.appendPartition(table.getDbName(), table.getTableName(), new ArrayList<>());
   }
 
   @Test
@@ -242,7 +241,7 @@ public class TestAppendPartitions extends MetaStoreClientTest {
 
     try {
       Table table = tableWithPartitions;
-      client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), (List<String>) null);
+      client.appendPartition(table.getDbName(), table.getTableName(), (List<String>) null);
       Assert.fail("Exception should have been thrown.");
     } catch (TTransportException | NullPointerException e) {
       // TODO: NPE should not be thrown
@@ -256,7 +255,7 @@ public class TestAppendPartitions extends MetaStoreClientTest {
     Table table = tableWithPartitions;
 
     try {
-      client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), partitionValues);
+      client.appendPartition(table.getDbName(), table.getTableName(), partitionValues);
       Assert.fail("Exception should have been thrown.");
     } catch (MetaException e) {
       // Expected exception
@@ -274,7 +273,7 @@ public class TestAppendPartitions extends MetaStoreClientTest {
     Table table = tableWithPartitions;
 
     try {
-      client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), partitionValues);
+      client.appendPartition(table.getDbName(), table.getTableName(), partitionValues);
       Assert.fail("Exception should have been thrown.");
     } catch (MetaException e) {
       // Expected exception
@@ -294,10 +293,10 @@ public class TestAppendPartitions extends MetaStoreClientTest {
     String partitionName = "year=2017/month=may";
 
     Partition appendedPart =
-        client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), partitionName);
+        client.appendPartition(table.getDbName(), table.getTableName(), partitionName);
 
     Assert.assertNotNull(appendedPart);
-    Partition partition = client.getPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(),
+    Partition partition = client.getPartition(table.getDbName(), table.getTableName(),
         getPartitionValues(partitionName));
     Assert.assertEquals(partition, appendedPart);
     verifyPartition(partition, table, getPartitionValues(partitionName), partitionName);
@@ -312,10 +311,10 @@ public class TestAppendPartitions extends MetaStoreClientTest {
     String partitionName = "year=2017/month=may";
 
     Partition appendedPart =
-        client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), partitionName);
+        client.appendPartition(table.getDbName(), table.getTableName(), partitionName);
 
     Assert.assertNotNull(appendedPart);
-    Partition partition = client.getPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(),
+    Partition partition = client.getPartition(table.getDbName(), table.getTableName(),
         getPartitionValues(partitionName));
     Assert.assertEquals(partition, appendedPart);
     verifyPartition(partition, table, getPartitionValues(partitionName), partitionName);
@@ -330,9 +329,9 @@ public class TestAppendPartitions extends MetaStoreClientTest {
     String partitionName3 = "year=2017/month=june";
     Table table = tableWithPartitions;
 
-    client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), partitionName1);
-    client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), partitionName2);
-    client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), partitionName3);
+    client.appendPartition(table.getDbName(), table.getTableName(), partitionName1);
+    client.appendPartition(table.getDbName(), table.getTableName(), partitionName2);
+    client.appendPartition(table.getDbName(), table.getTableName(), partitionName3);
 
     verifyPartitionNames(table, Lists.newArrayList(partitionName1, partitionName2, partitionName3,
         "year=2017/month=march", "year=2017/month=april", "year=2018/month=march"));
@@ -343,7 +342,7 @@ public class TestAppendPartitions extends MetaStoreClientTest {
 
     String partitionName = "year=2017/month=may";
     Table table = tableNoPartColumns;
-    client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), partitionName);
+    client.appendPartition(table.getDbName(), table.getTableName(), partitionName);
   }
 
   @Test(expected = MetaException.class)
@@ -351,7 +350,7 @@ public class TestAppendPartitions extends MetaStoreClientTest {
 
     String partitionName = "year=2017/month=may";
     Table table = tableView;
-    client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), partitionName);
+    client.appendPartition(table.getDbName(), table.getTableName(), partitionName);
   }
 
   @Test(expected = AlreadyExistsException.class)
@@ -359,63 +358,63 @@ public class TestAppendPartitions extends MetaStoreClientTest {
 
     String partitionName = "year=2017/month=april";
     Table table = tableWithPartitions;
-    client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), partitionName);
+    client.appendPartition(table.getDbName(), table.getTableName(), partitionName);
   }
 
   @Test(expected = InvalidObjectException.class)
   public void testAppendPartNonExistingDB() throws Exception {
 
     String partitionName = "year=2017/month=april";
-    client.appendPartition(DEFAULT_CATALOG_NAME, "nonexistingdb", tableWithPartitions.getTableName(), partitionName);
+    client.appendPartition("nonexistingdb", tableWithPartitions.getTableName(), partitionName);
   }
 
   @Test(expected = InvalidObjectException.class)
   public void testAppendPartNonExistingTable() throws Exception {
 
     String partitionName = "year=2017/month=april";
-    client.appendPartition(DEFAULT_CATALOG_NAME, tableWithPartitions.getDbName(), "nonexistingtable", partitionName);
+    client.appendPartition(tableWithPartitions.getDbName(), "nonexistingtable", partitionName);
   }
 
   @Test(expected = InvalidObjectException.class)
   public void testAppendPartEmptyDB() throws Exception {
 
     String partitionName = "year=2017/month=april";
-    client.appendPartition(DEFAULT_CATALOG_NAME, "", tableWithPartitions.getTableName(), partitionName);
+    client.appendPartition("", tableWithPartitions.getTableName(), partitionName);
   }
 
   @Test(expected = InvalidObjectException.class)
   public void testAppendPartEmptyTable() throws Exception {
 
     String partitionName = "year=2017/month=april";
-    client.appendPartition(DEFAULT_CATALOG_NAME, tableWithPartitions.getDbName(), "", partitionName);
+    client.appendPartition(tableWithPartitions.getDbName(), "", partitionName);
   }
 
   @Test(expected = MetaException.class)
   public void testAppendPartNullDB() throws Exception {
 
     String partitionName = "year=2017/month=april";
-    client.appendPartition(DEFAULT_CATALOG_NAME, null, tableWithPartitions.getTableName(), partitionName);
+    client.appendPartition(null, tableWithPartitions.getTableName(), partitionName);
   }
 
   @Test(expected = MetaException.class)
   public void testAppendPartNullTable() throws Exception {
 
     String partitionName = "year=2017/month=april";
-    client.appendPartition(DEFAULT_CATALOG_NAME, tableWithPartitions.getDbName(), null, partitionName);
+    client.appendPartition(tableWithPartitions.getDbName(), null, partitionName);
   }
 
   @Test(expected = MetaException.class)
   public void testAppendPartEmptyPartName() throws Exception {
 
     Table table = tableWithPartitions;
-    client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), "");
+    client.appendPartition(table.getDbName(), table.getTableName(), "");
   }
 
   @Test(expected = MetaException.class)
   public void testAppendPartNullPartName() throws Exception {
 
     Table table = tableWithPartitions;
-    client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), (String) null);
+    client.appendPartition(table.getDbName(), table.getTableName(), (String) null);
   }
 
   @Test(expected = InvalidObjectException.class)
@@ -423,7 +422,7 @@ public class TestAppendPartitions extends MetaStoreClientTest {
 
     String partitionName = "year=2019";
     Table table = tableWithPartitions;
-    client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), partitionName);
+    client.appendPartition(table.getDbName(), table.getTableName(), partitionName);
   }
 
   @Test
@@ -431,7 +430,7 @@ public class TestAppendPartitions extends MetaStoreClientTest {
 
     String partitionName = "year=2019/month=march/day=12";
     Table table = tableWithPartitions;
-    client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), partitionName);
+    client.appendPartition(table.getDbName(), table.getTableName(), partitionName);
   }
 
   @Test(expected = InvalidObjectException.class)
@@ -439,7 +438,7 @@ public class TestAppendPartitions extends MetaStoreClientTest {
 
     String partitionName = "invalidpartname";
     Table table = tableWithPartitions;
-    client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), partitionName);
+    client.appendPartition(table.getDbName(), table.getTableName(), partitionName);
   }
 
   @Test(expected = InvalidObjectException.class)
@@ -447,7 +446,7 @@ public class TestAppendPartitions extends MetaStoreClientTest {
 
     String partitionName = "year=2019/honap=march";
     Table table = tableWithPartitions;
-    client.appendPartition(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), partitionName);
+    client.appendPartition(table.getDbName(), table.getTableName(), partitionName);
   }
 
   @Test
@@ -488,33 +487,6 @@ public class TestAppendPartitions extends MetaStoreClientTest {
     Assert.assertEquals(1, created.getValuesSize());
     Assert.assertEquals("a2", created.getValues().get(0));
     fetched = client.getPartition(catName, dbName, tableName, Collections.singletonList("a2"));
-    Assert.assertEquals(created, fetched);
-  }
-
-  @SuppressWarnings("deprecation")
-  @Test
-  public void deprecatedCalls() throws TException {
-    String tableName = "table_deprecated";
-    Table table = new TableBuilder()
-        .setTableName(tableName)
-        .addCol("id", "int")
-        .addCol("name", "string")
-        .addPartCol("partcol", "string")
-        .build();
-    client.createTable(table);
-
-    Partition created =
-        client.appendPartition(DEFAULT_DATABASE_NAME, tableName, Collections.singletonList("a1"));
-    Assert.assertEquals(1, created.getValuesSize());
-    Assert.assertEquals("a1", created.getValues().get(0));
-    Partition fetched =
-        client.getPartition(DEFAULT_DATABASE_NAME, tableName, Collections.singletonList("a1"));
-    Assert.assertEquals(created, fetched);
-
-    created = client.appendPartition(DEFAULT_DATABASE_NAME, tableName, "partcol=a2");
-    Assert.assertEquals(1, created.getValuesSize());
-    Assert.assertEquals("a2", created.getValues().get(0));
-    fetched = client.getPartition(DEFAULT_DATABASE_NAME, tableName, Collections.singletonList("a2"));
     Assert.assertEquals(created, fetched);
   }
 
@@ -576,7 +548,7 @@ public class TestAppendPartitions extends MetaStoreClientTest {
         .setLocation(location)
         .build();
     client.createTable(table);
-    return client.getTable(DEFAULT_CATALOG_NAME, DB_NAME, tableName);
+    return client.getTable(DB_NAME, tableName);
   }
 
   private void createPartition(Table table, List<String> values) throws Exception {
@@ -623,7 +595,7 @@ public class TestAppendPartitions extends MetaStoreClientTest {
 
   private void verifyPartitionNames(Table table, List<String> expectedPartNames) throws Exception {
     List<String> partitionNames =
-        client.listPartitionNames(DEFAULT_CATALOG_NAME, table.getDbName(), table.getTableName(), (short) -1);
+        client.listPartitionNames(table.getDbName(), table.getTableName(), (short) -1);
     Assert.assertEquals(expectedPartNames.size(), partitionNames.size());
     Assert.assertTrue(partitionNames.containsAll(expectedPartNames));
   }

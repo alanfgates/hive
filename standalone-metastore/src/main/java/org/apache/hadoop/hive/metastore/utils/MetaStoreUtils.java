@@ -1672,13 +1672,18 @@ public class MetaStoreUtils {
   }
 
   /**
-   * Given a catalog name and database name cram them together into one string.
-   * @param catalogName catalog name
-   * @param dbName database name
+   * Given a catalog name and database name cram them together into one string.  This method can
+   * be used if you do not know the catalog name, in which case the default catalog will be
+   * retrieved from the conf object.  The resulting string can be parsed apart again via
+   * {@link #parseDbName(String, Configuration)}.
+   * @param catalogName catalog name, can be null if no known.
+   * @param dbName database name, can be null or empty.
+   * @param conf configuration object, used to determine default catalog if catalogName is null
    * @return one string that contains both.
    */
-  public static String prependCatalogToDbName(String catalogName, String dbName) {
-    if (catalogName == null) catalogName = Warehouse.DEFAULT_CATALOG_NAME;
+  public static String prependCatalogToDbName(@Nullable String catalogName, @Nullable String dbName,
+                                              Configuration conf) {
+    if (catalogName == null) catalogName = getDefaultCatalog(conf);
     StringBuilder buf = new StringBuilder()
         .append(CATALOG_DB_THRIFT_NAME_MARKER)
         .append(catalogName)
@@ -1691,26 +1696,42 @@ public class MetaStoreUtils {
   }
 
   /**
+   * Given a catalog name and database name, cram them together into one string.  These can be
+   * parsed apart again via {@link #parseDbName(String, Configuration)}.
+   * @param catalogName catalog name.  This cannot be null.  If this might be null use
+   *                    {@link #prependCatalogToDbName(String, String, Configuration)} instead.
+   * @param dbName database name.
+   * @return one string that contains both.
+   */
+  public static String prependNotNullCatToDbName(String catalogName, String dbName) {
+    assert catalogName != null;
+    return prependCatalogToDbName(catalogName, dbName, null);
+  }
+
+  /**
    * Prepend the default 'hive' catalog onto the database name.
    * @param dbName database name
+   * @param conf configuration object, used to determine default catalog
    * @return one string with the 'hive' catalog name prepended.
    */
-  public static String prependCatalogToDbName(String dbName) {
-    return prependCatalogToDbName(null, dbName);
+  public static String prependCatalogToDbName(String dbName, Configuration conf) {
+    return prependCatalogToDbName(null, dbName, conf);
   }
 
   private final static String[] nullCatalogAndDatabase = {null, null};
 
   /**
    * Parse the catalog name out of the database name.  If no catalog name is present then the
-   * default 'hive' catalog will be assumed.
+   * default catalog (as set in configuration file) will be assumed.
    * @param dbName name of the database.  This may or may not contain the catalog name.
+   * @param conf configuration object, used to determine the default catalog if it is not present
+   *            in the database name.
    * @return an array of two elements, the first being the catalog name, the second the database
    * name.
    * @throws MetaException if the name is not either just a database name or a catalog plus
    * database name with the proper delimiters.
    */
-  public static String[] parseDbName(String dbName) throws MetaException {
+  public static String[] parseDbName(String dbName, Configuration conf) throws MetaException {
     if (dbName == null) return nullCatalogAndDatabase;
     if (hasCatalogName(dbName)) {
       if (dbName.endsWith(CATALOG_DB_SEPARATOR)) {
@@ -1727,7 +1748,7 @@ public class MetaStoreUtils {
       }
       return names;
     } else {
-      return new String[] {Warehouse.DEFAULT_CATALOG_NAME, dbName};
+      return new String[] {getDefaultCatalog(conf), dbName};
     }
   }
 
@@ -1739,4 +1760,10 @@ public class MetaStoreUtils {
    * Position in the array returned by {@link #parseDbName} that has the database name.
    */
   public static final int DB_NAME = 1;
+
+  public static String getDefaultCatalog(Configuration conf) {
+    String catName = MetastoreConf.getVar(conf, MetastoreConf.ConfVars.CATALOG_DEFAULT);
+    if (catName == null || "".equals(catName)) catName = Warehouse.DEFAULT_CATALOG_NAME;
+    return catName;
+  }
 }

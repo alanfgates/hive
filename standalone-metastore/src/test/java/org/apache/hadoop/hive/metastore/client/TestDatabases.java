@@ -81,9 +81,9 @@ public class TestDatabases extends MetaStoreClientTest {
     client = metaStore.getClient();
 
     // Clean up the databases
-    for(String databaseName : client.getAllDatabases(DEFAULT_CATALOG_NAME)) {
+    for(String databaseName : client.getAllDatabases()) {
       if (!databaseName.equals(DEFAULT_DATABASE)) {
-        client.dropDatabase(DEFAULT_CATALOG_NAME, databaseName, true, true, true);
+        client.dropDatabase(databaseName, true, true, true);
       }
     }
 
@@ -99,7 +99,7 @@ public class TestDatabases extends MetaStoreClientTest {
     // Create the databases, and reload them from the MetaStore
     for(int i=0; i < testDatabases.length; i++) {
       client.createDatabase(testDatabases[i]);
-      testDatabases[i] = client.getDatabase(DEFAULT_CATALOG_NAME, testDatabases[i].getName());
+      testDatabases[i] = client.getDatabase(testDatabases[i].getName());
     }
   }
 
@@ -121,17 +121,17 @@ public class TestDatabases extends MetaStoreClientTest {
   public void testCreateGetDeleteDatabase() throws Exception {
     Database database = getDatabaseWithAllParametersSet();
     client.createDatabase(database);
-    Database createdDatabase = client.getDatabase(DEFAULT_CATALOG_NAME, database.getName());
+    Database createdDatabase = client.getDatabase(database.getName());
 
     // The createTime will be set on the server side, so the comparison should skip it
     Assert.assertEquals("Comparing databases", database, createdDatabase);
     Assert.assertTrue("The directory should be created", metaStore.isPathExists(
         new Path(database.getLocationUri())));
-    client.dropDatabase(DEFAULT_CATALOG_NAME, database.getName());
+    client.dropDatabase(database.getName());
     Assert.assertFalse("The directory should be removed",
         metaStore.isPathExists(new Path(database.getLocationUri())));
     try {
-      client.getDatabase(DEFAULT_CATALOG_NAME, database.getName());
+      client.getDatabase(database.getName());
       Assert.fail("Expected a NoSuchObjectException to be thrown");
     } catch (NoSuchObjectException exception) {
       // Expected exception
@@ -145,7 +145,7 @@ public class TestDatabases extends MetaStoreClientTest {
         .build();
 
     client.createDatabase(database);
-    Database createdDatabase = client.getDatabase(DEFAULT_CATALOG_NAME, database.getName());
+    Database createdDatabase = client.getDatabase(database.getName());
 
     Assert.assertNull("Comparing description", createdDatabase.getDescription());
     Assert.assertEquals("Comparing location", metaStore.getWarehouseRoot() + "/" +
@@ -198,7 +198,7 @@ public class TestDatabases extends MetaStoreClientTest {
 
   @Test
   public void testDefaultDatabaseData() throws Exception {
-    Database database = client.getDatabase(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE);
+    Database database = client.getDatabase(DEFAULT_DATABASE);
     Assert.assertEquals("Default database name", "default", database.getName());
     Assert.assertEquals("Default database description", "Default Hive database",
         database.getDescription());
@@ -216,24 +216,24 @@ public class TestDatabases extends MetaStoreClientTest {
     Database database = testDatabases[0];
 
     // Test in upper case
-    Database resultUpper = client.getDatabase(DEFAULT_CATALOG_NAME, database.getName().toUpperCase());
+    Database resultUpper = client.getDatabase(database.getName().toUpperCase());
     Assert.assertEquals("Comparing databases", database, resultUpper);
 
     // Test in mixed case
-    Database resultMix = client.getDatabase(DEFAULT_CATALOG_NAME, "teST_dAtABase_1");
+    Database resultMix = client.getDatabase("teST_dAtABase_1");
     Assert.assertEquals("Comparing databases", database, resultMix);
   }
 
   @Test(expected = NoSuchObjectException.class)
   public void testGetDatabaseNoSuchDatabase() throws Exception {
-    client.getDatabase(DEFAULT_CATALOG_NAME, "no_such_database");
+    client.getDatabase("no_such_database");
   }
 
   @Test
   public void testGetDatabaseNullName() throws Exception {
     // Missing database name in the query
     try {
-      client.getDatabase(DEFAULT_CATALOG_NAME, null);
+      client.getDatabase(null);
       // TODO: Should have a check on the server side.
       Assert.fail("Expected a NullPointerException or TTransportException to be thrown");
     } catch (NullPointerException exception) {
@@ -245,14 +245,14 @@ public class TestDatabases extends MetaStoreClientTest {
 
   @Test(expected = NoSuchObjectException.class)
   public void testDropDatabaseNoSuchDatabase() throws Exception {
-    client.dropDatabase(DEFAULT_CATALOG_NAME, "no_such_database");
+    client.dropDatabase("no_such_database");
   }
 
   @Test
   public void testDropDatabaseNullName() throws Exception {
     // Missing database in the query
     try {
-      client.dropDatabase(DEFAULT_CATALOG_NAME, null);
+      client.dropDatabase(null);
       // TODO: Should be checked on server side
       Assert.fail("Expected an NullPointerException or TTransportException to be thrown");
     } catch (NullPointerException exception) {
@@ -266,7 +266,7 @@ public class TestDatabases extends MetaStoreClientTest {
   public void testDropDatabaseDefaultDatabase() throws Exception {
     // Check if it is possible to drop default database
     try {
-      client.dropDatabase(DEFAULT_CATALOG_NAME, DEFAULT_DATABASE);
+      client.dropDatabase(DEFAULT_DATABASE);
       // TODO: Should be checked on server side
       Assert.fail("Expected an MetaException or TTransportException to be thrown");
     } catch (MetaException exception) {
@@ -281,14 +281,14 @@ public class TestDatabases extends MetaStoreClientTest {
     Database database = testDatabases[0];
 
     // Test in upper case
-    client.dropDatabase(DEFAULT_CATALOG_NAME, database.getName().toUpperCase());
+    client.dropDatabase(database.getName().toUpperCase());
     List<String> allDatabases = client.getAllDatabases();
     Assert.assertEquals("All databases size", 4, allDatabases.size());
 
     // Test in mixed case
     client.createDatabase(database);
-    client.dropDatabase(DEFAULT_CATALOG_NAME, "TesT_DatABaSe_1");
-    allDatabases = client.getAllDatabases(DEFAULT_CATALOG_NAME);
+    client.dropDatabase("TesT_DatABaSe_1");
+    allDatabases = client.getAllDatabases();
     Assert.assertEquals("All databases size", 4, allDatabases.size());
   }
 
@@ -299,7 +299,7 @@ public class TestDatabases extends MetaStoreClientTest {
     metaStore.createFile(dataFile, "100");
 
     // Do not delete the data
-    client.dropDatabase(DEFAULT_CATALOG_NAME, database.getName(), false, false);
+    client.dropDatabase(database.getName(), false, false);
     // Check that the data still exist
     Assert.assertTrue("The data file should still exist", metaStore.isPathExists(dataFile));
 
@@ -308,7 +308,7 @@ public class TestDatabases extends MetaStoreClientTest {
     Assert.assertTrue("The data file should still exist", metaStore.isPathExists(dataFile));
 
     // Delete the data
-    client.dropDatabase(DEFAULT_CATALOG_NAME, database.getName(), true, false);
+    client.dropDatabase(database.getName(), true, false);
     // Check that the data is removed
     Assert.assertFalse("The data file should not exist", metaStore.isPathExists(dataFile));
   }
@@ -316,13 +316,13 @@ public class TestDatabases extends MetaStoreClientTest {
   @Test(expected = NoSuchObjectException.class)
   public void testDropDatabaseIgnoreUnknownFalse() throws Exception {
     // No such database
-    client.dropDatabase(DEFAULT_CATALOG_NAME, "no_such_database", false, false);
+    client.dropDatabase("no_such_database", false, false);
   }
 
   @Test
   public void testDropDatabaseIgnoreUnknownTrue() throws Exception {
     // No such database
-    client.dropDatabase(DEFAULT_CATALOG_NAME, "no_such_database", false, true);
+    client.dropDatabase("no_such_database", false, true);
   }
 
   @Test(expected = InvalidOperationException.class)
@@ -336,7 +336,7 @@ public class TestDatabases extends MetaStoreClientTest {
             .build();
     client.createTable(testTable);
 
-    client.dropDatabase(DEFAULT_CATALOG_NAME, database.getName(), true, true, false);
+    client.dropDatabase(database.getName(), true, true, false);
   }
 
   @Test
@@ -350,7 +350,7 @@ public class TestDatabases extends MetaStoreClientTest {
             .build();
     client.createTable(testTable);
 
-    client.dropDatabase(DEFAULT_CATALOG_NAME, database.getName(), true, true, true);
+    client.dropDatabase(database.getName(), true, true, true);
     Assert.assertFalse("The directory should be removed",
         metaStore.isPathExists(new Path(database.getLocationUri())));
   }
@@ -368,7 +368,7 @@ public class TestDatabases extends MetaStoreClientTest {
 
     client.createFunction(testFunction);
 
-    client.dropDatabase(DEFAULT_CATALOG_NAME, database.getName(), true, true, false);
+    client.dropDatabase(database.getName(), true, true, false);
   }
 
   @Test
@@ -384,14 +384,14 @@ public class TestDatabases extends MetaStoreClientTest {
 
     client.createFunction(testFunction);
 
-    client.dropDatabase(DEFAULT_CATALOG_NAME, database.getName(), true, true, true);
+    client.dropDatabase(database.getName(), true, true, true);
     Assert.assertFalse("The directory should be removed",
         metaStore.isPathExists(new Path(database.getLocationUri())));
   }
 
   @Test
   public void testGetAllDatabases() throws Exception {
-    List<String> allDatabases = client.getAllDatabases(DEFAULT_CATALOG_NAME);
+    List<String> allDatabases = client.getAllDatabases();
     Assert.assertEquals("All databases size", 5, allDatabases.size());
     for(Database database : testDatabases) {
       Assert.assertTrue("Checking database names", allDatabases.contains(database.getName()));
@@ -400,8 +400,8 @@ public class TestDatabases extends MetaStoreClientTest {
         allDatabases.contains(DEFAULT_DATABASE));
 
     // Drop one database, see what remains
-    client.dropDatabase(DEFAULT_CATALOG_NAME, testDatabases[1].getName());
-    allDatabases = client.getAllDatabases(DEFAULT_CATALOG_NAME);
+    client.dropDatabase(testDatabases[1].getName());
+    allDatabases = client.getAllDatabases();
     Assert.assertEquals("All databases size", 4, allDatabases.size());
     for(Database database : testDatabases) {
       if (!database.getName().equals(testDatabases[1].getName())) {
@@ -417,31 +417,31 @@ public class TestDatabases extends MetaStoreClientTest {
   @Test
   public void testGetDatabases() throws Exception {
     // Find databases which name contains _to_find_
-    List<String> databases = client.getDatabases(DEFAULT_CATALOG_NAME, "*_to_find_*");
+    List<String> databases = client.getDatabases("*_to_find_*");
     Assert.assertEquals("Found databases size", 2, databases.size());
     Assert.assertTrue("Should contain", databases.contains("test_database_to_find_1"));
     Assert.assertTrue("Should contain", databases.contains("test_database_to_find_2"));
 
     // Find databases which name contains _to_find_ or _hidden_
-    databases = client.getDatabases(DEFAULT_CATALOG_NAME, "*_to_find_*|*_hidden_*");
+    databases = client.getDatabases("*_to_find_*|*_hidden_*");
     Assert.assertEquals("Found databases size", 3, databases.size());
     Assert.assertTrue("Should contain", databases.contains("test_database_to_find_1"));
     Assert.assertTrue("Should contain", databases.contains("test_database_to_find_2"));
     Assert.assertTrue("Should contain", databases.contains("test_database_hidden_1"));
 
     // Look for databases but do not find any
-    databases = client.getDatabases(DEFAULT_CATALOG_NAME, "*_not_such_database_*");
+    databases = client.getDatabases("*_not_such_database_*");
     Assert.assertEquals("No such databases size", 0, databases.size());
 
     // Look for databases without pattern
-    databases = client.getDatabases(DEFAULT_CATALOG_NAME, null);
+    databases = client.getDatabases(null);
     Assert.assertEquals("Search databases without pattern size", 5, databases.size());
   }
 
   @Test
   public void testGetDatabasesCaseInsensitive() throws Exception {
     // Check case insensitive search
-    List<String> databases = client.getDatabases(DEFAULT_CATALOG_NAME, "*_tO_FiND*");
+    List<String> databases = client.getDatabases("*_tO_FiND*");
     Assert.assertEquals("Found databases size", 2, databases.size());
     Assert.assertTrue("Should contain", databases.contains("test_database_to_find_1"));
     Assert.assertTrue("Should contain", databases.contains("test_database_to_find_2"));
@@ -462,8 +462,8 @@ public class TestDatabases extends MetaStoreClientTest {
             .addParam("param_key_2_3", "param_value_2_3")
             .build();
 
-    client.alterDatabase(DEFAULT_CATALOG_NAME, originalDatabase.getName(), newDatabase);
-    Database alteredDatabase = client.getDatabase(DEFAULT_CATALOG_NAME, newDatabase.getName());
+    client.alterDatabase(originalDatabase.getName(), newDatabase);
+    Database alteredDatabase = client.getDatabase(newDatabase.getName());
     Assert.assertEquals("Comparing Databases", newDatabase, alteredDatabase);
   }
 
@@ -471,14 +471,14 @@ public class TestDatabases extends MetaStoreClientTest {
   public void testAlterDatabaseNotNullableFields() throws Exception {
     Database database = getDatabaseWithAllParametersSet();
     client.createDatabase(database);
-    Database originalDatabase = client.getDatabase(DEFAULT_CATALOG_NAME, database.getName());
+    Database originalDatabase = client.getDatabase(database.getName());
     Database newDatabase = new Database();
     newDatabase.setName("new_name");
     newDatabase.setCatalogName(DEFAULT_CATALOG_NAME);
 
-    client.alterDatabase(DEFAULT_CATALOG_NAME, originalDatabase.getName(), newDatabase);
+    client.alterDatabase(originalDatabase.getName(), newDatabase);
     // The name should not be changed, so reload the db with the original name
-    Database alteredDatabase = client.getDatabase(DEFAULT_CATALOG_NAME, originalDatabase.getName());
+    Database alteredDatabase = client.getDatabase(originalDatabase.getName());
     Assert.assertEquals("Database name should not change", originalDatabase.getName(),
         alteredDatabase.getName());
     Assert.assertEquals("Database description should not change", originalDatabase.getDescription(),
@@ -497,7 +497,7 @@ public class TestDatabases extends MetaStoreClientTest {
   public void testAlterDatabaseNoSuchDatabase() throws Exception {
     Database newDatabase = new DatabaseBuilder().setName("test_database_altered").build();
 
-    client.alterDatabase(DEFAULT_CATALOG_NAME, "no_such_database", newDatabase);
+    client.alterDatabase("no_such_database", newDatabase);
   }
 
   @Test
@@ -507,20 +507,19 @@ public class TestDatabases extends MetaStoreClientTest {
     newDatabase.setDescription("Altered database");
 
     // Test in upper case
-    client.alterDatabase(DEFAULT_CATALOG_NAME, originalDatabase.getName().toUpperCase(), newDatabase);
-    Database alteredDatabase = client.getDatabase(DEFAULT_CATALOG_NAME, newDatabase.getName());
+    client.alterDatabase(originalDatabase.getName().toUpperCase(), newDatabase);
+    Database alteredDatabase = client.getDatabase(newDatabase.getName());
     Assert.assertEquals("Comparing databases", newDatabase, alteredDatabase);
 
     // Test in mixed case
     originalDatabase = testDatabases[2];
     newDatabase = originalDatabase.deepCopy();
     newDatabase.setDescription("Altered database 2");
-    client.alterDatabase(DEFAULT_CATALOG_NAME, "TeST_daTAbaSe_TO_FiNd_2", newDatabase);
-    alteredDatabase = client.getDatabase(DEFAULT_CATALOG_NAME, newDatabase.getName());
+    client.alterDatabase("TeST_daTAbaSe_TO_FiNd_2", newDatabase);
+    alteredDatabase = client.getDatabase(newDatabase.getName());
     Assert.assertEquals("Comparing databases", newDatabase, alteredDatabase);
   }
 
-  @SuppressWarnings("deprecation")
   @Test
   public void databasesInCatalogs() throws TException, URISyntaxException {
     String catName = "mycatalog";
@@ -564,7 +563,7 @@ public class TestDatabases extends MetaStoreClientTest {
     Assert.assertEquals(2, fetchedDbs.size());
     for (String dbName : dbNames) Assert.assertTrue(fetchedDbs.contains(dbName));
 
-    fetchedDbs = new HashSet<>(client.getAllDatabases(Warehouse.DEFAULT_CATALOG_NAME));
+    fetchedDbs = new HashSet<>(client.getAllDatabases());
     Assert.assertEquals(5, fetchedDbs.size());
     Assert.assertTrue(fetchedDbs.contains(Warehouse.DEFAULT_DATABASE_NAME));
 
@@ -577,7 +576,7 @@ public class TestDatabases extends MetaStoreClientTest {
     Assert.assertEquals(2, fetchedDbs.size());
     for (String dbName : dbNames) Assert.assertTrue(fetchedDbs.contains(dbName));
 
-    fetchedDbs = new HashSet<>(client.getDatabases(Warehouse.DEFAULT_CATALOG_NAME, "d*"));
+    fetchedDbs = new HashSet<>(client.getDatabases("d*"));
     Assert.assertEquals(1, fetchedDbs.size());
     Assert.assertTrue(fetchedDbs.contains(Warehouse.DEFAULT_DATABASE_NAME));
 
@@ -590,7 +589,7 @@ public class TestDatabases extends MetaStoreClientTest {
     Assert.assertEquals(1, fetchedDbs.size());
     Assert.assertTrue(fetchedDbs.contains(dbNames[0]));
 
-    fetchedDbs = new HashSet<>(client.getDatabases(Warehouse.DEFAULT_CATALOG_NAME, "*9"));
+    fetchedDbs = new HashSet<>(client.getDatabases("*9"));
     Assert.assertEquals(0, fetchedDbs.size());
 
     // Intentionally using the deprecated method to make sure it returns correct results.
@@ -602,7 +601,7 @@ public class TestDatabases extends MetaStoreClientTest {
 
     // Check that dropping database from wrong catalog fails
     try {
-      client.dropDatabase(Warehouse.DEFAULT_CATALOG_NAME, dbNames[0], true, false, false);
+      client.dropDatabase(dbNames[0], true, false, false);
       Assert.fail();
     } catch (NoSuchObjectException e) {
       // NOP
@@ -628,37 +627,6 @@ public class TestDatabases extends MetaStoreClientTest {
 
     fetchedDbs = new HashSet<>(client.getAllDatabases(catName));
     Assert.assertEquals(0, fetchedDbs.size());
-  }
-
-  @SuppressWarnings("deprecation")
-  @Test
-  public void noCatalogDbCallsWork() throws TException, URISyntaxException {
-    String dbName = "olddb";
-    // Do not use the DatabaseBuilder here because it fills in the default catalog for you.
-    Database db = new Database();
-    db.setName(dbName);
-    client.createDatabase(db);
-
-    Set<String> fetchedDbs = new HashSet<>(client.getAllDatabases(Warehouse.DEFAULT_CATALOG_NAME));
-    Assert.assertEquals(6, fetchedDbs.size());
-    Assert.assertTrue(fetchedDbs.contains(Warehouse.DEFAULT_DATABASE_NAME));
-    Assert.assertTrue(fetchedDbs.contains(dbName));
-
-    // Intentionally use deprecated method
-    Database fetched = client.getDatabase(dbName);
-    Warehouse wh = new Warehouse(metaStore.getConf());
-    //String expectedLocation = new File(wh.getWhRoot().toString(), dbName + ".db") .getAbsolutePath();
-    String expectedLocation = wh.getWhRoot().toString() + "/" + dbName + ".db";
-    Assert.assertEquals(expectedLocation, fetched.getLocationUri());
-    File dir = new File(new URI(fetched.getLocationUri()).getPath());
-    Assert.assertTrue(dir.exists() && dir.isDirectory());
-
-    // Intenionally use deprecated method
-    client.dropDatabase(dbName);
-
-    fetchedDbs = new HashSet<>(client.getAllDatabases(Warehouse.DEFAULT_CATALOG_NAME));
-    Assert.assertEquals(5, fetchedDbs.size());
-    Assert.assertTrue(fetchedDbs.contains(Warehouse.DEFAULT_DATABASE_NAME));
   }
 
   @Test(expected = InvalidObjectException.class)

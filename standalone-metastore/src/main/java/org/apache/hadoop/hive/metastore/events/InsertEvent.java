@@ -69,7 +69,7 @@ public class InsertEvent extends ListenerEvent {
     try {
       this.tableObj = handler.get_table_req(req).getTable();
       if (partVals != null) {
-        this.ptnObj = handler.get_partition(MetaStoreUtils.prependCatalogToDbName(catName, db),
+        this.ptnObj = handler.get_partition(MetaStoreUtils.prependNotNullCatToDbName(catName, db),
             table, partVals);
       } else {
         this.ptnObj = null;
