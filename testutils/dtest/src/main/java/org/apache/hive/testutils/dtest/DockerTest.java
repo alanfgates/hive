@@ -24,6 +24,8 @@ import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.OptionBuilder;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -37,57 +39,53 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 public class DockerTest {
+  private static final Logger LOG = LoggerFactory.getLogger(DockerTest.class);
+
   private DockerClient docker;
-  private FileWriter log;
 
   private void run(String[] args) {
     CommandLineParser parser = new GnuParser();
 
     Options opts = new Options();
     opts.addOption(OptionBuilder
-        .withArgName("b")
         .withLongOpt("branch")
         .withDescription("git branch to use")
         .isRequired()
         .hasArg()
-        .create());
+        .create("b"));
 
     opts.addOption(OptionBuilder
-        .withArgName("c")
         .withLongOpt("num-containers")
         .withDescription("number of simultaneous containers to run, defaults to 1")
         .hasArg()
-        .create());
+        .create("c"));
 
     opts.addOption(OptionBuilder
-        .withArgName("d")
         .withLongOpt("target-directory")
         .withDescription("directory to build dockerfile in")
         .isRequired()
         .hasArg()
-        .create());
+        .create("d"));
 
     opts.addOption(OptionBuilder
-        .withArgName("n")
         .withLongOpt("build-number")
         .withDescription("build number, changing this will force a new container to be built")
         .isRequired()
         .hasArg()
-        .create());
+        .create("n"));
 
     opts.addOption(OptionBuilder
-        .withArgName("r")
         .withLongOpt("repo")
         .withDescription("git repository to use")
         .isRequired()
         .hasArg()
-        .create());
+        .create("r"));
 
     CommandLine cmd;
     try {
       cmd = parser.parse(opts, args);
     } catch (ParseException e) {
-      System.err.println("Failed to parse command line: " + e.getMessage());
+      LOG.error("Failed to parse command line: ", e);
       usage(opts);
       return;
     }
@@ -98,24 +96,17 @@ public class DockerTest {
     String repo = cmd.getOptionValue("r");
     int buildNum = Integer.parseInt(cmd.getOptionValue("n"));
 
-    try {
-      log = new FileWriter(dir + File.pathSeparator + "test.log");
-    } catch (IOException e) {
-      System.err.println("Unable to open the log file, are you sure you gave me a reasonable " +
-          "target directory?  " + e.getMessage());
-    }
 
-    docker = new DockerClient(buildNum, log);
+    docker = new DockerClient(buildNum);
     try {
-      buildDockerImage(dir, repo, branch);
+      buildDockerImage(dir, repo, branch, buildNum);
     } catch (IOException e) {
-      System.err.println("Failed to build docker image, might mean your code doesn't compile: " +
-          e.getMessage());
+      LOG.error("Failed to build docker image, might mean your code doesn't compile", e);
     }
     try {
       runContainers(dir, numContainers);
     } catch (IOException e) {
-      System.err.println("Failed to run one or more of the containers: " + e.getMessage());
+      LOG.error("Failed to run one or more of the containers", e);
     }
   }
 
@@ -124,8 +115,9 @@ public class DockerTest {
     formatter.printHelp("docker-test", opts);
   }
 
-  private void buildDockerImage(String dir, String repo, String branch) throws IOException {
-    DockerBuilder.createDockerFile(dir, repo, branch);
+  private void buildDockerImage(String dir, String repo, String branch, int buildNumber)
+      throws IOException {
+    DockerBuilder.createDockerFile(dir, repo, branch, buildNumber);
     docker.buildImage(dir, 30, TimeUnit.MINUTES);
   }
 
@@ -141,17 +133,18 @@ public class DockerTest {
     for (Future<ContainerResult> task : tasks) {
       try {
         ContainerResult result = task.get();
-        System.out.println("Task " + result.name + ((result.rc == 0) ? " Succeeded" : " Failed"));
-        log.write("=====================================================================\n");
-        log.write("Logs from " + result.name + "\n");
-        log.write(result.logs);
+        FileWriter writer = new FileWriter(dir + File.separator + result.name);
+        String statusMsg = "Task " + result.name + ((result.rc == 0) ? " Succeeded" : " Failed");
+        LOG.info(statusMsg);
+        writer.write(statusMsg);
+        writer.write(result.logs);
+        writer.close();
       } catch (InterruptedException e) {
-        System.out.println("Interrupted while waiting for containers to finish, assuming I was" +
-            " told to quit.");
+        LOG.error("Interrupted while waiting for containers to finish, assuming I was" +
+            " told to quit.", e);
         return;
       } catch (ExecutionException e) {
-        System.err.println("Got an exception while running container, that's generally bad: " + e
-            .getMessage());
+        LOG.error("Got an exception while running container, that's generally bad", e);
       }
     }
   }

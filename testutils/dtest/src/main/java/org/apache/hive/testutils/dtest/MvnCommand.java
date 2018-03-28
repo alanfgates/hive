@@ -81,7 +81,7 @@ class MvnCommand {
     cmd[0] = "/bin/bash";
     cmd[1] = "-c";
     StringBuilder buf = new StringBuilder("( cd ")
-        .append(baseDir + File.pathSeparator + dir)
+        .append(baseDir + File.separatorChar + dir)
         .append("; /usr/bin/mvn test ");
     if (test != null) {
       buf.append(" -Dtest=")
@@ -106,6 +106,7 @@ class MvnCommand {
           .append("=")
           .append(e.getValue());
     }
+    buf.append(")");
     cmd[2] = buf.toString();
     return cmd;
   }

@@ -33,10 +33,12 @@ class DockerBuilder {
    * @param dir Directory the docker file is in
    * @param repo git repository to pull from
    * @param branch git branch to use
+   * @param buildNum build number
    * @throws IOException if we fail to write the docker file
    */
-  static void createDockerFile(String dir, String repo, String branch) throws IOException {
-    FileWriter writer = new FileWriter(dir + File.pathSeparator + "Dockerfile");
+  static void createDockerFile(String dir, String repo, String branch, int buildNum)
+      throws IOException {
+    FileWriter writer = new FileWriter(dir + File.separatorChar + "Dockerfile");
     writer.write("FROM centos\n");
     writer.write("\n");
     writer.write("RUN yum upgrade -y && \\\n");
@@ -51,6 +53,7 @@ class DockerBuilder {
     writer.write("    /usr/bin/mvn install -DskipTests; \\\n");
     writer.write("    cd itests; \\\n");
     writer.write("    /usr/bin/mvn install -DskipTests -DskipSparkTests; \\\n");
+    writer.write("    echo This is build number " + buildNum + "; \\\n");
     writer.write("}\n");
     writer.close();
   }

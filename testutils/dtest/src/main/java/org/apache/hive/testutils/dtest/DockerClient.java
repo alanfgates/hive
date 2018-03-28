@@ -18,27 +18,28 @@
 package org.apache.hive.testutils.dtest;
 
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
-import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 class DockerClient {
-
+  private static final Logger LOG = LoggerFactory.getLogger(DockerTest.class);
   private static final String CONTAINER_BASE = "hive-dtest-";
   private static final String IMAGE_BASE = "hive-dtest-image-";
 
   private final int runNumber;
-  private final FileWriter log;
 
-  DockerClient(int runNumber, FileWriter log) {
+  DockerClient(int runNumber) {
     this.runNumber = runNumber;
-    this.log = log;
   }
 
   /**
@@ -50,11 +51,12 @@ class DockerClient {
    * @throws IOException if the image fails to build
    */
   void buildImage(String dir, long toWait, TimeUnit unit) throws IOException {
-    long seconds = unit.convert(toWait, TimeUnit.SECONDS);
-    log.write("=====================================================\n");
-    log.write("Building image");
+    long seconds = TimeUnit.SECONDS.convert(toWait, unit);
+    LOG.info("=====================================================\n");
+    LOG.info("Building image");
     ProcessResults res = runProcess(seconds, "docker", "build", "--tag", imageName(), dir);
-    log.write(res.stdout);
+    LOG.info("Stdout from image build: <\n" + res.stdout + "\n>");
+    LOG.info("Stderr from image build: <\n" + res.stderr + "\n>");
     if (res.rc != 0) {
       throw new RuntimeException("Failed to build image, see logs for error message: " + res.stderr);
     }
@@ -73,7 +75,7 @@ class DockerClient {
     String containerName = createContainerName(cmd.uniqueName());
     runCmd.addAll(Arrays.asList("docker", "run", "--name", containerName, imageName()));
     runCmd.addAll(Arrays.asList(cmd.buildCommand()));
-    long seconds = unit.convert(toWait, TimeUnit.SECONDS);
+    long seconds = TimeUnit.SECONDS.convert(toWait, unit);
     ProcessResults res = runProcess(seconds, runCmd.toArray(new String[runCmd.size()]));
     return new ContainerResult(containerName, res.rc, res.stdout);
   }
@@ -99,8 +101,13 @@ class DockerClient {
   }
 
   private ProcessResults runProcess(long secondsToWait, String... cmd) throws IOException {
-    log.write("Going to run: " + StringUtils.join(cmd, " ") + "\n");
+    LOG.info("Going to run: " + StringUtils.join(cmd, " ") + "\n");
     Process proc = Runtime.getRuntime().exec(cmd);
+    AtomicBoolean running = new AtomicBoolean(true);
+    Pumper stdout = new Pumper(running, proc.getInputStream());
+    Pumper stderr = new Pumper(running, proc.getErrorStream());
+    new Thread(stdout).start();
+    new Thread(stderr).start();
     try {
       if (!proc.waitFor(secondsToWait, TimeUnit.SECONDS)) {
         throw new RuntimeException("Process " + cmd[0] + " failed to run in " + secondsToWait +
@@ -108,7 +115,10 @@ class DockerClient {
       }
     } catch (InterruptedException e) {
       throw new IOException(e);
+    } finally {
+      running.set(false);
     }
+    /*
     BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()));
     final StringBuilder lines = new StringBuilder();
     reader.lines().forEach(s -> lines.append(s).append('\n'));
@@ -117,5 +127,41 @@ class DockerClient {
     final StringBuilder errLines = new StringBuilder();
     reader.lines().forEach(s -> errLines.append(s).append('\n'));
     return new ProcessResults(lines.toString(), errLines.toString(), proc.exitValue());
+    */
+    return new ProcessResults(stdout.getOutput(), stderr.getOutput(), proc.exitValue());
+  }
+
+  private static class Pumper implements Runnable {
+    private final AtomicBoolean keepGoing;
+    private final BufferedReader reader;
+    private final StringBuilder buffer;
+
+    public Pumper(AtomicBoolean keepGoing, InputStream input) {
+      this.keepGoing = keepGoing;
+      reader = new BufferedReader(new InputStreamReader(input));
+      buffer = new StringBuilder();
+    }
+
+    public String getOutput() {
+      return buffer.toString();
+    }
+
+    @Override
+    public void run() {
+      try {
+        while (keepGoing.get()) {
+          if (reader.ready()) {
+            String s = reader.readLine();
+            LOG.info(s);
+            buffer.append(s).append('\n');
+          } else {
+            Thread.sleep(1000);
+          }
+        }
+      } catch (Exception e) {
+        LOG.error("Caught exception while puming stream", e);
+      }
+
+    }
   }
 }
