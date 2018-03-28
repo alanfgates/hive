@@ -66,6 +66,7 @@ class MvnCommand {
       buf.append("_")
           .append(qFilePattern.replace("[", "_LF_")
               .replace("]", "_RT_")
+              .replace("/", "-")
               .replace("\\", "")
               .replace("*", "_S_"));
     }
@@ -106,7 +107,7 @@ class MvnCommand {
           .append("=")
           .append(e.getValue());
     }
-    buf.append(")");
+    buf.append("-DskipSparkTests )");
     cmd[2] = buf.toString();
     return cmd;
   }

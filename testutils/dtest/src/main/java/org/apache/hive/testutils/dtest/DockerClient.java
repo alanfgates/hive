@@ -118,16 +118,6 @@ class DockerClient {
     } finally {
       running.set(false);
     }
-    /*
-    BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()));
-    final StringBuilder lines = new StringBuilder();
-    reader.lines().forEach(s -> lines.append(s).append('\n'));
-
-    reader = new BufferedReader(new InputStreamReader(proc.getErrorStream()));
-    final StringBuilder errLines = new StringBuilder();
-    reader.lines().forEach(s -> errLines.append(s).append('\n'));
-    return new ProcessResults(lines.toString(), errLines.toString(), proc.exitValue());
-    */
     return new ProcessResults(stdout.getOutput(), stderr.getOutput(), proc.exitValue());
   }
 
