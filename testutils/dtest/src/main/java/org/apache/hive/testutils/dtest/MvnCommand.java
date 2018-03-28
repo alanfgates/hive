@@ -60,13 +60,12 @@ class MvnCommand {
   }
 
   String uniqueName() {
-    StringBuilder buf = new StringBuilder(dir);
+    StringBuilder buf = new StringBuilder(dir.replace("/", "-"));
     if (test != null) buf.append("_").append(test);
     if (qFilePattern != null) {
       buf.append("_")
           .append(qFilePattern.replace("[", "_LF_")
               .replace("]", "_RT_")
-              .replace("/", "-")
               .replace("\\", "")
               .replace("*", "_S_"));
     }
@@ -107,7 +106,7 @@ class MvnCommand {
           .append("=")
           .append(e.getValue());
     }
-    buf.append("-DskipSparkTests )");
+    buf.append(" -DskipSparkTests)");
     cmd[2] = buf.toString();
     return cmd;
   }

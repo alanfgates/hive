@@ -83,7 +83,7 @@ class DockerBuilder {
     cmds.add(new MvnCommand(baseDir, "spark-client"));
     cmds.add(new MvnCommand(baseDir, "hbase-handler"));
     cmds.add(new MvnCommand(baseDir, "hcatalog/core"));
-    cmds.add(new MvnCommand(baseDir, "hcatalog/hcatalog-pig-adaptor"));
+    cmds.add(new MvnCommand(baseDir, "hcatalog/hcatalog-pig-adapter"));
     cmds.add(new MvnCommand(baseDir, "hcatalog/server-extensions"));
     cmds.add(new MvnCommand(baseDir, "hcatalog/streaming"));
     cmds.add(new MvnCommand(baseDir, "hcatalog/webhcat/java-client"));

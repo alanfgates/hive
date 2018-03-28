@@ -147,6 +147,7 @@ public class DockerTest {
         LOG.error("Got an exception while running container, that's generally bad", e);
       }
     }
+    executor.shutdown();
   }
 
   public static void main(String[] args) {
