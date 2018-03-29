@@ -93,7 +93,6 @@ public class DockerTest {
     opts.addOption(OptionBuilder
         .withLongOpt("result-analyzer-factory")
         .withDescription("Class to build ResultAnalyzer, default to SimpleResultAnalyzer")
-        .isRequired()
         .hasArg()
         .create("R"));
 

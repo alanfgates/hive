@@ -61,10 +61,8 @@ public class MvnCommandFactory extends ContainerCommandFactory {
     cmds.add(new MvnCommand(baseDir, "itests/hive-blobstore"));
     cmds.add(new MvnCommand(baseDir, "itests/hive-minikdc"));
     cmds.add(new MvnCommand(baseDir, "itests/hive-unit-hadoop2"));
-    cmds.add(new MvnCommand(baseDir, "itests/test-serde"));
     cmds.add(new MvnCommand(baseDir, "itests/hive-unit"));
     cmds.add(new MvnCommand(baseDir, "itests/qtest-accumulo"));
-    cmds.add(new MvnCommand(baseDir, "itests/qtest-druid"));
 
     // qfile tests
     cmds.add(new MvnCommand(baseDir, "itests/qtest").setTest("TestBeeLineDriver"));

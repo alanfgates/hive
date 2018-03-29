@@ -18,6 +18,7 @@
 package org.apache.hive.testutils.dtest;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -70,6 +71,8 @@ class SimpleResultAnalyzer implements ResultAnalyzer {
   public void analyzeLog(String name, String log) {
     String[] lines = log.split("\n");
     for (String line : lines) analyzeLogLine(name, line);
+    Collections.sort(errors);
+    Collections.sort(failed);
   }
 
   private void analyzeLogLine(String name, String line) {
