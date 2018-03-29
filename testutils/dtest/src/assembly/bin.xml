@@ -48,6 +48,7 @@
       <directory>${project.basedir}/src/main/scripts</directory>
       <includes>
         <include>dtest</include>
+        <include>dtest-cleanup</include>
       </includes>
       <outputDirectory>bin</outputDirectory>
     </fileSet>

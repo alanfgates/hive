@@ -50,9 +50,9 @@ class DockerBuilder {
     writer.write("    /usr/bin/git clone " + repo + "; \\\n");
     writer.write("    cd hive; \\\n");
     writer.write("    /usr/bin/git checkout " + branch + "; \\\n");
-    writer.write("    /usr/bin/mvn install -DskipTests; \\\n");
+    writer.write("    /usr/bin/mvn install -Dtest=nosuch; \\\n");
     writer.write("    cd itests; \\\n");
-    writer.write("    /usr/bin/mvn install -DskipTests -DskipSparkTests; \\\n");
+    writer.write("    /usr/bin/mvn install -Dtest=nosuch -DskipSparkTests; \\\n");
     writer.write("    echo This is build number " + buildNum + "; \\\n");
     writer.write("}\n");
     writer.close();
@@ -112,7 +112,6 @@ class DockerBuilder {
     cmds.add(new MvnCommand(baseDir, "itests/qtest").setTest("TestMiniLlapCliDriver"));
     cmds.add(new MvnCommand(baseDir, "itests/qtest").setTest("TestMiniLlapLocalCliDriver"));
     cmds.add(new MvnCommand(baseDir, "itests/qtest").setTest("TestNegativeMinimrCliDriver"));
-    cmds.add(new MvnCommand(baseDir, "itests/qtest").setTest("TestTezPerfCliDriver"));
     cmds.add(new MvnCommand(baseDir, "itests/qtest").setTest("TestParseNegativeDriver"));
     cmds.add(new MvnCommand(baseDir, "itests/qtest").setTest("TestMinimrCliDriver"));
     cmds.add(new MvnCommand(baseDir, "itests/qtest").setTest("TestMiniTezCliDriver"));

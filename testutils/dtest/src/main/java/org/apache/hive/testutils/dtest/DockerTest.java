@@ -124,6 +124,7 @@ public class DockerTest {
   private void runContainers(String dir, int numContainers) throws IOException {
     List<MvnCommand> taskCmds = DockerBuilder.testCommands("/root/hive");
 
+    ResultAnalyzer analyzer = new ResultAnalyzer();
     List <Future<ContainerResult>> tasks = new ArrayList<>(taskCmds.size());
     ExecutorService executor = Executors.newFixedThreadPool(numContainers);
     for (MvnCommand taskCmd : taskCmds) {
@@ -139,6 +140,7 @@ public class DockerTest {
         writer.write(statusMsg);
         writer.write(result.logs);
         writer.close();
+        analyzer.analyzeLogLine(result.name, result.logs);
       } catch (InterruptedException e) {
         LOG.error("Interrupted while waiting for containers to finish, assuming I was" +
             " told to quit.", e);
@@ -148,6 +150,23 @@ public class DockerTest {
       }
     }
     executor.shutdown();
+    String msg = "Final counts: Succeeded: " + analyzer.getSucceeded() + ", Errors: " +
+        analyzer.getErrors().size() + ", Failures: " + analyzer.getFailed().size();
+    LOG.info("============================================");
+    if (analyzer.getFailed().size() > 0) {
+      LOG.info("All Failures:");
+      for (String failure : analyzer.getFailed()) {
+        LOG.info(failure);
+      }
+    }
+    if (analyzer.getErrors().size() > 0) {
+      LOG.info("All Errors:");
+      for (String error : analyzer.getErrors()) {
+        LOG.info(error);
+      }
+    }
+    LOG.info(msg);
+    System.out.println(msg);
   }
 
   public static void main(String[] args) {
