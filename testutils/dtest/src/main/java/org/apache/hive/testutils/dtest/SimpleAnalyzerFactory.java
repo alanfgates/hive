@@ -17,33 +17,10 @@
  */
 package org.apache.hive.testutils.dtest;
 
-import java.util.List;
+public class SimpleAnalyzerFactory extends ResultAnalyzerFactory {
 
-public interface ResultAnalyzer {
-
-  /**
-   * Analyze a log
-   * @param name the name of the container
-   * @param log the log produced
-   */
-  void analyzeLog(String name, String log);
-
-  /**
-   * Get count of succeeded tests.
-   * @return number of tests that succeeded.
-   */
-  int getSucceeded();
-
-  /**
-   * Get list of tests that failed.
-   * @return name of each test that failed.
-   */
-  List<String> getFailed();
-
-  /**
-   * Get list of tests that ended in error.
-   * @return name of each test that produced an error.
-   */
-  List<String> getErrors();
-
+  @Override
+  public ResultAnalyzer getAnalyzer() {
+    return new SimpleResultAnalyzer();
+  }
 }

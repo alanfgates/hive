@@ -17,6 +17,7 @@
  */
 package org.apache.hive.testutils.dtest;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.GnuParser;
@@ -41,9 +42,12 @@ import java.util.concurrent.TimeUnit;
 public class DockerTest {
   private static final Logger LOG = LoggerFactory.getLogger(DockerTest.class);
 
-  private DockerClient docker;
+  private ContainerClient docker;
+  private ContainerCommandFactory commandFactory;
+  private ResultAnalyzerFactory analyzerFactory;
 
-  private void run(String[] args) {
+  @VisibleForTesting
+  void run(String[] args) {
     CommandLineParser parser = new GnuParser();
 
     Options opts = new Options();
@@ -53,6 +57,12 @@ public class DockerTest {
         .isRequired()
         .hasArg()
         .create("b"));
+
+    opts.addOption(OptionBuilder
+        .withLongOpt("command-factory")
+        .withDescription("Class to build ContainerCommands, defaults to MvnCommandFactory")
+        .hasArg()
+        .create("C"));
 
     opts.addOption(OptionBuilder
         .withLongOpt("num-containers")
@@ -68,11 +78,24 @@ public class DockerTest {
         .create("d"));
 
     opts.addOption(OptionBuilder
+        .withLongOpt("container-factory")
+        .withDescription("Class to build ContainerClients, defaults to ContainerClientFactory")
+        .hasArg()
+        .create("F"));
+
+    opts.addOption(OptionBuilder
         .withLongOpt("build-number")
         .withDescription("build number, changing this will force a new container to be built")
         .isRequired()
         .hasArg()
         .create("n"));
+
+    opts.addOption(OptionBuilder
+        .withLongOpt("result-analyzer-factory")
+        .withDescription("Class to build ResultAnalyzer, default to SimpleResultAnalyzer")
+        .isRequired()
+        .hasArg()
+        .create("R"));
 
     opts.addOption(OptionBuilder
         .withLongOpt("repo")
@@ -96,12 +119,21 @@ public class DockerTest {
     String repo = cmd.getOptionValue("r");
     int buildNum = Integer.parseInt(cmd.getOptionValue("n"));
 
-
-    docker = new DockerClient(buildNum);
+    try {
+      ContainerClientFactory containerClientFactory =
+          ContainerClientFactory.get(cmd.getOptionValue("F"));
+      docker = containerClientFactory.getClient(buildNum);
+      commandFactory = ContainerCommandFactory.get(cmd.getOptionValue("C"));
+      analyzerFactory = ResultAnalyzerFactory.get(cmd.getOptionValue("R"));
+    } catch (IOException e) {
+      LOG.error("Failed to instantiate one of the factories", e);
+      return;
+    }
     try {
       buildDockerImage(dir, repo, branch, buildNum);
     } catch (IOException e) {
       LOG.error("Failed to build docker image, might mean your code doesn't compile", e);
+      return;
     }
     try {
       runContainers(dir, numContainers);
@@ -122,12 +154,13 @@ public class DockerTest {
   }
 
   private void runContainers(String dir, int numContainers) throws IOException {
-    List<MvnCommand> taskCmds = DockerBuilder.testCommands("/root/hive");
+    //List<MvnCommand> taskCmds = DockerBuilder.testCommands("/root/hive");
+    List<ContainerCommand> taskCmds = commandFactory.getContainerCommands("/root/hive");
 
-    ResultAnalyzer analyzer = new ResultAnalyzer();
+    ResultAnalyzer analyzer = analyzerFactory.getAnalyzer();
     List <Future<ContainerResult>> tasks = new ArrayList<>(taskCmds.size());
     ExecutorService executor = Executors.newFixedThreadPool(numContainers);
-    for (MvnCommand taskCmd : taskCmds) {
+    for (ContainerCommand taskCmd : taskCmds) {
       tasks.add(executor.submit(() -> docker.runContainer(3, TimeUnit.HOURS, taskCmd)));
     }
 
@@ -140,7 +173,7 @@ public class DockerTest {
         writer.write(statusMsg);
         writer.write(result.logs);
         writer.close();
-        analyzer.analyzeLogLine(result.name, result.logs);
+        analyzer.analyzeLog(result.name, result.logs);
       } catch (InterruptedException e) {
         LOG.error("Interrupted while waiting for containers to finish, assuming I was" +
             " told to quit.", e);

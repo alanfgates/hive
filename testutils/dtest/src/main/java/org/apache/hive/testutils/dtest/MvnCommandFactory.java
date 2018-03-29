@@ -17,50 +17,15 @@
  */
 package org.apache.hive.testutils.dtest;
 
-import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Utility class to build various pieces we need like the Docker file and the commands
- */
-class DockerBuilder {
+public class MvnCommandFactory extends ContainerCommandFactory {
 
-  /**
-   * Build the docker file
-   * @param dir Directory the docker file is in
-   * @param repo git repository to pull from
-   * @param branch git branch to use
-   * @param buildNum build number
-   * @throws IOException if we fail to write the docker file
-   */
-  static void createDockerFile(String dir, String repo, String branch, int buildNum)
-      throws IOException {
-    FileWriter writer = new FileWriter(dir + File.separatorChar + "Dockerfile");
-    writer.write("FROM centos\n");
-    writer.write("\n");
-    writer.write("RUN yum upgrade -y && \\\n");
-    writer.write("    yum update -y && \\\n");
-    writer.write("    yum install -y java-1.8.0-openjdk-devel unzip git maven\n");
-    writer.write("\n");
-    writer.write("RUN { \\\n");
-    writer.write("    cd /root; \\\n");
-    writer.write("    /usr/bin/git clone " + repo + "; \\\n");
-    writer.write("    cd hive; \\\n");
-    writer.write("    /usr/bin/git checkout " + branch + "; \\\n");
-    writer.write("    /usr/bin/mvn install -Dtest=nosuch; \\\n");
-    writer.write("    cd itests; \\\n");
-    writer.write("    /usr/bin/mvn install -Dtest=nosuch -DskipSparkTests; \\\n");
-    writer.write("    echo This is build number " + buildNum + "; \\\n");
-    writer.write("}\n");
-    writer.close();
-  }
-
-  /*
-  static List<MvnCommand> testCommands(String baseDir) {
-    List<MvnCommand> cmds = new ArrayList<>();
+  @Override
+  public List<ContainerCommand> getContainerCommands(String baseDir) throws IOException {
+    List<ContainerCommand> cmds = new ArrayList<>();
     // TODO This is turbo brittle.  It should be scanning the source for pom files and adding a
     // command for each, and then counting qfiles and dividing them up.
 
@@ -160,7 +125,5 @@ class DockerBuilder {
     cmds.add(new MvnCommand(baseDir, "itests/qtest").setTest("TestNegativeCliDriver").setqFilePattern("u.\\*"));
 
     return cmds;
-
   }
-  */
 }

@@ -23,7 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-class MvnCommand {
+class MvnCommand implements ContainerCommand {
 
   private final String baseDir; // base directory for all commands
   private final String dir; // directory for this particular command
@@ -59,7 +59,8 @@ class MvnCommand {
     return this;
   }
 
-  String uniqueName() {
+  @Override
+  public String containerName() {
     StringBuilder buf = new StringBuilder(dir.replace("/", "-"));
     if (test != null) buf.append("_").append(test);
     if (qFilePattern != null) {
@@ -72,11 +73,8 @@ class MvnCommand {
     return buf.toString();
   }
 
-  /**
-   * This builds a command that the docker run command can use
-   * @return command
-   */
-  String[] buildCommand() {
+  @Override
+  public String[] shellCommand() {
     String[] cmd = new String[3];
     cmd[0] = "/bin/bash";
     cmd[1] = "-c";

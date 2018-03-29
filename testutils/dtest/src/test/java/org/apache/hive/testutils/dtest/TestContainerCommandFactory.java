@@ -17,33 +17,32 @@
  */
 package org.apache.hive.testutils.dtest;
 
+import org.junit.Assert;
+import org.junit.Test;
+
+import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
-public interface ResultAnalyzer {
+public class TestContainerCommandFactory {
 
-  /**
-   * Analyze a log
-   * @param name the name of the container
-   * @param log the log produced
-   */
-  void analyzeLog(String name, String log);
+  static class DummyContainerCommandFactory extends ContainerCommandFactory {
+    @Override
+    public List<ContainerCommand> getContainerCommands(String baseDir) throws IOException {
+      return Collections.emptyList();
+    }
+  }
 
-  /**
-   * Get count of succeeded tests.
-   * @return number of tests that succeeded.
-   */
-  int getSucceeded();
+  @Test
+  public void defaultFactory() throws IOException {
+    ContainerCommandFactory factory = ContainerCommandFactory.get(null);
+    Assert.assertEquals(MvnCommandFactory.class, factory.getClass());
+  }
 
-  /**
-   * Get list of tests that failed.
-   * @return name of each test that failed.
-   */
-  List<String> getFailed();
-
-  /**
-   * Get list of tests that ended in error.
-   * @return name of each test that produced an error.
-   */
-  List<String> getErrors();
-
+  @Test
+  public void specifiedFactory() throws IOException {
+    ContainerCommandFactory factory =
+        ContainerCommandFactory.get(DummyContainerCommandFactory.class.getName());
+    Assert.assertEquals(DummyContainerCommandFactory.class, factory.getClass());
+  }
 }

@@ -17,33 +17,28 @@
  */
 package org.apache.hive.testutils.dtest;
 
-import java.util.List;
+import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
-public interface ResultAnalyzer {
-
-  /**
-   * Analyze a log
-   * @param name the name of the container
-   * @param log the log produced
-   */
-  void analyzeLog(String name, String log);
+public interface ContainerClient {
 
   /**
-   * Get count of succeeded tests.
-   * @return number of tests that succeeded.
+   * Build an image
+   * @param dir directory to build in, must either be absolute path or relative to CWD of the
+   *            process.
+   * @param toWait how long to wait for this command
+   * @param unit toWait is measured in
+   * @throws IOException if the image fails to build
    */
-  int getSucceeded();
+  void buildImage(String dir, long toWait, TimeUnit unit) throws IOException;
 
   /**
-   * Get list of tests that failed.
-   * @return name of each test that failed.
+   * Run a container and return a string containing the logs
+   * @param toWait how long to wait for this run
+   * @param unit toWait is measured in
+   * @param cmd command to run along with any arguments
+   * @return results from the container
+   * @throws IOException if the container fails to run
    */
-  List<String> getFailed();
-
-  /**
-   * Get list of tests that ended in error.
-   * @return name of each test that produced an error.
-   */
-  List<String> getErrors();
-
+  ContainerResult runContainer(long toWait, TimeUnit unit, ContainerCommand cmd) throws IOException;
 }

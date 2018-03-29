@@ -17,33 +17,19 @@
  */
 package org.apache.hive.testutils.dtest;
 
-import java.util.List;
+import java.io.IOException;
 
-public interface ResultAnalyzer {
+public abstract class ResultAnalyzerFactory {
 
-  /**
-   * Analyze a log
-   * @param name the name of the container
-   * @param log the log produced
-   */
-  void analyzeLog(String name, String log);
+  static ResultAnalyzerFactory get(String factoryClassName) throws IOException {
+    if (factoryClassName == null) factoryClassName = SimpleAnalyzerFactory.class.getName();
 
-  /**
-   * Get count of succeeded tests.
-   * @return number of tests that succeeded.
-   */
-  int getSucceeded();
+    Class<? extends ResultAnalyzerFactory> clazz = Utils.getClass(factoryClassName,
+        ResultAnalyzerFactory.class);
+    return Utils.newInstance(clazz);
+  }
 
-  /**
-   * Get list of tests that failed.
-   * @return name of each test that failed.
-   */
-  List<String> getFailed();
+  public abstract ResultAnalyzer getAnalyzer();
 
-  /**
-   * Get list of tests that ended in error.
-   * @return name of each test that produced an error.
-   */
-  List<String> getErrors();
 
 }

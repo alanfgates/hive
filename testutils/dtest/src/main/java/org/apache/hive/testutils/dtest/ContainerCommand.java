@@ -17,33 +17,21 @@
  */
 package org.apache.hive.testutils.dtest;
 
-import java.util.List;
-
-public interface ResultAnalyzer {
+interface ContainerCommand {
 
   /**
-   * Analyze a log
-   * @param name the name of the container
-   * @param log the log produced
+   * Get a unique container name for this command.  This must return the same value every time
+   * for a given instance.  The name must be unique, and it must be a valid docker container name
+   * (generally means it uses only letters, numbers, underscore, and dash).
+   * @return unique name.
    */
-  void analyzeLog(String name, String log);
+  String containerName();
 
   /**
-   * Get count of succeeded tests.
-   * @return number of tests that succeeded.
+   * Build a shell command.  The command itself should be the first element in the array, with
+   * any arguments as subsequent elements.
+   * @return the command.
    */
-  int getSucceeded();
-
-  /**
-   * Get list of tests that failed.
-   * @return name of each test that failed.
-   */
-  List<String> getFailed();
-
-  /**
-   * Get list of tests that ended in error.
-   * @return name of each test that produced an error.
-   */
-  List<String> getErrors();
+  String[] shellCommand();
 
 }
