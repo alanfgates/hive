@@ -153,7 +153,6 @@ public class DockerTest {
   }
 
   private void runContainers(String dir, int numContainers) throws IOException {
-    //List<MvnCommand> taskCmds = DockerBuilder.testCommands("/root/hive");
     List<ContainerCommand> taskCmds = commandFactory.getContainerCommands("/root/hive");
 
     ResultAnalyzer analyzer = analyzerFactory.getAnalyzer();

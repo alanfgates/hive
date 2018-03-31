@@ -27,12 +27,12 @@ class SimpleResultAnalyzer implements ResultAnalyzer {
   private int succeeded;
   private List<String> failed;
   private List<String> errors;
-  private Pattern successLine;
-  private Pattern errorLine;
-  private Pattern unitTestError;
-  private Pattern unitTestFailure;
-  private Pattern qTestError;
-  private Pattern qTestFailure;
+  private final Pattern successLine;
+  private final Pattern errorLine;
+  private final Pattern unitTestError;
+  private final Pattern unitTestFailure;
+  private final Pattern qTestError;
+  private final Pattern qTestFailure;
 
   SimpleResultAnalyzer() {
     succeeded = 0;

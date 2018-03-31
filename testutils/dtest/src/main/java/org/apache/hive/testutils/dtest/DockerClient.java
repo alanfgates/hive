@@ -40,11 +40,8 @@ class DockerClient implements ContainerClient {
   @Override
   public void buildImage(String dir, long toWait, TimeUnit unit) throws IOException {
     long seconds = TimeUnit.SECONDS.convert(toWait, unit);
-    LOG.info("=====================================================\n");
     LOG.info("Building image");
     ProcessResults res = Utils.runProcess(seconds, "docker", "build", "--tag", imageName(), dir);
-    LOG.info("Stdout from image build: <\n" + res.stdout + "\n>");
-    LOG.info("Stderr from image build: <\n" + res.stderr + "\n>");
     if (res.rc != 0) {
       throw new RuntimeException("Failed to build image, see logs for error message: " + res.stderr);
     }

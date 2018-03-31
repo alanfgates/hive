@@ -30,6 +30,7 @@ public class MvnCommandFactory extends ContainerCommandFactory {
     // command for each, and then counting qfiles and dividing them up.
 
     // Unit tests
+    cmds.add(new MvnCommand(baseDir, "itests/hive-unit"));
     cmds.add(new MvnCommand(baseDir, "accumulo-handler"));
     cmds.add(new MvnCommand(baseDir, "beeline"));
     cmds.add(new MvnCommand(baseDir, "cli"));
@@ -61,7 +62,6 @@ public class MvnCommandFactory extends ContainerCommandFactory {
     cmds.add(new MvnCommand(baseDir, "itests/hive-blobstore"));
     cmds.add(new MvnCommand(baseDir, "itests/hive-minikdc"));
     cmds.add(new MvnCommand(baseDir, "itests/hive-unit-hadoop2"));
-    cmds.add(new MvnCommand(baseDir, "itests/hive-unit"));
     cmds.add(new MvnCommand(baseDir, "itests/qtest-accumulo"));
 
     // qfile tests
@@ -81,6 +81,7 @@ public class MvnCommandFactory extends ContainerCommandFactory {
     cmds.add(new MvnCommand(baseDir, "itests/qtest").setTest("TestMiniTezCliDriver"));
 
     // Super big qfile tests broken out
+    cmds.add(new MvnCommand(baseDir, "itests/qtest").setTest("TestCliDriver").setqFilePattern("v.\\*"));
     cmds.add(new MvnCommand(baseDir, "itests/qtest").setTest("TestCliDriver").setqFilePattern("a[a-t].\\*"));
     cmds.add(new MvnCommand(baseDir, "itests/qtest").setTest("TestCliDriver").setqFilePattern("au.\\*"));
     cmds.add(new MvnCommand(baseDir, "itests/qtest").setTest("TestCliDriver").setqFilePattern("a[v-z].\\*"));
@@ -109,7 +110,6 @@ public class MvnCommandFactory extends ContainerCommandFactory {
     cmds.add(new MvnCommand(baseDir, "itests/qtest").setTest("TestCliDriver").setqFilePattern("t.\\*"));
     cmds.add(new MvnCommand(baseDir, "itests/qtest").setTest("TestCliDriver").setqFilePattern("u[a-d].\\*"));
     cmds.add(new MvnCommand(baseDir, "itests/qtest").setTest("TestCliDriver").setqFilePattern("u[e-z].\\*"));
-    cmds.add(new MvnCommand(baseDir, "itests/qtest").setTest("TestCliDriver").setqFilePattern("v.\\*"));
 
     cmds.add(new MvnCommand(baseDir, "itests/qtest").setTest("TestNegativeCliDriver").setqFilePattern("a[a-t].\\*"));
     cmds.add(new MvnCommand(baseDir, "itests/qtest").setTest("TestNegativeCliDriver").setqFilePattern("a[u-z].\\*"));
