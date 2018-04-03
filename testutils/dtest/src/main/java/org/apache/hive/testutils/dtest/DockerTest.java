@@ -155,49 +155,75 @@ public class DockerTest {
   private void runContainers(String dir, int numContainers) throws IOException {
     List<ContainerCommand> taskCmds = commandFactory.getContainerCommands("/root/hive");
 
-    ResultAnalyzer analyzer = analyzerFactory.getAnalyzer();
-    List <Future<ContainerResult>> tasks = new ArrayList<>(taskCmds.size());
+    final ResultAnalyzer analyzer = analyzerFactory.getAnalyzer();
+    // I don't need the return value, but by having one I can use the Callable interface instead
+    // of Runnable, and Callable catches exceptions for me and passes them back.
+    List <Future<Integer>> tasks = new ArrayList<>(taskCmds.size());
     ExecutorService executor = Executors.newFixedThreadPool(numContainers);
     for (ContainerCommand taskCmd : taskCmds) {
-      tasks.add(executor.submit(() -> docker.runContainer(3, TimeUnit.HOURS, taskCmd)));
-    }
-
-    for (Future<ContainerResult> task : tasks) {
-      try {
-        ContainerResult result = task.get();
+      tasks.add(executor.submit(() -> {
+        ContainerResult result = docker.runContainer(3, TimeUnit.HOURS, taskCmd);
         FileWriter writer = new FileWriter(dir + File.separator + result.name);
-        String statusMsg = "Task " + result.name + ((result.rc == 0) ? " Succeeded" : " Failed");
-        LOG.info(statusMsg);
-        writer.write(statusMsg);
+        analyzer.analyzeLog(result);
+        StringBuilder statusMsg = new StringBuilder("Task ")
+            .append(result.name)
+            .append(' ');
+        if (analyzer.hadTimeouts()) {
+          statusMsg.append(" had TIMEOUTS");
+        } else if (analyzer.runSucceeded()) {
+          statusMsg.append(" SUCCEEDED (does not mean all tests passed)");
+        } else {
+          statusMsg.append(" FAILED to run tom completion");
+        }
+        LOG.info(statusMsg.toString());
+        writer.write(statusMsg.toString());
         writer.write(result.logs);
         writer.close();
-        analyzer.analyzeLog(result.name, result.logs);
+        return 1;
+      }));
+    }
+
+    boolean runSucceeded = true;
+    for (Future<Integer> task : tasks) {
+      try {
+        task.get();
       } catch (InterruptedException e) {
         LOG.error("Interrupted while waiting for containers to finish, assuming I was" +
             " told to quit.", e);
-        return;
+        runSucceeded = false;
       } catch (ExecutionException e) {
         LOG.error("Got an exception while running container, that's generally bad", e);
+        runSucceeded = false;
       }
     }
+
+    runSucceeded &= analyzer.runSucceeded();
+
     executor.shutdown();
-    String msg = "Final counts: Succeeded: " + analyzer.getSucceeded() + ", Errors: " +
-        analyzer.getErrors().size() + ", Failures: " + analyzer.getFailed().size();
-    LOG.info("============================================");
-    if (analyzer.getFailed().size() > 0) {
-      LOG.info("All Failures:");
-      for (String failure : analyzer.getFailed()) {
-        LOG.info(failure);
-      }
-    }
     if (analyzer.getErrors().size() > 0) {
       LOG.info("All Errors:");
       for (String error : analyzer.getErrors()) {
         LOG.info(error);
       }
     }
-    LOG.info(msg);
-    System.out.println(msg);
+    if (analyzer.getFailed().size() > 0) {
+      LOG.info("All Failures:");
+      for (String failure : analyzer.getFailed()) {
+        LOG.info(failure);
+      }
+    }
+    StringBuilder msg = new StringBuilder("Test run ");
+    if (!runSucceeded) msg.append("FAILED.  Following numbers are probably meaningless.\n");
+    else if (analyzer.hadTimeouts()) msg.append("HAD TIMEOUTS.  Following numbers are incomplete.\n");
+    else msg.append("RAN ALL TESTS\n");
+    msg.append("Final counts: Succeeded: ")
+        .append(analyzer.getSucceeded())
+        .append(", Errors: ")
+        .append(analyzer.getErrors().size())
+        .append(", Failures: ")
+        .append(analyzer.getFailed().size());
+    LOG.info(msg.toString());
+    System.out.println(msg.toString());
   }
 
   public static void main(String[] args) {

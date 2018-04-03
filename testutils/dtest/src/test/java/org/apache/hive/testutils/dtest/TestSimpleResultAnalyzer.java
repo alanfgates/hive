@@ -25,23 +25,44 @@ public class TestSimpleResultAnalyzer {
   @Test
   public void unitTestLog() {
     SimpleResultAnalyzer analyzer = new SimpleResultAnalyzer();
-    analyzer.analyzeLog("hive-dtest-1_itests-hive-unit", LOG1);
+    analyzer.analyzeLog(new ContainerResult("hive-dtest-1_itests-hive-unit", 0, LOG1));
     Assert.assertEquals(1, analyzer.getErrors().size());
     Assert.assertEquals("TestAcidOnTez.testGetSplitsLocks", analyzer.getErrors().get(0));
     Assert.assertEquals(1, analyzer.getFailed().size());
     Assert.assertEquals("TestActivePassiveHA.testManualFailover", analyzer.getFailed().get(0));
     Assert.assertEquals(32, analyzer.getSucceeded());
+    Assert.assertFalse(analyzer.hadTimeouts());
+    Assert.assertTrue(analyzer.runSucceeded());
   }
 
   @Test
   public void qtestLog() {
     SimpleResultAnalyzer analyzer = new SimpleResultAnalyzer();
-    analyzer.analyzeLog("hive-dtest-1_itests-qtest_TestNegativeCliDriver_a_LF_a-t_RT_._S_", LOG2);
+    analyzer.analyzeLog(new ContainerResult(
+        "hive-dtest-1_itests-qtest_TestNegativeCliDriver_a_LF_a-t_RT_._S_", 1, LOG2));
     Assert.assertEquals(1, analyzer.getErrors().size());
     Assert.assertEquals("TestNegativeCliDriver.alter_notnull_constraint_violation", analyzer.getErrors().get(0));
     Assert.assertEquals(1, analyzer.getFailed().size());
     Assert.assertEquals("TestNegativeCliDriver.alter_table_constraint_duplicate_pk", analyzer.getFailed().get(0));
     Assert.assertEquals(72, analyzer.getSucceeded());
+    Assert.assertFalse(analyzer.hadTimeouts());
+    Assert.assertTrue(analyzer.runSucceeded());
+  }
+
+  @Test
+  public void timeoutLog() {
+    SimpleResultAnalyzer analyzer = new SimpleResultAnalyzer();
+    analyzer.analyzeLog(new ContainerResult("bla", 0, LOG3));
+    Assert.assertTrue(analyzer.hadTimeouts());
+    Assert.assertTrue(analyzer.runSucceeded());
+  }
+
+  @Test
+  public void failedRun() {
+    SimpleResultAnalyzer analyzer = new SimpleResultAnalyzer();
+    analyzer.analyzeLog(new ContainerResult(
+        "hive-dtest-1_itests-qtest_TestNegativeCliDriver_a_LF_a-t_RT_._S_", 2, LOG2));
+    Assert.assertFalse(analyzer.runSucceeded());
   }
 
   static final String LOG1 =
@@ -95,4 +116,23 @@ public class TestSimpleResultAnalyzer {
           "\n" +
           "at org.junit.Assert.fail(Assert.java:88)\n" +
           "at org.apache.hadoop.hive.ql.QTestUtil.failedDiff(QTestUtil.java:2166)";
+
+  static final String LOG3 =
+      "[INFO] -------------------------------------------------------\n" +
+      "[INFO]  T E S T S \n" +
+      "[INFO] -------------------------------------------------------\n" +
+      "[INFO] Running org.apache.hadoop.hive.metastore.client.TestAddPartitions \n" +
+      "[INFO]\n" +
+      "[INFO] Results:\n" +
+      "[INFO]\n" +
+      "[INFO] Tests run: 0, Failures: 0, Errors: 0, Skipped: 0\n" +
+      "[INFO]\n" +
+      "[INFO] ------------------------------------------------------------------------\n" +
+      "[INFO] BUILD FAILURE\n" +
+      "[INFO] ------------------------------------------------------------------------\n" +
+      "[INFO] Total time: 21.911 s\n" +
+      "[INFO] Finished at: 2018-04-03T14:12:45-07:00\n" +
+      "[INFO] Final Memory: 54M/849M\n" +
+      "[INFO] ------------------------------------------------------------------------\n" +
+      "[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:2.20.1:test (default-test) on project hive-standalone-metastore: There was a timeout or other error in the fork -> [Help 1]";
 }

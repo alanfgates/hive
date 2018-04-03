@@ -23,10 +23,10 @@ public interface ResultAnalyzer {
 
   /**
    * Analyze a log
-   * @param name the name of the container
-   * @param log the log produced
+   * @param containerResult the result from the container run.  It is ok for this method to make
+   *                        changes in the result.
    */
-  void analyzeLog(String name, String log);
+  void analyzeLog(ContainerResult containerResult);
 
   /**
    * Get count of succeeded tests.
@@ -45,5 +45,18 @@ public interface ResultAnalyzer {
    * @return name of each test that produced an error.
    */
   List<String> getErrors();
+
+  /**
+   * True if at least one test timed out.
+   * @return true if any tests timed out.
+   */
+  boolean hadTimeouts();
+
+  /**
+   * True if the test run succeeded.  Note that this does not mean all tests passed, but that all
+   * tests were run and the container exited normally.  Some tests may have failed or timed out.
+   * @return true if success.
+   */
+  boolean runSucceeded();
 
 }

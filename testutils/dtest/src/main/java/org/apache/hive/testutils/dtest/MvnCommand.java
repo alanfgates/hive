@@ -80,7 +80,7 @@ class MvnCommand implements ContainerCommand {
     cmd[1] = "-c";
     StringBuilder buf = new StringBuilder("( cd ")
         .append(baseDir + File.separatorChar + dir)
-        .append("; /usr/bin/mvn test ");
+        .append("; /usr/bin/mvn test -Dsurefire.timeout=3600");
     if (test != null) {
       buf.append(" -Dtest=")
           .append(test);

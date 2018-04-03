@@ -17,14 +17,17 @@
  */
 package org.apache.hive.testutils.dtest;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Vector;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 class SimpleResultAnalyzer implements ResultAnalyzer {
-  private int succeeded;
+  private boolean hadTimeouts;
+  private boolean runSucceeded;
+  private AtomicInteger succeeded;
   private List<String> failed;
   private List<String> errors;
   private final Pattern successLine;
@@ -33,11 +36,18 @@ class SimpleResultAnalyzer implements ResultAnalyzer {
   private final Pattern unitTestFailure;
   private final Pattern qTestError;
   private final Pattern qTestFailure;
+  private final Pattern timeout;
 
   SimpleResultAnalyzer() {
-    succeeded = 0;
-    failed = new ArrayList<>();
-    errors = new ArrayList<>();
+    // Access to these does not need to be synchronized because they only go from start state to
+    // the opposite state (eg hadTimeouts starts at false and can move to true, but can never
+    // move back to false).
+    hadTimeouts = false;
+    runSucceeded = true;
+    // Access to these needs to be synchronized.
+    succeeded = new AtomicInteger(0);
+    failed = new Vector<>();
+    errors = new Vector<>();
     successLine =
         Pattern.compile("\\[INFO\\] Tests run: ([0-9]+), Failures: ([0-9]+), Errors: ([0-9]+).*");
     errorLine =
@@ -50,39 +60,54 @@ class SimpleResultAnalyzer implements ResultAnalyzer {
         Pattern.compile("\\[ERROR\\] testCliDriver\\[([A-Za-z0-9_]+)\\].*\\.(Test[A-Za-z0-9_]+).*FAILURE!");
     qTestError =
         Pattern.compile("\\[ERROR\\] testCliDriver\\[([A-Za-z0-9_]+)\\].*\\.(Test[A-Za-z0-9_]+).*ERROR!");
+    timeout =
+        Pattern.compile("\\[ERROR\\] Failed to execute goal .* There was a timeout or other error in the fork.*");
   }
 
   @Override
   public int getSucceeded() {
-    return succeeded;
+    return succeeded.get();
   }
 
   @Override
   public List<String> getFailed() {
+    Collections.sort(failed);
     return failed;
   }
 
   @Override
   public List<String> getErrors() {
+    Collections.sort(errors);
     return errors;
   }
 
   @Override
-  public void analyzeLog(String name, String log) {
-    String[] lines = log.split("\n");
-    for (String line : lines) analyzeLogLine(name, line);
-    Collections.sort(errors);
-    Collections.sort(failed);
+  public void analyzeLog(ContainerResult result) {
+    String[] lines = result.logs.split("\n");
+    for (String line : lines) analyzeLogLine(result, line);
+    if (result.rc < 0 ||result.rc > 1) runSucceeded = false;
   }
 
-  private void analyzeLogLine(String name, String line) {
+  @Override
+  public boolean hadTimeouts() {
+    return hadTimeouts;
+  }
+
+  @Override
+  public boolean runSucceeded() {
+    return runSucceeded;
+  }
+
+  private void analyzeLogLine(ContainerResult result, String line) {
     count(line, successLine);
     count(line, errorLine);
-    if (name.contains("itests-qtest")) {
+    if (result.name.contains("itests-qtest")) {
       findErrorsAndFailures(line, qTestError, qTestFailure);
     } else {
       findErrorsAndFailures(line, unitTestError, unitTestFailure);
     }
+    Matcher m = timeout.matcher(line);
+    if (m.matches()) hadTimeouts = true;
   }
 
   private void count(String line, Pattern pattern) {
@@ -91,7 +116,7 @@ class SimpleResultAnalyzer implements ResultAnalyzer {
       int total = Integer.parseInt(m.group(1));
       int failures = Integer.parseInt(m.group(2));
       int errors = Integer.parseInt(m.group(3));
-      succeeded += total - failures - errors;
+      succeeded.addAndGet(total - failures - errors);
     }
   }
 
