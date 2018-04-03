@@ -49,9 +49,9 @@ class SimpleResultAnalyzer implements ResultAnalyzer {
     failed = new Vector<>();
     errors = new Vector<>();
     successLine =
-        Pattern.compile("\\[INFO\\] Tests run: ([0-9]+), Failures: ([0-9]+), Errors: ([0-9]+).*");
+        Pattern.compile("\\[INFO\\] Tests run: ([0-9]+), Failures: ([0-9]+), Errors: ([0-9]+).*Time elapsed:.*");
     errorLine =
-        Pattern.compile("\\[ERROR\\] Tests run: ([0-9]+), Failures: ([0-9]+), Errors: ([0-9]+).*");
+        Pattern.compile("\\[ERROR\\] Tests run: ([0-9]+), Failures: ([0-9]+), Errors: ([0-9]+).*Time elapsed:.*");
     unitTestError =
         Pattern.compile("\\[ERROR\\] ([A-Za-z0-9_]+).*\\.(Test[A-Za-z0-9_]+).*ERROR!");
     unitTestFailure =

@@ -89,7 +89,10 @@ public class TestSimpleResultAnalyzer {
       "at org.junit.Assert.fail(Assert.java:88)\n" +
       "at org.junit.Assert.failNotEquals(Assert.java:743)\n" +
       "at org.junit.Assert.assertEquals(Assert.java:118)\n" +
-      "at org.junit.Assert.assertEquals(Assert.java:144)\n";
+      "at org.junit.Assert.assertEquals(Assert.java:144)\n" +
+      "[INFO] Results:\n" +
+      "[INFO]\n" +
+      "[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0\n";
 
   static final String LOG2 =
       "main:\n" +
