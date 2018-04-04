@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -47,7 +48,7 @@ public class DockerTest {
   private ResultAnalyzerFactory analyzerFactory;
 
   @VisibleForTesting
-  void run(String[] args) {
+  void run(String[] args, PrintStream out) {
     CommandLineParser parser = new GnuParser();
 
     Options opts = new Options();
@@ -135,7 +136,7 @@ public class DockerTest {
       return;
     }
     try {
-      runContainers(dir, numContainers);
+      runContainers(dir, numContainers, out);
     } catch (IOException e) {
       LOG.error("Failed to run one or more of the containers", e);
     }
@@ -152,7 +153,7 @@ public class DockerTest {
     docker.buildImage(dir, 30, TimeUnit.MINUTES);
   }
 
-  private void runContainers(String dir, int numContainers) throws IOException {
+  private void runContainers(String dir, int numContainers, PrintStream out) throws IOException {
     List<ContainerCommand> taskCmds = commandFactory.getContainerCommands("/root/hive");
 
     final ResultAnalyzer analyzer = analyzerFactory.getAnalyzer();
@@ -223,11 +224,11 @@ public class DockerTest {
         .append(", Failures: ")
         .append(analyzer.getFailed().size());
     LOG.info(msg.toString());
-    System.out.println(msg.toString());
+    out.println(msg.toString());
   }
 
   public static void main(String[] args) {
     DockerTest test = new DockerTest();
-    test.run(args);
+    test.run(args, System.out);
   }
 }
