@@ -614,7 +614,7 @@ public class Driver implements IDriver {
       // query running in this same thread.  This has to be done after we get our semantic
       // analyzer (this is when the connection to the metastore is made) but before we analyze,
       // because at that point we need access to the objects.
-      Hive.get().getMSC().flushCache();
+      Hive.get(conf).getMSC().flushCache();
 
       BaseSemanticAnalyzer sem;
       // Do semantic analysis and plan generation
