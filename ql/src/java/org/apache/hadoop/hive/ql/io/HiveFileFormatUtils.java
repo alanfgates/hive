@@ -183,7 +183,9 @@ public final class HiveFileFormatUtils {
   public static boolean checkInputFormat(FileSystem fs, HiveConf conf,
       Class<? extends InputFormat> inputFormatCls, List<FileStatus> files)
       throws HiveException {
+    LOG.info("XXX entering checkInputFormat");
     if (files.isEmpty()) return false;
+    LOG.info("XXX files aren't empty");
     Class<? extends InputFormatChecker> checkerCls = FileChecker.getInstance()
         .getInputFormatCheckerClass(inputFormatCls);
     if (checkerCls == null
@@ -192,31 +194,42 @@ public final class HiveFileFormatUtils {
       // according to its content, so we can do is to test if other file
       // format can accept it. If one other file format can accept this file,
       // we treat this file as text file, although it maybe not.
+      LOG.info("XXX calling checkTextInputFormat");
       return checkTextInputFormat(fs, conf, files);
     }
 
     if (checkerCls != null) {
+      LOG.info("XXX looking for checkerInstance");
       InputFormatChecker checkerInstance = FileChecker.getInstance()
           .getInputFormatCheckerInstance(checkerCls);
       try {
         if (checkerInstance == null) {
+          LOG.info("XXX instantiating checkerInstance ");
           checkerInstance = checkerCls.newInstance();
+          LOG.info("XXX putting checkerInstance in map");
           FileChecker.getInstance().putInputFormatCheckerInstance(checkerCls, checkerInstance);
         }
-        return checkerInstance.validateInput(fs, conf, files);
+        LOG.info("XXX validating input using checkerInstance of type " + checkerInstance.getClass ().getName());
+        boolean result = checkerInstance.validateInput(fs, conf, files);
+        LOG.info("XXX validating input returned " + result);
+        return result;
       } catch (Exception e) {
+        LOG.info("XXX checkInputFormat throwing HiveException", e);
         throw new HiveException(e);
       }
     }
+    LOG.info("XXX checkInputFormat returning true");
     return true;
   }
 
   @SuppressWarnings("unchecked")
   private static boolean checkTextInputFormat(FileSystem fs, HiveConf conf,
       List<FileStatus> files) throws HiveException {
+    LOG.info("XXX in checkTextInputFormat");
     List<FileStatus> files2 = new LinkedList<>(files);
     Iterator<FileStatus> iter = files2.iterator();
     while (iter.hasNext()) {
+      LOG.info("XXX checking to see if file is pipe");
       FileStatus file = iter.next();
       if (file == null) continue;
       if (isPipe(fs, file)) {
@@ -225,13 +238,17 @@ public final class HiveFileFormatUtils {
       }
     }
     if (files2.isEmpty()) return true;
+    LOG.info("XXX getting text formatters");
     Set<Class<? extends InputFormat>> inputFormatter = FileChecker.getInstance().registeredTextClasses();
     for (Class<? extends InputFormat> reg : inputFormatter) {
+      LOG.info("XXX checking format with " + reg.getName());
       boolean result = checkInputFormat(fs, conf, reg, files2);
       if (result) {
+        LOG.info("XXX checkTextInputFormat returning false");
         return false;
       }
     }
+    LOG.info("XXX checkTextInputFormat returning true");
     return true;
   }
 

@@ -436,11 +436,14 @@ public class LoadSemanticAnalyzer extends SemanticAnalyzer {
       final URI fromURI)
       throws SemanticException {
     final Class<? extends InputFormat> destInputFormat;
+    LOG.info("XXX in ensureFileFormatsMatch");
     try {
       if (ts.getPartSpec() == null || ts.getPartSpec().isEmpty()) {
         destInputFormat = ts.tableHandle.getInputFormatClass();
+        LOG.info("XXX destInputFormat set to " + destInputFormat.getClass().getName() + " based on table spec");
       } else {
         destInputFormat = ts.partHandle.getInputFormatClass();
+        LOG.info("XXX destInputFormat set to " + destInputFormat.getClass().getName() + " based on part spec");
       }
     } catch (HiveException e) {
       throw new SemanticException(e);
@@ -448,6 +451,7 @@ public class LoadSemanticAnalyzer extends SemanticAnalyzer {
 
     try {
       FileSystem fs = FileSystem.get(fromURI, conf);
+      LOG.info("XXX before call destInputFormat is " + destInputFormat.getClass().getName());
       boolean validFormat = HiveFileFormatUtils.checkInputFormat(fs, conf, destInputFormat,
           fileStatuses);
       if (!validFormat) {

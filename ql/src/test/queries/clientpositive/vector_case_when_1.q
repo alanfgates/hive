@@ -1,3 +1,4 @@
+-- SORT_QUERY_RESULTS
 --! qt:dataset:lineitem
 set hive.cli.print.header=true;
 set hive.mapred.mode=nonstrict;
