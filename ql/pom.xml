@@ -146,6 +146,11 @@
     </dependency>
     <dependency>
       <groupId>org.antlr</groupId>
+      <artifactId>antlr4-runtime</artifactId>
+      <version>${antlr4.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.antlr</groupId>
       <artifactId>ST4</artifactId>
       <version>${ST4.version}</version>
     </dependency>
@@ -873,6 +878,21 @@
             <include>**/HintParser.g</include>
           </includes>
         </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.antlr</groupId>
+        <artifactId>antlr4-maven-plugin</artifactId>
+        <version>4.5</version>
+        <configuration>
+          <visitor>true</visitor>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>antlr4</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
