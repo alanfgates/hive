@@ -24,8 +24,8 @@ import java.util.function.DoubleBinaryOperator;
 import java.util.function.LongBinaryOperator;
 
 /**
- * ValueUnion tracks the JSON value being returned from a section of the parse tree.  Since the value being returned
- * can change type as it moves through tree, ValueUnion can change its type as it goes along.
+ * JsonSequence tracks the JSON value being returned from a section of the parse tree.  Since the value being returned
+ * can change type as it moves through tree, JsonSequence can change its type as it goes along.
  *
  * Many methods are marked final to help the compiler inline methods, as we want operations on this to be as fast
  * possible since they'll be in the inner loop.
@@ -36,9 +36,9 @@ import java.util.function.LongBinaryOperator;
  * is that the branch prediction on the chip will kick in and save us.  It's worth experimenting in the future to see
  * if this could be sped up by at least generating typed methods for constants.
  */
-public class ValueUnion  {
+public class JsonSequence {
 
-  private static ValueUnion nullValueUnion;
+  private static JsonSequence nullJsonSequence;
   private enum Type { LONG, DOUBLE, BOOL, STRING, LIST, OBJECT };
 
   private final ErrorListener errorListener;
@@ -46,37 +46,37 @@ public class ValueUnion  {
   private Type type;
   private Object val;
 
-  ValueUnion(long val, ErrorListener errorListener) {
+  JsonSequence(long val, ErrorListener errorListener) {
     this.val = val;
     type = Type.LONG;
     this.errorListener = errorListener;
   }
 
-  ValueUnion(double val, ErrorListener errorListener) {
+  JsonSequence(double val, ErrorListener errorListener) {
     this.val = val;
     type = Type.DOUBLE;
     this.errorListener = errorListener;
   }
 
-  ValueUnion(boolean val, ErrorListener errorListener) {
+  JsonSequence(boolean val, ErrorListener errorListener) {
     this.val = val;
     type = Type.BOOL;
     this.errorListener = errorListener;
   }
 
-  ValueUnion(String val, ErrorListener errorListener) {
+  JsonSequence(String val, ErrorListener errorListener) {
     this.val = val;
     type = Type.STRING;
     this.errorListener = errorListener;
   }
 
-  ValueUnion(List<ValueUnion> val, ErrorListener errorListener) {
+  JsonSequence(List<JsonSequence> val, ErrorListener errorListener) {
     this.val = val;
     type = Type.LIST;
     this.errorListener = errorListener;
   }
 
-  ValueUnion(Map<String, ValueUnion> val, ErrorListener errorListener) {
+  JsonSequence(Map<String, JsonSequence> val, ErrorListener errorListener) {
     this.val = val;
     type = Type.OBJECT;
     this.errorListener = errorListener;
@@ -90,7 +90,7 @@ public class ValueUnion  {
     return type == Type.DOUBLE;
   }
 
-  public final boolean isBoolean() {
+  public final boolean isBool() {
     return type == Type.BOOL;
   }
 
@@ -130,35 +130,37 @@ public class ValueUnion  {
     return (String)val;
   }
 
-  public final List<ValueUnion> asList() {
+  public final List<JsonSequence> asList() {
     assert val instanceof List;
-    return (List<ValueUnion>)val;
+    return (List<JsonSequence>)val;
   }
 
-  public final Map<String, ValueUnion> asObject() {
+  public final Map<String, JsonSequence> asObject() {
     assert val instanceof Map;
-    return (Map<String, ValueUnion>)val;
+    return (Map<String, JsonSequence>)val;
   }
 
-  final void add(ValueUnion other) {
+  final void add(JsonSequence other) {
     arithmetic(other, (left, right) -> left + right, (left, right) -> left + right, false);
   }
 
-  final void subtract(ValueUnion other) {
+  final void subtract(JsonSequence other) {
     arithmetic(other, (left, right) -> left - right, (left, right) -> left - right, false);
   }
 
-  final void multiply(ValueUnion other) {
+  final void multiply(JsonSequence other) {
     arithmetic(other, (left, right) -> left * right, (left, right) -> left * right, false);
   }
 
-  final void divide(ValueUnion other) {
+  final void divide(JsonSequence other) {
     arithmetic(other, (left, right) -> left / right, (left, right) -> left / right, true);
   }
 
-  final void modulo(ValueUnion other) {
+  final void modulo(JsonSequence other) {
     switch (type) {
       case LONG:
+        // TODO not sure this is right.  Should null carry SQL like semantics where it's viral.  Should it be
+        // treated like a 0?  Something else?
         if (isNull() || other.isNull()) {
           val = null;
         } else {
@@ -168,14 +170,14 @@ public class ValueUnion  {
               break;
 
             default:
-              errorListener.semanticError("You cannot do arithmetic on " + other.type.name());
+              errorListener.semanticError("You cannot do mod on a " + other.type.name().toLowerCase());
               break;
           }
         }
         break;
 
       default:
-        errorListener.semanticError("You cannot do arithmetic on " + type.name());
+        errorListener.semanticError("You cannot do mod on a " + type.name().toLowerCase());
         break;
     }
   }
@@ -195,7 +197,7 @@ public class ValueUnion  {
         break;
 
       default:
-        errorListener.semanticError("You cannot do arithmetic on " + type.name());
+        errorListener.semanticError("You cannot do arithmetic on a " + type.name().toLowerCase());
         break;
     }
   }
@@ -214,15 +216,15 @@ public class ValueUnion  {
     }
   }
 
-  final void and(ValueUnion other) {
+  final void and(JsonSequence other) {
     logic(other, (left, right) -> left && right);
 
   }
-  final void or(ValueUnion other) {
+  final void or(JsonSequence other) {
     logic(other, (left, right) -> left || right);
   }
 
-  private void arithmetic(ValueUnion other, LongBinaryOperator longOp, DoubleBinaryOperator doubleOp, boolean zeroCheck) {
+  private void arithmetic(JsonSequence other, LongBinaryOperator longOp, DoubleBinaryOperator doubleOp, boolean zeroCheck) {
     switch (type) {
       case LONG:
         if (isNull() || other.isNull()) {
@@ -243,7 +245,7 @@ public class ValueUnion  {
               break;
 
             default:
-              errorListener.semanticError("You cannot do arithmetic on " + other.type.name());
+              errorListener.semanticError("You cannot do arithmetic on a " + other.type.name().toLowerCase());
               break;
           }
         }
@@ -263,19 +265,19 @@ public class ValueUnion  {
               break;
 
             default:
-              errorListener.semanticError("You cannot do arithmetic on " + other.type.name());
+              errorListener.semanticError("You cannot do arithmetic on a " + other.type.name().toLowerCase());
               break;
           }
         }
         break;
 
       default:
-        errorListener.semanticError("You cannot do arithmetic on " + type.name());
+        errorListener.semanticError("You cannot do arithmetic on a " + type.name().toLowerCase());
         break;
     }
   }
 
-  private void logic(ValueUnion other, BinaryOperator<Boolean> op) {
+  private void logic(JsonSequence other, BinaryOperator<Boolean> op) {
     switch (type) {
       case BOOL:
         if (isNull() || other.isNull()) {
@@ -287,23 +289,88 @@ public class ValueUnion  {
               break;
 
             default:
-              errorListener.semanticError("You cannot do logical operation on " + other.type.name());
+              errorListener.semanticError("You cannot do logical operation on a " + other.type.name().toLowerCase());
               break;
           }
         }
         break;
 
       default:
-        errorListener.semanticError("You cannot do logical operation on " + type.name());
+        errorListener.semanticError("You cannot do logical operation on a " + type.name().toLowerCase());
         break;
     }
   }
 
-  public static ValueUnion nullValue(ErrorListener listener) {
-    if (nullValueUnion == null) {
-      nullValueUnion = new ValueUnion((String)null, listener);
+  @Override
+  public boolean equals(Object obj) {
+    if (!(obj instanceof JsonSequence)) return false;
+    JsonSequence other = (JsonSequence)obj;
+    if (isNull() && other.isNull()) return true;
+    else return type == other.type && val.equals(other.val);
+  }
+
+  @Override
+  public String toString() {
+    return prettyPrint(0);
+  }
+
+  private String prettyPrint(int in) {
+    if (val == null) return "null";
+    StringBuilder buf = new StringBuilder();
+    switch (type) {
+      case LONG:
+      case DOUBLE:
+      case BOOL:
+      case STRING:
+        return val.toString();
+
+      case LIST:
+        indent(buf, in);
+        buf.append("[\n");
+        boolean first = true;
+        for (JsonSequence element : asList()) {
+          if (first) first = false;
+          else buf.append(",\n");
+          indent(buf, in);
+          buf.append(element.prettyPrint(in + 1));
+        }
+        buf.append("\n");
+        indent(buf, in);
+        buf.append("]");
+        return buf.toString();
+
+      case OBJECT:
+        indent(buf, in);
+        buf.append("{\n");
+        first = true;
+        for (Map.Entry<String, JsonSequence> entry : asObject().entrySet()) {
+          if (first) first = false;
+          else buf.append(",\n");
+          indent(buf, in);
+          buf.append("\"")
+              .append(entry.getKey())
+              .append("\" : ")
+              .append(entry.getValue().prettyPrint(in + 1));
+        }
+        buf.append("\n");
+        indent(buf, in);
+        buf.append("}");
+        return buf.toString();
+
+      default:
+        throw new RuntimeException("Programming error");
     }
-    return nullValueUnion;
+  }
+
+  private void indent(StringBuilder buf, int in) {
+    for (int i = 0; i < in; i++) buf.append("  ");
+  }
+
+  public static JsonSequence nullValue(ErrorListener listener) {
+    if (nullJsonSequence == null) {
+      nullJsonSequence = new JsonSequence((String)null, listener);
+    }
+    return nullJsonSequence;
   }
 
 }

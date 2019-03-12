@@ -20,32 +20,36 @@ package org.apache.hadoop.hive.ql.udf.generic.sqljsonpath;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.apache.hadoop.hive.ql.udf.generic.SqlJsonPathParser;
 
+import java.util.Collections;
+import java.util.Map;
+
 /**
  * The validator serves a couple of purposes.  First, it sets up things like the strict/lax mode so we don't have
  * to set it everytime through.  Second, it dry runs any operations that could cause semantic errors.  For example
  * it will try any addition operations it sees to make sure the types match.  This way we don't return the same
  * error for every row, but rather catch the error up front.
  *
- * It extends Executor because in may cases it does the same thing.  It only overrides methods where it needs to
+ * It extends PathExecutor because in may cases it does the same thing.  It only overrides methods where it needs to
  * act differently (like supplying dummy values for variables).
  */
-public class Validator extends Executor {
+public class PathValidator extends PathExecutor {
 
   protected Mode mode;
 
-  public Validator(ErrorListener errorListener) {
+  public PathValidator(ErrorListener errorListener) {
     super(errorListener);
     mode = Mode.LAX; // Set to default
   }
 
-  public void validate(ParseTree tree) {
+  public void validate(ParseTree tree, Map<String, JsonSequence> passing) {
+    this.passing = passing == null ? Collections.emptyMap() : passing;
     visit(tree);
   }
 
   @Override
-  final public ValueUnion visitPath_mode_strict(SqlJsonPathParser.Path_mode_strictContext ctx) {
+  final public JsonSequence visitPath_mode_strict(SqlJsonPathParser.Path_mode_strictContext ctx) {
     mode = Mode.STRICT;
-    return super.visitPath_mode_strict(ctx);
+    return JsonSequence.nullValue(errorListener);
   }
 
   Mode getMode() {

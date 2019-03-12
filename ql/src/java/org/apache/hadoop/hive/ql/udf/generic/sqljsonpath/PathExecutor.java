@@ -21,23 +21,24 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.apache.hadoop.hive.ql.udf.generic.SqlJsonPathBaseVisitor;
 import org.apache.hadoop.hive.ql.udf.generic.SqlJsonPathParser;
 
+import java.util.Collections;
 import java.util.Map;
 
-public class Executor extends SqlJsonPathBaseVisitor<ValueUnion> {
+public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
 
-  protected String value;
-  protected Map<String, String> passing;
+  protected JsonSequence value;
+  protected Map<String, JsonSequence> passing;
   protected EmptyOrErrorBehavior onEmpty;
   protected EmptyOrErrorBehavior onError;
-  protected Validator validator;
+  protected PathValidator validator;
   protected ErrorListener errorListener;
 
-  public Executor(ErrorListener errorListener) {
+  public PathExecutor(ErrorListener errorListener) {
     this.errorListener = errorListener;
 
   }
 
-  public ValueUnion execute(ParseTree tree, String value, Map<String, String> passing, Validator validator) {
+  public JsonSequence execute(ParseTree tree, JsonSequence value, Map<String, JsonSequence> passing, PathValidator validator) {
     return execute(tree, value, passing, EmptyOrErrorBehavior.NULL, EmptyOrErrorBehavior.NULL, validator);
   }
 
@@ -50,10 +51,10 @@ public class Executor extends SqlJsonPathBaseVisitor<ValueUnion> {
    * @param onError behavior when an error occurs
    * @return value of executing the Path statement against the value
    */
-  public ValueUnion execute(ParseTree tree, String value, Map<String, String> passing, EmptyOrErrorBehavior onEmpty,
-                   EmptyOrErrorBehavior onError, Validator validator) {
+  public JsonSequence execute(ParseTree tree, JsonSequence value, Map<String, JsonSequence> passing, EmptyOrErrorBehavior onEmpty,
+                              EmptyOrErrorBehavior onError, PathValidator validator) {
     this.value = value;
-    this.passing = passing;
+    this.passing = passing == null ? Collections.emptyMap() : passing;
     this.onEmpty = onEmpty;
     this.onError = onError;
     this.validator = validator;
@@ -61,12 +62,12 @@ public class Executor extends SqlJsonPathBaseVisitor<ValueUnion> {
   }
 
   @Override
-  public ValueUnion visitAdditive_expression(SqlJsonPathParser.Additive_expressionContext ctx) {
+  public JsonSequence visitAdditive_expression(SqlJsonPathParser.Additive_expressionContext ctx) {
     if (ctx.getChildCount() == 1) return visit(ctx.getChild(0));
     assert ctx.getChildCount() == 3;
     ParseTree operator = ctx.getChild(1);
-    ValueUnion val1 = visit(ctx.getChild(0));
-    ValueUnion val2 = visit(ctx.getChild(2));
+    JsonSequence val1 = visit(ctx.getChild(0));
+    JsonSequence val2 = visit(ctx.getChild(2));
     switch (operator.getText()) {
       case "+": val1.add(val2); break;
       case "-": val1.subtract(val2); break;
@@ -76,12 +77,12 @@ public class Executor extends SqlJsonPathBaseVisitor<ValueUnion> {
   }
 
   @Override
-  public ValueUnion visitMultiplicative_expression(SqlJsonPathParser.Multiplicative_expressionContext ctx) {
+  public JsonSequence visitMultiplicative_expression(SqlJsonPathParser.Multiplicative_expressionContext ctx) {
     if (ctx.getChildCount() == 1) return visit(ctx.getChild(0));
     assert ctx.getChildCount() == 3;
     ParseTree operator = ctx.getChild(1);
-    ValueUnion val1 = visit(ctx.getChild(0));
-    ValueUnion val2 = visit(ctx.getChild(2));
+    JsonSequence val1 = visit(ctx.getChild(0));
+    JsonSequence val2 = visit(ctx.getChild(2));
     switch (operator.getText()) {
       case "*": val1.multiply(val2); break;
       case "/": val1.divide(val2); break;
@@ -92,44 +93,57 @@ public class Executor extends SqlJsonPathBaseVisitor<ValueUnion> {
   }
 
   @Override
-  public ValueUnion visitUnary_expression(SqlJsonPathParser.Unary_expressionContext ctx) {
+  public JsonSequence visitUnary_expression(SqlJsonPathParser.Unary_expressionContext ctx) {
     if (ctx.getChildCount() == 1) return visit(ctx.getChild(0));
     assert ctx.getChildCount() == 2;
     ParseTree operator = ctx.getChild(0);
-    ValueUnion val = visit(ctx.getChild(1));
+    JsonSequence val = visit(ctx.getChild(1));
     switch (operator.getText()) {
       case "+": break;
-      case "-": val.negate();
+      case "-": val.negate(); break;
       default: throw new RuntimeException("Programming error");
     }
     return val;
   }
 
   @Override
-  public ValueUnion visitPath_null_literal(SqlJsonPathParser.Path_null_literalContext ctx) {
-    return ValueUnion.nullValue(errorListener);
+  public JsonSequence visitPath_null_literal(SqlJsonPathParser.Path_null_literalContext ctx) {
+    return JsonSequence.nullValue(errorListener);
   }
 
   @Override
-  public ValueUnion visitPath_boolean_literal(SqlJsonPathParser.Path_boolean_literalContext ctx) {
-    if (ctx.getText().equalsIgnoreCase("true")) return new ValueUnion(true, errorListener);
-    else if (ctx.getText().equalsIgnoreCase("false")) return new ValueUnion(false, errorListener);
+  public JsonSequence visitPath_boolean_literal(SqlJsonPathParser.Path_boolean_literalContext ctx) {
+    if (ctx.getText().equalsIgnoreCase("true")) return new JsonSequence(true, errorListener);
+    else if (ctx.getText().equalsIgnoreCase("false")) return new JsonSequence(false, errorListener);
     else throw new RuntimeException("Programming error");
   }
 
   @Override
-  public ValueUnion visitPath_integer_literal(SqlJsonPathParser.Path_integer_literalContext ctx) {
-    return new ValueUnion(Long.valueOf(ctx.getText()), errorListener);
+  public JsonSequence visitPath_integer_literal(SqlJsonPathParser.Path_integer_literalContext ctx) {
+    return new JsonSequence(Long.valueOf(ctx.getText()), errorListener);
   }
 
   @Override
-  public ValueUnion visitPath_decimal_literal(SqlJsonPathParser.Path_decimal_literalContext ctx) {
-    return new ValueUnion(Double.valueOf(ctx.getText()), errorListener);
+  public JsonSequence visitPath_decimal_literal(SqlJsonPathParser.Path_decimal_literalContext ctx) {
+    return new JsonSequence(Double.valueOf(ctx.getText()), errorListener);
   }
 
   @Override
-  public ValueUnion visitPath_string_literal(SqlJsonPathParser.Path_string_literalContext ctx) {
+  public JsonSequence visitPath_string_literal(SqlJsonPathParser.Path_string_literalContext ctx) {
     String val = ctx.getText();
-    return new ValueUnion(val.substring(1, val.length() - 1), errorListener);
+    return new JsonSequence(val.substring(1, val.length() - 1), errorListener);
+  }
+
+  @Override
+  public JsonSequence visitPath_named_variable(SqlJsonPathParser.Path_named_variableContext ctx) {
+    String id = ctx.getChild(1).getText();
+    JsonSequence val = passing.get(id);
+    if (val == null) {
+      errorListener.semanticError("Variable " + id +
+          " referenced in path expression but no matching id found in passing clause");
+      return JsonSequence.nullValue(errorListener);
+    } else {
+      return val;
+    }
   }
 }

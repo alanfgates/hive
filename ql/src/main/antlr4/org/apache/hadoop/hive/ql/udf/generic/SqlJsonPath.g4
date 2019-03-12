@@ -71,13 +71,17 @@ path_primary:
     ;
 
 path_variable:
-      T_DOLLAR
+      path_context_variable
     | path_named_variable
-    | T_AT
-    | T_LAST
+    | T_AT    // See p703 syntax rule 5, not sure what that means
+    | T_LAST  // See p703 syntax rule 6, not sure what that means
     ;
 
-path_named_variable:
+path_context_variable:
+    T_DOLLAR
+    ;
+
+path_named_variable:                                                    // Done
     T_DOLLAR T_IDENTIFIER
     ;
 
@@ -312,8 +316,8 @@ T_IDENTIFIER   : ([0-9]|[a-z]|[A-Z]) ([0-9]|[a-z]|[A-Z]|'_')* ;
 T_SINGLEQUOTE_STR : '\'' (SINGLEQUOTE_ESC_CHAR | ~('\'' | '\\'))* '\'' ;
 T_DOUBLEQUOTE_STR : '"'  (DOUBLEQUOTE_ESC_CHAR | ~('"'  | '\\'))* '"' ;
 
-SINGLEQUOTE_ESC_CHAR: '\'' | ESC_CHAR ;
-DOUBLEQUOTE_ESC_CHAR: '"' | ESC_CHAR ;
+SINGLEQUOTE_ESC_CHAR: '\\\'' | ESC_CHAR ;
+DOUBLEQUOTE_ESC_CHAR: '\\"' | ESC_CHAR ;
 
 ESC_CHAR       : '\\\\' | '\\r' | '\\n' | '\\t' | '\\u' [0-9a-f][0-9a-f][0-9a-f][0-9a-f] ;
 

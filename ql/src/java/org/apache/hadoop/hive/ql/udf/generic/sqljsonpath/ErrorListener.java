@@ -35,21 +35,41 @@ class ErrorListener implements ANTLRErrorListener  {
     errors = new ArrayList<>();
   }
 
-  void checkForErrors(String pathExpression) throws ParseException {
-    if (errors.size() > 0) throw new ParseException(pathExpression, errors);
+  /**
+   * Reset this listener so there are no errors.
+   */
+  void clear() {
+    errors.clear();
   }
 
+  /**
+   * Check to see if an error occurred.
+   * @param expr expression that was parsed.  Not checked here, just used in the error message.
+   * @throws ParseException if any errors were found.
+   */
+  void checkForErrors(String expr) throws ParseException {
+    if (errors.size() > 0) throw new ParseException(expr, errors);
+  }
+
+  /**
+   * Report a semantic error.
+   * @param s error string.
+   */
   void semanticError(String s) {
-    errors.add("Semantic error: " + s);
+    errors.add("semantic error: " + s);
   }
 
+  /**
+   * Report a runtime error.
+   * @param s error string.
+   */
   void runtimeError(String s) {
-    errors.add("Runtime error: " + s);
+    errors.add("runtime error: " + s);
   }
 
   @Override
   public void syntaxError(Recognizer<?, ?> recognizer, Object o, int line, int charpos, String s, RecognitionException e) {
-    errors.add(s + " on line " + line + " at position " + charpos);
+    errors.add("syntax error: " + s + " on line " + line + " at position " + charpos);
   }
 
   @Override

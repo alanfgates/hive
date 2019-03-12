@@ -24,9 +24,8 @@ import java.util.List;
 public class ParseException extends Exception {
   final private String message;
 
-  public ParseException(String pathExpression, List<String> errors) {
-    message = "Path expression '" + pathExpression + "' produced scan or parse errors: " +
-        StringUtils.join(errors, "; ");
+  public ParseException(String expr, List<String> errors) {
+    message = "'" + expr + "' produced a " + StringUtils.join(errors, "; ");
   }
 
   @Override

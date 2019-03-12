@@ -26,7 +26,7 @@ import org.apache.hadoop.hive.ql.udf.generic.SqlJsonPathParser;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
-public class Parser {
+public class PathParser {
 
   private ParseTree tree;
 
