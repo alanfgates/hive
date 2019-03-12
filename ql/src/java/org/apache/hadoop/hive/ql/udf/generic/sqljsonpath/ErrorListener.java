@@ -28,10 +28,10 @@ import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.List;
 
-class ErrorListener implements ANTLRErrorListener  {
+public class ErrorListener implements ANTLRErrorListener  {
   private List<String> errors;
 
-  ErrorListener() {
+  public ErrorListener() {
     errors = new ArrayList<>();
   }
 

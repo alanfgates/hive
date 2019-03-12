@@ -461,10 +461,12 @@ isCondition
     | KW_TRUE -> Identifier["istrue"]
     | KW_FALSE -> Identifier["isfalse"]
     | KW_UNKNOWN -> Identifier["isnull"]
+    | KW_JSON -> Identifier["isjson"]
     | KW_NOT KW_NULL -> Identifier["isnotnull"]
     | KW_NOT KW_TRUE -> Identifier["isnottrue"]
     | KW_NOT KW_FALSE -> Identifier["isnotfalse"]
     | KW_NOT KW_UNKNOWN -> Identifier["isnotnull"]
+    | KW_NOT KW_JSON -> Identifier["isnotjson"]
     ;
 
 precedenceUnaryPrefixExpression
@@ -867,6 +869,7 @@ nonReserved
     | KW_RESOURCE | KW_PLAN | KW_PLANS | KW_QUERY_PARALLELISM | KW_ACTIVATE | KW_MOVE | KW_DO
     | KW_POOL | KW_ALLOC_FRACTION | KW_SCHEDULING_POLICY | KW_PATH | KW_MAPPING | KW_WORKLOAD | KW_MANAGEMENT | KW_ACTIVE | KW_UNMANAGED
     | KW_UNKNOWN
+    | KW_JSON
 ;
 
 //The following SQL2011 reserved keywords are used as function name only, but not as identifiers.

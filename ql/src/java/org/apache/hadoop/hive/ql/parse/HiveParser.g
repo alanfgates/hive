@@ -430,6 +430,7 @@ TOK_REPLACE;
 TOK_LIKERP;
 TOK_UNMANAGED;
 TOK_INPUTFORMAT;
+TOK_JSON;
 }
 
 
@@ -458,6 +459,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
     xlateMap.put("KW_TRUE", "TRUE");
     xlateMap.put("KW_FALSE", "FALSE");
     xlateMap.put("KW_UNKNOWN", "UNKNOWN");
+    xlateMap.put("KW_JSON", "JSON");
     xlateMap.put("KW_ALL", "ALL");
     xlateMap.put("KW_NONE", "NONE");
     xlateMap.put("KW_AND", "AND");

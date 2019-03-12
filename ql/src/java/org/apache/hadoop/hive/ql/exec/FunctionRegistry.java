@@ -330,6 +330,10 @@ public final class FunctionRegistry {
 
     system.registerUDF("get_json_object", UDFJson.class, false);
 
+    // New SQL 2016 JSON methods
+    system.registerGenericUDF("isjson", GenericUDFIsJson.class);
+    system.registerGenericUDF("isnotjson", GenericUDFIsNotJson.class);
+
     system.registerUDF("xpath_string", UDFXPathString.class, false);
     system.registerUDF("xpath_boolean", UDFXPathBoolean.class, false);
     system.registerUDF("xpath_number", UDFXPathDouble.class, false);
