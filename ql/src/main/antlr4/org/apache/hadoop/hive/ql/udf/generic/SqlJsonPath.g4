@@ -74,10 +74,9 @@ path_variable:
       path_context_variable
     | path_named_variable
     | T_AT    // See p703 syntax rule 5, not sure what that means
-    | T_LAST  // See p703 syntax rule 6, not sure what that means
     ;
 
-path_context_variable:
+path_context_variable:                                                  // Done
     T_DOLLAR
     ;
 
@@ -86,20 +85,28 @@ path_named_variable:                                                    // Done
     ;
 
 accessor_op:
-      member_accessor
-    | wildcard_member_accessor
+      member_accessor                                                   // Done
+    | wildcard_member_accessor                                          // Done
     | array_accessor
     | wildcard_array_accessor
     | filter_expression
     | item_method
     ;
 
-member_accessor:
-      T_DOT T_IDENTIFIER
-    | T_DOT path_string_literal
+member_accessor:                                                       // Done
+      member_accessor_id
+    | member_accessor_string
     ;
 
-wildcard_member_accessor:
+member_accessor_id:                                                   // Done
+    T_DOT T_IDENTIFIER
+    ;
+
+member_accessor_string:
+    T_DOT path_string_literal
+    ;
+
+wildcard_member_accessor:                                             // Done
     T_DOT T_STAR
     ;
 
@@ -113,8 +120,25 @@ subscript_list:
     ;
 
 subscript:
+      subscript_simple
+    | subscript_to
+    ;
+
+subscript_simple:
+    subscript_item
+    ;
+
+subscript_to:
+    path_wff T_TO subscript_item
+    ;
+
+subscript_item:
       path_wff
-    | path_wff T_TO path_wff
+    | subscript_last
+    ;
+
+subscript_last:
+    T_LAST
     ;
 
 wildcard_array_accessor:

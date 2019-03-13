@@ -28,7 +28,7 @@ element_list:
     ;
 
 element:
-    T_DOUBLEQUOTE_STR { System.out.println("str is " + $T_DOUBLEQUOTE_STR.text); } T_COLON value
+    T_DOUBLEQUOTE_STR T_COLON value
     ;
 
 value:

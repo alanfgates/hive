@@ -19,6 +19,7 @@ package org.apache.hadoop.hive.ql.udf.generic.sqljsonpath;
 
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -26,6 +27,16 @@ import java.util.Collections;
 import java.util.Map;
 
 public class TestExecutor {
+
+  private static JsonValueParser valueParser;
+  private static JsonSequence    emptyJson;
+
+  @BeforeClass
+  public static void buildValueParser() throws IOException, ParseException {
+    ErrorListener listener = new ErrorListener();
+    valueParser = new JsonValueParser(listener);
+    emptyJson = valueParser.parse("{ }");
+  }
 
   @Test
   public void syntaxError() throws IOException {
@@ -39,22 +50,23 @@ public class TestExecutor {
 
   @Test
   public void laxDefault() throws IOException, ParseException {
-    Context context = parseAndValidate("$.a");
+    Context context = parseAndValidate("$.a", emptyJson);
     Assert.assertEquals(Mode.LAX, context.validator.getMode());
   }
 
   @Test
   public void laxSpecified() throws IOException, ParseException {
-    Context context = parseAndValidate("lax $.a");
+    Context context = parseAndValidate("lax $.a", emptyJson);
     Assert.assertEquals(Mode.LAX, context.validator.getMode());
   }
 
   @Test
   public void strict() throws IOException, ParseException {
-    Context context = parseAndValidate("strict $.a");
+    Context context = parseAndValidate("strict $.a", emptyJson);
     Assert.assertEquals(Mode.STRICT, context.validator.getMode());
   }
 
+  /*
   @Test
   public void longLiteral() throws IOException, ParseException {
     Context context = parseValidateExecute("5");
@@ -241,7 +253,7 @@ public class TestExecutor {
   @Test
   public void badLongAdd() throws IOException, ParseException {
     String pathExpr = "20 + 'fred'";
-    Context context = parseValidateExecute(pathExpr);
+    Context context = parseValidateExecute(pathExpr, emptyJson);
     try {
       context.executor.errorListener.checkForErrors(pathExpr);
       Assert.fail();
@@ -253,7 +265,7 @@ public class TestExecutor {
   @Test
   public void badLongSubtract() throws IOException, ParseException {
     String pathExpr = "20 - 'fred'";
-    Context context = parseValidateExecute(pathExpr);
+    Context context = parseValidateExecute(pathExpr, emptyJson);
     try {
       context.executor.errorListener.checkForErrors(pathExpr);
       Assert.fail();
@@ -265,7 +277,7 @@ public class TestExecutor {
   @Test
   public void badLongMultiply() throws IOException, ParseException {
     String pathExpr = "20 * true";
-    Context context = parseValidateExecute(pathExpr);
+    Context context = parseValidateExecute(pathExpr, emptyJson);
     try {
       context.executor.errorListener.checkForErrors(pathExpr);
       Assert.fail();
@@ -277,7 +289,7 @@ public class TestExecutor {
   @Test
   public void badLongDivide() throws IOException, ParseException {
     String pathExpr = "20 / 'bob'";
-    Context context = parseValidateExecute(pathExpr);
+    Context context = parseValidateExecute(pathExpr, emptyJson);
     try {
       context.executor.errorListener.checkForErrors(pathExpr);
       Assert.fail();
@@ -289,7 +301,7 @@ public class TestExecutor {
   @Test
   public void badMod() throws IOException, ParseException {
     String pathExpr = "20 % 3.0";
-    Context context = parseValidateExecute(pathExpr);
+    Context context = parseValidateExecute(pathExpr, emptyJson);
     try {
       context.executor.errorListener.checkForErrors(pathExpr);
       Assert.fail();
@@ -301,7 +313,7 @@ public class TestExecutor {
   @Test
   public void badStringAdd() throws IOException, ParseException {
     String pathExpr = "'fred' + 3.0";
-    Context context = parseValidateExecute(pathExpr);
+    Context context = parseValidateExecute(pathExpr, emptyJson);
     try {
       context.executor.errorListener.checkForErrors(pathExpr);
       Assert.fail();
@@ -313,7 +325,7 @@ public class TestExecutor {
   @Test
   public void badStringSubtract() throws IOException, ParseException {
     String pathExpr = "'fred' - 3.0";
-    Context context = parseValidateExecute(pathExpr);
+    Context context = parseValidateExecute(pathExpr, emptyJson);
     try {
       context.executor.errorListener.checkForErrors(pathExpr);
       Assert.fail();
@@ -325,7 +337,7 @@ public class TestExecutor {
   @Test
   public void badStringMultiply() throws IOException, ParseException {
     String pathExpr = "'fred' * 3.0";
-    Context context = parseValidateExecute(pathExpr);
+    Context context = parseValidateExecute(pathExpr, emptyJson);
     try {
       context.executor.errorListener.checkForErrors(pathExpr);
       Assert.fail();
@@ -337,7 +349,7 @@ public class TestExecutor {
   @Test
   public void badStringDivide() throws IOException, ParseException {
     String pathExpr = "'fred' / 3.0";
-    Context context = parseValidateExecute(pathExpr);
+    Context context = parseValidateExecute(pathExpr, emptyJson);
     try {
       context.executor.errorListener.checkForErrors(pathExpr);
       Assert.fail();
@@ -349,7 +361,7 @@ public class TestExecutor {
   @Test
   public void badStringMod() throws IOException, ParseException {
     String pathExpr = "'fred' % 3.0";
-    Context context = parseValidateExecute(pathExpr);
+    Context context = parseValidateExecute(pathExpr, emptyJson);
     try {
       context.executor.errorListener.checkForErrors(pathExpr);
       Assert.fail();
@@ -424,11 +436,12 @@ public class TestExecutor {
     Assert.assertTrue(context.val.isLong());
     Assert.assertEquals(5L, context.val.asLong());
   }
+  */
 
   @Test
   public void pathNamedVariableNoMatchingId() throws IOException, ParseException {
     String pathExpr = "$fred";
-    Context context = parseValidateExecute(pathExpr, null, Collections.singletonMap("bob", new JsonSequence(5L, new ErrorListener())));
+    Context context = parseValidateExecute(pathExpr, emptyJson, Collections.singletonMap("bob", new JsonSequence(5L, new ErrorListener())));
     try {
       context.executor.errorListener.checkForErrors(pathExpr);
       Assert.fail();
@@ -441,7 +454,7 @@ public class TestExecutor {
   @Test
   public void pathNamedVariableNullPassing() throws IOException, ParseException {
     String pathExpr = "$fred";
-    Context context = parseValidateExecute(pathExpr);
+    Context context = parseValidateExecute(pathExpr, emptyJson);
     try {
       context.executor.errorListener.checkForErrors(pathExpr);
       Assert.fail();
@@ -454,7 +467,7 @@ public class TestExecutor {
   @Test
   public void pathNamedVariableEmptyPassing() throws IOException, ParseException {
     String pathExpr = "$fred";
-    Context context = parseValidateExecute(pathExpr, null, Collections.emptyMap());
+    Context context = parseValidateExecute(pathExpr, emptyJson, Collections.emptyMap());
     try {
       context.executor.errorListener.checkForErrors(pathExpr);
       Assert.fail();
@@ -464,26 +477,90 @@ public class TestExecutor {
     }
   }
 
+  @Test
+  public void fullMatch() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(" { \"name\" : \"fred\" }");
+    Context context = parseValidateExecute("$", json);
+    System.out.println("val is " + context.val.toString());
+    Assert.assertEquals(json, context.val);
+  }
+
+  @Test
+  public void matchKey() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(" { \"name\" : \"fred\" }");
+    Context context = parseValidateExecute("$.name", json);
+    Assert.assertTrue(context.val.isString());
+    Assert.assertEquals("fred", context.val.asString());
+  }
+
+  @Test
+  public void matchKeyQuotes() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(" { \"name\" : \"fred\" }");
+    Context context = parseValidateExecute("$.\"name\"", json);
+    Assert.assertTrue(context.val.isString());
+    Assert.assertEquals("fred", context.val.asString());
+  }
+
+  @Test
+  public void noMatchKey() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(" { \"name\" : \"fred\" }");
+    Context context = parseValidateExecute("$.address", json);
+    System.out.println("null val is " + context.val.toString());
+    Assert.assertTrue(context.val.isNull());
+  }
+
+  @Test
+  public void noMatchKeyQuotes() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(" { \"name\" : \"fred\" }");
+    Context context = parseValidateExecute("$.\"address\"", json);
+    Assert.assertTrue(context.val.isNull());
+  }
+
+  @Test
+  public void objectWildcard() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(" { \"name\" : \"fred\", \"age\" : 35 }");
+    Context context = parseValidateExecute("$.*", json);
+    Assert.assertTrue(context.val.isList());
+    Assert.assertEquals(2, context.val.asList().size());
+    Assert.assertTrue(context.val.asList().get(0).isString());
+    Assert.assertEquals("fred", context.val.asList().get(0).asString());
+    Assert.assertTrue(context.val.asList().get(1).isLong());
+    Assert.assertEquals(35L, context.val.asList().get(1).asLong());
+  }
+
+  @Test
+  public void objectWildcardEmpty() throws IOException, ParseException {
+    Context context = parseValidateExecute("$.*", emptyJson);
+    Assert.assertTrue(context.val.isList());
+    Assert.assertEquals(0, context.val.asList().size());
+  }
+
+  // TODO test subscript off end
+  // TODO test LAST subscript
+  // TODO test simple subscript
+  // TODO test TO subscript
+
+
   private ParseTree parse(String path) throws IOException, ParseException {
     PathParser parser = new PathParser();
     parser.parse(path);
     return parser.getTree();
   }
 
-  private Context parseAndValidate(String path) throws IOException, ParseException {
-    return parseAndValidate(path, null);
+  private Context parseAndValidate(String path, JsonSequence value) throws IOException, ParseException {
+    return parseAndValidate(path, value, null);
   }
 
-  private Context parseAndValidate(String path, Map<String, JsonSequence> passing) throws IOException, ParseException {
+  private Context parseAndValidate(String path, JsonSequence value, Map<String, JsonSequence> passing) throws IOException, ParseException {
     ParseTree tree = parse(path);
     ErrorListener errorListener = new ErrorListener();
     PathValidator validator = new PathValidator(errorListener);
-    validator.validate(tree, passing);
+    validator.validate(tree, value, passing);
     return new Context(tree, validator, errorListener);
   }
 
-  private Context parseValidateExecute(String path) throws IOException, ParseException {
-    return parseValidateExecute(path, null, null, EmptyOrErrorBehavior.NULL, EmptyOrErrorBehavior.NULL);
+  private Context parseValidateExecute(String path, JsonSequence value) throws IOException, ParseException {
+    return parseValidateExecute(path, value, null, EmptyOrErrorBehavior.NULL, EmptyOrErrorBehavior.NULL);
   }
 
   private Context parseValidateExecute(String path, JsonSequence value, Map<String, JsonSequence> passing) throws IOException, ParseException {
@@ -493,7 +570,7 @@ public class TestExecutor {
   private Context parseValidateExecute(String path, JsonSequence value, Map<String, JsonSequence> passing, EmptyOrErrorBehavior onEmpty,
                                        EmptyOrErrorBehavior onError)
       throws IOException, ParseException {
-    Context context = parseAndValidate(path, passing);
+    Context context = parseAndValidate(path, value, passing);
     ErrorListener errorListener = new ErrorListener();
     PathExecutor executor = new PathExecutor(errorListener);
     context.executor = executor;

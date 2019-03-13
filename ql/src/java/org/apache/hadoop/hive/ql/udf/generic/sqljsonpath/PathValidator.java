@@ -41,7 +41,8 @@ public class PathValidator extends PathExecutor {
     mode = Mode.LAX; // Set to default
   }
 
-  public void validate(ParseTree tree, Map<String, JsonSequence> passing) {
+  public void validate(ParseTree tree, JsonSequence value, Map<String, JsonSequence> passing) {
+    this.value = value;
     this.passing = passing == null ? Collections.emptyMap() : passing;
     visit(tree);
   }
