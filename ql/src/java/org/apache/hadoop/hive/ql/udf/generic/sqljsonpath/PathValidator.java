@@ -50,7 +50,7 @@ public class PathValidator extends PathExecutor {
   @Override
   final public JsonSequence visitPath_mode_strict(SqlJsonPathParser.Path_mode_strictContext ctx) {
     mode = Mode.STRICT;
-    return JsonSequence.nullValue(errorListener);
+    return JsonSequence.nullJsonSequence;
   }
 
   Mode getMode() {

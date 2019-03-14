@@ -22,14 +22,15 @@ import org.apache.hadoop.hive.ql.udf.generic.SqlJsonPathBaseVisitor;
 import org.apache.hadoop.hive.ql.udf.generic.SqlJsonPathParser;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Deque;
-import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 
 public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
+
+  private static final String START_SUBSCRIPT = "__json_start_subscript";
+  private static final String END_SUBSCRIPT = "__json_end_subscript";
 
   protected JsonSequence value;
   protected Map<String, JsonSequence> passing;
@@ -38,11 +39,14 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
   protected PathValidator validator;
   protected ErrorListener errorListener;
   protected JsonSequence matching;
-  protected Deque<List<Integer>> subscriptStack;
+
+  private JsonSequence lastJsonSequence = new JsonSequence("last");
+
+  // TODO I am assuming here that the passed in value is a single bit of JSON.  Is it valid to pass two
+  // JSON objects in value?  Or would that need to be in an array?
 
   public PathExecutor(ErrorListener errorListener) {
     this.errorListener = errorListener;
-    subscriptStack = new ArrayDeque<>();
   }
 
   public JsonSequence execute(ParseTree tree, JsonSequence value, Map<String, JsonSequence> passing, PathValidator validator) {
@@ -66,12 +70,12 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     this.onError = onError;
     this.validator = validator;
     matching = null;
-    subscriptStack.clear();
-    return visit(tree);
+    visit(tree);
+    return matching;
   }
 
-  // The following (up until visitAccessor_expression) return scalar values we find in the tree.  These are not
-  // part of the match
+  // Visit methods return JSON sequences.  However, these are not the current match.  These are used for building
+  // up values via arithmetic, etc.  The match we have seen so far is built up in the matching member.
 
   @Override
   public JsonSequence visitAdditive_expression(SqlJsonPathParser.Additive_expressionContext ctx) {
@@ -81,8 +85,8 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     JsonSequence val1 = visit(ctx.getChild(0));
     JsonSequence val2 = visit(ctx.getChild(2));
     switch (operator.getText()) {
-      case "+": val1.add(val2); break;
-      case "-": val1.subtract(val2); break;
+      case "+": val1.add(val2, errorListener); break;
+      case "-": val1.subtract(val2, errorListener); break;
       default: throw new RuntimeException("Programming error");
     }
     return val1;
@@ -96,9 +100,9 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     JsonSequence val1 = visit(ctx.getChild(0));
     JsonSequence val2 = visit(ctx.getChild(2));
     switch (operator.getText()) {
-      case "*": val1.multiply(val2); break;
-      case "/": val1.divide(val2); break;
-      case "%": val1.modulo(val2); break;
+      case "*": val1.multiply(val2, errorListener); break;
+      case "/": val1.divide(val2, errorListener); break;
+      case "%": val1.modulo(val2, errorListener); break;
       default: throw new RuntimeException("Programming error");
     }
     return val1;
@@ -112,7 +116,7 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     JsonSequence val = visit(ctx.getChild(1));
     switch (operator.getText()) {
       case "+": break;
-      case "-": val.negate(); break;
+      case "-": val.negate(errorListener); break;
       default: throw new RuntimeException("Programming error");
     }
     return val;
@@ -120,30 +124,30 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
 
   @Override
   public JsonSequence visitPath_null_literal(SqlJsonPathParser.Path_null_literalContext ctx) {
-    return JsonSequence.nullValue(errorListener);
+    return JsonSequence.nullJsonSequence;
   }
 
   @Override
   public JsonSequence visitPath_boolean_literal(SqlJsonPathParser.Path_boolean_literalContext ctx) {
-    if (ctx.getText().equalsIgnoreCase("true")) return new JsonSequence(true, errorListener);
-    else if (ctx.getText().equalsIgnoreCase("false")) return new JsonSequence(false, errorListener);
+    if (ctx.getText().equalsIgnoreCase("true")) return JsonSequence.trueJsonSequence;
+    else if (ctx.getText().equalsIgnoreCase("false")) return JsonSequence.falseJsonSequence;
     else throw new RuntimeException("Programming error");
   }
 
   @Override
   public JsonSequence visitPath_integer_literal(SqlJsonPathParser.Path_integer_literalContext ctx) {
-    return new JsonSequence(Long.valueOf(ctx.getText()), errorListener);
+    return new JsonSequence(Long.valueOf(ctx.getText()));
   }
 
   @Override
   public JsonSequence visitPath_decimal_literal(SqlJsonPathParser.Path_decimal_literalContext ctx) {
-    return new JsonSequence(Double.valueOf(ctx.getText()), errorListener);
+    return new JsonSequence(Double.valueOf(ctx.getText()));
   }
 
   @Override
   public JsonSequence visitPath_string_literal(SqlJsonPathParser.Path_string_literalContext ctx) {
     String val = ctx.getText();
-    return new JsonSequence(stripQuotes(val), errorListener);
+    return new JsonSequence(stripQuotes(val));
   }
 
   @Override
@@ -153,23 +157,26 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     if (val == null) {
       errorListener.semanticError("Variable " + id +
           " referenced in path expression but no matching id found in passing clause");
-      return JsonSequence.nullValue(errorListener);
+      return JsonSequence.nullJsonSequence;
     } else {
       return val;
     }
   }
 
+  /*
   // IMPORTANT -- This is the method that returns the match.  Returns from other methods are just to pass things
   // up the tree
   @Override
   public JsonSequence visitAccessor_expression(SqlJsonPathParser.Accessor_expressionContext ctx) {
     visitChildren(ctx);
     if (matching != null) return matching;
-    else return JsonSequence.nullValue(errorListener);
+    else return JsonSequence.nullJsonSequence;
   }
+  */
 
   @Override
   public JsonSequence visitPath_context_variable(SqlJsonPathParser.Path_context_variableContext ctx) {
+    // Sets the matching as the root of the tree.
     matching = value;
     return null;
   }
@@ -184,7 +191,7 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
         return null;
       }
     }
-    matching = JsonSequence.nullValue(errorListener);
+    matching = JsonSequence.nullJsonSequence;
     return null;
   }
 
@@ -198,88 +205,134 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
         return null;
       }
     }
-    matching = JsonSequence.nullValue(errorListener);
+    matching = JsonSequence.nullJsonSequence;
     return null;
   }
 
   @Override
   public JsonSequence visitWildcard_member_accessor(SqlJsonPathParser.Wildcard_member_accessorContext ctx) {
     if (matching != null && matching.isObject()) {
-      Map<String, JsonSequence> m = matching.asObject();
-      matching = new JsonSequence(new ArrayList<>(m.values()), errorListener);
+      // I think I'm supposed to return the entire object here
       return matching;
     }
-    matching = JsonSequence.nullValue(errorListener);
+    matching = JsonSequence.nullJsonSequence;
     return null;
   }
 
   @Override
   public JsonSequence visitArray_accessor(SqlJsonPathParser.Array_accessorContext ctx) {
     if (matching == null || matching.isNull()) return null;
-    if (!matching.isList()) {
-      // TODO - should this be an error in strict mode?
-      matching = JsonSequence.nullValue(errorListener);
-      return null;
-    }
-    subscriptStack.push(new ArrayList<>());
-    visit(ctx.getChild(1));
-    List<Integer> subscripts = subscriptStack.pop();
-    List<JsonSequence> matches = new ArrayList<>();
-    for (int subscript : subscripts) {
-      // TODO is it an error in strict mode to go over the end of the array?
-      if (matching.asList().size() > subscript) {
-        matches.add(matching.asList().get(subscript));
+
+    JsonSequence subscripts = visit(ctx.getChild(1));
+    assert subscripts.isList();
+
+    // It is legitimate here for matching to be either a list ($.name[3]) or an object ($.*[3]).  In the list
+    // case we want to return a list.  In the object case, we want to return an object, with only the fields that
+    // are a list.
+    if (matching.isList()) {
+      matching = applySubscriptsToOneArray(matching, subscripts);
+    } else if (matching.isObject()) {
+      JsonSequence newMatches = new JsonSequence(new HashMap<>());
+      for (Map.Entry<String, JsonSequence> matchingEntry : matching.asObject().entrySet()) {
+        if (matchingEntry.getValue().isList()) {
+          newMatches.asObject().put(matchingEntry.getKey(), applySubscriptsToOneArray(matchingEntry.getValue(), subscripts));
+        }
       }
+      matching = newMatches;
+    } else {
+      matching = JsonSequence.nullJsonSequence;
     }
-    matching = new JsonSequence(matches, errorListener);
     return null;
   }
 
+  /**
+   *
+   * @param ctx
+   * @return a list of subscripts.  One or more of these could be objects with start and end value which
+   * represent the use 'to'
+   */
   @Override
-  public JsonSequence visitSubscript_simple(SqlJsonPathParser.Subscript_simpleContext ctx) {
-    try {
-      int subscript = checkSubscript(visitChildren(ctx));
-      assert subscriptStack.size() > 0;
-      subscriptStack.peek().add(subscript);
-    } catch (IOException e) {
-      errorListener.runtimeError(e.getMessage());
+  public JsonSequence visitSubscript_list(SqlJsonPathParser.Subscript_listContext ctx) {
+    if (ctx.getChildCount() == 1) {
+      // This is the simple subscript case, but it might still be a 'x TO y'
+      JsonSequence subscript = visit(ctx.getChild(0));
+      return new JsonSequence(Collections.singletonList(subscript));
+    } else if (ctx.getChildCount() == 3) {
+      JsonSequence subscriptList = visit(ctx.getChild(0));
+      JsonSequence subscript = visit(ctx.getChild(2));
+      subscriptList.asList().add(subscript);
+      return subscriptList;
+    } else {
+      throw new RuntimeException("Programming error");
     }
-    return null;
   }
 
+  /**
+   *
+   * @param ctx
+   * @return a Json object with start and end tokens
+   */
   @Override
   public JsonSequence visitSubscript_to(SqlJsonPathParser.Subscript_toContext ctx) {
-    try {
-      int startSub = checkSubscript(visit(ctx.getChild(0)));
-      int endSub = checkSubscript(visit(ctx.getChild(2)));
-      assert subscriptStack.size() > 0;
-      for (int i = startSub; i <= endSub; i++) subscriptStack.peek().add(i);
-    } catch (IOException e) {
-      errorListener.runtimeError(e.getMessage());
+    JsonSequence startSeq = visit(ctx.getChild(0));
+    JsonSequence endSeq = visit(ctx.getChild(2));
+    if (endSeq != lastJsonSequence && endSeq.asLong() < startSeq.asLong()) {
+      errorListener.runtimeError("The end subscript must be greater than or equal to the start subscript");
+      return JsonSequence.nullJsonSequence;
     }
-    return null;
+    Map<String, JsonSequence> subscripts = new HashMap<>();
+    subscripts.put(START_SUBSCRIPT, startSeq);
+    subscripts.put(END_SUBSCRIPT, endSeq);
+    return new JsonSequence(subscripts);
   }
-
-  // TODO I have a huge problem here.  The way I'm using matching won't work as soon as there's multiple
-  // keys.  Something like $.*[3] will bork it.  Need to rethink this and make sure I'm handling it
-
-  // Array subscript methods are expected to return the value of the subscript
 
   @Override
   public JsonSequence visitSubscript_last(SqlJsonPathParser.Subscript_lastContext ctx) {
-    // If we're here an Array should current be in matching, just put in its last value
-    assert matching != null && matching.isList();
-    return new JsonSequence(matching.asList().size() - 1, errorListener);
+    return lastJsonSequence;
   }
 
   private int checkSubscript(JsonSequence subscript) throws IOException {
     if (!subscript.isLong()) {
-      throw new IOException("Subscripts must be integer values");
+      errorListener.semanticError("Subscripts must be integer values");
+      throw new IOException();
     }
     if (subscript.asLong() > Integer.MAX_VALUE) {
-      throw new IOException("Subscripts cannot exceed " + Integer.MAX_VALUE);
+      errorListener.runtimeError("Subscripts cannot exceed " + Integer.MAX_VALUE);
+      throw new IOException();
     }
     return (int)subscript.asLong();
+  }
+
+  private JsonSequence applySubscriptsToOneArray(JsonSequence oneList, JsonSequence subscripts) {
+    try {
+      JsonSequence newList = new JsonSequence(new ArrayList<>());
+      for (JsonSequence sub : subscripts.asList()) {
+        // This might be a number, or it might be an object with a start and end subscript, or it might be 'last'.
+        if (sub == lastJsonSequence) { // Use of == intentional here
+          newList.asList().add(oneList.asList().get(oneList.asList().size() - 1));
+        } else if (sub.isLong()) {
+          if (sub.asLong() < oneList.asList().size()) { // make sure we don't fly off the end
+            newList.asList().add(oneList.asList().get(checkSubscript(sub)));
+          }
+        } else if (sub.isObject()) {
+          assert sub.asObject().containsKey(START_SUBSCRIPT);
+          int start = checkSubscript(sub.asObject().get(START_SUBSCRIPT));
+          assert sub.asObject().containsKey(END_SUBSCRIPT);
+          JsonSequence endSubscript = sub.asObject().get(END_SUBSCRIPT);
+          int end = (endSubscript == lastJsonSequence) ? end = oneList.asList().size() - 1 : checkSubscript(endSubscript);
+          // visitSubscript_to already checked that start <= end
+          for (int i = start; i <= end; i++) {
+            if (i >= oneList.asList().size()) break; // Don't fly off the end
+            newList.asList().add(oneList.asList().get(i));
+          }
+        } else {
+          throw new RuntimeException("programming error");
+        }
+      }
+      return newList;
+    } catch (IOException e) {
+      return JsonSequence.nullJsonSequence;
+    }
   }
 
 

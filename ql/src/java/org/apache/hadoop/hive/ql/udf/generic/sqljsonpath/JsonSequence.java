@@ -19,7 +19,6 @@ package org.apache.hadoop.hive.ql.udf.generic.sqljsonpath;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.BinaryOperator;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.LongBinaryOperator;
 
@@ -38,48 +37,95 @@ import java.util.function.LongBinaryOperator;
  */
 public class JsonSequence {
 
-  private static JsonSequence nullJsonSequence;
-  private enum Type { LONG, DOUBLE, BOOL, STRING, LIST, OBJECT };
+  private enum Type { LONG, DOUBLE, BOOL, STRING, LIST, OBJECT, NULL };
 
-  private final ErrorListener errorListener;
+  /**
+   * Represents the JSON null "key" : null
+   */
+  static JsonSequence nullJsonSequence = new JsonSequence();
+
+  /**
+   * Represents the JSON true "key" : true
+   */
+  static JsonSequence trueJsonSequence = new JsonSequence(true);
+
+  /**
+   * Represents the JSON false "key" : false
+   */
+  static JsonSequence falseJsonSequence = new JsonSequence(false);
 
   private Type type;
   private Object val;
 
-  JsonSequence(long val, ErrorListener errorListener) {
-    this.val = val;
-    type = Type.LONG;
-    this.errorListener = errorListener;
+  /**
+   * Private because we don't want users creating new nulls
+   */
+  private JsonSequence() {
+    type = Type.NULL;
+    val = null;
   }
 
-  JsonSequence(double val, ErrorListener errorListener) {
-    this.val = val;
-    type = Type.DOUBLE;
-    this.errorListener = errorListener;
-  }
-
-  JsonSequence(boolean val, ErrorListener errorListener) {
+  /**
+   * Private because we don't want users creating new true and false values
+   * @param val true or false
+   */
+  private JsonSequence(boolean val) {
     this.val = val;
     type = Type.BOOL;
-    this.errorListener = errorListener;
   }
 
-  JsonSequence(String val, ErrorListener errorListener) {
+  /**
+   * Create a new JsonSequence that represents an integer value.
+   * @param val integer value (as a long)
+   */
+  JsonSequence(long val) {
+    this.val = val;
+    type = Type.LONG;
+  }
+
+  /**
+   * Creates a new JsonSequence that represents a decimal value.
+   * @param val decimal value
+   */
+  JsonSequence(double val) {
+    this.val = val;
+    type = Type.DOUBLE;
+  }
+
+  /**
+   * Creates a new JsonSequence that represents a string value.
+   * @param val string value
+   */
+  JsonSequence(String val) {
     this.val = val;
     type = Type.STRING;
-    this.errorListener = errorListener;
   }
 
-  JsonSequence(List<JsonSequence> val, ErrorListener errorListener) {
+  /**
+   * Creates a new JsonSequence that represents an array
+   * @param val array value (as a list)
+   */
+  JsonSequence(List<JsonSequence> val) {
     this.val = val;
     type = Type.LIST;
-    this.errorListener = errorListener;
   }
 
-  JsonSequence(Map<String, JsonSequence> val, ErrorListener errorListener) {
+  /**
+   * Creates a new JsonSequence that represents a JSON object
+   * @param val object value (as a map)
+   */
+  JsonSequence(Map<String, JsonSequence> val) {
     this.val = val;
     type = Type.OBJECT;
-    this.errorListener = errorListener;
+  }
+
+  /**
+   * Copy constructor.  This is a shallow copy, the underlying val Object is not copied.
+   * @param template JsonSequence to use as a template.
+   */
+  JsonSequence(JsonSequence template) {
+    this.val = template.val;
+    this.type = template.type;
   }
 
   public final boolean isLong() {
@@ -107,7 +153,7 @@ public class JsonSequence {
   }
 
   public final boolean isNull() {
-    return val == null;
+    return type == Type.NULL;
   }
 
   public final long asLong() {
@@ -140,165 +186,134 @@ public class JsonSequence {
     return (Map<String, JsonSequence>)val;
   }
 
-  final void add(JsonSequence other) {
-    arithmetic(other, (left, right) -> left + right, (left, right) -> left + right, false);
+  final void add(JsonSequence other, ErrorListener errorListener) {
+    arithmetic(other, (left, right) -> left + right, (left, right) -> left + right, false, errorListener);
   }
 
-  final void subtract(JsonSequence other) {
-    arithmetic(other, (left, right) -> left - right, (left, right) -> left - right, false);
+  final void subtract(JsonSequence other, ErrorListener errorListener) {
+    arithmetic(other, (left, right) -> left - right, (left, right) -> left - right, false, errorListener);
   }
 
-  final void multiply(JsonSequence other) {
-    arithmetic(other, (left, right) -> left * right, (left, right) -> left * right, false);
+  final void multiply(JsonSequence other, ErrorListener errorListener) {
+    arithmetic(other, (left, right) -> left * right, (left, right) -> left * right, false, errorListener);
   }
 
-  final void divide(JsonSequence other) {
-    arithmetic(other, (left, right) -> left / right, (left, right) -> left / right, true);
+  final void divide(JsonSequence other, ErrorListener errorListener) {
+    arithmetic(other, (left, right) -> left / right, (left, right) -> left / right, true, errorListener);
   }
 
-  final void modulo(JsonSequence other) {
+  final void modulo(JsonSequence other, ErrorListener errorListener) {
     switch (type) {
       case LONG:
-        // TODO not sure this is right.  Should null carry SQL like semantics where it's viral.  Should it be
-        // treated like a 0?  Something else?
-        if (isNull() || other.isNull()) {
-          val = null;
-        } else {
-          switch (other.type) {
-            case LONG:
-              val = (Long)val % (Long)other.val;
-              break;
+        switch (other.type) {
+          case LONG:
+            if (other.asLong() == 0) {
+              errorListener.runtimeError("Division by zero");
+              setNull();
+            } else {
+              val = asLong() % other.asLong();
+            }
+            break;
 
-            default:
-              errorListener.semanticError("You cannot do mod on a " + other.type.name().toLowerCase());
-              break;
-          }
+          default:
+            errorListener.semanticError("You cannot do mod on a " + other.type.name().toLowerCase());
+            setNull();
+            break;
         }
         break;
 
       default:
         errorListener.semanticError("You cannot do mod on a " + type.name().toLowerCase());
+        setNull();
         break;
     }
   }
 
-  final void negate() {
+  final void negate(ErrorListener errorListener) {
     switch (type) {
       case LONG:
-        if (!isNull()) {
-          val = (Long) val * -1L;
-        }
+        val = asLong() * -1;
         break;
 
       case DOUBLE:
-        if (!isNull()) {
-          val = (Double) val * -1.0;
-        }
+        val = asDouble() * -1.0;
         break;
 
       default:
         errorListener.semanticError("You cannot do arithmetic on a " + type.name().toLowerCase());
+        setNull();
         break;
     }
   }
 
-  final void not(){
-    switch (type) {
-      case BOOL:
-        if (!isNull()) {
-          val = !((Boolean)val);
-        }
-        break;
-
-      default:
-        errorListener.semanticError("You cannot do logical operation on " + type.name());
-        break;
-    }
-  }
-
-  final void and(JsonSequence other) {
-    logic(other, (left, right) -> left && right);
-
-  }
-  final void or(JsonSequence other) {
-    logic(other, (left, right) -> left || right);
-  }
-
-  private void arithmetic(JsonSequence other, LongBinaryOperator longOp, DoubleBinaryOperator doubleOp, boolean zeroCheck) {
+  private void arithmetic(JsonSequence other, LongBinaryOperator longOp, DoubleBinaryOperator doubleOp, boolean zeroCheck, ErrorListener errorListener) {
     switch (type) {
       case LONG:
-        if (isNull() || other.isNull()) {
-          val = null;
-        } else {
-          switch (other.type) {
-            case LONG:
-              val = longOp.applyAsLong((Long)val, (Long)other.val);
-              break;
+        switch (other.type) {
+          case LONG:
+            // TODO fix zero check and is null checks
+            if (zeroCheck && other.asLong() == 0) {
+              errorListener.runtimeError("Division by zero");
+              setNull();
+            } else {
+              val = longOp.applyAsLong(asLong(), other.asLong());
+            }
+            break;
 
-            case DOUBLE:
+          case DOUBLE:
+            if (zeroCheck && other.asDouble() == 0.0) {
+              errorListener.runtimeError("Division by zero");
+              setNull();
+            } else {
               type = Type.DOUBLE;
-              if (zeroCheck && (Double)other.val == 0) {
-                errorListener.runtimeError("Division by zero");
-              } else {
-                val = doubleOp.applyAsDouble(((Long) val).doubleValue(), (Double) other.val);
-              }
-              break;
+              val = doubleOp.applyAsDouble((double)asLong(), other.asDouble());
+            }
+            break;
 
-            default:
-              errorListener.semanticError("You cannot do arithmetic on a " + other.type.name().toLowerCase());
-              break;
-          }
+          default:
+            errorListener.semanticError("You cannot do arithmetic on a " + other.type.name().toLowerCase());
+            setNull();
+            break;
         }
         break;
 
       case DOUBLE:
-        if (isNull() || other.isNull()) {
-          val = null;
-        } else {
-          switch (other.type) {
-            case LONG:
-              val = doubleOp.applyAsDouble((Double)val, ((Long)other.val).doubleValue());
-              break;
+        switch (other.type) {
+          case LONG:
+            if (zeroCheck && other.asLong() == 0) {
+              errorListener.runtimeError("Division by zero");
+              setNull();
+            } else {
+              val = doubleOp.applyAsDouble(asDouble(), (double)other.asLong());
+            }
+            break;
 
-            case DOUBLE:
-              val = doubleOp.applyAsDouble((Double)val, (Double)other.val);
-              break;
+          case DOUBLE:
+            if (zeroCheck && other.asDouble() == 0.0) {
+              errorListener.runtimeError("Division by zero");
+              setNull();
+            } else {
+              val = doubleOp.applyAsDouble(asDouble(), other.asDouble());
+            }
+            break;
 
-            default:
-              errorListener.semanticError("You cannot do arithmetic on a " + other.type.name().toLowerCase());
-              break;
-          }
+          default:
+            errorListener.semanticError("You cannot do arithmetic on a " + other.type.name().toLowerCase());
+            setNull();
+            break;
         }
         break;
 
       default:
         errorListener.semanticError("You cannot do arithmetic on a " + type.name().toLowerCase());
+        setNull();
         break;
     }
   }
 
-  private void logic(JsonSequence other, BinaryOperator<Boolean> op) {
-    switch (type) {
-      case BOOL:
-        if (isNull() || other.isNull()) {
-          val = null;
-        } else {
-          switch (other.type) {
-            case BOOL:
-              val = op.apply((Boolean)val, (Boolean)other.val);
-              break;
-
-            default:
-              errorListener.semanticError("You cannot do logical operation on a " + other.type.name().toLowerCase());
-              break;
-          }
-        }
-        break;
-
-      default:
-        errorListener.semanticError("You cannot do logical operation on a " + type.name().toLowerCase());
-        break;
-    }
+  private void setNull() {
+    type = Type.NULL;
+    val = null;
   }
 
   @Override
@@ -364,13 +379,6 @@ public class JsonSequence {
 
   private void indent(StringBuilder buf, int in) {
     for (int i = 0; i < in; i++) buf.append("  ");
-  }
-
-  public static JsonSequence nullValue(ErrorListener listener) {
-    if (nullJsonSequence == null) {
-      nullJsonSequence = new JsonSequence((String)null, listener);
-    }
-    return nullJsonSequence;
   }
 
 }

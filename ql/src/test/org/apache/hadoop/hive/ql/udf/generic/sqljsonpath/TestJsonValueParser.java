@@ -52,7 +52,7 @@ public class TestJsonValueParser {
     JsonSequence json = parser.parse("{ \"name\" : \"fred\" }");
     Assert.assertTrue(json.isObject());
     Assert.assertEquals(1, json.asObject().size());
-    Assert.assertEquals(new JsonSequence(Collections.singletonMap("name", new JsonSequence("fred", errorListener)), errorListener), json);
+    Assert.assertEquals(new JsonSequence(Collections.singletonMap("name", new JsonSequence("fred"))), json);
   }
 
   @Test
@@ -60,7 +60,7 @@ public class TestJsonValueParser {
     JsonSequence json = parser.parse("{ \"age\" : 10 }");
     Assert.assertTrue(json.isObject());
     Assert.assertEquals(1, json.asObject().size());
-    Assert.assertEquals(new JsonSequence(Collections.singletonMap("age", new JsonSequence(10, errorListener)), errorListener), json);
+    Assert.assertEquals(new JsonSequence(Collections.singletonMap("age", new JsonSequence(10))), json);
   }
 
   @Test
@@ -76,17 +76,17 @@ public class TestJsonValueParser {
         "}");
 
     Map<String, JsonSequence> m = new HashMap<>();
-    m.put("name", new JsonSequence("clark kent", errorListener));
-    m.put("age", new JsonSequence(53L, errorListener));
-    m.put("gpa", new JsonSequence(3.97, errorListener));
-    m.put("honor roll", new JsonSequence(true, errorListener));
-    m.put("major", JsonSequence.nullValue(errorListener));
+    m.put("name", new JsonSequence("clark kent"));
+    m.put("age", new JsonSequence(53L));
+    m.put("gpa", new JsonSequence(3.97));
+    m.put("honor roll", JsonSequence.trueJsonSequence);
+    m.put("major", JsonSequence.nullJsonSequence);
     List<JsonSequence> l = new ArrayList<>();
-    l.add(new JsonSequence("math 101", errorListener));
-    l.add(new JsonSequence("history 101", errorListener));
-    m.put("classes", new JsonSequence(l, errorListener));
-    m.put("sports", new JsonSequence(Collections.emptyList(), errorListener));
-    JsonSequence expected = new JsonSequence(m, errorListener);
+    l.add(new JsonSequence("math 101"));
+    l.add(new JsonSequence("history 101"));
+    m.put("classes", new JsonSequence(l));
+    m.put("sports", new JsonSequence(Collections.emptyList()));
+    JsonSequence expected = new JsonSequence(m);
 
     Assert.assertEquals(expected, json);
   }
@@ -111,22 +111,22 @@ public class TestJsonValueParser {
         "}");
 
     Map<String, JsonSequence> m = new HashMap<>();
-    m.put("name", new JsonSequence("diana prince", errorListener));
+    m.put("name", new JsonSequence("diana prince"));
     Map<String, JsonSequence> m1 = new HashMap<>();
-    m1.put("street", new JsonSequence("123 amazon street", errorListener));
-    m1.put("zip", new JsonSequence(12345L, errorListener));
-    m.put("address", new JsonSequence(m1, errorListener));
+    m1.put("street", new JsonSequence("123 amazon street"));
+    m1.put("zip", new JsonSequence(12345L));
+    m.put("address", new JsonSequence(m1));
     List<JsonSequence> l = new ArrayList<>();
     Map<String, JsonSequence> m2 = new HashMap<>();
-    m2.put("class", new JsonSequence("math 101", errorListener));
-    m2.put("professor", new JsonSequence("xavier", errorListener));
-    l.add(new JsonSequence(m2, errorListener));
+    m2.put("class", new JsonSequence("math 101"));
+    m2.put("professor", new JsonSequence("xavier"));
+    l.add(new JsonSequence(m2));
     Map<String, JsonSequence> m3 = new HashMap<>();
-    m3.put("class", new JsonSequence("history 101", errorListener));
-    m3.put("professor", new JsonSequence("who", errorListener));
-    l.add(new JsonSequence(m3, errorListener));
-    m.put("classes", new JsonSequence(l, errorListener));
-    JsonSequence expected = new JsonSequence(m, errorListener);
+    m3.put("class", new JsonSequence("history 101"));
+    m3.put("professor", new JsonSequence("who"));
+    l.add(new JsonSequence(m3));
+    m.put("classes", new JsonSequence(l));
+    JsonSequence expected = new JsonSequence(m);
 
     Assert.assertEquals(expected, json);
   }

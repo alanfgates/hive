@@ -63,7 +63,7 @@ public class JsonValueParser extends JsonBaseVisitor<JsonSequence> {
     objStack.push(new HashMap<>());
     visitChildren(ctx);
     Map<String, JsonSequence> obj = objStack.pop();
-    return new JsonSequence(obj, errorListener);
+    return new JsonSequence(obj);
   }
 
   @Override
@@ -72,7 +72,7 @@ public class JsonValueParser extends JsonBaseVisitor<JsonSequence> {
     String key = ctx.getChild(0).getText();
     assert objStack.size() > 0;
     objStack.peek().put(key.substring(1, key.length() - 1), element);
-    return JsonSequence.nullValue(errorListener);
+    return JsonSequence.nullJsonSequence;
   }
 
   @Override
@@ -80,7 +80,7 @@ public class JsonValueParser extends JsonBaseVisitor<JsonSequence> {
     arrayStack.push(new ArrayList<>());
     visitChildren(ctx);
     List<JsonSequence> array = arrayStack.pop();
-    return new JsonSequence(array, errorListener);
+    return new JsonSequence(array);
   }
 
   @Override
@@ -88,35 +88,35 @@ public class JsonValueParser extends JsonBaseVisitor<JsonSequence> {
     JsonSequence element = visit(ctx.getChild(0));
     assert arrayStack.size() > 0;
     arrayStack.peek().add(element);
-    return JsonSequence.nullValue(errorListener);
+    return JsonSequence.nullJsonSequence;
   }
 
   @Override
   public JsonSequence visitNull_literal(org.apache.hadoop.hive.ql.udf.generic.JsonParser.Null_literalContext ctx) {
-    return JsonSequence.nullValue(errorListener);
+    return JsonSequence.nullJsonSequence;
   }
 
   @Override
   public JsonSequence visitBoolean_literal(org.apache.hadoop.hive.ql.udf.generic.JsonParser.Boolean_literalContext ctx) {
-    if (ctx.getText().equalsIgnoreCase("true")) return new JsonSequence(true, errorListener);
-    else if (ctx.getText().equalsIgnoreCase("false")) return new JsonSequence(false, errorListener);
+    if (ctx.getText().equalsIgnoreCase("true")) return JsonSequence.trueJsonSequence;
+    else if (ctx.getText().equalsIgnoreCase("false")) return JsonSequence.falseJsonSequence;
     else throw new RuntimeException("Programming error");
   }
 
   @Override
   public JsonSequence visitInt_literal(org.apache.hadoop.hive.ql.udf.generic.JsonParser.Int_literalContext ctx) {
-    return new JsonSequence(Long.valueOf(ctx.getText()), errorListener);
+    return new JsonSequence(Long.valueOf(ctx.getText()));
   }
 
   @Override
   public JsonSequence visitDecimal_literal(org.apache.hadoop.hive.ql.udf.generic.JsonParser.Decimal_literalContext ctx) {
-    return new JsonSequence(Double.valueOf(ctx.getText()), errorListener);
+    return new JsonSequence(Double.valueOf(ctx.getText()));
   }
 
   @Override
   public JsonSequence visitString_literal(org.apache.hadoop.hive.ql.udf.generic.JsonParser.String_literalContext ctx) {
     String val = ctx.getText();
-    return new JsonSequence(val.substring(1, val.length() - 1), errorListener);
+    return new JsonSequence(val.substring(1, val.length() - 1));
   }
 
   private void clear() {

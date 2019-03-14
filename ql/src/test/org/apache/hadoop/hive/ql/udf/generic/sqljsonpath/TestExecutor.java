@@ -441,7 +441,7 @@ public class TestExecutor {
   @Test
   public void pathNamedVariableNoMatchingId() throws IOException, ParseException {
     String pathExpr = "$fred";
-    Context context = parseValidateExecute(pathExpr, emptyJson, Collections.singletonMap("bob", new JsonSequence(5L, new ErrorListener())));
+    Context context = parseValidateExecute(pathExpr, emptyJson, Collections.singletonMap("bob", new JsonSequence(5L)));
     try {
       context.executor.errorListener.checkForErrors(pathExpr);
       Assert.fail();
@@ -519,27 +519,226 @@ public class TestExecutor {
   @Test
   public void objectWildcard() throws IOException, ParseException {
     JsonSequence json = valueParser.parse(" { \"name\" : \"fred\", \"age\" : 35 }");
+    JsonSequence expected = new JsonSequence(json);
     Context context = parseValidateExecute("$.*", json);
-    Assert.assertTrue(context.val.isList());
-    Assert.assertEquals(2, context.val.asList().size());
-    Assert.assertTrue(context.val.asList().get(0).isString());
-    Assert.assertEquals("fred", context.val.asList().get(0).asString());
-    Assert.assertTrue(context.val.asList().get(1).isLong());
-    Assert.assertEquals(35L, context.val.asList().get(1).asLong());
+
+
+    Assert.assertEquals(expected, context.val);
   }
 
   @Test
   public void objectWildcardEmpty() throws IOException, ParseException {
     Context context = parseValidateExecute("$.*", emptyJson);
+    Assert.assertEquals(emptyJson, context.val);
+  }
+
+  @Test
+  public void simpleSubscriptList() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"classes\" : [ \"science\", \"art\" ] }");
+    Context context = parseValidateExecute("$.classes[0]", json);
+    Assert.assertTrue(context.val.isList());
+    Assert.assertEquals(1, context.val.asList().size());
+    Assert.assertEquals("science", context.val.asList().get(0).asString());
+  }
+
+  @Test
+  public void simpleSubscriptObject() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
+        "\"classes\" : [ \"science\", \"art\" ]," +
+        "\"sports\"  : [ \"swimming\", \"baseball\" ] }");
+    Context context = parseValidateExecute("$.*[1]", json);
+    Assert.assertTrue(context.val.isObject());
+    Assert.assertEquals(2, context.val.asObject().size());
+    JsonSequence classes = context.val.asObject().get("classes");
+    Assert.assertNotNull(classes);
+    Assert.assertTrue(classes.isList());
+    Assert.assertEquals(1, classes.asList().size());
+    Assert.assertEquals("art", classes.asList().get(0).asString());
+    JsonSequence sports = context.val.asObject().get("sports");
+    Assert.assertNotNull(sports);
+    Assert.assertTrue(sports.isList());
+    Assert.assertEquals(1, sports.asList().size());
+    Assert.assertEquals("baseball", sports.asList().get(0).asString());
+  }
+
+  @Test
+  public void lastSubscriptList() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"classes\" : [ \"science\", \"art\" ] }");
+    Context context = parseValidateExecute("$.classes[last]", json);
+    Assert.assertTrue(context.val.isList());
+    Assert.assertEquals(1, context.val.asList().size());
+    Assert.assertEquals("art", context.val.asList().get(0).asString());
+  }
+
+  @Test
+  public void lastSubscriptObject() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
+        "\"classes\" : [ \"science\", \"art\" ]," +
+        "\"sports\"  : [ \"swimming\", \"baseball\" ] }");
+    Context context = parseValidateExecute("$.*[last]", json);
+    Assert.assertTrue(context.val.isObject());
+    Assert.assertEquals(2, context.val.asObject().size());
+    JsonSequence classes = context.val.asObject().get("classes");
+    Assert.assertNotNull(classes);
+    Assert.assertTrue(classes.isList());
+    Assert.assertEquals(1, classes.asList().size());
+    Assert.assertEquals("art", classes.asList().get(0).asString());
+    JsonSequence sports = context.val.asObject().get("sports");
+    Assert.assertNotNull(sports);
+    Assert.assertTrue(sports.isList());
+    Assert.assertEquals(1, sports.asList().size());
+    Assert.assertEquals("baseball", sports.asList().get(0).asString());
+  }
+
+  @Test
+  public void toSubscriptList() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
+        "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ] }");
+    Context context = parseValidateExecute("$.classes[1 to 3]", json);
+    Assert.assertTrue(context.val.isList());
+    Assert.assertEquals(3, context.val.asList().size());
+    Assert.assertEquals("art", context.val.asList().get(0).asString());
+    Assert.assertEquals("math", context.val.asList().get(1).asString());
+    Assert.assertEquals("history", context.val.asList().get(2).asString());
+  }
+
+  @Test
+  public void toSubscriptObject() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
+        "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ]," +
+        "\"sports\"  : [ \"swimming\", \"baseball\", \"volleyball\", \"soccer\" ] }");
+    Context context = parseValidateExecute("$.*[1 to 3]", json);
+    Assert.assertTrue(context.val.isObject());
+    Assert.assertEquals(2, context.val.asObject().size());
+    JsonSequence classes = context.val.asObject().get("classes");
+    Assert.assertNotNull(classes);
+    Assert.assertTrue(classes.isList());
+    Assert.assertEquals(3, classes.asList().size());
+    Assert.assertEquals("art", classes.asList().get(0).asString());
+    Assert.assertEquals("math", classes.asList().get(1).asString());
+    Assert.assertEquals("history", classes.asList().get(2).asString());
+    JsonSequence sports = context.val.asObject().get("sports");
+    Assert.assertNotNull(sports);
+    Assert.assertTrue(sports.isList());
+    Assert.assertEquals(3, sports.asList().size());
+    Assert.assertEquals("baseball", sports.asList().get(0).asString());
+    Assert.assertEquals("volleyball", sports.asList().get(1).asString());
+    Assert.assertEquals("soccer", sports.asList().get(2).asString());
+  }
+
+  @Test
+  public void toLastSubscriptList() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
+        "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ] }");
+    Context context = parseValidateExecute("$.classes[1 to last]", json);
+    Assert.assertTrue(context.val.isList());
+    Assert.assertEquals(4, context.val.asList().size());
+    Assert.assertEquals("art", context.val.asList().get(0).asString());
+    Assert.assertEquals("math", context.val.asList().get(1).asString());
+    Assert.assertEquals("history", context.val.asList().get(2).asString());
+    Assert.assertEquals("writing", context.val.asList().get(3).asString());
+  }
+
+  @Test
+  public void toLastSubscriptObject() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
+        "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ]," +
+        "\"sports\"  : [ \"swimming\", \"baseball\", \"volleyball\", \"soccer\" ] }");
+    Context context = parseValidateExecute("$.*[1 to last]", json);
+    Assert.assertTrue(context.val.isObject());
+    Assert.assertEquals(2, context.val.asObject().size());
+    JsonSequence classes = context.val.asObject().get("classes");
+    Assert.assertNotNull(classes);
+    Assert.assertTrue(classes.isList());
+    Assert.assertEquals(4, classes.asList().size());
+    Assert.assertEquals("art", classes.asList().get(0).asString());
+    Assert.assertEquals("math", classes.asList().get(1).asString());
+    Assert.assertEquals("history", classes.asList().get(2).asString());
+    Assert.assertEquals("writing", classes.asList().get(3).asString());
+    JsonSequence sports = context.val.asObject().get("sports");
+    Assert.assertNotNull(sports);
+    Assert.assertTrue(sports.isList());
+    Assert.assertEquals(3, sports.asList().size());
+    Assert.assertEquals("baseball", sports.asList().get(0).asString());
+    Assert.assertEquals("volleyball", sports.asList().get(1).asString());
+    Assert.assertEquals("soccer", sports.asList().get(2).asString());
+  }
+
+  @Test
+  public void notAnArraySubscriptList() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"classes\" : [ \"science\", \"art\" ] }");
+    Context context = parseValidateExecute("$.name[0]", json);
+    Assert.assertTrue(context.val.isNull());
+  }
+
+  @Test
+  public void notAnArraySubscriptObject() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\" }");
+    Context context = parseValidateExecute("$.*[1]", json);
+    Assert.assertTrue(context.val.isObject());
+    Assert.assertEquals(0, context.val.asObject().size());
+  }
+
+  @Test
+  public void offEndSubscriptList() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"classes\" : [ \"science\", \"art\" ] }");
+    Context context = parseValidateExecute("$.classes[3]", json);
     Assert.assertTrue(context.val.isList());
     Assert.assertEquals(0, context.val.asList().size());
   }
 
-  // TODO test subscript off end
-  // TODO test LAST subscript
-  // TODO test simple subscript
-  // TODO test TO subscript
+  @Test
+  public void offEndSubscriptObject() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
+        "\"classes\" : [ \"science\", \"art\" ]," +
+        "\"sports\"  : [ \"swimming\", \"baseball\", \"soccer\" ] }");
+    Context context = parseValidateExecute("$.*[2]", json);
+    Assert.assertTrue(context.val.isObject());
+    Assert.assertEquals(2, context.val.asObject().size());
+    JsonSequence classes = context.val.asObject().get("classes");
+    Assert.assertNotNull(classes);
+    Assert.assertTrue(classes.isList());
+    Assert.assertEquals(0, classes.asList().size());
+    JsonSequence sports = context.val.asObject().get("sports");
+    Assert.assertNotNull(sports);
+    Assert.assertTrue(sports.isList());
+    Assert.assertEquals(1, sports.asList().size());
+    Assert.assertEquals("soccer", sports.asList().get(0).asString());
+  }
 
+  @Test
+  public void toOffEndSubscriptList() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
+        "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ] }");
+    Context context = parseValidateExecute("$.classes[3 to 5]", json);
+    Assert.assertTrue(context.val.isList());
+    Assert.assertEquals(2, context.val.asList().size());
+    Assert.assertEquals("history", context.val.asList().get(0).asString());
+    Assert.assertEquals("writing", context.val.asList().get(1).asString());
+  }
+
+  @Test
+  public void toOffEndSubscriptObject() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
+        "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ]," +
+        "\"sports\"  : [ \"swimming\", \"baseball\", \"volleyball\", \"soccer\" ] }");
+    Context context = parseValidateExecute("$.*[3 to 5]", json);
+    Assert.assertTrue(context.val.isObject());
+    Assert.assertEquals(2, context.val.asObject().size());
+    JsonSequence classes = context.val.asObject().get("classes");
+    Assert.assertNotNull(classes);
+    Assert.assertTrue(classes.isList());
+    Assert.assertEquals(2, classes.asList().size());
+    Assert.assertEquals("history", classes.asList().get(0).asString());
+    Assert.assertEquals("writing", classes.asList().get(1).asString());
+    JsonSequence sports = context.val.asObject().get("sports");
+    Assert.assertNotNull(sports);
+    Assert.assertTrue(sports.isList());
+    Assert.assertEquals(1, sports.asList().size());
+    Assert.assertEquals("soccer", sports.asList().get(0).asString());
+  }
+
+  // TODO test subscript off end
 
   private ParseTree parse(String path) throws IOException, ParseException {
     PathParser parser = new PathParser();
