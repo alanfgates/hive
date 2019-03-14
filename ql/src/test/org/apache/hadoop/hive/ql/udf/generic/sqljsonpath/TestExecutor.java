@@ -17,11 +17,16 @@
  */
 package org.apache.hadoop.hive.ql.udf.generic.sqljsonpath;
 
+import org.antlr.v4.runtime.ANTLRInputStream;
+import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.apache.hadoop.hive.ql.udf.generic.SqlJsonPathLexer;
+import org.apache.hadoop.hive.ql.udf.generic.SqlJsonPathParser;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
@@ -66,186 +71,185 @@ public class TestExecutor {
     Assert.assertEquals(Mode.STRICT, context.validator.getMode());
   }
 
-  /*
   @Test
   public void longLiteral() throws IOException, ParseException {
-    Context context = parseValidateExecute("5");
+    Context context = parseAdditiveExpr("5");
     Assert.assertEquals(5L, context.val.asLong());
   }
 
   @Test
   public void doubleLiteral() throws IOException, ParseException {
-    Context context = parseValidateExecute("5.1");
+    Context context = parseAdditiveExpr("5.1");
     Assert.assertEquals(5.1, context.val.asDouble(), 0.00001);
   }
 
   @Test
   public void booleanLiteral() throws IOException, ParseException {
-    Context context = parseValidateExecute("true");
+    Context context = parseAdditiveExpr("true");
     Assert.assertTrue(context.val.asBool());
   }
 
   @Test
   public void nullLiteral() throws IOException, ParseException {
-    Context context = parseValidateExecute("null");
+    Context context = parseAdditiveExpr("null");
     Assert.assertTrue(context.val.isNull());
   }
 
   @Test
   public void singleQuoteStringLiteral() throws IOException, ParseException {
-    Context context = parseValidateExecute("'fred'");
+    Context context = parseAdditiveExpr("'fred'");
     Assert.assertEquals("fred", context.val.asString());
   }
 
   @Test
   public void doubleQuoteStringLiteral() throws IOException, ParseException {
-    Context context = parseValidateExecute("\"fred\"");
+    Context context = parseAdditiveExpr("\"fred\"");
     Assert.assertEquals("fred", context.val.asString());
   }
 
   @Test
   public void addLong() throws IOException, ParseException {
-    Context context = parseValidateExecute("5 + 6");
+    Context context = parseAdditiveExpr("5 + 6");
     Assert.assertTrue(context.val.isLong());
     Assert.assertEquals(11L, context.val.asLong());
   }
 
   @Test
   public void subtractLong() throws IOException, ParseException {
-    Context context = parseValidateExecute("8 - 4");
+    Context context = parseAdditiveExpr("8 - 4");
     Assert.assertTrue(context.val.isLong());
     Assert.assertEquals(4L, context.val.asLong());
   }
 
   @Test
   public void multiplyLong() throws IOException, ParseException {
-    Context context = parseValidateExecute("9 * 10");
+    Context context = parseAdditiveExpr("9 * 10");
     Assert.assertTrue(context.val.isLong());
     Assert.assertEquals(90L, context.val.asLong());
   }
 
   @Test
   public void divideLong() throws IOException, ParseException {
-    Context context = parseValidateExecute("9 / 3");
+    Context context = parseAdditiveExpr("9 / 3");
     Assert.assertTrue(context.val.isLong());
     Assert.assertEquals(3L, context.val.asLong());
   }
 
   @Test
   public void modLong() throws IOException, ParseException {
-    Context context = parseValidateExecute("10 % 3");
+    Context context = parseAdditiveExpr("10 % 3");
     Assert.assertTrue(context.val.isLong());
     Assert.assertEquals(1L, context.val.asLong());
   }
 
   @Test
   public void addDouble() throws IOException, ParseException {
-    Context context = parseValidateExecute("5.1 + 7.2");
+    Context context = parseAdditiveExpr("5.1 + 7.2");
     Assert.assertTrue(context.val.isDouble());
     Assert.assertEquals(12.3, context.val.asDouble(), 0.00001);
   }
 
   @Test
   public void subtractDouble() throws IOException, ParseException {
-    Context context = parseValidateExecute("10.0 - .2");
+    Context context = parseAdditiveExpr("10.0 - .2");
     Assert.assertTrue(context.val.isDouble());
     Assert.assertEquals(9.8, context.val.asDouble(), 0.00001);
   }
 
   @Test
   public void multiplyDouble() throws IOException, ParseException {
-    Context context = parseValidateExecute("2.0 * 3.141592654");
+    Context context = parseAdditiveExpr("2.0 * 3.141592654");
     Assert.assertTrue(context.val.isDouble());
     Assert.assertEquals(6.283185308, context.val.asDouble(), 0.001);
   }
 
   @Test
   public void divideDouble() throws IOException, ParseException {
-    Context context = parseValidateExecute("20.0 / 3.0");
+    Context context = parseAdditiveExpr("20.0 / 3.0");
     Assert.assertTrue(context.val.isDouble());
     Assert.assertEquals(6.66666, context.val.asDouble(), 0.001);
   }
 
   @Test
   public void addLongAndDouble() throws IOException, ParseException {
-    Context context = parseValidateExecute("5 + 7.2");
+    Context context = parseAdditiveExpr("5 + 7.2");
     Assert.assertTrue(context.val.isDouble());
     Assert.assertEquals(12.2, context.val.asDouble(), 0.00001);
   }
 
   @Test
   public void subtractLongAndDouble() throws IOException, ParseException {
-    Context context = parseValidateExecute("10 - 7.2");
+    Context context = parseAdditiveExpr("10 - 7.2");
     Assert.assertTrue(context.val.isDouble());
     Assert.assertEquals(2.8, context.val.asDouble(), 0.00001);
   }
 
   @Test
   public void multiplyLongAndDouble() throws IOException, ParseException {
-    Context context = parseValidateExecute("10 * 1.238273");
+    Context context = parseAdditiveExpr("10 * 1.238273");
     Assert.assertTrue(context.val.isDouble());
     Assert.assertEquals(12.38273, context.val.asDouble(), 0.00001);
   }
 
   @Test
   public void divideLongAndDouble() throws IOException, ParseException {
-    Context context = parseValidateExecute("20 / 1.238273");
+    Context context = parseAdditiveExpr("20 / 1.238273");
     Assert.assertTrue(context.val.isDouble());
     Assert.assertEquals(16.151527167272484, context.val.asDouble(), 0.00001);
   }
 
   @Test
   public void addDoubleAndLong() throws IOException, ParseException {
-    Context context = parseValidateExecute("5.2 + 7");
+    Context context = parseAdditiveExpr("5.2 + 7");
     Assert.assertTrue(context.val.isDouble());
     Assert.assertEquals(12.2, context.val.asDouble(), 0.00001);
   }
 
   @Test
   public void subtractDoubleAndLong() throws IOException, ParseException {
-    Context context = parseValidateExecute("10.2 - 7");
+    Context context = parseAdditiveExpr("10.2 - 7");
     Assert.assertTrue(context.val.isDouble());
     Assert.assertEquals(3.2, context.val.asDouble(), 0.00001);
   }
 
   @Test
   public void multiplyDoubleAndLong() throws IOException, ParseException {
-    Context context = parseValidateExecute("1.238273 * 10");
+    Context context = parseAdditiveExpr("1.238273 * 10");
     Assert.assertTrue(context.val.isDouble());
     Assert.assertEquals(12.38273, context.val.asDouble(), 0.00001);
   }
 
   @Test
   public void divideDoubleAndLong() throws IOException, ParseException {
-    Context context = parseValidateExecute("20.238273 / 3");
+    Context context = parseAdditiveExpr("20.238273 / 3");
     Assert.assertTrue(context.val.isDouble());
     Assert.assertEquals(6.746091, context.val.asDouble(), 0.00001);
   }
 
   @Test
   public void longUnaryPlus() throws IOException, ParseException {
-    Context context = parseValidateExecute("+3");
+    Context context = parseAdditiveExpr("+3");
     Assert.assertTrue(context.val.isLong());
     Assert.assertEquals(3L, context.val.asLong());
   }
 
   @Test
   public void longUnaryMinus() throws IOException, ParseException {
-    Context context = parseValidateExecute("-3");
+    Context context = parseAdditiveExpr("-3");
     Assert.assertTrue(context.val.isLong());
     Assert.assertEquals(-3L, context.val.asLong());
   }
 
   @Test
   public void doubleUnaryPlus() throws IOException, ParseException {
-    Context context = parseValidateExecute("+20.238273");
+    Context context = parseAdditiveExpr("+20.238273");
     Assert.assertTrue(context.val.isDouble());
     Assert.assertEquals(20.238273, context.val.asDouble(), 0.00001);
   }
 
   @Test
   public void doubleUnaryMinus() throws IOException, ParseException {
-    Context context = parseValidateExecute("-20.238273");
+    Context context = parseAdditiveExpr("-20.238273");
     Assert.assertTrue(context.val.isDouble());
     Assert.assertEquals(-20.238273, context.val.asDouble(), 0.00001);
   }
@@ -372,71 +376,72 @@ public class TestExecutor {
 
   @Test
   public void addNull() throws IOException, ParseException {
-    Context context = parseValidateExecute("20 + null");
+    Context context = parseAdditiveExpr("20 + null");
     Assert.assertTrue(context.val.isNull());
   }
 
   @Test
   public void subtractNull() throws IOException, ParseException {
-    Context context = parseValidateExecute("20.0 - null");
+    Context context = parseAdditiveExpr("20.0 - null");
     Assert.assertTrue(context.val.isNull());
   }
 
   @Test
   public void multiplyNull() throws IOException, ParseException {
-    Context context = parseValidateExecute("20 * null");
+    Context context = parseAdditiveExpr("20 * null");
     Assert.assertTrue(context.val.isNull());
   }
 
   @Test
   public void divideNull() throws IOException, ParseException {
-    Context context = parseValidateExecute("20 / null");
+    Context context = parseAdditiveExpr("20 / null");
     Assert.assertTrue(context.val.isNull());
   }
 
   @Test
   public void modNull() throws IOException, ParseException {
-    Context context = parseValidateExecute("20 % null");
+    Context context = parseAdditiveExpr("20 % null");
     Assert.assertTrue(context.val.isNull());
   }
 
   @Test
   public void nullAdd() throws IOException, ParseException {
-    Context context = parseValidateExecute("null + 20");
+    Context context = parseAdditiveExpr("null + 20");
     Assert.assertTrue(context.val.isNull());
   }
 
   @Test
   public void nullSubtract() throws IOException, ParseException {
-    Context context = parseValidateExecute("null - 20.0");
+    Context context = parseAdditiveExpr("null - 20.0");
     Assert.assertTrue(context.val.isNull());
   }
 
   @Test
   public void nullMultiply() throws IOException, ParseException {
-    Context context = parseValidateExecute("null * 20");
+    Context context = parseAdditiveExpr("null * 20");
     Assert.assertTrue(context.val.isNull());
   }
 
   @Test
   public void nullDivide() throws IOException, ParseException {
-    Context context = parseValidateExecute("null / 20");
+    Context context = parseAdditiveExpr("null / 20");
     Assert.assertTrue(context.val.isNull());
   }
 
   @Test
   public void nullMod() throws IOException, ParseException {
-    Context context = parseValidateExecute("null % 20");
+    Context context = parseAdditiveExpr("null % 20");
     Assert.assertTrue(context.val.isNull());
   }
 
   @Test
   public void pathNamedVariable() throws IOException, ParseException {
-    Context context = parseValidateExecute("$fred", null, Collections.singletonMap("fred", new JsonSequence(5L, new ErrorListener())));
-    Assert.assertTrue(context.val.isLong());
-    Assert.assertEquals(5L, context.val.asLong());
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"classes\" : [ \"pe\", \"history\" ] }");
+    Context context = parseValidateExecute("$.classes[$i]", json, Collections.singletonMap("i", new JsonSequence(1L)));
+    Assert.assertTrue(context.val.isList());
+    Assert.assertEquals(1, context.val.asList().size());
+    Assert.assertEquals("history", context.val.asList().get(0).asString());
   }
-  */
 
   @Test
   public void pathNamedVariableNoMatchingId() throws IOException, ParseException {
@@ -536,9 +541,9 @@ public class TestExecutor {
   public void simpleSubscriptList() throws IOException, ParseException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"classes\" : [ \"science\", \"art\" ] }");
     Context context = parseValidateExecute("$.classes[0]", json);
-    Assert.assertTrue(context.val.isList());
-    Assert.assertEquals(1, context.val.asList().size());
-    Assert.assertEquals("science", context.val.asList().get(0).asString());
+
+    JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : [ \"science\" ] }");
+    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
   }
 
   @Test
@@ -547,27 +552,18 @@ public class TestExecutor {
         "\"classes\" : [ \"science\", \"art\" ]," +
         "\"sports\"  : [ \"swimming\", \"baseball\" ] }");
     Context context = parseValidateExecute("$.*[1]", json);
-    Assert.assertTrue(context.val.isObject());
-    Assert.assertEquals(2, context.val.asObject().size());
-    JsonSequence classes = context.val.asObject().get("classes");
-    Assert.assertNotNull(classes);
-    Assert.assertTrue(classes.isList());
-    Assert.assertEquals(1, classes.asList().size());
-    Assert.assertEquals("art", classes.asList().get(0).asString());
-    JsonSequence sports = context.val.asObject().get("sports");
-    Assert.assertNotNull(sports);
-    Assert.assertTrue(sports.isList());
-    Assert.assertEquals(1, sports.asList().size());
-    Assert.assertEquals("baseball", sports.asList().get(0).asString());
+
+    JsonSequence expected = valueParser.parse(" { \"classes\" : [ \"art\"], \"sports\" : [ \"baseball\" ] }");
+    Assert.assertEquals(expected, context.val);
   }
 
   @Test
   public void lastSubscriptList() throws IOException, ParseException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"classes\" : [ \"science\", \"art\" ] }");
     Context context = parseValidateExecute("$.classes[last]", json);
-    Assert.assertTrue(context.val.isList());
-    Assert.assertEquals(1, context.val.asList().size());
-    Assert.assertEquals("art", context.val.asList().get(0).asString());
+
+    JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : [ \"art\" ] }");
+    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
   }
 
   @Test
@@ -576,18 +572,9 @@ public class TestExecutor {
         "\"classes\" : [ \"science\", \"art\" ]," +
         "\"sports\"  : [ \"swimming\", \"baseball\" ] }");
     Context context = parseValidateExecute("$.*[last]", json);
-    Assert.assertTrue(context.val.isObject());
-    Assert.assertEquals(2, context.val.asObject().size());
-    JsonSequence classes = context.val.asObject().get("classes");
-    Assert.assertNotNull(classes);
-    Assert.assertTrue(classes.isList());
-    Assert.assertEquals(1, classes.asList().size());
-    Assert.assertEquals("art", classes.asList().get(0).asString());
-    JsonSequence sports = context.val.asObject().get("sports");
-    Assert.assertNotNull(sports);
-    Assert.assertTrue(sports.isList());
-    Assert.assertEquals(1, sports.asList().size());
-    Assert.assertEquals("baseball", sports.asList().get(0).asString());
+
+    JsonSequence expected = valueParser.parse(" { \"classes\" : [ \"art\"], \"sports\" : [ \"baseball\" ] }");
+    Assert.assertEquals(expected, context.val);
   }
 
   @Test
@@ -595,11 +582,9 @@ public class TestExecutor {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ] }");
     Context context = parseValidateExecute("$.classes[1 to 3]", json);
-    Assert.assertTrue(context.val.isList());
-    Assert.assertEquals(3, context.val.asList().size());
-    Assert.assertEquals("art", context.val.asList().get(0).asString());
-    Assert.assertEquals("math", context.val.asList().get(1).asString());
-    Assert.assertEquals("history", context.val.asList().get(2).asString());
+
+    JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : [ \"art\", \"math\", \"history\" ] }");
+    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
   }
 
   @Test
@@ -608,22 +593,10 @@ public class TestExecutor {
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ]," +
         "\"sports\"  : [ \"swimming\", \"baseball\", \"volleyball\", \"soccer\" ] }");
     Context context = parseValidateExecute("$.*[1 to 3]", json);
-    Assert.assertTrue(context.val.isObject());
-    Assert.assertEquals(2, context.val.asObject().size());
-    JsonSequence classes = context.val.asObject().get("classes");
-    Assert.assertNotNull(classes);
-    Assert.assertTrue(classes.isList());
-    Assert.assertEquals(3, classes.asList().size());
-    Assert.assertEquals("art", classes.asList().get(0).asString());
-    Assert.assertEquals("math", classes.asList().get(1).asString());
-    Assert.assertEquals("history", classes.asList().get(2).asString());
-    JsonSequence sports = context.val.asObject().get("sports");
-    Assert.assertNotNull(sports);
-    Assert.assertTrue(sports.isList());
-    Assert.assertEquals(3, sports.asList().size());
-    Assert.assertEquals("baseball", sports.asList().get(0).asString());
-    Assert.assertEquals("volleyball", sports.asList().get(1).asString());
-    Assert.assertEquals("soccer", sports.asList().get(2).asString());
+
+    JsonSequence expected = valueParser.parse(" { \"classes\" : [ \"art\", \"math\", \"history\"]," +
+                                                 "\"sports\" : [ \"baseball\", \"volleyball\", \"soccer\" ] }");
+    Assert.assertEquals(expected, context.val);
   }
 
   @Test
@@ -631,12 +604,9 @@ public class TestExecutor {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ] }");
     Context context = parseValidateExecute("$.classes[1 to last]", json);
-    Assert.assertTrue(context.val.isList());
-    Assert.assertEquals(4, context.val.asList().size());
-    Assert.assertEquals("art", context.val.asList().get(0).asString());
-    Assert.assertEquals("math", context.val.asList().get(1).asString());
-    Assert.assertEquals("history", context.val.asList().get(2).asString());
-    Assert.assertEquals("writing", context.val.asList().get(3).asString());
+
+    JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : [ \"art\", \"math\", \"history\", \"writing\" ] }");
+    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
   }
 
   @Test
@@ -645,23 +615,10 @@ public class TestExecutor {
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ]," +
         "\"sports\"  : [ \"swimming\", \"baseball\", \"volleyball\", \"soccer\" ] }");
     Context context = parseValidateExecute("$.*[1 to last]", json);
-    Assert.assertTrue(context.val.isObject());
-    Assert.assertEquals(2, context.val.asObject().size());
-    JsonSequence classes = context.val.asObject().get("classes");
-    Assert.assertNotNull(classes);
-    Assert.assertTrue(classes.isList());
-    Assert.assertEquals(4, classes.asList().size());
-    Assert.assertEquals("art", classes.asList().get(0).asString());
-    Assert.assertEquals("math", classes.asList().get(1).asString());
-    Assert.assertEquals("history", classes.asList().get(2).asString());
-    Assert.assertEquals("writing", classes.asList().get(3).asString());
-    JsonSequence sports = context.val.asObject().get("sports");
-    Assert.assertNotNull(sports);
-    Assert.assertTrue(sports.isList());
-    Assert.assertEquals(3, sports.asList().size());
-    Assert.assertEquals("baseball", sports.asList().get(0).asString());
-    Assert.assertEquals("volleyball", sports.asList().get(1).asString());
-    Assert.assertEquals("soccer", sports.asList().get(2).asString());
+
+    JsonSequence expected = valueParser.parse(" { \"classes\" : [ \"art\", \"math\", \"history\", \"writing\"]," +
+        "                                         \"sports\" : [ \"baseball\", \"volleyball\", \"soccer\" ] }");
+    Assert.assertEquals(expected, context.val);
   }
 
   @Test
@@ -675,16 +632,17 @@ public class TestExecutor {
   public void notAnArraySubscriptObject() throws IOException, ParseException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\" }");
     Context context = parseValidateExecute("$.*[1]", json);
-    Assert.assertTrue(context.val.isObject());
-    Assert.assertEquals(0, context.val.asObject().size());
+
+    Assert.assertEquals(emptyJson, context.val);
   }
 
   @Test
   public void offEndSubscriptList() throws IOException, ParseException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"classes\" : [ \"science\", \"art\" ] }");
     Context context = parseValidateExecute("$.classes[3]", json);
-    Assert.assertTrue(context.val.isList());
-    Assert.assertEquals(0, context.val.asList().size());
+
+    JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : [  ] }");
+    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
   }
 
   @Test
@@ -693,17 +651,9 @@ public class TestExecutor {
         "\"classes\" : [ \"science\", \"art\" ]," +
         "\"sports\"  : [ \"swimming\", \"baseball\", \"soccer\" ] }");
     Context context = parseValidateExecute("$.*[2]", json);
-    Assert.assertTrue(context.val.isObject());
-    Assert.assertEquals(2, context.val.asObject().size());
-    JsonSequence classes = context.val.asObject().get("classes");
-    Assert.assertNotNull(classes);
-    Assert.assertTrue(classes.isList());
-    Assert.assertEquals(0, classes.asList().size());
-    JsonSequence sports = context.val.asObject().get("sports");
-    Assert.assertNotNull(sports);
-    Assert.assertTrue(sports.isList());
-    Assert.assertEquals(1, sports.asList().size());
-    Assert.assertEquals("soccer", sports.asList().get(0).asString());
+
+    JsonSequence expected = valueParser.parse(" { \"classes\" : [ ], \"sports\" : [ \"soccer\" ] }");
+    Assert.assertEquals(expected, context.val);
   }
 
   @Test
@@ -711,10 +661,9 @@ public class TestExecutor {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ] }");
     Context context = parseValidateExecute("$.classes[3 to 5]", json);
-    Assert.assertTrue(context.val.isList());
-    Assert.assertEquals(2, context.val.asList().size());
-    Assert.assertEquals("history", context.val.asList().get(0).asString());
-    Assert.assertEquals("writing", context.val.asList().get(1).asString());
+
+    JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : [ \"history\", \"writing\" ] }");
+    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
   }
 
   @Test
@@ -723,22 +672,63 @@ public class TestExecutor {
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ]," +
         "\"sports\"  : [ \"swimming\", \"baseball\", \"volleyball\", \"soccer\" ] }");
     Context context = parseValidateExecute("$.*[3 to 5]", json);
-    Assert.assertTrue(context.val.isObject());
-    Assert.assertEquals(2, context.val.asObject().size());
-    JsonSequence classes = context.val.asObject().get("classes");
-    Assert.assertNotNull(classes);
-    Assert.assertTrue(classes.isList());
-    Assert.assertEquals(2, classes.asList().size());
-    Assert.assertEquals("history", classes.asList().get(0).asString());
-    Assert.assertEquals("writing", classes.asList().get(1).asString());
-    JsonSequence sports = context.val.asObject().get("sports");
-    Assert.assertNotNull(sports);
-    Assert.assertTrue(sports.isList());
-    Assert.assertEquals(1, sports.asList().size());
-    Assert.assertEquals("soccer", sports.asList().get(0).asString());
+
+    JsonSequence expected = valueParser.parse(" { \"classes\" : [ \"history\", \"writing\"], \"sports\" : [ \"soccer\" ] }");
+    Assert.assertEquals(expected, context.val);
   }
 
-  // TODO test subscript off end
+  @Test
+  public void listSubscriptList() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
+        "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ] }");
+    Context context = parseValidateExecute("$.classes[1, 4]", json);
+
+    JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : [ \"art\", \"writing\" ] }");
+    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
+  }
+
+  @Test
+  public void listSubscriptObject() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
+        "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ]," +
+        "\"sports\"  : [ \"swimming\", \"baseball\", \"volleyball\", \"soccer\" ] }");
+    Context context = parseValidateExecute("$.*[1, 4]", json);
+
+    JsonSequence expected = valueParser.parse(" { \"classes\" : [ \"art\", \"writing\"], \"sports\" : [ \"baseball\" ] }");
+    Assert.assertEquals(expected, context.val);
+  }
+
+  @Test
+  public void listAndToSubscriptList() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
+        "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ] }");
+    Context context = parseValidateExecute("$.classes[0, 3 to 5]", json);
+
+    JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : [ \"science\", \"history\", \"writing\" ] }");
+    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
+  }
+
+  @Test
+  public void listAndToSubscriptObject() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
+        "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ]," +
+        "\"sports\"  : [ \"swimming\", \"baseball\", \"volleyball\", \"soccer\" ] }");
+    Context context = parseValidateExecute("$.*[0, 2 to last]", json);
+
+    JsonSequence expected = valueParser.parse(" { \"classes\" : [ \"science\", \"math\", \"history\", \"writing\"]," +
+        "                                         \"sports\" : [ \"swimming\", \"volleyball\", \"soccer\" ] }");
+    Assert.assertEquals(expected, context.val);
+  }
+
+  @Test
+  public void arithmeticSubscriptList() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
+        "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ] }");
+    Context context = parseValidateExecute("$.classes[1 + 1]", json);
+
+    JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : [ \"math\" ] }");
+    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
+  }
 
   private ParseTree parse(String path) throws IOException, ParseException {
     PathParser parser = new PathParser();
@@ -774,6 +764,21 @@ public class TestExecutor {
     PathExecutor executor = new PathExecutor(errorListener);
     context.executor = executor;
     context.val = executor.execute(context.tree, value, passing, onEmpty, onError, context.validator);
+    return context;
+  }
+
+  // Useful for testing just the arithmetic portions
+  private Context parseAdditiveExpr(String path) throws IOException, ParseException {
+    ErrorListener errorListener = new ErrorListener();
+    SqlJsonPathLexer scanner = new SqlJsonPathLexer(new ANTLRInputStream(new ByteArrayInputStream(path.getBytes())));
+    CommonTokenStream tokens = new CommonTokenStream(scanner);
+    SqlJsonPathParser parser = new SqlJsonPathParser(tokens);
+    parser.addErrorListener(errorListener);
+    ParseTree tree = parser.additive_expression();
+    errorListener.checkForErrors(path);
+    PathExecutor executor = new PathExecutor(errorListener);
+    Context context =  new Context(tree, null, errorListener);
+    context.val = executor.visit(tree);
     return context;
   }
 

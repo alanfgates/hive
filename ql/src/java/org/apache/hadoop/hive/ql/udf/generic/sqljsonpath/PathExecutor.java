@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
@@ -256,7 +257,9 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     if (ctx.getChildCount() == 1) {
       // This is the simple subscript case, but it might still be a 'x TO y'
       JsonSequence subscript = visit(ctx.getChild(0));
-      return new JsonSequence(Collections.singletonList(subscript));
+      List<JsonSequence> list = new ArrayList<>();
+      list.add(subscript);
+      return new JsonSequence(list);
     } else if (ctx.getChildCount() == 3) {
       JsonSequence subscriptList = visit(ctx.getChild(0));
       JsonSequence subscript = visit(ctx.getChild(2));
