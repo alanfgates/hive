@@ -29,9 +29,10 @@ import org.junit.Test;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
-public class TestExecutor {
+public class TestPathExecutor {
 
   private static JsonValueParser valueParser;
   private static JsonSequence    emptyJson;
@@ -55,20 +56,20 @@ public class TestExecutor {
 
   @Test
   public void laxDefault() throws IOException, ParseException {
-    Context context = parseAndValidate("$.a", emptyJson);
-    Assert.assertEquals(Mode.LAX, context.validator.getMode());
+    Context context = parseAndExecute("$.a", emptyJson);
+    Assert.assertEquals(Mode.LAX, context.executor.getMode());
   }
 
   @Test
   public void laxSpecified() throws IOException, ParseException {
-    Context context = parseAndValidate("lax $.a", emptyJson);
-    Assert.assertEquals(Mode.LAX, context.validator.getMode());
+    Context context = parseAndExecute("lax $.a", emptyJson);
+    Assert.assertEquals(Mode.LAX, context.executor.getMode());
   }
 
   @Test
   public void strict() throws IOException, ParseException {
-    Context context = parseAndValidate("strict $.a", emptyJson);
-    Assert.assertEquals(Mode.STRICT, context.validator.getMode());
+    Context context = parseAndExecute("strict $.a", emptyJson);
+    Assert.assertEquals(Mode.STRICT, context.executor.getMode());
   }
 
   @Test
@@ -257,9 +258,9 @@ public class TestExecutor {
   @Test
   public void badLongAdd() throws IOException, ParseException {
     String pathExpr = "20 + 'fred'";
-    Context context = parseValidateExecute(pathExpr, emptyJson);
+    Context context = parseAndExecute(pathExpr, emptyJson);
     try {
-      context.executor.errorListener.checkForErrors(pathExpr);
+      context.executor.getErrorListener().checkForErrors(pathExpr);
       Assert.fail();
     } catch (ParseException e) {
       Assert.assertEquals("'20 + 'fred'' produced a semantic error: You cannot do arithmetic on a string", e.getMessage());
@@ -269,9 +270,9 @@ public class TestExecutor {
   @Test
   public void badLongSubtract() throws IOException, ParseException {
     String pathExpr = "20 - 'fred'";
-    Context context = parseValidateExecute(pathExpr, emptyJson);
+    Context context = parseAndExecute(pathExpr, emptyJson);
     try {
-      context.executor.errorListener.checkForErrors(pathExpr);
+      context.executor.getErrorListener().checkForErrors(pathExpr);
       Assert.fail();
     } catch (ParseException e) {
       Assert.assertEquals("'20 - 'fred'' produced a semantic error: You cannot do arithmetic on a string", e.getMessage());
@@ -281,9 +282,9 @@ public class TestExecutor {
   @Test
   public void badLongMultiply() throws IOException, ParseException {
     String pathExpr = "20 * true";
-    Context context = parseValidateExecute(pathExpr, emptyJson);
+    Context context = parseAndExecute(pathExpr, emptyJson);
     try {
-      context.executor.errorListener.checkForErrors(pathExpr);
+      context.executor.getErrorListener().checkForErrors(pathExpr);
       Assert.fail();
     } catch (ParseException e) {
       Assert.assertEquals("'20 * true' produced a semantic error: You cannot do arithmetic on a bool", e.getMessage());
@@ -293,9 +294,9 @@ public class TestExecutor {
   @Test
   public void badLongDivide() throws IOException, ParseException {
     String pathExpr = "20 / 'bob'";
-    Context context = parseValidateExecute(pathExpr, emptyJson);
+    Context context = parseAndExecute(pathExpr, emptyJson);
     try {
-      context.executor.errorListener.checkForErrors(pathExpr);
+      context.executor.getErrorListener().checkForErrors(pathExpr);
       Assert.fail();
     } catch (ParseException e) {
       Assert.assertEquals("'20 / 'bob'' produced a semantic error: You cannot do arithmetic on a string", e.getMessage());
@@ -305,9 +306,9 @@ public class TestExecutor {
   @Test
   public void badMod() throws IOException, ParseException {
     String pathExpr = "20 % 3.0";
-    Context context = parseValidateExecute(pathExpr, emptyJson);
+    Context context = parseAndExecute(pathExpr, emptyJson);
     try {
-      context.executor.errorListener.checkForErrors(pathExpr);
+      context.executor.getErrorListener().checkForErrors(pathExpr);
       Assert.fail();
     } catch (ParseException e) {
       Assert.assertEquals("'20 % 3.0' produced a semantic error: You cannot do mod on a double", e.getMessage());
@@ -317,9 +318,9 @@ public class TestExecutor {
   @Test
   public void badStringAdd() throws IOException, ParseException {
     String pathExpr = "'fred' + 3.0";
-    Context context = parseValidateExecute(pathExpr, emptyJson);
+    Context context = parseAndExecute(pathExpr, emptyJson);
     try {
-      context.executor.errorListener.checkForErrors(pathExpr);
+      context.executor.getErrorListener().checkForErrors(pathExpr);
       Assert.fail();
     } catch (ParseException e) {
       Assert.assertEquals("''fred' + 3.0' produced a semantic error: You cannot do arithmetic on a string", e.getMessage());
@@ -329,9 +330,9 @@ public class TestExecutor {
   @Test
   public void badStringSubtract() throws IOException, ParseException {
     String pathExpr = "'fred' - 3.0";
-    Context context = parseValidateExecute(pathExpr, emptyJson);
+    Context context = parseAndExecute(pathExpr, emptyJson);
     try {
-      context.executor.errorListener.checkForErrors(pathExpr);
+      context.executor.getErrorListener().checkForErrors(pathExpr);
       Assert.fail();
     } catch (ParseException e) {
       Assert.assertEquals("''fred' - 3.0' produced a semantic error: You cannot do arithmetic on a string", e.getMessage());
@@ -341,9 +342,9 @@ public class TestExecutor {
   @Test
   public void badStringMultiply() throws IOException, ParseException {
     String pathExpr = "'fred' * 3.0";
-    Context context = parseValidateExecute(pathExpr, emptyJson);
+    Context context = parseAndExecute(pathExpr, emptyJson);
     try {
-      context.executor.errorListener.checkForErrors(pathExpr);
+      context.executor.getErrorListener().checkForErrors(pathExpr);
       Assert.fail();
     } catch (ParseException e) {
       Assert.assertEquals("''fred' * 3.0' produced a semantic error: You cannot do arithmetic on a string", e.getMessage());
@@ -353,9 +354,9 @@ public class TestExecutor {
   @Test
   public void badStringDivide() throws IOException, ParseException {
     String pathExpr = "'fred' / 3.0";
-    Context context = parseValidateExecute(pathExpr, emptyJson);
+    Context context = parseAndExecute(pathExpr, emptyJson);
     try {
-      context.executor.errorListener.checkForErrors(pathExpr);
+      context.executor.getErrorListener().checkForErrors(pathExpr);
       Assert.fail();
     } catch (ParseException e) {
       Assert.assertEquals("''fred' / 3.0' produced a semantic error: You cannot do arithmetic on a string", e.getMessage());
@@ -365,9 +366,9 @@ public class TestExecutor {
   @Test
   public void badStringMod() throws IOException, ParseException {
     String pathExpr = "'fred' % 3.0";
-    Context context = parseValidateExecute(pathExpr, emptyJson);
+    Context context = parseAndExecute(pathExpr, emptyJson);
     try {
-      context.executor.errorListener.checkForErrors(pathExpr);
+      context.executor.getErrorListener().checkForErrors(pathExpr);
       Assert.fail();
     } catch (ParseException e) {
       Assert.assertEquals("''fred' % 3.0' produced a semantic error: You cannot do mod on a string", e.getMessage());
@@ -437,18 +438,18 @@ public class TestExecutor {
   @Test
   public void pathNamedVariable() throws IOException, ParseException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"classes\" : [ \"pe\", \"history\" ] }");
-    Context context = parseValidateExecute("$.classes[$i]", json, Collections.singletonMap("i", new JsonSequence(1L)));
-    Assert.assertTrue(context.val.isList());
-    Assert.assertEquals(1, context.val.asList().size());
-    Assert.assertEquals("history", context.val.asList().get(0).asString());
+    Context context = parseAndExecute("$.classes[$i]", json, Collections.singletonMap("i", new JsonSequence(1L)));
+
+    JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : \"history\" }");
+    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
   }
 
   @Test
   public void pathNamedVariableNoMatchingId() throws IOException, ParseException {
     String pathExpr = "$fred";
-    Context context = parseValidateExecute(pathExpr, emptyJson, Collections.singletonMap("bob", new JsonSequence(5L)));
+    Context context = parseAndExecute(pathExpr, emptyJson, Collections.singletonMap("bob", new JsonSequence(5L)));
     try {
-      context.executor.errorListener.checkForErrors(pathExpr);
+      context.executor.getErrorListener().checkForErrors(pathExpr);
       Assert.fail();
     } catch (ParseException e) {
       Assert.assertEquals("'" + pathExpr + "' produced a semantic error: Variable fred" +
@@ -459,9 +460,9 @@ public class TestExecutor {
   @Test
   public void pathNamedVariableNullPassing() throws IOException, ParseException {
     String pathExpr = "$fred";
-    Context context = parseValidateExecute(pathExpr, emptyJson);
+    Context context = parseAndExecute(pathExpr, emptyJson);
     try {
-      context.executor.errorListener.checkForErrors(pathExpr);
+      context.executor.getErrorListener().checkForErrors(pathExpr);
       Assert.fail();
     } catch (ParseException e) {
       Assert.assertEquals("'" + pathExpr + "' produced a semantic error: Variable fred" +
@@ -472,9 +473,9 @@ public class TestExecutor {
   @Test
   public void pathNamedVariableEmptyPassing() throws IOException, ParseException {
     String pathExpr = "$fred";
-    Context context = parseValidateExecute(pathExpr, emptyJson, Collections.emptyMap());
+    Context context = parseAndExecute(pathExpr, emptyJson, Collections.emptyMap());
     try {
-      context.executor.errorListener.checkForErrors(pathExpr);
+      context.executor.getErrorListener().checkForErrors(pathExpr);
       Assert.fail();
     } catch (ParseException e) {
       Assert.assertEquals("'" + pathExpr + "' produced a semantic error: Variable fred" +
@@ -485,7 +486,7 @@ public class TestExecutor {
   @Test
   public void fullMatch() throws IOException, ParseException {
     JsonSequence json = valueParser.parse(" { \"name\" : \"fred\" }");
-    Context context = parseValidateExecute("$", json);
+    Context context = parseAndExecute("$", json);
     System.out.println("val is " + context.val.toString());
     Assert.assertEquals(json, context.val);
   }
@@ -493,7 +494,7 @@ public class TestExecutor {
   @Test
   public void matchKey() throws IOException, ParseException {
     JsonSequence json = valueParser.parse(" { \"name\" : \"fred\" }");
-    Context context = parseValidateExecute("$.name", json);
+    Context context = parseAndExecute("$.name", json);
     Assert.assertTrue(context.val.isString());
     Assert.assertEquals("fred", context.val.asString());
   }
@@ -501,7 +502,7 @@ public class TestExecutor {
   @Test
   public void matchKeyQuotes() throws IOException, ParseException {
     JsonSequence json = valueParser.parse(" { \"name\" : \"fred\" }");
-    Context context = parseValidateExecute("$.\"name\"", json);
+    Context context = parseAndExecute("$.\"name\"", json);
     Assert.assertTrue(context.val.isString());
     Assert.assertEquals("fred", context.val.asString());
   }
@@ -509,7 +510,7 @@ public class TestExecutor {
   @Test
   public void noMatchKey() throws IOException, ParseException {
     JsonSequence json = valueParser.parse(" { \"name\" : \"fred\" }");
-    Context context = parseValidateExecute("$.address", json);
+    Context context = parseAndExecute("$.address", json);
     System.out.println("null val is " + context.val.toString());
     Assert.assertTrue(context.val.isNull());
   }
@@ -517,7 +518,7 @@ public class TestExecutor {
   @Test
   public void noMatchKeyQuotes() throws IOException, ParseException {
     JsonSequence json = valueParser.parse(" { \"name\" : \"fred\" }");
-    Context context = parseValidateExecute("$.\"address\"", json);
+    Context context = parseAndExecute("$.\"address\"", json);
     Assert.assertTrue(context.val.isNull());
   }
 
@@ -525,7 +526,7 @@ public class TestExecutor {
   public void objectWildcard() throws IOException, ParseException {
     JsonSequence json = valueParser.parse(" { \"name\" : \"fred\", \"age\" : 35 }");
     JsonSequence expected = new JsonSequence(json);
-    Context context = parseValidateExecute("$.*", json);
+    Context context = parseAndExecute("$.*", json);
 
 
     Assert.assertEquals(expected, context.val);
@@ -533,16 +534,16 @@ public class TestExecutor {
 
   @Test
   public void objectWildcardEmpty() throws IOException, ParseException {
-    Context context = parseValidateExecute("$.*", emptyJson);
+    Context context = parseAndExecute("$.*", emptyJson);
     Assert.assertEquals(emptyJson, context.val);
   }
 
   @Test
   public void simpleSubscriptList() throws IOException, ParseException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"classes\" : [ \"science\", \"art\" ] }");
-    Context context = parseValidateExecute("$.classes[0]", json);
+    Context context = parseAndExecute("$.classes[0]", json);
 
-    JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : [ \"science\" ] }");
+    JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : \"science\" }");
     Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
   }
 
@@ -551,18 +552,18 @@ public class TestExecutor {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\" ]," +
         "\"sports\"  : [ \"swimming\", \"baseball\" ] }");
-    Context context = parseValidateExecute("$.*[1]", json);
+    Context context = parseAndExecute("$.*[1]", json);
 
-    JsonSequence expected = valueParser.parse(" { \"classes\" : [ \"art\"], \"sports\" : [ \"baseball\" ] }");
+    JsonSequence expected = valueParser.parse(" { \"classes\" : \"art\", \"sports\" : \"baseball\" }");
     Assert.assertEquals(expected, context.val);
   }
 
   @Test
   public void lastSubscriptList() throws IOException, ParseException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"classes\" : [ \"science\", \"art\" ] }");
-    Context context = parseValidateExecute("$.classes[last]", json);
+    Context context = parseAndExecute("$.classes[last]", json);
 
-    JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : [ \"art\" ] }");
+    JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : \"art\" }");
     Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
   }
 
@@ -571,9 +572,9 @@ public class TestExecutor {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\" ]," +
         "\"sports\"  : [ \"swimming\", \"baseball\" ] }");
-    Context context = parseValidateExecute("$.*[last]", json);
+    Context context = parseAndExecute("$.*[last]", json);
 
-    JsonSequence expected = valueParser.parse(" { \"classes\" : [ \"art\"], \"sports\" : [ \"baseball\" ] }");
+    JsonSequence expected = valueParser.parse(" { \"classes\" : \"art\", \"sports\" : \"baseball\" }");
     Assert.assertEquals(expected, context.val);
   }
 
@@ -581,7 +582,7 @@ public class TestExecutor {
   public void toSubscriptList() throws IOException, ParseException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ] }");
-    Context context = parseValidateExecute("$.classes[1 to 3]", json);
+    Context context = parseAndExecute("$.classes[1 to 3]", json);
 
     JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : [ \"art\", \"math\", \"history\" ] }");
     Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
@@ -592,7 +593,7 @@ public class TestExecutor {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ]," +
         "\"sports\"  : [ \"swimming\", \"baseball\", \"volleyball\", \"soccer\" ] }");
-    Context context = parseValidateExecute("$.*[1 to 3]", json);
+    Context context = parseAndExecute("$.*[1 to 3]", json);
 
     JsonSequence expected = valueParser.parse(" { \"classes\" : [ \"art\", \"math\", \"history\"]," +
                                                  "\"sports\" : [ \"baseball\", \"volleyball\", \"soccer\" ] }");
@@ -603,7 +604,7 @@ public class TestExecutor {
   public void toLastSubscriptList() throws IOException, ParseException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ] }");
-    Context context = parseValidateExecute("$.classes[1 to last]", json);
+    Context context = parseAndExecute("$.classes[1 to last]", json);
 
     JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : [ \"art\", \"math\", \"history\", \"writing\" ] }");
     Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
@@ -614,7 +615,7 @@ public class TestExecutor {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ]," +
         "\"sports\"  : [ \"swimming\", \"baseball\", \"volleyball\", \"soccer\" ] }");
-    Context context = parseValidateExecute("$.*[1 to last]", json);
+    Context context = parseAndExecute("$.*[1 to last]", json);
 
     JsonSequence expected = valueParser.parse(" { \"classes\" : [ \"art\", \"math\", \"history\", \"writing\"]," +
         "                                         \"sports\" : [ \"baseball\", \"volleyball\", \"soccer\" ] }");
@@ -624,14 +625,14 @@ public class TestExecutor {
   @Test
   public void notAnArraySubscriptList() throws IOException, ParseException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"classes\" : [ \"science\", \"art\" ] }");
-    Context context = parseValidateExecute("$.name[0]", json);
+    Context context = parseAndExecute("$.name[0]", json);
     Assert.assertTrue(context.val.isNull());
   }
 
   @Test
   public void notAnArraySubscriptObject() throws IOException, ParseException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\" }");
-    Context context = parseValidateExecute("$.*[1]", json);
+    Context context = parseAndExecute("$.*[1]", json);
 
     Assert.assertEquals(emptyJson, context.val);
   }
@@ -639,9 +640,9 @@ public class TestExecutor {
   @Test
   public void offEndSubscriptList() throws IOException, ParseException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"classes\" : [ \"science\", \"art\" ] }");
-    Context context = parseValidateExecute("$.classes[3]", json);
+    Context context = parseAndExecute("$.classes[3]", json);
 
-    JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : [  ] }");
+    JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : null }");
     Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
   }
 
@@ -650,9 +651,9 @@ public class TestExecutor {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\" ]," +
         "\"sports\"  : [ \"swimming\", \"baseball\", \"soccer\" ] }");
-    Context context = parseValidateExecute("$.*[2]", json);
+    Context context = parseAndExecute("$.*[2]", json);
 
-    JsonSequence expected = valueParser.parse(" { \"classes\" : [ ], \"sports\" : [ \"soccer\" ] }");
+    JsonSequence expected = valueParser.parse(" { \"classes\" : null, \"sports\" : \"soccer\" }");
     Assert.assertEquals(expected, context.val);
   }
 
@@ -660,7 +661,7 @@ public class TestExecutor {
   public void toOffEndSubscriptList() throws IOException, ParseException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ] }");
-    Context context = parseValidateExecute("$.classes[3 to 5]", json);
+    Context context = parseAndExecute("$.classes[3 to 5]", json);
 
     JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : [ \"history\", \"writing\" ] }");
     Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
@@ -671,7 +672,7 @@ public class TestExecutor {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ]," +
         "\"sports\"  : [ \"swimming\", \"baseball\", \"volleyball\", \"soccer\" ] }");
-    Context context = parseValidateExecute("$.*[3 to 5]", json);
+    Context context = parseAndExecute("$.*[3 to 5]", json);
 
     JsonSequence expected = valueParser.parse(" { \"classes\" : [ \"history\", \"writing\"], \"sports\" : [ \"soccer\" ] }");
     Assert.assertEquals(expected, context.val);
@@ -681,7 +682,7 @@ public class TestExecutor {
   public void listSubscriptList() throws IOException, ParseException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ] }");
-    Context context = parseValidateExecute("$.classes[1, 4]", json);
+    Context context = parseAndExecute("$.classes[1, 4]", json);
 
     JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : [ \"art\", \"writing\" ] }");
     Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
@@ -692,7 +693,7 @@ public class TestExecutor {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ]," +
         "\"sports\"  : [ \"swimming\", \"baseball\", \"volleyball\", \"soccer\" ] }");
-    Context context = parseValidateExecute("$.*[1, 4]", json);
+    Context context = parseAndExecute("$.*[1, 4]", json);
 
     JsonSequence expected = valueParser.parse(" { \"classes\" : [ \"art\", \"writing\"], \"sports\" : [ \"baseball\" ] }");
     Assert.assertEquals(expected, context.val);
@@ -702,7 +703,7 @@ public class TestExecutor {
   public void listAndToSubscriptList() throws IOException, ParseException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ] }");
-    Context context = parseValidateExecute("$.classes[0, 3 to 5]", json);
+    Context context = parseAndExecute("$.classes[0, 3 to 5]", json);
 
     JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : [ \"science\", \"history\", \"writing\" ] }");
     Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
@@ -713,7 +714,7 @@ public class TestExecutor {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ]," +
         "\"sports\"  : [ \"swimming\", \"baseball\", \"volleyball\", \"soccer\" ] }");
-    Context context = parseValidateExecute("$.*[0, 2 to last]", json);
+    Context context = parseAndExecute("$.*[0, 2 to last]", json);
 
     JsonSequence expected = valueParser.parse(" { \"classes\" : [ \"science\", \"math\", \"history\", \"writing\"]," +
         "                                         \"sports\" : [ \"swimming\", \"volleyball\", \"soccer\" ] }");
@@ -724,9 +725,97 @@ public class TestExecutor {
   public void arithmeticSubscriptList() throws IOException, ParseException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ] }");
-    Context context = parseValidateExecute("$.classes[1 + 1]", json);
+    Context context = parseAndExecute("$.classes[1 + 1]", json);
 
-    JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : [ \"math\" ] }");
+    JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : \"math\" }");
+    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
+  }
+
+  @Test
+  public void wildcardSubscriptList() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
+        "\"classes\" : [ \"science\", \"art\", \"math\" ] }");
+    Context context = parseAndExecute("$.classes[*]", json);
+
+    JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : [ \"science\", \"art\", \"math\" ] }");
+    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
+  }
+
+  @Test
+  public void wildcardSubscriptObject() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
+        "\"classes\" : [ \"science\", \"art\", \"math\" ]," +
+        "\"sports\"  : [ \"swimming\", \"baseball\" ] }");
+    Context context = parseAndExecute("$.*[*]", json);
+
+    JsonSequence expected = valueParser.parse(" { \"classes\" : [ \"science\", \"art\", \"math\"]," +
+        "                                         \"sports\" : [ \"swimming\", \"baseball\" ] }");
+    Assert.assertEquals(expected, context.val);
+  }
+
+  @Test
+  public void bigHarryDeepThing() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(
+        "{" +
+        "  \"name\" : \"fred\"," +
+        "  \"classes\" : [ " +
+        "    {" +
+        "      \"name\"      : \"science\"," +
+        "      \"professor\" : \"d. who\"," +
+        "      \"texts\"     : [" +
+        "         {" +
+        "            \"title\"  : \"intro to physics\"," +
+        "            \"author\" : \"i. newton\"" +
+        "         }, {" +
+        "            \"title\"  : \"intro to biology\"," +
+        "            \"author\" : \"c. darwin\"" +
+        "         }" +
+        "       ]" +
+        "    }, {" +
+        "      \"name\"      : \"art\"," +
+        "      \"professor\" : \"v. van gogh\"" +
+        "    }" +
+        "  ]" +
+        "}");
+    Map<String, JsonSequence> passing = new HashMap<>();
+    passing.put("class", new JsonSequence(0));
+    passing.put("text", new JsonSequence(1));
+    Context context = parseAndExecute("$.classes[$class].texts[$text].author", json, passing);
+
+    JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : \"c. darwin\" }");
+    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
+  }
+
+  @Test
+  public void bigHarryDeepMultiThing() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(
+        "{" +
+            "  \"name\" : \"fred\"," +
+            "  \"classes\" : [ " +
+            "    {" +
+            "      \"name\"      : \"science\"," +
+            "      \"professor\" : \"d. who\"," +
+            "      \"texts\"     : [" +
+            "         {" +
+            "            \"title\"  : \"intro to physics\"," +
+            "            \"author\" : \"i. newton\"" +
+            "         }, {" +
+            "            \"title\"  : \"intro to biology\"," +
+            "            \"author\" : \"c. darwin\"" +
+            "         }" +
+            "       ]" +
+            "    }, {" +
+            "      \"name\"      : \"art\"," +
+            "      \"professor\" : \"v. van gogh\"" +
+            "    }" +
+            "  ]" +
+            "}");
+    Map<String, JsonSequence> passing = new HashMap<>();
+    passing.put("class", new JsonSequence(0));
+    passing.put("text", new JsonSequence(1));
+    Context context = parseAndExecute("$.classes[$class].texts[*].author", json, passing);
+
+    JsonSequence wrappedExpected = valueParser.parse("{ \"k\" : [ \"i. newton\", \"c. darwin\" ] }");
     Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
   }
 
@@ -736,34 +825,23 @@ public class TestExecutor {
     return parser.getTree();
   }
 
-  private Context parseAndValidate(String path, JsonSequence value) throws IOException, ParseException {
-    return parseAndValidate(path, value, null);
+  private Context parseAndExecute(String path, JsonSequence value) throws IOException, ParseException {
+    return parseAndExecute(path, value, null, EmptyOrErrorBehavior.NULL, EmptyOrErrorBehavior.NULL);
   }
 
-  private Context parseAndValidate(String path, JsonSequence value, Map<String, JsonSequence> passing) throws IOException, ParseException {
+  private Context parseAndExecute(String path, JsonSequence value, Map<String, JsonSequence> passing) throws IOException, ParseException {
+    return parseAndExecute(path, value, passing, EmptyOrErrorBehavior.NULL, EmptyOrErrorBehavior.NULL);
+  }
+
+  private Context parseAndExecute(String path, JsonSequence value, Map<String, JsonSequence> passing, EmptyOrErrorBehavior onEmpty,
+                                  EmptyOrErrorBehavior onError)
+      throws IOException, ParseException {
     ParseTree tree = parse(path);
     ErrorListener errorListener = new ErrorListener();
-    PathValidator validator = new PathValidator(errorListener);
-    validator.validate(tree, value, passing);
-    return new Context(tree, validator, errorListener);
-  }
-
-  private Context parseValidateExecute(String path, JsonSequence value) throws IOException, ParseException {
-    return parseValidateExecute(path, value, null, EmptyOrErrorBehavior.NULL, EmptyOrErrorBehavior.NULL);
-  }
-
-  private Context parseValidateExecute(String path, JsonSequence value, Map<String, JsonSequence> passing) throws IOException, ParseException {
-    return parseValidateExecute(path, value, passing, EmptyOrErrorBehavior.NULL, EmptyOrErrorBehavior.NULL);
-  }
-
-  private Context parseValidateExecute(String path, JsonSequence value, Map<String, JsonSequence> passing, EmptyOrErrorBehavior onEmpty,
-                                       EmptyOrErrorBehavior onError)
-      throws IOException, ParseException {
-    Context context = parseAndValidate(path, value, passing);
-    ErrorListener errorListener = new ErrorListener();
+    Context context = new Context(tree, errorListener);
     PathExecutor executor = new PathExecutor(errorListener);
     context.executor = executor;
-    context.val = executor.execute(context.tree, value, passing, onEmpty, onError, context.validator);
+    context.val = executor.execute(context.tree, value, passing, onEmpty, onError);
     return context;
   }
 
@@ -777,21 +855,19 @@ public class TestExecutor {
     ParseTree tree = parser.additive_expression();
     errorListener.checkForErrors(path);
     PathExecutor executor = new PathExecutor(errorListener);
-    Context context =  new Context(tree, null, errorListener);
+    Context context =  new Context(tree, errorListener);
     context.val = executor.visit(tree);
     return context;
   }
 
   private static class Context {
     final ParseTree tree;
-    final PathValidator validator;
     final ErrorListener errorListener;
     PathExecutor executor;
     JsonSequence val;
 
-    public Context(ParseTree tree, PathValidator validator, ErrorListener errorListener) {
+    public Context(ParseTree tree, ErrorListener errorListener) {
       this.tree = tree;
-      this.validator = validator;
       this.errorListener = errorListener;
       executor = null;
     }

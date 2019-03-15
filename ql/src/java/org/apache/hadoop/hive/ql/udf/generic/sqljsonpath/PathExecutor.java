@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hive.ql.udf.generic.sqljsonpath;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.apache.hadoop.hive.ql.udf.generic.SqlJsonPathBaseVisitor;
 import org.apache.hadoop.hive.ql.udf.generic.SqlJsonPathParser;
@@ -24,6 +25,7 @@ import org.apache.hadoop.hive.ql.udf.generic.SqlJsonPathParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,15 +35,14 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
   private static final String START_SUBSCRIPT = "__json_start_subscript";
   private static final String END_SUBSCRIPT = "__json_end_subscript";
 
-  protected JsonSequence value;
-  protected Map<String, JsonSequence> passing;
-  protected EmptyOrErrorBehavior onEmpty;
-  protected EmptyOrErrorBehavior onError;
-  protected PathValidator validator;
-  protected ErrorListener errorListener;
-  protected JsonSequence matching;
-
+  private JsonSequence value;
+  private Map<String, JsonSequence> passing;
+  private EmptyOrErrorBehavior onEmpty;
+  private EmptyOrErrorBehavior onError;
+  private ErrorListener errorListener;
+  private JsonSequence matching;
   private JsonSequence lastJsonSequence = new JsonSequence("last");
+  private Mode mode;
 
   // TODO I am assuming here that the passed in value is a single bit of JSON.  Is it valid to pass two
   // JSON objects in value?  Or would that need to be in an array?
@@ -50,8 +51,8 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     this.errorListener = errorListener;
   }
 
-  public JsonSequence execute(ParseTree tree, JsonSequence value, Map<String, JsonSequence> passing, PathValidator validator) {
-    return execute(tree, value, passing, EmptyOrErrorBehavior.NULL, EmptyOrErrorBehavior.NULL, validator);
+  public JsonSequence execute(ParseTree tree, JsonSequence value, Map<String, JsonSequence> passing) {
+    return execute(tree, value, passing, EmptyOrErrorBehavior.NULL, EmptyOrErrorBehavior.NULL);
   }
 
   /**
@@ -64,15 +65,21 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
    * @return value of executing the Path statement against the value
    */
   public JsonSequence execute(ParseTree tree, JsonSequence value, Map<String, JsonSequence> passing, EmptyOrErrorBehavior onEmpty,
-                              EmptyOrErrorBehavior onError, PathValidator validator) {
+                              EmptyOrErrorBehavior onError) {
     this.value = value;
     this.passing = passing == null ? Collections.emptyMap() : passing;
     this.onEmpty = onEmpty;
     this.onError = onError;
-    this.validator = validator;
     matching = null;
+    mode = Mode.LAX;
     visit(tree);
     return matching;
+  }
+
+  @Override
+  final public JsonSequence visitPath_mode_strict(SqlJsonPathParser.Path_mode_strictContext ctx) {
+    mode = Mode.STRICT;
+    return JsonSequence.nullJsonSequence;
   }
 
   // Visit methods return JSON sequences.  However, these are not the current match.  These are used for building
@@ -164,17 +171,6 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     }
   }
 
-  /*
-  // IMPORTANT -- This is the method that returns the match.  Returns from other methods are just to pass things
-  // up the tree
-  @Override
-  public JsonSequence visitAccessor_expression(SqlJsonPathParser.Accessor_expressionContext ctx) {
-    visitChildren(ctx);
-    if (matching != null) return matching;
-    else return JsonSequence.nullJsonSequence;
-  }
-  */
-
   @Override
   public JsonSequence visitPath_context_variable(SqlJsonPathParser.Path_context_variableContext ctx) {
     // Sets the matching as the root of the tree.
@@ -184,6 +180,7 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
 
   @Override
   public JsonSequence visitMember_accessor_id(SqlJsonPathParser.Member_accessor_idContext ctx) {
+    /*
     if (matching != null && matching.isObject()) {
       Map<String, JsonSequence> m = matching.asObject();
       JsonSequence next = m.get(ctx.getChild(1).getText());
@@ -193,11 +190,14 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
       }
     }
     matching = JsonSequence.nullJsonSequence;
+    */
+    matching = accessMember(ctx.getChild(1).getText());
     return null;
   }
 
   @Override
   public JsonSequence visitMember_accessor_string(SqlJsonPathParser.Member_accessor_stringContext ctx) {
+    /*
     if (matching != null && matching.isObject()) {
       Map<String, JsonSequence> m = matching.asObject();
       JsonSequence next = m.get(stripQuotes(ctx.getChild(1).getText()));
@@ -207,6 +207,8 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
       }
     }
     matching = JsonSequence.nullJsonSequence;
+    */
+    matching = accessMember(stripQuotes(ctx.getChild(1).getText()));
     return null;
   }
 
@@ -237,6 +239,29 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
       for (Map.Entry<String, JsonSequence> matchingEntry : matching.asObject().entrySet()) {
         if (matchingEntry.getValue().isList()) {
           newMatches.asObject().put(matchingEntry.getKey(), applySubscriptsToOneArray(matchingEntry.getValue(), subscripts));
+        }
+      }
+      matching = newMatches;
+    } else {
+      matching = JsonSequence.nullJsonSequence;
+    }
+    return null;
+  }
+
+  @Override
+  public JsonSequence visitWildcard_array_accessor(SqlJsonPathParser.Wildcard_array_accessorContext ctx) {
+    if (matching == null || matching.isNull()) return null;
+
+    // It is legitimate here for matching to be either a list ($.name[*]) or an object ($.*[*]).  In the list
+    // case we want to return a list.  In the object case, we want to return an object, with only the fields that
+    // are a list.
+    if (matching.isList()) {
+      // NOP
+    } else if (matching.isObject()) {
+      JsonSequence newMatches = new JsonSequence(new HashMap<>());
+      for (Map.Entry<String, JsonSequence> matchingEntry : matching.asObject().entrySet()) {
+        if (matchingEntry.getValue().isList()) {
+          newMatches.asObject().put(matchingEntry.getKey(), matchingEntry.getValue());
         }
       }
       matching = newMatches;
@@ -294,6 +319,16 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     return lastJsonSequence;
   }
 
+  @VisibleForTesting
+  Mode getMode() {
+    return mode;
+  }
+
+  @VisibleForTesting
+  ErrorListener getErrorListener() {
+    return errorListener;
+  }
+
   private int checkSubscript(JsonSequence subscript) throws IOException {
     if (!subscript.isLong()) {
       errorListener.semanticError("Subscripts must be integer values");
@@ -332,14 +367,45 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
           throw new RuntimeException("programming error");
         }
       }
-      return newList;
+      // if only one value was accessed unwrap it
+      if (subscripts.asList().size() == 1 && (subscripts.asList().get(0) == lastJsonSequence || subscripts.asList().get(0).isLong())) {
+        if (newList.asList().size() > 0) return newList.asList().get(0);
+        else return JsonSequence.nullJsonSequence;
+      } else {
+        return newList;
+      }
     } catch (IOException e) {
       return JsonSequence.nullJsonSequence;
     }
   }
 
+  private JsonSequence accessMember(String memberKey) {
+    // TODO need to handle the case where matching is pointing at a list
+    if (matching.isObject()) {
+      return accessMemberInObject(matching, memberKey);
+    } else if (matching.isList()) {
+      JsonSequence newMatching = new JsonSequence(new ArrayList<>());
+      for (JsonSequence element : matching.asList()) {
+        if (element.isObject()) {
+          JsonSequence newMember = accessMemberInObject(element, memberKey);
+          if (newMember != JsonSequence.nullJsonSequence) newMatching.asList().add(newMember);
+        }
+      }
+      return newMatching;
+    }
+    return JsonSequence.nullJsonSequence;
 
-  // TODO last, array should be in matching, just put in it's number
+  }
+
+  private JsonSequence accessMemberInObject(JsonSequence object, String memberKey) {
+    Map<String, JsonSequence> m = object.asObject();
+    JsonSequence next = m.get(memberKey);
+    return next == null ? JsonSequence.nullJsonSequence : next;
+  }
+
+  // TODO should I be returning null or a special empty indicator when things are empty so that we can
+  // handle error on empty, etc.
+
   private String stripQuotes(String quotedStr) {
     return quotedStr.substring(1, quotedStr.length() - 1);
   }

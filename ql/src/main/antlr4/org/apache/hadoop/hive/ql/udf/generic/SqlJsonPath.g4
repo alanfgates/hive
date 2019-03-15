@@ -87,7 +87,7 @@ path_named_variable:                                                    // Done
 accessor_op:
       member_accessor                                                   // Done
     | wildcard_member_accessor                                          // Done
-    | array_accessor
+    | array_accessor                                                    // Done
     | wildcard_array_accessor
     | filter_expression
     | item_method
@@ -110,7 +110,7 @@ wildcard_member_accessor:                                             // Done
     T_DOT T_STAR
     ;
 
-array_accessor:
+array_accessor:                                                       // Done
     T_OPENBRACKET subscript_list T_CLOSEBRACKET
     ;
 
