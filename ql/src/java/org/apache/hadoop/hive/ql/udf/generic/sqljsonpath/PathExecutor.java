@@ -288,6 +288,162 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     return lastJsonSequence;
   }
 
+  @Override
+  public JsonSequence visitMethod_type(SqlJsonPathParser.Method_typeContext ctx) {
+    // Note, differences from the SQL spec.  This does not try to guess if something is a datetime
+    if (matching != JsonSequence.emptyResult) {
+      switch (matching.getType()) {
+        case LONG:
+        case DOUBLE:
+          matching = new JsonSequence("number");
+          break;
+
+        case NULL:
+          matching = new JsonSequence("null"); // Note, this is a string with null, not the null value
+          break;
+
+        case STRING:
+          matching = new JsonSequence("string");
+          break;
+
+        case BOOL:
+          matching = new JsonSequence("boolean");
+          break;
+
+        case LIST:
+          matching = new JsonSequence("array");
+          break;
+
+        case OBJECT:
+          matching = new JsonSequence("object");
+          break;
+
+        default:
+          throw new RuntimeException("Programming error");
+      }
+    }
+    return null;
+  }
+
+  @Override
+  public JsonSequence visitMethod_size(SqlJsonPathParser.Method_sizeContext ctx) {
+    if (matching != JsonSequence.emptyResult) {
+      if (matching.isList()) {
+        matching = new JsonSequence(matching.asList().size());
+      } else if (matching.isObject()) {
+        // NOTE: this is not to spec.  Per the spec everything but list should return 1, but asking the size
+        // of the object seems like a reasonable thing to do.
+        matching = new JsonSequence(matching.asObject().size());
+      } else {
+        matching = new JsonSequence(1);
+      }
+    }
+    return null;
+  }
+
+  @Override
+  public JsonSequence visitMethod_double(SqlJsonPathParser.Method_doubleContext ctx) {
+    switch (matching.getType()) {
+      case DOUBLE:
+      case EMPTY_RESULT:
+        break;
+
+      case LONG:
+        matching = new JsonSequence((double)matching.asLong());
+        break;
+
+      case STRING:
+        matching = new JsonSequence(Double.valueOf(matching.asString()));
+        break;
+
+      default:
+        errorListener.runtimeError("Double method requires numeric or string argument, passed a " + matching.getType().name().toLowerCase());
+        break;
+    }
+    return null;
+  }
+
+  @Override
+  public JsonSequence visitMethod_int(SqlJsonPathParser.Method_intContext ctx) {
+    switch (matching.getType()) {
+      case LONG:
+      case EMPTY_RESULT:
+        break;
+
+      case DOUBLE:
+        matching = new JsonSequence((long)matching.asDouble());
+        break;
+
+      case STRING:
+        matching = new JsonSequence(Long.valueOf(matching.asString()));
+        break;
+
+      default:
+        errorListener.runtimeError("Integer method requires numeric or string argument, passed a " + matching.getType().name().toLowerCase());
+        break;
+    }
+    return null;
+  }
+
+  @Override
+  public JsonSequence visitMethod_ceiling(SqlJsonPathParser.Method_ceilingContext ctx) {
+    switch (matching.getType()) {
+      case LONG:
+      case EMPTY_RESULT:
+        break;
+
+      case DOUBLE:
+        // Note, I am going against the standard here by doing a type conversion from double -> long
+        matching = new JsonSequence((long)Math.ceil(matching.asDouble()));
+        break;
+
+      default:
+        errorListener.runtimeError("Ceiling method requires numeric argument, passed a " + matching.getType().name().toLowerCase());
+        break;
+    }
+    return null;
+  }
+
+  @Override
+  public JsonSequence visitMethod_floor(SqlJsonPathParser.Method_floorContext ctx) {
+    switch (matching.getType()) {
+      case LONG:
+      case EMPTY_RESULT:
+        break;
+
+      case DOUBLE:
+        // Note, I am going against the standard here by doing a type conversion from double -> long
+        matching = new JsonSequence((long)Math.floor(matching.asDouble()));
+        break;
+
+      default:
+        errorListener.runtimeError("Floor method requires numeric argument, passed a " + matching.getType().name().toLowerCase());
+        break;
+    }
+    return null;
+  }
+
+  @Override
+  public JsonSequence visitMethod_abs(SqlJsonPathParser.Method_absContext ctx) {
+    switch (matching.getType()) {
+      case EMPTY_RESULT:
+        break;
+
+      case LONG:
+        matching = new JsonSequence(Math.abs(matching.asLong()));
+        break;
+
+      case DOUBLE:
+        matching = new JsonSequence(Math.abs(matching.asDouble()));
+        break;
+
+      default:
+        errorListener.runtimeError("Abs method requires numeric argument, passed a " + matching.getType().name().toLowerCase());
+        break;
+    }
+    return null;
+  }
+
   @VisibleForTesting
   Mode getMode() {
     return mode;

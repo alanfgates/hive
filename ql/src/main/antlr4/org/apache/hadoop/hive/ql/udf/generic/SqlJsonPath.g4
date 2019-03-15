@@ -154,15 +154,51 @@ item_method:
     ;
 
 method:
-      T_TYPE T_OPENPAREND T_CLOSEPAREND
-    | T_SIZE T_OPENPAREND T_CLOSEPAREND
-    | T_DOUBLE T_OPENPAREND T_CLOSEPAREND
-    | T_CEILING T_OPENPAREND T_CLOSEPAREND
-    | T_FLOOR T_OPENPAREND T_CLOSEPAREND
-    | T_ABS T_OPENPAREND T_CLOSEPAREND
-    | T_DATETIME T_OPENPAREND path_string_literal? T_CLOSEPAREND
-    | T_KEYVALUE T_OPENPAREND T_CLOSEPAREND
+      method_type
+    | method_size
+    | method_double
+    | method_int     // Added in, not part of the spec.  But it seems goofy to have double() and not int()
+                     // since ceiling and floor don't take strings.  You can get around it with string.double().floor()
+                     // but that seems silly.
+    | method_ceiling
+    | method_floor
+    | method_abs
+//  | T_DATETIME T_OPENPAREND path_string_literal? T_CLOSEPAREND
+//  | T_KEYVALUE T_OPENPAREND T_CLOSEPAREND
     ;
+
+// Note, we do not currently support the DATETIME or KEYVALUE methods.  There are methods in Hive to do casts from
+// String to Datetime, there's no reason to embed the same functionality in here.
+// As far as I can tell KEYVALUE is a way to remove duplicate keys, which my implementation doesn't support anyway.
+
+method_type:
+    T_TYPE T_OPENPAREND T_CLOSEPAREND
+    ;
+
+method_size:
+    T_SIZE T_OPENPAREND T_CLOSEPAREND
+    ;
+
+method_int:
+    T_INTFUNC T_OPENPAREND T_CLOSEPAREND
+    ;
+
+method_double:
+    T_DOUBLE T_OPENPAREND T_CLOSEPAREND
+    ;
+
+method_ceiling:
+    T_CEILING T_OPENPAREND T_CLOSEPAREND
+    ;
+
+method_floor:
+    T_FLOOR T_OPENPAREND T_CLOSEPAREND
+    ;
+
+method_abs:
+    T_ABS T_OPENPAREND T_CLOSEPAREND
+    ;
+
 
 // predicates
 path_predicate:
@@ -306,6 +342,7 @@ T_FALSE        : 'false' ;
 T_FLAG         : 'flag' ;
 T_FLOOR        : 'floor' ;
 T_IS           : 'is' ;
+T_INTFUNC      : 'integer' ; // Added in, not part of the spec
 T_KEYVALUE     : 'keyvalue' ;
 T_LAST         : 'last' ;
 T_LAX          : 'lax' ;

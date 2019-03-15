@@ -37,7 +37,7 @@ import java.util.function.LongBinaryOperator;
  */
 public class JsonSequence {
 
-  private enum Type {
+  enum Type {
     LONG,
     DOUBLE,
     BOOL,
@@ -330,6 +330,10 @@ public class JsonSequence {
   private void setNull() {
     type = Type.NULL;
     val = null;
+  }
+
+  Type getType() {
+    return type;
   }
 
   @Override

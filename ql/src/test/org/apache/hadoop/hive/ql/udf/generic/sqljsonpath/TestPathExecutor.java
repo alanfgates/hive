@@ -782,6 +782,301 @@ public class TestPathExecutor {
   }
 
   @Test
+  public void typeLong() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"age\" : 35 }");
+    Context context = parseAndExecute("$.age.type()", json);
+    Assert.assertTrue(context.val.isString());
+    Assert.assertEquals("number", context.val.asString());
+  }
+
+  @Test
+  public void typeDouble() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : 3.58 }");
+    Context context = parseAndExecute("$.gpa.type()", json);
+    Assert.assertTrue(context.val.isString());
+    Assert.assertEquals("number", context.val.asString());
+  }
+
+  @Test
+  public void typeString() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : 3.58 }");
+    Context context = parseAndExecute("$.name.type()", json);
+    Assert.assertTrue(context.val.isString());
+    Assert.assertEquals("string", context.val.asString());
+  }
+
+  @Test
+  public void typeNull() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"age\" : 35, \"sports\" : null }");
+    Context context = parseAndExecute("$.sports.type()", json);
+    Assert.assertTrue(context.val.isString());
+    Assert.assertEquals("null", context.val.asString());
+  }
+
+  @Test
+  public void typeBoolean() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"age\" : 35, \"honor roll\" : true }");
+    Context context = parseAndExecute("$.\'honor roll\'.type()", json);
+    Assert.assertTrue(context.val.isString());
+    Assert.assertEquals("boolean", context.val.asString());
+  }
+
+  @Test
+  public void typeList() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"classes\" : [ \"art\", \"math\" ] }");
+    Context context = parseAndExecute("$.classes.type()", json);
+    Assert.assertTrue(context.val.isString());
+    Assert.assertEquals("array", context.val.asString());
+  }
+
+  @Test
+  public void typeObject() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"address\" : { \"street\" : \"123 main\", \"city\" : \"phoenix\" } }");
+    Context context = parseAndExecute("$.address.type()", json);
+    Assert.assertTrue(context.val.isString());
+    Assert.assertEquals("object", context.val.asString());
+  }
+
+  @Test
+  public void typeEmpty() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"age\" : 35 }");
+    Context context = parseAndExecute("$.gpa.type()", json);
+    Assert.assertTrue(context.val.isEmpty());
+  }
+
+  @Test
+  public void sizeScalar() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"age\" : 35, \"honor roll\" : true }");
+    Context context = parseAndExecute("$.\'honor roll\'.size()", json);
+    Assert.assertTrue(context.val.isLong());
+    Assert.assertEquals(1, context.val.asLong());
+  }
+
+  @Test
+  public void sizeList() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"classes\" : [ \"art\", \"math\" ] }");
+    Context context = parseAndExecute("$.classes.size()", json);
+    Assert.assertTrue(context.val.isLong());
+    Assert.assertEquals(2, context.val.asLong());
+  }
+
+  @Test
+  public void sizeObject() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"address\" : { \"street\" : \"123 main\", \"city\" : \"phoenix\" } }");
+    Context context = parseAndExecute("$.address.size()", json);
+    Assert.assertTrue(context.val.isLong());
+    Assert.assertEquals(2, context.val.asLong());
+  }
+
+  @Test
+  public void sizeEmpty() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"age\" : 35 }");
+    Context context = parseAndExecute("$.gpa.size()", json);
+    Assert.assertTrue(context.val.isEmpty());
+  }
+
+  @Test
+  public void doubleLong() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"age\" : 35 }");
+    Context context = parseAndExecute("$.age.double()", json);
+    Assert.assertTrue(context.val.isDouble());
+    Assert.assertEquals(35.0, context.val.asDouble(), 0.001);
+  }
+
+  @Test
+  public void doubleDouble() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : 3.58 }");
+    Context context = parseAndExecute("$.gpa.double()", json);
+    Assert.assertTrue(context.val.isDouble());
+    Assert.assertEquals(3.58, context.val.asDouble(), 0.001);
+  }
+
+  @Test
+  public void doubleString() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : \"3.58\" }");
+    Context context = parseAndExecute("$.gpa.double()", json);
+    Assert.assertTrue(context.val.isDouble());
+    Assert.assertEquals(3.58, context.val.asDouble(), 0.001);
+  }
+
+  @Test
+  public void doubleNotStringOrNumeric() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"honor roll\" : true }");
+    Context context = parseAndExecute("$.\"honor roll\".double()", json);
+    try {
+      context.errorListener.checkForErrors("$.\"honor roll\".double()");
+      Assert.fail();
+    } catch (ParseException e) {
+      Assert.assertEquals("'$.\"honor roll\".double()' produced a runtime error: Double method" +
+          " requires numeric or string argument, passed a bool", e.getMessage());
+
+    }
+  }
+
+  @Test
+  public void doubleEmpty() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : 3.58 }");
+    Context context = parseAndExecute("$.sports.double()", json);
+    Assert.assertTrue(context.val.isEmpty());
+  }
+
+  @Test
+  public void intLong() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"age\" : 35 }");
+    Context context = parseAndExecute("$.age.integer()", json);
+    Assert.assertTrue(context.val.isLong());
+    Assert.assertEquals(35, context.val.asLong());
+  }
+
+  @Test
+  public void intDouble() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : 3.58 }");
+    Context context = parseAndExecute("$.gpa.integer()", json);
+    Assert.assertTrue(context.val.isLong());
+    Assert.assertEquals(3, context.val.asLong());
+  }
+
+  @Test
+  public void intString() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"age\" : \"35\" }");
+    Context context = parseAndExecute("$.age.integer()", json);
+    Assert.assertTrue(context.val.isLong());
+    Assert.assertEquals(35, context.val.asLong());
+  }
+
+  @Test
+  public void intNotStringOrNumeric() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"honor roll\" : true }");
+    Context context = parseAndExecute("$.\"honor roll\".integer()", json);
+    try {
+      context.errorListener.checkForErrors("$.\"honor roll\".integer()");
+      Assert.fail();
+    } catch (ParseException e) {
+      Assert.assertEquals("'$.\"honor roll\".integer()' produced a runtime error: Integer method" +
+          " requires numeric or string argument, passed a bool", e.getMessage());
+
+    }
+  }
+
+  @Test
+  public void intEmpty() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : 3.58 }");
+    Context context = parseAndExecute("$.sports.integer()", json);
+    Assert.assertTrue(context.val.isEmpty());
+  }
+
+  @Test
+  public void ceilingLong() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"age\" : 35 }");
+    Context context = parseAndExecute("$.age.ceiling()", json);
+    Assert.assertTrue(context.val.isLong());
+    Assert.assertEquals(35, context.val.asLong());
+  }
+
+  @Test
+  public void ceilingDouble() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : 3.58 }");
+    Context context = parseAndExecute("$.gpa.ceiling()", json);
+    Assert.assertTrue(context.val.isLong());
+    Assert.assertEquals(4, context.val.asLong());
+  }
+
+  @Test
+  public void ceilingNotNumeric() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"honor roll\" : true }");
+    Context context = parseAndExecute("$.name.ceiling()", json);
+    try {
+      context.errorListener.checkForErrors("$.name.ceiling()");
+      Assert.fail();
+    } catch (ParseException e) {
+      Assert.assertEquals("'$.name.ceiling()' produced a runtime error: Ceiling method" +
+          " requires numeric argument, passed a string", e.getMessage());
+
+    }
+  }
+
+  @Test
+  public void ceilingEmpty() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : 3.58 }");
+    Context context = parseAndExecute("$.sports.ceiling()", json);
+    Assert.assertTrue(context.val.isEmpty());
+  }
+
+  @Test
+  public void floorLong() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"age\" : 35 }");
+    Context context = parseAndExecute("$.age.floor()", json);
+    Assert.assertTrue(context.val.isLong());
+    Assert.assertEquals(35, context.val.asLong());
+  }
+
+  @Test
+  public void floorDouble() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : 3.58 }");
+    Context context = parseAndExecute("$.gpa.floor()", json);
+    Assert.assertTrue(context.val.isLong());
+    Assert.assertEquals(3, context.val.asLong());
+  }
+
+  @Test
+  public void floorNotNumeric() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"honor roll\" : true }");
+    Context context = parseAndExecute("$.name.floor()", json);
+    try {
+      context.errorListener.checkForErrors("$.name.floor()");
+      Assert.fail();
+    } catch (ParseException e) {
+      Assert.assertEquals("'$.name.floor()' produced a runtime error: Floor method" +
+          " requires numeric argument, passed a string", e.getMessage());
+
+    }
+  }
+
+  @Test
+  public void floorEmpty() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : 3.58 }");
+    Context context = parseAndExecute("$.sports.floor()", json);
+    Assert.assertTrue(context.val.isEmpty());
+  }
+
+  @Test
+  public void absLong() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"age\" : 35 }");
+    Context context = parseAndExecute("$.age.abs()", json);
+    Assert.assertTrue(context.val.isLong());
+    Assert.assertEquals(35, context.val.asLong());
+  }
+
+  @Test
+  public void absDouble() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : -3.58 }");
+    Context context = parseAndExecute("$.gpa.abs()", json);
+    Assert.assertTrue(context.val.isDouble());
+    Assert.assertEquals(3.58, context.val.asDouble(), 0.001);
+  }
+
+  @Test
+  public void absNotNumeric() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"honor roll\" : true }");
+    Context context = parseAndExecute("$.name.abs()", json);
+    try {
+      context.errorListener.checkForErrors("$.name.abs()");
+      Assert.fail();
+    } catch (ParseException e) {
+      Assert.assertEquals("'$.name.abs()' produced a runtime error: Abs method" +
+          " requires numeric argument, passed a string", e.getMessage());
+
+    }
+  }
+
+  @Test
+  public void absEmpty() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : 3.58 }");
+    Context context = parseAndExecute("$.sports.abs()", json);
+    Assert.assertTrue(context.val.isEmpty());
+  }
+
+  @Test
   public void bigHarryDeepThing() throws IOException, ParseException {
     JsonSequence json = valueParser.parse(
         "{" +
