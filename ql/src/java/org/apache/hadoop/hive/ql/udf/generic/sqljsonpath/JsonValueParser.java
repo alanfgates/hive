@@ -72,7 +72,7 @@ public class JsonValueParser extends JsonBaseVisitor<JsonSequence> {
     String key = ctx.getChild(0).getText();
     assert objStack.size() > 0;
     objStack.peek().put(key.substring(1, key.length() - 1), element);
-    return JsonSequence.nullJsonSequence;
+    return JsonSequence.emptyResult;
   }
 
   @Override
@@ -88,7 +88,7 @@ public class JsonValueParser extends JsonBaseVisitor<JsonSequence> {
     JsonSequence element = visit(ctx.getChild(0));
     assert arrayStack.size() > 0;
     arrayStack.peek().add(element);
-    return JsonSequence.nullJsonSequence;
+    return JsonSequence.emptyResult;
   }
 
   @Override

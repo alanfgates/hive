@@ -492,11 +492,42 @@ public class TestPathExecutor {
   }
 
   @Test
-  public void matchKey() throws IOException, ParseException {
+  public void matchKeyString() throws IOException, ParseException {
     JsonSequence json = valueParser.parse(" { \"name\" : \"fred\" }");
     Context context = parseAndExecute("$.name", json);
     Assert.assertTrue(context.val.isString());
     Assert.assertEquals("fred", context.val.asString());
+  }
+
+  @Test
+  public void matchKeyLong() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(" { \"name\" : \"fred\", \"age\" : 35 }");
+    Context context = parseAndExecute("$.age", json);
+    Assert.assertTrue(context.val.isLong());
+    Assert.assertEquals(35, context.val.asLong());
+  }
+
+  @Test
+  public void matchKeyDouble() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(" { \"name\" : \"fred\", \"gpa\" : 2.73 }");
+    Context context = parseAndExecute("$.gpa", json);
+    Assert.assertTrue(context.val.isDouble());
+    Assert.assertEquals(2.73, context.val.asDouble(), 0.001);
+  }
+
+  @Test
+  public void matchKeyBool() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(" { \"name\" : \"fred\", \"honor roll\" : false }");
+    Context context = parseAndExecute("$.\"honor roll\"", json);
+    Assert.assertTrue(context.val.isBool());
+    Assert.assertFalse(context.val.asBool());
+  }
+
+  @Test
+  public void matchKeyNull() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(" { \"name\" : \"fred\", \"sports\" : null }");
+    Context context = parseAndExecute("$.sports", json);
+    Assert.assertTrue(context.val.isNull());
   }
 
   @Test
@@ -511,15 +542,14 @@ public class TestPathExecutor {
   public void noMatchKey() throws IOException, ParseException {
     JsonSequence json = valueParser.parse(" { \"name\" : \"fred\" }");
     Context context = parseAndExecute("$.address", json);
-    System.out.println("null val is " + context.val.toString());
-    Assert.assertTrue(context.val.isNull());
+    Assert.assertTrue(context.val.isEmpty());
   }
 
   @Test
   public void noMatchKeyQuotes() throws IOException, ParseException {
     JsonSequence json = valueParser.parse(" { \"name\" : \"fred\" }");
     Context context = parseAndExecute("$.\"address\"", json);
-    Assert.assertTrue(context.val.isNull());
+    Assert.assertTrue(context.val.isEmpty());
   }
 
   @Test
@@ -626,7 +656,7 @@ public class TestPathExecutor {
   public void notAnArraySubscriptList() throws IOException, ParseException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"classes\" : [ \"science\", \"art\" ] }");
     Context context = parseAndExecute("$.name[0]", json);
-    Assert.assertTrue(context.val.isNull());
+    Assert.assertTrue(context.val.isEmpty());
   }
 
   @Test
@@ -641,9 +671,7 @@ public class TestPathExecutor {
   public void offEndSubscriptList() throws IOException, ParseException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"classes\" : [ \"science\", \"art\" ] }");
     Context context = parseAndExecute("$.classes[3]", json);
-
-    JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : null }");
-    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
+    Assert.assertTrue(context.val.isEmpty());
   }
 
   @Test
@@ -653,7 +681,7 @@ public class TestPathExecutor {
         "\"sports\"  : [ \"swimming\", \"baseball\", \"soccer\" ] }");
     Context context = parseAndExecute("$.*[2]", json);
 
-    JsonSequence expected = valueParser.parse(" { \"classes\" : null, \"sports\" : \"soccer\" }");
+    JsonSequence expected = valueParser.parse(" { \"sports\" : \"soccer\" }");
     Assert.assertEquals(expected, context.val);
   }
 
@@ -826,22 +854,17 @@ public class TestPathExecutor {
   }
 
   private Context parseAndExecute(String path, JsonSequence value) throws IOException, ParseException {
-    return parseAndExecute(path, value, null, EmptyOrErrorBehavior.NULL, EmptyOrErrorBehavior.NULL);
+    return parseAndExecute(path, value, null);
   }
 
-  private Context parseAndExecute(String path, JsonSequence value, Map<String, JsonSequence> passing) throws IOException, ParseException {
-    return parseAndExecute(path, value, passing, EmptyOrErrorBehavior.NULL, EmptyOrErrorBehavior.NULL);
-  }
-
-  private Context parseAndExecute(String path, JsonSequence value, Map<String, JsonSequence> passing, EmptyOrErrorBehavior onEmpty,
-                                  EmptyOrErrorBehavior onError)
+  private Context parseAndExecute(String path, JsonSequence value, Map<String, JsonSequence> passing)
       throws IOException, ParseException {
     ParseTree tree = parse(path);
     ErrorListener errorListener = new ErrorListener();
     Context context = new Context(tree, errorListener);
     PathExecutor executor = new PathExecutor(errorListener);
     context.executor = executor;
-    context.val = executor.execute(context.tree, value, passing, onEmpty, onError);
+    context.val = executor.execute(context.tree, value, passing);
     return context;
   }
 

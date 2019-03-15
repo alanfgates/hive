@@ -37,12 +37,24 @@ import java.util.function.LongBinaryOperator;
  */
 public class JsonSequence {
 
-  private enum Type { LONG, DOUBLE, BOOL, STRING, LIST, OBJECT, NULL };
+  private enum Type {
+    LONG,
+    DOUBLE,
+    BOOL,
+    STRING,
+    LIST,   // Represents JSON array, but called list since it is a list in Java and have asArray() return a List just too confusing
+    OBJECT, // Represents JSON object, {}
+    NULL,   // Represents the JSON null literal
+    EMPTY_RESULT // This is not a JSON type.  It represents the result of Path query that did not match anything.
+                 // It is returned separately from null so that the caller can decide how to deal with errors.
+  };
 
   /**
    * Represents the JSON null "key" : null
    */
-  static JsonSequence nullJsonSequence = new JsonSequence();
+  static JsonSequence nullJsonSequence = new JsonSequence(Type.NULL);
+
+  static JsonSequence emptyResult = new JsonSequence(Type.EMPTY_RESULT);
 
   /**
    * Represents the JSON true "key" : true
@@ -60,8 +72,8 @@ public class JsonSequence {
   /**
    * Private because we don't want users creating new nulls
    */
-  private JsonSequence() {
-    type = Type.NULL;
+  private JsonSequence(Type type) {
+    this.type = type;
     val = null;
   }
 
@@ -154,6 +166,10 @@ public class JsonSequence {
 
   public final boolean isNull() {
     return type == Type.NULL;
+  }
+
+  public final boolean isEmpty() {
+    return type == Type.EMPTY_RESULT;
   }
 
   public final long asLong() {
@@ -330,7 +346,6 @@ public class JsonSequence {
   }
 
   private String prettyPrint(int in) {
-    if (val == null) return "null";
     StringBuilder buf = new StringBuilder();
     switch (type) {
       case LONG:
@@ -338,6 +353,12 @@ public class JsonSequence {
       case BOOL:
       case STRING:
         return val.toString();
+
+      case NULL:
+        return "null";
+
+      case EMPTY_RESULT:
+        return "empty result";
 
       case LIST:
         indent(buf, in);

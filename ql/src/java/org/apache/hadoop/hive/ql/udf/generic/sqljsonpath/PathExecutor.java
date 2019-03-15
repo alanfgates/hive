@@ -25,7 +25,6 @@ import org.apache.hadoop.hive.ql.udf.generic.SqlJsonPathParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,14 +33,12 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
 
   private static final String START_SUBSCRIPT = "__json_start_subscript";
   private static final String END_SUBSCRIPT = "__json_end_subscript";
+  private static final JsonSequence lastJsonSequence = new JsonSequence("last");
 
   private JsonSequence value;
   private Map<String, JsonSequence> passing;
-  private EmptyOrErrorBehavior onEmpty;
-  private EmptyOrErrorBehavior onError;
   private ErrorListener errorListener;
   private JsonSequence matching;
-  private JsonSequence lastJsonSequence = new JsonSequence("last");
   private Mode mode;
 
   // TODO I am assuming here that the passed in value is a single bit of JSON.  Is it valid to pass two
@@ -51,25 +48,16 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     this.errorListener = errorListener;
   }
 
-  public JsonSequence execute(ParseTree tree, JsonSequence value, Map<String, JsonSequence> passing) {
-    return execute(tree, value, passing, EmptyOrErrorBehavior.NULL, EmptyOrErrorBehavior.NULL);
-  }
-
   /**
    * Execute a SQL/JSON Path statement against a particular bit of JSON
    * @param tree the parse tree for the SQL/JSON Path
    * @param value JSON value to execute the Path statement against
    * @param passing map of arguments defined in the parse tree
-   * @param onEmpty behavior when a specified key is not present
-   * @param onError behavior when an error occurs
    * @return value of executing the Path statement against the value
    */
-  public JsonSequence execute(ParseTree tree, JsonSequence value, Map<String, JsonSequence> passing, EmptyOrErrorBehavior onEmpty,
-                              EmptyOrErrorBehavior onError) {
+  public JsonSequence execute(ParseTree tree, JsonSequence value, Map<String, JsonSequence> passing) {
     this.value = value;
     this.passing = passing == null ? Collections.emptyMap() : passing;
-    this.onEmpty = onEmpty;
-    this.onError = onError;
     matching = null;
     mode = Mode.LAX;
     visit(tree);
@@ -79,7 +67,7 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
   @Override
   final public JsonSequence visitPath_mode_strict(SqlJsonPathParser.Path_mode_strictContext ctx) {
     mode = Mode.STRICT;
-    return JsonSequence.nullJsonSequence;
+    return JsonSequence.emptyResult;
   }
 
   // Visit methods return JSON sequences.  However, these are not the current match.  These are used for building
@@ -180,34 +168,12 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
 
   @Override
   public JsonSequence visitMember_accessor_id(SqlJsonPathParser.Member_accessor_idContext ctx) {
-    /*
-    if (matching != null && matching.isObject()) {
-      Map<String, JsonSequence> m = matching.asObject();
-      JsonSequence next = m.get(ctx.getChild(1).getText());
-      if (next != null) {
-        matching = next;
-        return null;
-      }
-    }
-    matching = JsonSequence.nullJsonSequence;
-    */
     matching = accessMember(ctx.getChild(1).getText());
     return null;
   }
 
   @Override
   public JsonSequence visitMember_accessor_string(SqlJsonPathParser.Member_accessor_stringContext ctx) {
-    /*
-    if (matching != null && matching.isObject()) {
-      Map<String, JsonSequence> m = matching.asObject();
-      JsonSequence next = m.get(stripQuotes(ctx.getChild(1).getText()));
-      if (next != null) {
-        matching = next;
-        return null;
-      }
-    }
-    matching = JsonSequence.nullJsonSequence;
-    */
     matching = accessMember(stripQuotes(ctx.getChild(1).getText()));
     return null;
   }
@@ -218,7 +184,7 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
       // I think I'm supposed to return the entire object here
       return matching;
     }
-    matching = JsonSequence.nullJsonSequence;
+    matching = JsonSequence.emptyResult;
     return null;
   }
 
@@ -238,12 +204,15 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
       JsonSequence newMatches = new JsonSequence(new HashMap<>());
       for (Map.Entry<String, JsonSequence> matchingEntry : matching.asObject().entrySet()) {
         if (matchingEntry.getValue().isList()) {
-          newMatches.asObject().put(matchingEntry.getKey(), applySubscriptsToOneArray(matchingEntry.getValue(), subscripts));
+          JsonSequence res = applySubscriptsToOneArray(matchingEntry.getValue(), subscripts);
+          if (res != JsonSequence.emptyResult) {
+            newMatches.asObject().put(matchingEntry.getKey(), res);
+          }
         }
       }
       matching = newMatches;
     } else {
-      matching = JsonSequence.nullJsonSequence;
+      matching = JsonSequence.emptyResult;
     }
     return null;
   }
@@ -266,7 +235,7 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
       }
       matching = newMatches;
     } else {
-      matching = JsonSequence.nullJsonSequence;
+      matching = JsonSequence.emptyResult;
     }
     return null;
   }
@@ -370,7 +339,7 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
       // if only one value was accessed unwrap it
       if (subscripts.asList().size() == 1 && (subscripts.asList().get(0) == lastJsonSequence || subscripts.asList().get(0).isLong())) {
         if (newList.asList().size() > 0) return newList.asList().get(0);
-        else return JsonSequence.nullJsonSequence;
+        else return JsonSequence.emptyResult;
       } else {
         return newList;
       }
@@ -380,7 +349,6 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
   }
 
   private JsonSequence accessMember(String memberKey) {
-    // TODO need to handle the case where matching is pointing at a list
     if (matching.isObject()) {
       return accessMemberInObject(matching, memberKey);
     } else if (matching.isList()) {
@@ -388,23 +356,20 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
       for (JsonSequence element : matching.asList()) {
         if (element.isObject()) {
           JsonSequence newMember = accessMemberInObject(element, memberKey);
-          if (newMember != JsonSequence.nullJsonSequence) newMatching.asList().add(newMember);
+          if (newMember != JsonSequence.emptyResult) newMatching.asList().add(newMember);
         }
       }
       return newMatching;
     }
-    return JsonSequence.nullJsonSequence;
+    return JsonSequence.emptyResult;
 
   }
 
   private JsonSequence accessMemberInObject(JsonSequence object, String memberKey) {
     Map<String, JsonSequence> m = object.asObject();
     JsonSequence next = m.get(memberKey);
-    return next == null ? JsonSequence.nullJsonSequence : next;
+    return next == null ? JsonSequence.emptyResult : next;
   }
-
-  // TODO should I be returning null or a special empty indicator when things are empty so that we can
-  // handle error on empty, etc.
 
   private String stripQuotes(String quotedStr) {
     return quotedStr.substring(1, quotedStr.length() - 1);
