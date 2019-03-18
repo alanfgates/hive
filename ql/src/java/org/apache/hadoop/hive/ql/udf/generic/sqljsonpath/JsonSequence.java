@@ -19,6 +19,7 @@ package org.apache.hadoop.hive.ql.udf.generic.sqljsonpath;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.LongBinaryOperator;
 
@@ -52,19 +53,19 @@ public class JsonSequence {
   /**
    * Represents the JSON null "key" : null
    */
-  static JsonSequence nullJsonSequence = new JsonSequence(Type.NULL);
+  static final JsonSequence nullJsonSequence = new JsonSequence(Type.NULL);
 
-  static JsonSequence emptyResult = new JsonSequence(Type.EMPTY_RESULT);
+  static final JsonSequence emptyResult = new JsonSequence(Type.EMPTY_RESULT);
 
   /**
    * Represents the JSON true "key" : true
    */
-  static JsonSequence trueJsonSequence = new JsonSequence(true);
+  static final JsonSequence trueJsonSequence = new JsonSequence(true);
 
   /**
    * Represents the JSON false "key" : false
    */
-  static JsonSequence falseJsonSequence = new JsonSequence(false);
+  static final JsonSequence falseJsonSequence = new JsonSequence(false);
 
   private Type type;
   private Object val;
@@ -262,12 +263,61 @@ public class JsonSequence {
     }
   }
 
+  /**
+   * this is more than equals().  It checks to assure the types are the same or converts where possible.  If the
+   * types cannot be compared a semantic error is raised in errorListener.
+   * @param other other value
+   * @param errorListener error listener to log errors to
+   * @return either trueJsonSequence or falseJsonSequence
+   */
+  final JsonSequence equalsOp(JsonSequence other, ErrorListener errorListener) {
+    // Null requires special handling, because if two things are null they are immediately equal
+    if (type == Type.NULL || other.type == Type.NULL) {
+      return type == Type.NULL && other.type == Type.NULL ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
+    }
+    return equalityOperator(other, Object::equals, errorListener) ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
+  }
+
+  /**
+   * This is more than !equals.  It checks types to make sure this comparison is sensible.  If it is not a semantic
+   * error is returned.
+   * @param other other JsonSequence.
+   * @param errorListener error listener to log errors to
+   * @return either trueJsonSequence or falseJsonSequence
+   */
+  final JsonSequence notEqualsOp(JsonSequence other, ErrorListener errorListener) {
+    if (type == Type.NULL || other.type == Type.NULL) {
+      return type == Type.NULL && other.type == Type.NULL ? JsonSequence.falseJsonSequence : JsonSequence.trueJsonSequence;
+    }
+    return equalityOperator(other, (obj1, obj2) -> !obj1.equals(obj2), errorListener) ? JsonSequence.trueJsonSequence :
+        JsonSequence.falseJsonSequence;
+  }
+
+  final JsonSequence greaterThanOp(JsonSequence other, ErrorListener errorListener) {
+    return compareTo(other, errorListener) > 0 ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
+  }
+
+  final JsonSequence greaterThanEqualOp(JsonSequence other, ErrorListener errorListener) {
+    return compareTo(other, errorListener) >= 0 ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
+  }
+
+  final JsonSequence lessThanOp(JsonSequence other, ErrorListener errorListener) {
+    return compareTo(other, errorListener) < 0 ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
+  }
+
+  final JsonSequence lessThanEqualOp(JsonSequence other, ErrorListener errorListener) {
+    return compareTo(other, errorListener) <= 0 ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
+  }
+
+  Type getType() {
+    return type;
+  }
+
   private void arithmetic(JsonSequence other, LongBinaryOperator longOp, DoubleBinaryOperator doubleOp, boolean zeroCheck, ErrorListener errorListener) {
     switch (type) {
       case LONG:
         switch (other.type) {
           case LONG:
-            // TODO fix zero check and is null checks
             if (zeroCheck && other.asLong() == 0) {
               errorListener.runtimeError("Division by zero");
               setNull();
@@ -327,13 +377,103 @@ public class JsonSequence {
     }
   }
 
+  private boolean equalityOperator(JsonSequence other, BiFunction<Object, Object, Boolean> comparator,
+                                   ErrorListener errorListener) {
+    switch (type) {
+      case LONG:
+        switch (other.type) {
+          case LONG:
+            return comparator.apply(asLong(), other.asLong());
+
+          case DOUBLE:
+            return comparator.apply((double)asLong(), other.asDouble());
+
+          default:
+            errorListener.semanticError("Cannot compare a long to a non-numeric type");
+            return false;
+        }
+
+      case DOUBLE:
+        switch (other.type) {
+          case DOUBLE:
+            return comparator.apply(asDouble(), other.asDouble());
+
+          case LONG:
+            return comparator.apply(asDouble(), (double)other.asLong());
+
+          default:
+            errorListener.semanticError("Cannot compare a double to a non-numeric type");
+            return false;
+
+        }
+
+      case NULL:
+        // Null requires special handling because we cannot call the .equals method on its val.
+        throw new RuntimeException("Programming error");
+
+      case BOOL:
+      case STRING:
+      case LIST:
+      case OBJECT:
+        if (type != other.type) {
+          errorListener.semanticError("Cannot compare a " + type.name().toLowerCase() + " to a " +
+              other.type.name().toLowerCase());
+          return false;
+        }
+        return comparator.apply(val, other.val);
+
+      case EMPTY_RESULT:
+        return false;
+
+      default:
+        throw new RuntimeException("Programming error");
+    }
+  }
+
+  // This comparison doesn't handle type checking or coercion.  Look at lessThanOp etc. for that.
+  private int compareTo(JsonSequence other, ErrorListener errorListener) {
+    switch (type) {
+      case LONG:
+        switch (other.type) {
+          case LONG:
+            return ((Long)val).compareTo(other.asLong());
+
+          case DOUBLE:
+            Double d = (double)asLong();
+            return d.compareTo(other.asDouble());
+
+          default:
+            errorListener.semanticError("Cannot compare a long to a " + other.type.name().toLowerCase());
+            return 0;
+        }
+
+      case DOUBLE:
+        switch (other.type) {
+          case DOUBLE:
+            return ((Double)val).compareTo(other.asDouble());
+
+          case LONG:
+            return ((Double)val).compareTo((double)other.asLong());
+
+          default:
+            errorListener.semanticError("Cannot compare a decimal to a " + other.type.name().toLowerCase());
+            return 0;
+        }
+
+      case STRING:
+        if (other.isString()) return ((String)val).compareTo(other.asString());
+        errorListener.semanticError("Cannot compare a string to a " + other.type.name().toLowerCase());
+        return 0;
+
+      default:
+        errorListener.semanticError("Cannot apply an inequality operator to a " + type.name().toLowerCase());
+        return 0;
+    }
+  }
+
   private void setNull() {
     type = Type.NULL;
     val = null;
-  }
-
-  Type getType() {
-    return type;
   }
 
   @Override
@@ -341,6 +481,7 @@ public class JsonSequence {
     if (!(obj instanceof JsonSequence)) return false;
     JsonSequence other = (JsonSequence)obj;
     if (isNull() && other.isNull()) return true;
+    else if (isEmpty() && other.isEmpty()) return true;
     else return type == other.type && val.equals(other.val);
   }
 

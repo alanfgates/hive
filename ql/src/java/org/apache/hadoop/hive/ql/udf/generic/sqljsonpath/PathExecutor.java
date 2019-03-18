@@ -38,7 +38,12 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
   private JsonSequence value;
   private Map<String, JsonSequence> passing;
   private ErrorListener errorListener;
+  // matching tracks the match we have made so far.  It is modified by many methods in the visitor.  During pre-filter
+  // operations it tracks the matches from the path expression.  Once we are in the filter it tracks the match
+  // expressions of the filter fragment currently being considered.
   private JsonSequence matching;
+  // matchAtFilter caches the match that was made before the filter was considered.
+  private JsonSequence matchAtFilter;
   private Mode mode;
 
   // TODO I am assuming here that the passed in value is a single bit of JSON.  Is it valid to pass two
@@ -163,6 +168,13 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
   public JsonSequence visitPath_context_variable(SqlJsonPathParser.Path_context_variableContext ctx) {
     // Sets the matching as the root of the tree.
     matching = value;
+    return null;
+  }
+
+  @Override
+  public JsonSequence visitPath_at_variable(SqlJsonPathParser.Path_at_variableContext ctx) {
+    // Not 100% sure this will work.  Depending on a filter to always resolve to a boolean before another @ is seen.
+    matching = matchAtFilter;
     return null;
   }
 
@@ -442,6 +454,131 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
         break;
     }
     return null;
+  }
+
+  @Override
+  public JsonSequence visitFilter_expression(SqlJsonPathParser.Filter_expressionContext ctx) {
+    if (matching != JsonSequence.emptyResult) {
+      // Cache the match we've seen so far.
+      matchAtFilter = matching;
+      JsonSequence eval = visit(ctx.getChild(2));
+      assert eval.isBool();
+      matching = eval.asBool() ? matchAtFilter : JsonSequence.emptyResult;
+    }
+    return null;
+  }
+
+  @Override
+  public JsonSequence visitBoolean_disjunction(SqlJsonPathParser.Boolean_disjunctionContext ctx) {
+    if (ctx.getChildCount() == 1) {
+      return visit(ctx.getChild(0));
+    } else {
+      JsonSequence left = visit(ctx.getChild(0));
+      assert left.isBool();
+      if (left.asBool()) return JsonSequence.trueJsonSequence;
+      JsonSequence right = visit(ctx.getChild(2));
+      assert right.isBool();
+      return right;
+    }
+  }
+
+  @Override
+  public JsonSequence visitBoolean_conjunction(SqlJsonPathParser.Boolean_conjunctionContext ctx) {
+    if (ctx.getChildCount() == 1) {
+      return visit(ctx.getChild(0));
+    } else {
+      JsonSequence left = visit(ctx.getChild(0));
+      assert left.isBool();
+      if (!left.asBool()) return JsonSequence.falseJsonSequence;
+      JsonSequence right = visit(ctx.getChild(2));
+      assert right.isBool();
+      return right;
+    }
+  }
+
+  @Override
+  public JsonSequence visitBoolean_negation(SqlJsonPathParser.Boolean_negationContext ctx) {
+    if (ctx.getChildCount() == 1) {
+      return visit(ctx.getChild(0));
+    } else {
+      JsonSequence val = visit(ctx.getChild(1));
+      assert val.isBool();
+      return val.asBool() ? JsonSequence.falseJsonSequence : JsonSequence.trueJsonSequence;
+    }
+  }
+
+  @Override
+  public JsonSequence visitDelimited_predicate(SqlJsonPathParser.Delimited_predicateContext ctx) {
+    if (ctx.getChildCount() == 1) {
+      return visit(ctx.getChild(0));
+    } else {
+      return visit(ctx.getChild(1));
+    }
+  }
+
+  @Override
+  public JsonSequence visitExists_path_predicate(SqlJsonPathParser.Exists_path_predicateContext ctx) {
+    JsonSequence val = visit(ctx.getChild(2));
+    return matching != JsonSequence.emptyResult ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
+  }
+
+  // In all these comparison predicates the results can come to us in one of two ways.  The node may be a constant
+  // which means we'll get the answer back as a result of visiting the node.  It may also be a path match, which
+  // means we'll get it by looking in matching.  So look at the result of the visit first, and if it's null, then
+  // look at matching.  If both are null throw up our hands.
+
+  @Override
+  public JsonSequence visitComparison_predicate_equals(SqlJsonPathParser.Comparison_predicate_equalsContext ctx) {
+    JsonSequence left = visit(ctx.getChild(0));
+    left = left == null ? matching : left;
+    JsonSequence right = visit(ctx.getChild(2));
+    right = right == null ? matching : right;
+    return left.equalsOp(right, errorListener);
+  }
+
+  @Override
+  public JsonSequence visitComparison_predicate_not_equals(SqlJsonPathParser.Comparison_predicate_not_equalsContext ctx) {
+    JsonSequence left = visit(ctx.getChild(0));
+    left = left == null ? matching : left;
+    JsonSequence right = visit(ctx.getChild(2));
+    right = right == null ? matching : right;
+    return left.notEqualsOp(right, errorListener);
+  }
+
+  @Override
+  public JsonSequence visitComparison_predicate_greater_than(SqlJsonPathParser.Comparison_predicate_greater_thanContext ctx) {
+    JsonSequence left = visit(ctx.getChild(0));
+    left = left == null ? matching : left;
+    JsonSequence right = visit(ctx.getChild(2));
+    right = right == null ? matching : right;
+    return left.greaterThanOp(right, errorListener);
+  }
+
+  @Override
+  public JsonSequence visitComparison_predicate_greater_than_equals(SqlJsonPathParser.Comparison_predicate_greater_than_equalsContext ctx) {
+    JsonSequence left = visit(ctx.getChild(0));
+    left = left == null ? matching : left;
+    JsonSequence right = visit(ctx.getChild(2));
+    right = right == null ? matching : right;
+    return left.greaterThanEqualOp(right, errorListener);
+  }
+
+  @Override
+  public JsonSequence visitComparison_predicate_less_than(SqlJsonPathParser.Comparison_predicate_less_thanContext ctx) {
+    JsonSequence left = visit(ctx.getChild(0));
+    left = left == null ? matching : left;
+    JsonSequence right = visit(ctx.getChild(2));
+    right = right == null ? matching : right;
+    return left.lessThanOp(right, errorListener);
+  }
+
+  @Override
+  public JsonSequence visitComparison_predicate_less_than_equals(SqlJsonPathParser.Comparison_predicate_less_than_equalsContext ctx) {
+    JsonSequence left = visit(ctx.getChild(0));
+    left = left == null ? matching : left;
+    JsonSequence right = visit(ctx.getChild(2));
+    right = right == null ? matching : right;
+    return left.lessThanEqualOp(right, errorListener);
   }
 
   @VisibleForTesting
