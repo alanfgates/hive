@@ -496,8 +496,10 @@ public class JsonSequence {
       case LONG:
       case DOUBLE:
       case BOOL:
-      case STRING:
         return val.toString();
+
+      case STRING:
+        return '"' + val.toString() + '"';
 
       case NULL:
         return "null";

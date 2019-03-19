@@ -18,16 +18,23 @@
 package org.apache.hadoop.hive.ql.udf.generic.sqljsonpath;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.apache.hadoop.hive.ql.udf.generic.SqlJsonPathBaseVisitor;
 import org.apache.hadoop.hive.ql.udf.generic.SqlJsonPathParser;
 
 import java.io.IOException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BinaryOperator;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
 
@@ -45,12 +52,21 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
   // matchAtFilter caches the match that was made before the filter was considered.
   private JsonSequence matchAtFilter;
   private Mode mode;
+  // Cache patterns that we compile as part of regular expression matching.  This gets reset each time we execute
+  private Map<byte[], Pattern> regexPatterns;
+  private MessageDigest md5;
 
   // TODO I am assuming here that the passed in value is a single bit of JSON.  Is it valid to pass two
   // JSON objects in value?  Or would that need to be in an array?
 
   public PathExecutor(ErrorListener errorListener) {
     this.errorListener = errorListener;
+    regexPatterns = new HashMap<>();
+    try {
+      md5 = MessageDigest.getInstance("MD5");
+    } catch (NoSuchAlgorithmException e) {
+      throw new RuntimeException("Programming error", e);
+    }
   }
 
   /**
@@ -65,6 +81,7 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     this.passing = passing == null ? Collections.emptyMap() : passing;
     matching = null;
     mode = Mode.LAX;
+    regexPatterns.clear();
     visit(tree);
     return matching;
   }
@@ -459,11 +476,22 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
   @Override
   public JsonSequence visitFilter_expression(SqlJsonPathParser.Filter_expressionContext ctx) {
     if (matching != JsonSequence.emptyResult) {
-      // Cache the match we've seen so far.
-      matchAtFilter = matching;
-      JsonSequence eval = visit(ctx.getChild(2));
-      assert eval.isBool();
-      matching = eval.asBool() ? matchAtFilter : JsonSequence.emptyResult;
+      if (matching.isList()) {
+        // If this is a list, we need to apply the filter to each element in turn and built up a matching list
+        JsonSequence matchingList = new JsonSequence(new ArrayList<>());
+        for (JsonSequence matchingElement : matching.asList()) {
+          matchAtFilter = matchingElement;
+          JsonSequence eval = visit(ctx.getChild(2));
+          if (eval.asBool()) matchingList.asList().add(matchingElement);
+        }
+        matching = matchingList.asList().size() > 0 ? matchingList : JsonSequence.emptyResult;
+      } else {
+        // Cache the match we've seen so far.
+        matchAtFilter = matching;
+        JsonSequence eval = visit(ctx.getChild(2));
+        assert eval.isBool();
+        matching = eval.asBool() ? matchAtFilter : JsonSequence.emptyResult;
+      }
     }
     return null;
   }
@@ -529,56 +557,80 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
 
   @Override
   public JsonSequence visitComparison_predicate_equals(SqlJsonPathParser.Comparison_predicate_equalsContext ctx) {
-    JsonSequence left = visit(ctx.getChild(0));
-    left = left == null ? matching : left;
-    JsonSequence right = visit(ctx.getChild(2));
-    right = right == null ? matching : right;
-    return left.equalsOp(right, errorListener);
+    return binaryComparisonOperator(ctx, (lf, rt) -> lf.equalsOp(rt, errorListener));
   }
 
   @Override
   public JsonSequence visitComparison_predicate_not_equals(SqlJsonPathParser.Comparison_predicate_not_equalsContext ctx) {
-    JsonSequence left = visit(ctx.getChild(0));
-    left = left == null ? matching : left;
-    JsonSequence right = visit(ctx.getChild(2));
-    right = right == null ? matching : right;
-    return left.notEqualsOp(right, errorListener);
+    return binaryComparisonOperator(ctx, (lf, rt) -> lf.notEqualsOp(rt, errorListener));
   }
 
   @Override
   public JsonSequence visitComparison_predicate_greater_than(SqlJsonPathParser.Comparison_predicate_greater_thanContext ctx) {
-    JsonSequence left = visit(ctx.getChild(0));
-    left = left == null ? matching : left;
-    JsonSequence right = visit(ctx.getChild(2));
-    right = right == null ? matching : right;
-    return left.greaterThanOp(right, errorListener);
+    return binaryComparisonOperator(ctx, (lf, rt) -> lf.greaterThanOp(rt, errorListener));
   }
 
   @Override
   public JsonSequence visitComparison_predicate_greater_than_equals(SqlJsonPathParser.Comparison_predicate_greater_than_equalsContext ctx) {
-    JsonSequence left = visit(ctx.getChild(0));
-    left = left == null ? matching : left;
-    JsonSequence right = visit(ctx.getChild(2));
-    right = right == null ? matching : right;
-    return left.greaterThanEqualOp(right, errorListener);
+    return binaryComparisonOperator(ctx, (lf, rt) -> lf.greaterThanEqualOp(rt, errorListener));
   }
 
   @Override
   public JsonSequence visitComparison_predicate_less_than(SqlJsonPathParser.Comparison_predicate_less_thanContext ctx) {
-    JsonSequence left = visit(ctx.getChild(0));
-    left = left == null ? matching : left;
-    JsonSequence right = visit(ctx.getChild(2));
-    right = right == null ? matching : right;
-    return left.lessThanOp(right, errorListener);
+    return binaryComparisonOperator(ctx, (lf, rt) -> lf.lessThanOp(rt, errorListener));
   }
 
   @Override
   public JsonSequence visitComparison_predicate_less_than_equals(SqlJsonPathParser.Comparison_predicate_less_than_equalsContext ctx) {
-    JsonSequence left = visit(ctx.getChild(0));
-    left = left == null ? matching : left;
+    return binaryComparisonOperator(ctx, (lf, rt) -> lf.lessThanEqualOp(rt, errorListener));
+  }
+
+  @Override
+  public JsonSequence visitLike_regex_predicate(SqlJsonPathParser.Like_regex_predicateContext ctx) {
+    visit(ctx.getChild(0));
+    // The left side should always be the path, and right a constant
+    JsonSequence left = matching;
     JsonSequence right = visit(ctx.getChild(2));
-    right = right == null ? matching : right;
-    return left.lessThanEqualOp(right, errorListener);
+    if (!left.isString()) {
+      errorListener.semanticError("Regular expressions can only be used on strings");
+      return JsonSequence.falseJsonSequence;
+    }
+    assert right.isString();
+
+    md5.reset();
+    md5.update(right.asString().getBytes());
+    byte[] key = md5.digest();
+    Pattern pattern = regexPatterns.get(key);
+    if (pattern == null) {
+      try {
+        pattern = Pattern.compile(right.asString());
+        regexPatterns.put(key, pattern);
+      } catch (PatternSyntaxException e) {
+        errorListener.semanticError("Regular expression syntax error " + e.getMessage());
+        return JsonSequence.falseJsonSequence;
+      }
+    }
+    {
+      Matcher m = pattern.matcher(left.asString());
+      System.out.println("path " + left.asString() + " matches pattern " + right.asString() + " " +  m.find(0));
+    }
+    Matcher m = pattern.matcher(left.asString());
+    return m.find(0) ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
+  }
+
+  @Override
+  public JsonSequence visitStarts_with_predicate(SqlJsonPathParser.Starts_with_predicateContext ctx) {
+    visit(ctx.getChild(0));
+    // The left side should always be the path, and right a constant or passed in variable
+    JsonSequence left = matching;
+    JsonSequence right = visit(ctx.getChild(3));
+
+    if (!left.isString() || !right.isString()) {
+      errorListener.semanticError("Starts with can only be used with strings");
+      return JsonSequence.falseJsonSequence;
+    }
+
+    return left.asString().startsWith(right.asString()) ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
   }
 
   @VisibleForTesting
@@ -668,4 +720,11 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     return quotedStr.substring(1, quotedStr.length() - 1);
   }
 
+  private JsonSequence binaryComparisonOperator(ParserRuleContext ctx, BinaryOperator<JsonSequence> comparisonOp) {
+    JsonSequence left = visit(ctx.getChild(0));
+    left = left == null ? matching : left;
+    JsonSequence right = visit(ctx.getChild(2));
+    right = right == null ? matching : right;
+    return comparisonOp.apply(left, right);
+  }
 }

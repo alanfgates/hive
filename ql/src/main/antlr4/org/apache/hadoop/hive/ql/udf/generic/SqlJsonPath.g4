@@ -278,8 +278,8 @@ comparison_predicate_less_than_equals:
     path_wff T_LE path_wff
     ;
 
-like_regex_predicate:                                  // TODO this one next
-    path_wff T_LIKEREGEX path_string_literal (T_FLAG path_string_literal)?
+like_regex_predicate:
+    path_wff T_LIKEREGEX path_string_literal       // NOTE - we don't support flags
     ;
 
 starts_with_predicate:
@@ -363,7 +363,6 @@ T_DATETIME     : 'datetime' ;
 T_DOUBLE       : 'double' ;
 T_EXISTS       : 'exists' ;
 T_FALSE        : 'false' ;
-T_FLAG         : 'flag' ;
 T_FLOOR        : 'floor' ;
 T_IS           : 'is' ;
 T_INTFUNC      : 'integer' ; // Added in, not part of the spec

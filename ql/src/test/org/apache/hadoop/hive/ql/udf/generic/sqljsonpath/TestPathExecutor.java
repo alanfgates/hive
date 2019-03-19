@@ -24,6 +24,7 @@ import org.apache.hadoop.hive.ql.udf.generic.SqlJsonPathLexer;
 import org.apache.hadoop.hive.ql.udf.generic.SqlJsonPathParser;
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
@@ -1164,6 +1165,41 @@ public class TestPathExecutor {
   }
 
   @Test
+  public void filterListExists() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(
+        "{" +
+          "\"classes\" : [" +
+            "{" +
+              "\"department\"    : \"history\"," +
+              "\"number\"        : 202," +
+              "\"professor\"     : \"Who\"," +
+              "\"prerequisites\" : [ \"history 201\" ]" +
+            "}, {" +
+              "\"department\"    : \"music\"," +
+              "\"number\"        : 101," +
+              "\"professor\"     : \"Beethoven\"" +
+            "}" +
+          "]" +
+        "}");
+
+    JsonSequence expected = valueParser.parse(
+        "{" +
+            "\"bogus\" : [" +
+              "{" +
+                "\"department\"    : \"history\"," +
+                "\"number\"        : 202," +
+                "\"professor\"     : \"Who\"," +
+                "\"prerequisites\" : [ \"history 201\" ]" +
+              "}" +
+            "]" +
+        "}");
+
+    Context context = parseAndExecute("$.classes[*]?(exists(@.prerequisites))", json);
+    Assert.assertEquals(expected.asObject().get("bogus"), context.val);
+
+  }
+
+  @Test
   public void filterNonExistent() throws IOException, ParseException {
     JsonSequence json = valueParser.parse(
         "{" +
@@ -1473,6 +1509,40 @@ public class TestPathExecutor {
   }
 
   @Test
+  public void filterListEquals() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(equalityJson);
+    Context context = parseAndExecute("$.education?(@.activities == @.clubs)", json);
+
+    JsonSequence expected = valueParser.parse(expectedEqualityJson);
+    Assert.assertEquals(expected, context.val);
+  }
+
+  @Test
+  public void filterListEqualsFails() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(equalityJson);
+    Context context = parseAndExecute("$.education?(@.activities == @.extracurricular)", json);
+
+    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+  }
+
+  @Test
+  public void filterObjectEquals() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(equalityJson);
+    Context context = parseAndExecute("$.education?(@.\"best class\" == @.\"favorite class\")", json);
+
+    JsonSequence expected = valueParser.parse(expectedEqualityJson);
+    Assert.assertEquals(expected, context.val);
+  }
+
+  @Test
+  public void filterObjectEqualsFails() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(equalityJson);
+    Context context = parseAndExecute("$.education?(@.\"best class\" == @.\"worst class\")", json);
+
+    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+  }
+
+  @Test
   public void filterEmptyEquals() throws IOException, ParseException {
     // Test that the right thing happens when the preceding path is empty
     JsonSequence json = valueParser.parse(equalityJson);
@@ -1593,6 +1663,40 @@ public class TestPathExecutor {
   public void filterNullNeFails() throws IOException, ParseException {
     JsonSequence json = valueParser.parse(equalityJson);
     Context context = parseAndExecute("$.education?(@.sports != null)", json);
+
+    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+  }
+
+  @Test
+  public void filterListNe() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(equalityJson);
+    Context context = parseAndExecute("$.education?(@.activities != @.extracurricular)", json);
+
+    JsonSequence expected = valueParser.parse(expectedEqualityJson);
+    Assert.assertEquals(expected, context.val);
+  }
+
+  @Test
+  public void filterListNeFails() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(equalityJson);
+    Context context = parseAndExecute("$.education?(@.activities != @.clubs)", json);
+
+    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+  }
+
+  @Test
+  public void filterObjectNe() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(equalityJson);
+    Context context = parseAndExecute("$.education?(@.\"best class\" != @.\"worst class\")", json);
+
+    JsonSequence expected = valueParser.parse(expectedEqualityJson);
+    Assert.assertEquals(expected, context.val);
+  }
+
+  @Test
+  public void filterObjectNeFails() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(equalityJson);
+    Context context = parseAndExecute("$.education?(@.\"best class\" != @.\"favorite class\")", json);
 
     Assert.assertEquals(JsonSequence.emptyResult, context.val);
   }
@@ -2041,11 +2145,233 @@ public class TestPathExecutor {
   }
 
   // TODO test equals double -long
-  // TODO test equals list
-  // TODO test equals object
   // TODO test ne double -long
-  // TODO test ne list
-  // TODO test ne object
+
+  // TODO test all the comparison predicates against a list
+  private String listEqualityJson =
+      "{" +
+          "\"name\"    : \"fred\"," +
+          "\"classes\" : [" +
+            "{" +
+              "\"department\"     : \"math\"," +
+              "\"number\"         : 101," +
+              "\"avg attendance\" : 287.5," +
+              "\"honors\"         : false," +
+              "\"prerequisites\"  : null" +
+            "}, {" +
+              "\"department\"     : \"art\"," +
+              "\"number\"         : 401," +
+              "\"avg attendance\" : 7.0," +
+              "\"honors\"         : true," +
+              "\"prerequisites\"  : [ \"art 301\" ]" +
+            "}" +
+          "]" +
+      "}";
+
+  private String listEqualityJsonExpectedFirst =
+      "{ \"bogus\" : [" +
+        "{" +
+          "\"department\"     : \"math\"," +
+          "\"number\"         : 101," +
+          "\"avg attendance\" : 287.5," +
+          "\"honors\"         : false," +
+          "\"prerequisites\"  : null" +
+        "}" +
+     "] }";
+
+  private String listEqualityJsonExpectedSecond =
+      "{ \"bogus\" : [" +
+        "{" +
+          "\"department\"     : \"art\"," +
+          "\"number\"         : 401," +
+          "\"avg attendance\" : 7.0," +
+          "\"honors\"         : true," +
+          "\"prerequisites\"  : [ \"art 301\" ]" +
+        "}" +
+     "] }";
+
+  private String listEqualityJsonExpectedBoth =
+      "{ \"bogus\" : [" +
+          "{" +
+            "\"department\"     : \"math\"," +
+            "\"number\"         : 101," +
+            "\"avg attendance\" : 287.5," +
+            "\"honors\"         : false," +
+            "\"prerequisites\"  : null" +
+          "}, {" +
+            "\"department\"     : \"art\"," +
+            "\"number\"         : 401," +
+            "\"avg attendance\" : 7.0," +
+            "\"honors\"         : true," +
+            "\"prerequisites\"  : [ \"art 301\" ]" +
+          "}" +
+     "] }";
+
+  @Test
+  public void filterListLongEquals() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(listEqualityJson);
+    Context context = parseAndExecute("$.classes[*]?(@.number == 101)", json);
+
+    JsonSequence expected = valueParser.parse(listEqualityJsonExpectedFirst);
+    Assert.assertEquals(expected.asObject().get("bogus"), context.val);
+  }
+
+  @Test
+  public void filterListStringNe() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(listEqualityJson);
+    Context context = parseAndExecute("$.classes[*]?(@.department != \"science\")", json);
+
+    JsonSequence expected = valueParser.parse(listEqualityJsonExpectedBoth);
+    Assert.assertEquals(expected.asObject().get("bogus"), context.val);
+  }
+
+  @Test
+  public void filterListDoubleGt() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(listEqualityJson);
+    Context context = parseAndExecute("$.classes[*]?(@.\"avg attendance\" > 50)", json);
+
+    JsonSequence expected = valueParser.parse(listEqualityJsonExpectedFirst);
+    Assert.assertEquals(expected.asObject().get("bogus"), context.val);
+  }
+
+  @Test
+  public void filterListNullNe() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(listEqualityJson);
+    Context context = parseAndExecute("$.classes[*]?(@.prerequisites != null)", json);
+
+    JsonSequence expected = valueParser.parse(listEqualityJsonExpectedSecond);
+    Assert.assertEquals(expected.asObject().get("bogus"), context.val);
+  }
+
+  @Test
+  public void filterListOr() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(listEqualityJson);
+    Context context = parseAndExecute("$.classes[*]?(@.department == \"art\" || @.department == \"math\")", json);
+
+    JsonSequence expected = valueParser.parse(listEqualityJsonExpectedBoth);
+    Assert.assertEquals(expected.asObject().get("bogus"), context.val);
+  }
+
+  @Test
+  public void filterListAnd() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(listEqualityJson);
+    Context context = parseAndExecute("$.classes[*]?(@.number >= 200 && @.\"avg attendance\" > 20)", json);
+    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+  }
+
+  @Test
+  public void filterRegex() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(equalityJson);
+    Context context = parseAndExecute("$.education?(@.school like_regex \"u.c\")", json);
+
+    JsonSequence expected = valueParser.parse(expectedEqualityJson);
+    Assert.assertEquals(expected, context.val);
+  }
+
+  @Test
+  public void filterRegexFails() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(equalityJson);
+    Context context = parseAndExecute("$.education?(@.school like_regex \"u[x|y]c\")", json);
+    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+  }
+
+  @Test
+  public void filterRegexList() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(listEqualityJson);
+    Context context = parseAndExecute("$.classes[*]?(@.department like_regex \"^a.*\")", json);
+
+    JsonSequence expected = valueParser.parse(listEqualityJsonExpectedSecond);
+    Assert.assertEquals(expected.asObject().get("bogus"), context.val);
+  }
+
+  @Test
+  public void filterRegexBadtype() throws IOException, ParseException {
+    String path = "$.education?(@.gpa like_regex 'abc.*')";
+    JsonSequence json = valueParser.parse(equalityJson);
+    Context context = parseAndExecute(path, json);
+    try {
+      context.errorListener.checkForErrors(path);
+      Assert.fail();
+    } catch (ParseException e) {
+      Assert.assertEquals("'$.education?(@.gpa like_regex 'abc.*')' produced a semantic error: Regular expressions can only be used on strings", e.getMessage());
+    }
+  }
+
+  // TODO - figure out a regular expression that throws an error in the Java parser but not path parser
+  /*
+  @Test
+  public void filterRegexSyntaxError() throws IOException, ParseException {
+    String path = "$.education?(@.school like_regex '\\\\u12x abc')";
+    JsonSequence json = valueParser.parse(equalityJson);
+    Context context = parseAndExecute(path, json);
+    try {
+      context.errorListener.checkForErrors(path);
+      Assert.fail();
+    } catch (ParseException e) {
+      Assert.assertEquals("", e.getMessage());
+    }
+  }
+  */
+
+  @Test
+  public void filterStartsWith() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(equalityJson);
+    Context context = parseAndExecute("$.education?(@.school starts with \"us\")", json);
+
+    JsonSequence expected = valueParser.parse(expectedEqualityJson);
+    Assert.assertEquals(expected, context.val);
+  }
+
+  @Test
+  public void filterStartsWithVal() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(equalityJson);
+    Context context = parseAndExecute("$.education?(@.school starts with $val)", json, Collections.singletonMap("val", new JsonSequence("us")));
+
+    JsonSequence expected = valueParser.parse(expectedEqualityJson);
+    Assert.assertEquals(expected, context.val);
+  }
+
+  @Test
+  public void filterStartsWithFails() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(equalityJson);
+    Context context = parseAndExecute("$.education?(@.school starts with \"oregon\")", json);
+    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+  }
+
+  @Test
+  public void filterStartsWithList() throws IOException, ParseException {
+    JsonSequence json = valueParser.parse(listEqualityJson);
+    Context context = parseAndExecute("$.classes[*]?(@.department starts with \"a\")", json);
+
+    JsonSequence expected = valueParser.parse(listEqualityJsonExpectedSecond);
+    Assert.assertEquals(expected.asObject().get("bogus"), context.val);
+  }
+
+  @Test
+  public void filterStartsWithBadtype() throws IOException, ParseException {
+    String path = "$.education?(@.gpa starts with 'abc')";
+    JsonSequence json = valueParser.parse(equalityJson);
+    Context context = parseAndExecute(path, json);
+    try {
+      context.errorListener.checkForErrors(path);
+      Assert.fail();
+    } catch (ParseException e) {
+      Assert.assertEquals("'$.education?(@.gpa starts with 'abc')' produced a semantic error: Starts with can only be used with strings", e.getMessage());
+    }
+  }
+
+  @Test
+  public void filterStartsWithBadtype2() throws IOException, ParseException {
+    String path = "$.education?(@.school starts with $val)";
+    JsonSequence json = valueParser.parse(equalityJson);
+    Context context = parseAndExecute(path, json, Collections.singletonMap("val", new JsonSequence(3.14)));
+    try {
+      context.errorListener.checkForErrors(path);
+      Assert.fail();
+    } catch (ParseException e) {
+      Assert.assertEquals("'$.education?(@.school starts with $val)' produced a semantic error: Starts with can only be used with strings", e.getMessage());
+    }
+  }
 
   private ParseTree parse(String path) throws IOException, ParseException {
     PathParser parser = new PathParser();
