@@ -17,19 +17,16 @@
  */
 package org.apache.hadoop.hive.ql.udf.generic.sqljsonpath;
 
-import org.apache.commons.lang3.StringUtils;
+import org.antlr.v4.runtime.tree.ParseTree;
 
-import java.util.List;
+class PathParseResult {
+  final ParseTree parseTree;
+  final ErrorListener errorListener;
+  final String pathExpr;
 
-public class ParseException extends Exception {
-  final private String message;
-
-  public ParseException(String expr, List<String> errors) {
-    message = "'" + expr + "' produced a " + StringUtils.join(errors, "; ");
-  }
-
-  @Override
-  public String getMessage() {
-    return message;
+  public PathParseResult(ParseTree parseTree, ErrorListener errorListener, String pathExpr) {
+    this.parseTree = parseTree;
+    this.errorListener = errorListener;
+    this.pathExpr = pathExpr;
   }
 }

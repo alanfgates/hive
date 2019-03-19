@@ -45,7 +45,7 @@ public class JsonValueParser extends JsonBaseVisitor<JsonSequence> {
     objStack = new ArrayDeque<>();
   }
 
-  public JsonSequence parse(String jsonStr) throws IOException, ParseException {
+  public JsonSequence parse(String jsonStr) throws IOException, JsonPathException {
     clear();
     JsonLexer scanner = new JsonLexer(new ANTLRInputStream(new ByteArrayInputStream(jsonStr.getBytes())));
     CommonTokenStream tokens = new CommonTokenStream(scanner);

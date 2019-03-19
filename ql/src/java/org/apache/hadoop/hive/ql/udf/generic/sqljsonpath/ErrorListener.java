@@ -19,6 +19,7 @@ package org.apache.hadoop.hive.ql.udf.generic.sqljsonpath;
 
 import org.antlr.v4.runtime.ANTLRErrorListener;
 import org.antlr.v4.runtime.Parser;
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.atn.ATNConfigSet;
@@ -45,26 +46,30 @@ public class ErrorListener implements ANTLRErrorListener  {
   /**
    * Check to see if an error occurred.
    * @param expr expression that was parsed.  Not checked here, just used in the error message.
-   * @throws ParseException if any errors were found.
+   * @throws JsonPathException if any errors were found.
    */
-  void checkForErrors(String expr) throws ParseException {
-    if (errors.size() > 0) throw new ParseException(expr, errors);
+  void checkForErrors(String expr) throws JsonPathException {
+    if (errors.size() > 0) throw new JsonPathException(expr, errors);
   }
 
   /**
    * Report a semantic error.
    * @param s error string.
+   * @param ctx context at the point the error occurred.  This is passed rather than a string to prevent all the work
+   *            of constructing the error string unless there is an error.
    */
-  void semanticError(String s) {
-    errors.add("semantic error: " + s);
+  void semanticError(String s, ParserRuleContext ctx) {
+    errors.add("semantic error: " + s + " at \"" + getErrorText(ctx) + "\"");
   }
 
   /**
    * Report a runtime error.
    * @param s error string.
+   * @param ctx context at the point the error occurred.  This is passed rather than a string to prevent all the work
+   *            of constructing the error string unless there is an error.
    */
-  void runtimeError(String s) {
-    errors.add("runtime error: " + s);
+  void runtimeError(String s, ParserRuleContext ctx) {
+    errors.add("runtime error: " + s + " at \"" + getErrorText(ctx) + "\"");
   }
 
   @Override
@@ -87,6 +92,25 @@ public class ErrorListener implements ANTLRErrorListener  {
   @Override
   public void reportContextSensitivity(Parser parser, DFA dfa, int i, int i1, int i2, ATNConfigSet atnConfigSet) {
     System.out.println("in reportContextSensitivity");
+
+  }
+
+  private String getErrorText(ParserRuleContext ctx) {
+    // Stolen straight from ParserRuleContext except I put spaces in between tokens for readability.
+    if (ctx.getChildCount() == 0) {
+      return "";
+    } else {
+      StringBuilder builder = new StringBuilder();
+
+      boolean first = true;
+      for(int i = 0; i < ctx.getChildCount(); ++i) {
+        if (first) first = false;
+        else builder.append(" ");
+        builder.append(ctx.getChild(i).getText());
+      }
+
+      return builder.toString();
+    }
 
   }
 }

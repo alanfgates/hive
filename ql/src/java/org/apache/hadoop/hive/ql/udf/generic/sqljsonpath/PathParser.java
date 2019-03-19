@@ -28,26 +28,22 @@ import java.io.IOException;
 
 public class PathParser {
 
-  private ParseTree tree;
-
   /**
    * Parse a path expression.
+   * @return {@link PathParseResult} with results of the parse
    * @param pathExpression the path expression to parse
-   * @throws ParseException if the expression fails to parse
+   * @throws JsonPathException if the expression fails to parse
    * @throws IOException if Antlr fails to read the input stream (shouldn't really happen unless you call it with a null string).
    */
-  public void parse(String pathExpression) throws ParseException, IOException {
+  public PathParseResult parse(String pathExpression) throws JsonPathException, IOException {
     ErrorListener errorListener = new ErrorListener();
     SqlJsonPathLexer scanner = new SqlJsonPathLexer(new ANTLRInputStream(new ByteArrayInputStream(pathExpression.getBytes())));
     CommonTokenStream tokens = new CommonTokenStream(scanner);
     SqlJsonPathParser parser = new SqlJsonPathParser(tokens);
     parser.addErrorListener(errorListener);
-    tree = parser.path_expression();
+    ParseTree tree = parser.path_expression();
     errorListener.checkForErrors(pathExpression);
+    return new PathParseResult(tree, errorListener, pathExpression);
 
-  }
-
-  public ParseTree getTree() {
-    return tree;
   }
 }

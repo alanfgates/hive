@@ -56,11 +56,13 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
   private Map<byte[], Pattern> regexPatterns;
   private MessageDigest md5;
 
+  @VisibleForTesting
+  JsonSequence returnedByVisit;
+
   // TODO I am assuming here that the passed in value is a single bit of JSON.  Is it valid to pass two
   // JSON objects in value?  Or would that need to be in an array?
 
-  public PathExecutor(ErrorListener errorListener) {
-    this.errorListener = errorListener;
+  public PathExecutor() {
     regexPatterns = new HashMap<>();
     try {
       md5 = MessageDigest.getInstance("MD5");
@@ -71,18 +73,22 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
 
   /**
    * Execute a SQL/JSON Path statement against a particular bit of JSON
-   * @param tree the parse tree for the SQL/JSON Path
+   * @param parseResult info from parsing the expression
    * @param value JSON value to execute the Path statement against
    * @param passing map of arguments defined in the parse tree
    * @return value of executing the Path statement against the value
+   * @throws JsonPathException if a semantic or runtime error occurs.
    */
-  public JsonSequence execute(ParseTree tree, JsonSequence value, Map<String, JsonSequence> passing) {
+  public JsonSequence execute(PathParseResult parseResult, JsonSequence value, Map<String, JsonSequence> passing) throws JsonPathException {
     this.value = value;
     this.passing = passing == null ? Collections.emptyMap() : passing;
+    errorListener = parseResult.errorListener;
+    errorListener.clear();
     matching = null;
     mode = Mode.LAX;
     regexPatterns.clear();
-    visit(tree);
+    returnedByVisit = visit(parseResult.parseTree);
+    errorListener.checkForErrors(parseResult.pathExpr);
     return matching;
   }
 
@@ -103,8 +109,8 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     JsonSequence val1 = visit(ctx.getChild(0));
     JsonSequence val2 = visit(ctx.getChild(2));
     switch (operator.getText()) {
-      case "+": val1.add(val2, errorListener); break;
-      case "-": val1.subtract(val2, errorListener); break;
+      case "+": val1.add(val2, errorListener, ctx); break;
+      case "-": val1.subtract(val2, errorListener, ctx); break;
       default: throw new RuntimeException("Programming error");
     }
     return val1;
@@ -118,9 +124,9 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     JsonSequence val1 = visit(ctx.getChild(0));
     JsonSequence val2 = visit(ctx.getChild(2));
     switch (operator.getText()) {
-      case "*": val1.multiply(val2, errorListener); break;
-      case "/": val1.divide(val2, errorListener); break;
-      case "%": val1.modulo(val2, errorListener); break;
+      case "*": val1.multiply(val2, errorListener, ctx); break;
+      case "/": val1.divide(val2, errorListener, ctx); break;
+      case "%": val1.modulo(val2, errorListener, ctx); break;
       default: throw new RuntimeException("Programming error");
     }
     return val1;
@@ -134,7 +140,7 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     JsonSequence val = visit(ctx.getChild(1));
     switch (operator.getText()) {
       case "+": break;
-      case "-": val.negate(errorListener); break;
+      case "-": val.negate(errorListener, ctx); break;
       default: throw new RuntimeException("Programming error");
     }
     return val;
@@ -174,7 +180,7 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     JsonSequence val = passing.get(id);
     if (val == null) {
       errorListener.semanticError("Variable " + id +
-          " referenced in path expression but no matching id found in passing clause");
+          " referenced in path expression but no matching id found in passing clause", ctx);
       return JsonSequence.nullJsonSequence;
     } else {
       return val;
@@ -228,12 +234,12 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     // case we want to return a list.  In the object case, we want to return an object, with only the fields that
     // are a list.
     if (matching.isList()) {
-      matching = applySubscriptsToOneArray(matching, subscripts);
+      matching = applySubscriptsToOneArray(matching, subscripts, ctx);
     } else if (matching.isObject()) {
       JsonSequence newMatches = new JsonSequence(new HashMap<>());
       for (Map.Entry<String, JsonSequence> matchingEntry : matching.asObject().entrySet()) {
         if (matchingEntry.getValue().isList()) {
-          JsonSequence res = applySubscriptsToOneArray(matchingEntry.getValue(), subscripts);
+          JsonSequence res = applySubscriptsToOneArray(matchingEntry.getValue(), subscripts, ctx);
           if (res != JsonSequence.emptyResult) {
             newMatches.asObject().put(matchingEntry.getKey(), res);
           }
@@ -303,7 +309,7 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     JsonSequence startSeq = visit(ctx.getChild(0));
     JsonSequence endSeq = visit(ctx.getChild(2));
     if (endSeq != lastJsonSequence && endSeq.asLong() < startSeq.asLong()) {
-      errorListener.runtimeError("The end subscript must be greater than or equal to the start subscript");
+      errorListener.runtimeError("The end subscript must be greater than or equal to the start subscript", ctx);
       return JsonSequence.nullJsonSequence;
     }
     Map<String, JsonSequence> subscripts = new HashMap<>();
@@ -386,7 +392,7 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
         break;
 
       default:
-        errorListener.runtimeError("Double method requires numeric or string argument, passed a " + matching.getType().name().toLowerCase());
+        errorListener.runtimeError("Double method requires numeric or string argument, passed a " + matching.getType().name().toLowerCase(), ctx);
         break;
     }
     return null;
@@ -408,7 +414,7 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
         break;
 
       default:
-        errorListener.runtimeError("Integer method requires numeric or string argument, passed a " + matching.getType().name().toLowerCase());
+        errorListener.runtimeError("Integer method requires numeric or string argument, passed a " + matching.getType().name().toLowerCase(), ctx);
         break;
     }
     return null;
@@ -427,7 +433,7 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
         break;
 
       default:
-        errorListener.runtimeError("Ceiling method requires numeric argument, passed a " + matching.getType().name().toLowerCase());
+        errorListener.runtimeError("Ceiling method requires numeric argument, passed a " + matching.getType().name().toLowerCase(), ctx);
         break;
     }
     return null;
@@ -446,7 +452,7 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
         break;
 
       default:
-        errorListener.runtimeError("Floor method requires numeric argument, passed a " + matching.getType().name().toLowerCase());
+        errorListener.runtimeError("Floor method requires numeric argument, passed a " + matching.getType().name().toLowerCase(), ctx);
         break;
     }
     return null;
@@ -467,7 +473,7 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
         break;
 
       default:
-        errorListener.runtimeError("Abs method requires numeric argument, passed a " + matching.getType().name().toLowerCase());
+        errorListener.runtimeError("Abs method requires numeric argument, passed a " + matching.getType().name().toLowerCase(), ctx);
         break;
     }
     return null;
@@ -557,32 +563,32 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
 
   @Override
   public JsonSequence visitComparison_predicate_equals(SqlJsonPathParser.Comparison_predicate_equalsContext ctx) {
-    return binaryComparisonOperator(ctx, (lf, rt) -> lf.equalsOp(rt, errorListener));
+    return binaryComparisonOperator(ctx, (lf, rt) -> lf.equalsOp(rt, errorListener, ctx));
   }
 
   @Override
   public JsonSequence visitComparison_predicate_not_equals(SqlJsonPathParser.Comparison_predicate_not_equalsContext ctx) {
-    return binaryComparisonOperator(ctx, (lf, rt) -> lf.notEqualsOp(rt, errorListener));
+    return binaryComparisonOperator(ctx, (lf, rt) -> lf.notEqualsOp(rt, errorListener, ctx));
   }
 
   @Override
   public JsonSequence visitComparison_predicate_greater_than(SqlJsonPathParser.Comparison_predicate_greater_thanContext ctx) {
-    return binaryComparisonOperator(ctx, (lf, rt) -> lf.greaterThanOp(rt, errorListener));
+    return binaryComparisonOperator(ctx, (lf, rt) -> lf.greaterThanOp(rt, errorListener, ctx));
   }
 
   @Override
   public JsonSequence visitComparison_predicate_greater_than_equals(SqlJsonPathParser.Comparison_predicate_greater_than_equalsContext ctx) {
-    return binaryComparisonOperator(ctx, (lf, rt) -> lf.greaterThanEqualOp(rt, errorListener));
+    return binaryComparisonOperator(ctx, (lf, rt) -> lf.greaterThanEqualOp(rt, errorListener, ctx));
   }
 
   @Override
   public JsonSequence visitComparison_predicate_less_than(SqlJsonPathParser.Comparison_predicate_less_thanContext ctx) {
-    return binaryComparisonOperator(ctx, (lf, rt) -> lf.lessThanOp(rt, errorListener));
+    return binaryComparisonOperator(ctx, (lf, rt) -> lf.lessThanOp(rt, errorListener, ctx));
   }
 
   @Override
   public JsonSequence visitComparison_predicate_less_than_equals(SqlJsonPathParser.Comparison_predicate_less_than_equalsContext ctx) {
-    return binaryComparisonOperator(ctx, (lf, rt) -> lf.lessThanEqualOp(rt, errorListener));
+    return binaryComparisonOperator(ctx, (lf, rt) -> lf.lessThanEqualOp(rt, errorListener, ctx));
   }
 
   @Override
@@ -592,7 +598,7 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     JsonSequence left = matching;
     JsonSequence right = visit(ctx.getChild(2));
     if (!left.isString()) {
-      errorListener.semanticError("Regular expressions can only be used on strings");
+      errorListener.semanticError("Regular expressions can only be used on strings", ctx);
       return JsonSequence.falseJsonSequence;
     }
     assert right.isString();
@@ -606,13 +612,9 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
         pattern = Pattern.compile(right.asString());
         regexPatterns.put(key, pattern);
       } catch (PatternSyntaxException e) {
-        errorListener.semanticError("Regular expression syntax error " + e.getMessage());
+        errorListener.semanticError("Regular expression syntax error " + e.getMessage(), ctx);
         return JsonSequence.falseJsonSequence;
       }
-    }
-    {
-      Matcher m = pattern.matcher(left.asString());
-      System.out.println("path " + left.asString() + " matches pattern " + right.asString() + " " +  m.find(0));
     }
     Matcher m = pattern.matcher(left.asString());
     return m.find(0) ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
@@ -626,7 +628,7 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     JsonSequence right = visit(ctx.getChild(3));
 
     if (!left.isString() || !right.isString()) {
-      errorListener.semanticError("Starts with can only be used with strings");
+      errorListener.semanticError("Starts with can only be used with strings", ctx);
       return JsonSequence.falseJsonSequence;
     }
 
@@ -643,19 +645,19 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     return errorListener;
   }
 
-  private int checkSubscript(JsonSequence subscript) throws IOException {
+  private int checkSubscript(JsonSequence subscript, ParserRuleContext ctx) throws IOException {
     if (!subscript.isLong()) {
-      errorListener.semanticError("Subscripts must be integer values");
+      errorListener.semanticError("Subscripts must be integer values", ctx);
       throw new IOException();
     }
     if (subscript.asLong() > Integer.MAX_VALUE) {
-      errorListener.runtimeError("Subscripts cannot exceed " + Integer.MAX_VALUE);
+      errorListener.runtimeError("Subscripts cannot exceed " + Integer.MAX_VALUE, ctx);
       throw new IOException();
     }
     return (int)subscript.asLong();
   }
 
-  private JsonSequence applySubscriptsToOneArray(JsonSequence oneList, JsonSequence subscripts) {
+  private JsonSequence applySubscriptsToOneArray(JsonSequence oneList, JsonSequence subscripts, ParserRuleContext ctx) {
     try {
       JsonSequence newList = new JsonSequence(new ArrayList<>());
       for (JsonSequence sub : subscripts.asList()) {
@@ -664,14 +666,14 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
           newList.asList().add(oneList.asList().get(oneList.asList().size() - 1));
         } else if (sub.isLong()) {
           if (sub.asLong() < oneList.asList().size()) { // make sure we don't fly off the end
-            newList.asList().add(oneList.asList().get(checkSubscript(sub)));
+            newList.asList().add(oneList.asList().get(checkSubscript(sub, ctx)));
           }
         } else if (sub.isObject()) {
           assert sub.asObject().containsKey(START_SUBSCRIPT);
-          int start = checkSubscript(sub.asObject().get(START_SUBSCRIPT));
+          int start = checkSubscript(sub.asObject().get(START_SUBSCRIPT), ctx);
           assert sub.asObject().containsKey(END_SUBSCRIPT);
           JsonSequence endSubscript = sub.asObject().get(END_SUBSCRIPT);
-          int end = (endSubscript == lastJsonSequence) ? end = oneList.asList().size() - 1 : checkSubscript(endSubscript);
+          int end = (endSubscript == lastJsonSequence) ? end = oneList.asList().size() - 1 : checkSubscript(endSubscript, ctx);
           // visitSubscript_to already checked that start <= end
           for (int i = start; i <= end; i++) {
             if (i >= oneList.asList().size()) break; // Don't fly off the end

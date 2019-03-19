@@ -41,14 +41,14 @@ public class TestJsonValueParser {
   }
 
   @Test
-  public void empty() throws IOException, ParseException {
+  public void empty() throws IOException, JsonPathException {
     JsonSequence json = parser.parse("{}");
     Assert.assertTrue(json.isObject());
     Assert.assertEquals(0, json.asObject().size());
   }
 
   @Test
-  public void justString() throws IOException, ParseException {
+  public void justString() throws IOException, JsonPathException {
     JsonSequence json = parser.parse("{ \"name\" : \"fred\" }");
     Assert.assertTrue(json.isObject());
     Assert.assertEquals(1, json.asObject().size());
@@ -56,7 +56,7 @@ public class TestJsonValueParser {
   }
 
   @Test
-  public void justInt() throws IOException, ParseException {
+  public void justInt() throws IOException, JsonPathException {
     JsonSequence json = parser.parse("{ \"age\" : 10 }");
     Assert.assertTrue(json.isObject());
     Assert.assertEquals(1, json.asObject().size());
@@ -64,7 +64,7 @@ public class TestJsonValueParser {
   }
 
   @Test
-  public void simple() throws IOException, ParseException {
+  public void simple() throws IOException, JsonPathException {
     JsonSequence json = parser.parse("{" +
         "\"name\"       : \"clark kent\"," +
         "\"age\"        :  53," +
@@ -92,7 +92,7 @@ public class TestJsonValueParser {
   }
 
   @Test
-  public void nested() throws IOException, ParseException {
+  public void nested() throws IOException, JsonPathException {
     JsonSequence json = parser.parse("{" +
         "\"name\"    : \"diana prince\"," +
         "\"address\" : {" +
@@ -136,7 +136,7 @@ public class TestJsonValueParser {
     try {
       parser.parse("{ \"oops\" }");
       Assert.fail();
-    } catch (ParseException e) {
+    } catch (JsonPathException e) {
       Assert.assertEquals("'{ \"oops\" }' produced a syntax error: mismatched input '}' expecting ':' on line 1 at position 9", e.getMessage());
     }
   }

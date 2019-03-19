@@ -21,8 +21,8 @@ import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.ErrorListener;
+import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.JsonPathException;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.JsonValueParser;
-import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.ParseException;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorConverter;
@@ -64,7 +64,7 @@ public class GenericUDFIsJson extends GenericUDF {
         parser.parse(json);
         result.set(true);
       }
-    } catch (ParseException e) {
+    } catch (JsonPathException e) {
       result.set(false);
     } catch (IOException e) {
       throw new HiveException("Error using JSON parser: " + e.getMessage(), e);

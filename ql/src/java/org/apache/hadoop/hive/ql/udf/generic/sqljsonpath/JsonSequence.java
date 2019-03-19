@@ -17,6 +17,8 @@
  */
 package org.apache.hadoop.hive.ql.udf.generic.sqljsonpath;
 
+import org.antlr.v4.runtime.ParserRuleContext;
+
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -48,7 +50,7 @@ public class JsonSequence {
     NULL,   // Represents the JSON null literal
     EMPTY_RESULT // This is not a JSON type.  It represents the result of Path query that did not match anything.
                  // It is returned separately from null so that the caller can decide how to deal with errors.
-  };
+  }
 
   /**
    * Represents the JSON null "key" : null
@@ -203,29 +205,29 @@ public class JsonSequence {
     return (Map<String, JsonSequence>)val;
   }
 
-  final void add(JsonSequence other, ErrorListener errorListener) {
-    arithmetic(other, (left, right) -> left + right, (left, right) -> left + right, false, errorListener);
+  final void add(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
+    arithmetic(other, (left, right) -> left + right, (left, right) -> left + right, false, errorListener, ctx);
   }
 
-  final void subtract(JsonSequence other, ErrorListener errorListener) {
-    arithmetic(other, (left, right) -> left - right, (left, right) -> left - right, false, errorListener);
+  final void subtract(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
+    arithmetic(other, (left, right) -> left - right, (left, right) -> left - right, false, errorListener, ctx);
   }
 
-  final void multiply(JsonSequence other, ErrorListener errorListener) {
-    arithmetic(other, (left, right) -> left * right, (left, right) -> left * right, false, errorListener);
+  final void multiply(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
+    arithmetic(other, (left, right) -> left * right, (left, right) -> left * right, false, errorListener, ctx);
   }
 
-  final void divide(JsonSequence other, ErrorListener errorListener) {
-    arithmetic(other, (left, right) -> left / right, (left, right) -> left / right, true, errorListener);
+  final void divide(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
+    arithmetic(other, (left, right) -> left / right, (left, right) -> left / right, true, errorListener, ctx);
   }
 
-  final void modulo(JsonSequence other, ErrorListener errorListener) {
+  final void modulo(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
     switch (type) {
       case LONG:
         switch (other.type) {
           case LONG:
             if (other.asLong() == 0) {
-              errorListener.runtimeError("Division by zero");
+              errorListener.runtimeError("Division by zero at ", ctx);
               setNull();
             } else {
               val = asLong() % other.asLong();
@@ -233,20 +235,20 @@ public class JsonSequence {
             break;
 
           default:
-            errorListener.semanticError("You cannot do mod on a " + other.type.name().toLowerCase());
+            errorListener.semanticError("You cannot do mod on a " + other.type.name().toLowerCase(), ctx);
             setNull();
             break;
         }
         break;
 
       default:
-        errorListener.semanticError("You cannot do mod on a " + type.name().toLowerCase());
+        errorListener.semanticError("You cannot do mod on a " + type.name().toLowerCase(), ctx);
         setNull();
         break;
     }
   }
 
-  final void negate(ErrorListener errorListener) {
+  final void negate(ErrorListener errorListener, ParserRuleContext ctx) {
     switch (type) {
       case LONG:
         val = asLong() * -1;
@@ -257,7 +259,7 @@ public class JsonSequence {
         break;
 
       default:
-        errorListener.semanticError("You cannot do arithmetic on a " + type.name().toLowerCase());
+        errorListener.semanticError("You cannot do arithmetic on a " + type.name().toLowerCase(), ctx);
         setNull();
         break;
     }
@@ -270,12 +272,12 @@ public class JsonSequence {
    * @param errorListener error listener to log errors to
    * @return either trueJsonSequence or falseJsonSequence
    */
-  final JsonSequence equalsOp(JsonSequence other, ErrorListener errorListener) {
+  final JsonSequence equalsOp(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
     // Null requires special handling, because if two things are null they are immediately equal
     if (type == Type.NULL || other.type == Type.NULL) {
       return type == Type.NULL && other.type == Type.NULL ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
     }
-    return equalityOperator(other, Object::equals, errorListener) ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
+    return equalityOperator(other, Object::equals, errorListener, ctx) ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
   }
 
   /**
@@ -285,41 +287,42 @@ public class JsonSequence {
    * @param errorListener error listener to log errors to
    * @return either trueJsonSequence or falseJsonSequence
    */
-  final JsonSequence notEqualsOp(JsonSequence other, ErrorListener errorListener) {
+  final JsonSequence notEqualsOp(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
     if (type == Type.NULL || other.type == Type.NULL) {
       return type == Type.NULL && other.type == Type.NULL ? JsonSequence.falseJsonSequence : JsonSequence.trueJsonSequence;
     }
-    return equalityOperator(other, (obj1, obj2) -> !obj1.equals(obj2), errorListener) ? JsonSequence.trueJsonSequence :
+    return equalityOperator(other, (obj1, obj2) -> !obj1.equals(obj2), errorListener, ctx) ? JsonSequence.trueJsonSequence :
         JsonSequence.falseJsonSequence;
   }
 
-  final JsonSequence greaterThanOp(JsonSequence other, ErrorListener errorListener) {
-    return compareTo(other, errorListener) > 0 ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
+  final JsonSequence greaterThanOp(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
+    return compareTo(other, errorListener, ctx) > 0 ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
   }
 
-  final JsonSequence greaterThanEqualOp(JsonSequence other, ErrorListener errorListener) {
-    return compareTo(other, errorListener) >= 0 ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
+  final JsonSequence greaterThanEqualOp(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
+    return compareTo(other, errorListener, ctx) >= 0 ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
   }
 
-  final JsonSequence lessThanOp(JsonSequence other, ErrorListener errorListener) {
-    return compareTo(other, errorListener) < 0 ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
+  final JsonSequence lessThanOp(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
+    return compareTo(other, errorListener, ctx) < 0 ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
   }
 
-  final JsonSequence lessThanEqualOp(JsonSequence other, ErrorListener errorListener) {
-    return compareTo(other, errorListener) <= 0 ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
+  final JsonSequence lessThanEqualOp(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
+    return compareTo(other, errorListener, ctx) <= 0 ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
   }
 
   Type getType() {
     return type;
   }
 
-  private void arithmetic(JsonSequence other, LongBinaryOperator longOp, DoubleBinaryOperator doubleOp, boolean zeroCheck, ErrorListener errorListener) {
+  private void arithmetic(JsonSequence other, LongBinaryOperator longOp, DoubleBinaryOperator doubleOp,
+                          boolean zeroCheck, ErrorListener errorListener, ParserRuleContext ctx) {
     switch (type) {
       case LONG:
         switch (other.type) {
           case LONG:
             if (zeroCheck && other.asLong() == 0) {
-              errorListener.runtimeError("Division by zero");
+              errorListener.runtimeError("Division by zero at ", ctx);
               setNull();
             } else {
               val = longOp.applyAsLong(asLong(), other.asLong());
@@ -328,7 +331,7 @@ public class JsonSequence {
 
           case DOUBLE:
             if (zeroCheck && other.asDouble() == 0.0) {
-              errorListener.runtimeError("Division by zero");
+              errorListener.runtimeError("Division by zero at ", ctx);
               setNull();
             } else {
               type = Type.DOUBLE;
@@ -337,7 +340,7 @@ public class JsonSequence {
             break;
 
           default:
-            errorListener.semanticError("You cannot do arithmetic on a " + other.type.name().toLowerCase());
+            errorListener.semanticError("You cannot do arithmetic on a " + other.type.name().toLowerCase(), ctx);
             setNull();
             break;
         }
@@ -347,7 +350,7 @@ public class JsonSequence {
         switch (other.type) {
           case LONG:
             if (zeroCheck && other.asLong() == 0) {
-              errorListener.runtimeError("Division by zero");
+              errorListener.runtimeError("Division by zero at ", ctx);
               setNull();
             } else {
               val = doubleOp.applyAsDouble(asDouble(), (double)other.asLong());
@@ -356,7 +359,7 @@ public class JsonSequence {
 
           case DOUBLE:
             if (zeroCheck && other.asDouble() == 0.0) {
-              errorListener.runtimeError("Division by zero");
+              errorListener.runtimeError("Division by zero at ", ctx);
               setNull();
             } else {
               val = doubleOp.applyAsDouble(asDouble(), other.asDouble());
@@ -364,21 +367,21 @@ public class JsonSequence {
             break;
 
           default:
-            errorListener.semanticError("You cannot do arithmetic on a " + other.type.name().toLowerCase());
+            errorListener.semanticError("You cannot do arithmetic on a " + other.type.name().toLowerCase(), ctx);
             setNull();
             break;
         }
         break;
 
       default:
-        errorListener.semanticError("You cannot do arithmetic on a " + type.name().toLowerCase());
+        errorListener.semanticError("You cannot do arithmetic on a " + type.name().toLowerCase(), ctx);
         setNull();
         break;
     }
   }
 
   private boolean equalityOperator(JsonSequence other, BiFunction<Object, Object, Boolean> comparator,
-                                   ErrorListener errorListener) {
+                                   ErrorListener errorListener, ParserRuleContext ctx) {
     switch (type) {
       case LONG:
         switch (other.type) {
@@ -389,7 +392,7 @@ public class JsonSequence {
             return comparator.apply((double)asLong(), other.asDouble());
 
           default:
-            errorListener.semanticError("Cannot compare a long to a non-numeric type");
+            errorListener.semanticError("Cannot compare a long to a non-numeric type", ctx);
             return false;
         }
 
@@ -402,7 +405,7 @@ public class JsonSequence {
             return comparator.apply(asDouble(), (double)other.asLong());
 
           default:
-            errorListener.semanticError("Cannot compare a double to a non-numeric type");
+            errorListener.semanticError("Cannot compare a double to a non-numeric type", ctx);
             return false;
 
         }
@@ -417,7 +420,7 @@ public class JsonSequence {
       case OBJECT:
         if (type != other.type) {
           errorListener.semanticError("Cannot compare a " + type.name().toLowerCase() + " to a " +
-              other.type.name().toLowerCase());
+              other.type.name().toLowerCase(), ctx);
           return false;
         }
         return comparator.apply(val, other.val);
@@ -431,7 +434,7 @@ public class JsonSequence {
   }
 
   // This comparison doesn't handle type checking or coercion.  Look at lessThanOp etc. for that.
-  private int compareTo(JsonSequence other, ErrorListener errorListener) {
+  private int compareTo(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
     switch (type) {
       case LONG:
         switch (other.type) {
@@ -443,7 +446,7 @@ public class JsonSequence {
             return d.compareTo(other.asDouble());
 
           default:
-            errorListener.semanticError("Cannot compare a long to a " + other.type.name().toLowerCase());
+            errorListener.semanticError("Cannot compare a long to a " + other.type.name().toLowerCase(), ctx);
             return 0;
         }
 
@@ -456,17 +459,17 @@ public class JsonSequence {
             return ((Double)val).compareTo((double)other.asLong());
 
           default:
-            errorListener.semanticError("Cannot compare a decimal to a " + other.type.name().toLowerCase());
+            errorListener.semanticError("Cannot compare a decimal to a " + other.type.name().toLowerCase(), ctx);
             return 0;
         }
 
       case STRING:
         if (other.isString()) return ((String)val).compareTo(other.asString());
-        errorListener.semanticError("Cannot compare a string to a " + other.type.name().toLowerCase());
+        errorListener.semanticError("Cannot compare a string to a " + other.type.name().toLowerCase(), ctx);
         return 0;
 
       default:
-        errorListener.semanticError("Cannot apply an inequality operator to a " + type.name().toLowerCase());
+        errorListener.semanticError("Cannot apply an inequality operator to a " + type.name().toLowerCase(), ctx);
         return 0;
     }
   }

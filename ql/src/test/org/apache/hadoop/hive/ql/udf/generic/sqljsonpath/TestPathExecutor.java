@@ -17,17 +17,10 @@
  */
 package org.apache.hadoop.hive.ql.udf.generic.sqljsonpath;
 
-import org.antlr.v4.runtime.ANTLRInputStream;
-import org.antlr.v4.runtime.CommonTokenStream;
-import org.antlr.v4.runtime.tree.ParseTree;
-import org.apache.hadoop.hive.ql.udf.generic.SqlJsonPathLexer;
-import org.apache.hadoop.hive.ql.udf.generic.SqlJsonPathParser;
 import org.junit.Assert;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
@@ -39,7 +32,7 @@ public class TestPathExecutor {
   private static JsonSequence    emptyJson;
 
   @BeforeClass
-  public static void buildValueParser() throws IOException, ParseException {
+  public static void buildValueParser() throws IOException, JsonPathException {
     ErrorListener listener = new ErrorListener();
     valueParser = new JsonValueParser(listener);
     emptyJson = valueParser.parse("{ }");
@@ -48,1036 +41,1066 @@ public class TestPathExecutor {
   @Test
   public void syntaxError() throws IOException {
     try {
-      parse("fizzbot");
-    } catch (ParseException e) {
+      PathParser parser = new PathParser();
+      parser.parse("fizzbot");
+    } catch (JsonPathException e) {
       Assert.assertEquals("'fizzbot' produced a syntax error: no viable alternative at input 'fizzbot' on line 1 at position 0", e.getMessage());
     }
 
   }
 
   @Test
-  public void laxDefault() throws IOException, ParseException {
-    Context context = parseAndExecute("$.a", emptyJson);
-    Assert.assertEquals(Mode.LAX, context.executor.getMode());
+  public void laxDefault() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("$.a");
+    Assert.assertEquals(Mode.LAX, pathExecResult.executor.getMode());
   }
 
   @Test
-  public void laxSpecified() throws IOException, ParseException {
-    Context context = parseAndExecute("lax $.a", emptyJson);
-    Assert.assertEquals(Mode.LAX, context.executor.getMode());
+  public void laxSpecified() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("lax $.a");
+    Assert.assertEquals(Mode.LAX, pathExecResult.executor.getMode());
   }
 
   @Test
-  public void strict() throws IOException, ParseException {
-    Context context = parseAndExecute("strict $.a", emptyJson);
-    Assert.assertEquals(Mode.STRICT, context.executor.getMode());
+  public void strict() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("strict $.a");
+    Assert.assertEquals(Mode.STRICT, pathExecResult.executor.getMode());
   }
 
   @Test
-  public void longLiteral() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("5");
-    Assert.assertEquals(5L, context.val.asLong());
+  public void longLiteral() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("5");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isLong());
+    Assert.assertEquals(5, pathExecResult.executor.returnedByVisit.asLong());
+
   }
 
   @Test
-  public void doubleLiteral() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("5.1");
-    Assert.assertEquals(5.1, context.val.asDouble(), 0.00001);
+  public void doubleLiteral() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("5.1");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isDouble());
+    Assert.assertEquals(5.1, pathExecResult.executor.returnedByVisit.asDouble(), 0.001);
   }
 
   @Test
-  public void booleanLiteral() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("true");
-    Assert.assertTrue(context.val.asBool());
+  public void booleanLiteral() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("true");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isBool());
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.asBool());
   }
 
   @Test
-  public void nullLiteral() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("null");
-    Assert.assertTrue(context.val.isNull());
+  public void nullLiteral() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("null");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isNull());
   }
 
   @Test
-  public void singleQuoteStringLiteral() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("'fred'");
-    Assert.assertEquals("fred", context.val.asString());
+  public void singleQuoteStringLiteral() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("'fred'");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isString());
+    Assert.assertEquals("fred", pathExecResult.executor.returnedByVisit.asString());
   }
 
   @Test
-  public void doubleQuoteStringLiteral() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("\"fred\"");
-    Assert.assertEquals("fred", context.val.asString());
+  public void doubleQuoteStringLiteral() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("\"fred\"");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isString());
+    Assert.assertEquals("fred", pathExecResult.executor.returnedByVisit.asString());
   }
 
   @Test
-  public void addLong() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("5 + 6");
-    Assert.assertTrue(context.val.isLong());
-    Assert.assertEquals(11L, context.val.asLong());
+  public void addLong() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("5 + 6");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isLong());
+    Assert.assertEquals(11L, pathExecResult.executor.returnedByVisit.asLong());
   }
 
   @Test
-  public void subtractLong() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("8 - 4");
-    Assert.assertTrue(context.val.isLong());
-    Assert.assertEquals(4L, context.val.asLong());
+  public void subtractLong() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("8 - 4");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isLong());
+    Assert.assertEquals(4L, pathExecResult.executor.returnedByVisit.asLong());
   }
 
   @Test
-  public void multiplyLong() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("9 * 10");
-    Assert.assertTrue(context.val.isLong());
-    Assert.assertEquals(90L, context.val.asLong());
+  public void multiplyLong() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("9 * 10");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isLong());
+    Assert.assertEquals(90L, pathExecResult.executor.returnedByVisit.asLong());
   }
 
   @Test
-  public void divideLong() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("9 / 3");
-    Assert.assertTrue(context.val.isLong());
-    Assert.assertEquals(3L, context.val.asLong());
+  public void divideLong() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("9 / 3");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isLong());
+    Assert.assertEquals(3L, pathExecResult.executor.returnedByVisit.asLong());
   }
 
   @Test
-  public void modLong() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("10 % 3");
-    Assert.assertTrue(context.val.isLong());
-    Assert.assertEquals(1L, context.val.asLong());
+  public void modLong() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("10 % 3");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isLong());
+    Assert.assertEquals(1L, pathExecResult.executor.returnedByVisit.asLong());
   }
 
   @Test
-  public void addDouble() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("5.1 + 7.2");
-    Assert.assertTrue(context.val.isDouble());
-    Assert.assertEquals(12.3, context.val.asDouble(), 0.00001);
+  public void addDouble() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("5.1 + 7.2");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isDouble());
+    Assert.assertEquals(12.3, pathExecResult.executor.returnedByVisit.asDouble(), 0.00001);
   }
 
   @Test
-  public void subtractDouble() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("10.0 - .2");
-    Assert.assertTrue(context.val.isDouble());
-    Assert.assertEquals(9.8, context.val.asDouble(), 0.00001);
+  public void subtractDouble() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("10.0 - .2");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isDouble());
+    Assert.assertEquals(9.8, pathExecResult.executor.returnedByVisit.asDouble(), 0.00001);
   }
 
   @Test
-  public void multiplyDouble() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("2.0 * 3.141592654");
-    Assert.assertTrue(context.val.isDouble());
-    Assert.assertEquals(6.283185308, context.val.asDouble(), 0.001);
+  public void multiplyDouble() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("2.0 * 3.141592654");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isDouble());
+    Assert.assertEquals(6.283185308, pathExecResult.executor.returnedByVisit.asDouble(), 0.001);
   }
 
   @Test
-  public void divideDouble() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("20.0 / 3.0");
-    Assert.assertTrue(context.val.isDouble());
-    Assert.assertEquals(6.66666, context.val.asDouble(), 0.001);
+  public void divideDouble() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("20.0 / 3.0");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isDouble());
+    Assert.assertEquals(6.66666, pathExecResult.executor.returnedByVisit.asDouble(), 0.001);
   }
 
   @Test
-  public void addLongAndDouble() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("5 + 7.2");
-    Assert.assertTrue(context.val.isDouble());
-    Assert.assertEquals(12.2, context.val.asDouble(), 0.00001);
+  public void addLongAndDouble() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("5 + 7.2");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isDouble());
+    Assert.assertEquals(12.2, pathExecResult.executor.returnedByVisit.asDouble(), 0.00001);
   }
 
   @Test
-  public void subtractLongAndDouble() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("10 - 7.2");
-    Assert.assertTrue(context.val.isDouble());
-    Assert.assertEquals(2.8, context.val.asDouble(), 0.00001);
+  public void subtractLongAndDouble() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("10 - 7.2");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isDouble());
+    Assert.assertEquals(2.8, pathExecResult.executor.returnedByVisit.asDouble(), 0.00001);
   }
 
   @Test
-  public void multiplyLongAndDouble() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("10 * 1.238273");
-    Assert.assertTrue(context.val.isDouble());
-    Assert.assertEquals(12.38273, context.val.asDouble(), 0.00001);
+  public void multiplyLongAndDouble() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("10 * 1.238273");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isDouble());
+    Assert.assertEquals(12.38273, pathExecResult.executor.returnedByVisit.asDouble(), 0.00001);
   }
 
   @Test
-  public void divideLongAndDouble() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("20 / 1.238273");
-    Assert.assertTrue(context.val.isDouble());
-    Assert.assertEquals(16.151527167272484, context.val.asDouble(), 0.00001);
+  public void divideLongAndDouble() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("20 / 1.238273");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isDouble());
+    Assert.assertEquals(16.151527167272484, pathExecResult.executor.returnedByVisit.asDouble(), 0.00001);
   }
 
   @Test
-  public void addDoubleAndLong() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("5.2 + 7");
-    Assert.assertTrue(context.val.isDouble());
-    Assert.assertEquals(12.2, context.val.asDouble(), 0.00001);
+  public void addDoubleAndLong() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("5.2 + 7");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isDouble());
+    Assert.assertEquals(12.2, pathExecResult.executor.returnedByVisit.asDouble(), 0.00001);
+
   }
 
   @Test
-  public void subtractDoubleAndLong() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("10.2 - 7");
-    Assert.assertTrue(context.val.isDouble());
-    Assert.assertEquals(3.2, context.val.asDouble(), 0.00001);
+  public void subtractDoubleAndLong() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("10.2 - 7");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isDouble());
+    Assert.assertEquals(3.2, pathExecResult.executor.returnedByVisit.asDouble(), 0.00001);
   }
 
   @Test
-  public void multiplyDoubleAndLong() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("1.238273 * 10");
-    Assert.assertTrue(context.val.isDouble());
-    Assert.assertEquals(12.38273, context.val.asDouble(), 0.00001);
+  public void multiplyDoubleAndLong() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("1.238273 * 10");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isDouble());
+    Assert.assertEquals(12.38273, pathExecResult.executor.returnedByVisit.asDouble(), 0.00001);
   }
 
   @Test
-  public void divideDoubleAndLong() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("20.238273 / 3");
-    Assert.assertTrue(context.val.isDouble());
-    Assert.assertEquals(6.746091, context.val.asDouble(), 0.00001);
+  public void divideDoubleAndLong() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("20.238273 / 3");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isDouble());
+    Assert.assertEquals(6.746091, pathExecResult.executor.returnedByVisit.asDouble(), 0.00001);
   }
 
   @Test
-  public void longUnaryPlus() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("+3");
-    Assert.assertTrue(context.val.isLong());
-    Assert.assertEquals(3L, context.val.asLong());
+  public void longUnaryPlus() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("+3");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isLong());
+    Assert.assertEquals(3L, pathExecResult.executor.returnedByVisit.asLong());
   }
 
   @Test
-  public void longUnaryMinus() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("-3");
-    Assert.assertTrue(context.val.isLong());
-    Assert.assertEquals(-3L, context.val.asLong());
+  public void longUnaryMinus() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("-3");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isLong());
+    Assert.assertEquals(-3L, pathExecResult.executor.returnedByVisit.asLong());
   }
 
   @Test
-  public void doubleUnaryPlus() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("+20.238273");
-    Assert.assertTrue(context.val.isDouble());
-    Assert.assertEquals(20.238273, context.val.asDouble(), 0.00001);
+  public void doubleUnaryPlus() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("+20.238273");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isDouble());
+    Assert.assertEquals(20.238273, pathExecResult.executor.returnedByVisit.asDouble(), 0.00001);
   }
 
   @Test
-  public void doubleUnaryMinus() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("-20.238273");
-    Assert.assertTrue(context.val.isDouble());
-    Assert.assertEquals(-20.238273, context.val.asDouble(), 0.00001);
+  public void doubleUnaryMinus() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("-20.238273");
+    Assert.assertTrue(pathExecResult.executor.returnedByVisit.isDouble());
+    Assert.assertEquals(-20.238273, pathExecResult.executor.returnedByVisit.asDouble(), 0.00001);
   }
 
   @Test
-  public void badLongAdd() throws IOException, ParseException {
-    String pathExpr = "20 + 'fred'";
-    Context context = parseAndExecute(pathExpr, emptyJson);
+  public void badLongAdd() throws IOException {
     try {
-      context.executor.getErrorListener().checkForErrors(pathExpr);
+      String pathExpr = "20 + 'fred'";
+      parseAndExecute(pathExpr);
       Assert.fail();
-    } catch (ParseException e) {
-      Assert.assertEquals("'20 + 'fred'' produced a semantic error: You cannot do arithmetic on a string", e.getMessage());
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'20 + 'fred'' produced a semantic error: You cannot do arithmetic on a string at \"20 + 'fred'\"", e.getMessage());
     }
   }
 
   @Test
-  public void badLongSubtract() throws IOException, ParseException {
-    String pathExpr = "20 - 'fred'";
-    Context context = parseAndExecute(pathExpr, emptyJson);
+  public void badLongSubtract() throws IOException {
     try {
-      context.executor.getErrorListener().checkForErrors(pathExpr);
+      String pathExpr = "20 - 'fred'";
+      parseAndExecute(pathExpr);
       Assert.fail();
-    } catch (ParseException e) {
-      Assert.assertEquals("'20 - 'fred'' produced a semantic error: You cannot do arithmetic on a string", e.getMessage());
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'20 - 'fred'' produced a semantic error: You cannot do arithmetic on a string at \"20 - 'fred'\"", e.getMessage());
     }
   }
 
   @Test
-  public void badLongMultiply() throws IOException, ParseException {
-    String pathExpr = "20 * true";
-    Context context = parseAndExecute(pathExpr, emptyJson);
+  public void badLongMultiply() throws IOException {
     try {
-      context.executor.getErrorListener().checkForErrors(pathExpr);
+      String pathExpr = "20 * true";
+      parseAndExecute(pathExpr);
       Assert.fail();
-    } catch (ParseException e) {
-      Assert.assertEquals("'20 * true' produced a semantic error: You cannot do arithmetic on a bool", e.getMessage());
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'20 * true' produced a semantic error: You cannot do arithmetic on a bool at \"20 * true\"", e.getMessage());
     }
   }
 
   @Test
-  public void badLongDivide() throws IOException, ParseException {
-    String pathExpr = "20 / 'bob'";
-    Context context = parseAndExecute(pathExpr, emptyJson);
+  public void badLongDivide() throws IOException {
     try {
-      context.executor.getErrorListener().checkForErrors(pathExpr);
+      String pathExpr = "20 / 'bob'";
+      parseAndExecute(pathExpr);
       Assert.fail();
-    } catch (ParseException e) {
-      Assert.assertEquals("'20 / 'bob'' produced a semantic error: You cannot do arithmetic on a string", e.getMessage());
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'20 / 'bob'' produced a semantic error: You cannot do arithmetic on a string at \"20 / 'bob'\"", e.getMessage());
     }
   }
 
   @Test
-  public void badMod() throws IOException, ParseException {
-    String pathExpr = "20 % 3.0";
-    Context context = parseAndExecute(pathExpr, emptyJson);
+  public void badMod() throws IOException {
     try {
-      context.executor.getErrorListener().checkForErrors(pathExpr);
+      String pathExpr = "20 % 3.0";
+      parseAndExecute(pathExpr);
       Assert.fail();
-    } catch (ParseException e) {
-      Assert.assertEquals("'20 % 3.0' produced a semantic error: You cannot do mod on a double", e.getMessage());
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'20 % 3.0' produced a semantic error: You cannot do mod on a double at \"20 % 3.0\"", e.getMessage());
     }
   }
 
   @Test
-  public void badStringAdd() throws IOException, ParseException {
-    String pathExpr = "'fred' + 3.0";
-    Context context = parseAndExecute(pathExpr, emptyJson);
+  public void badStringAdd() throws IOException {
     try {
-      context.executor.getErrorListener().checkForErrors(pathExpr);
+      String pathExpr = "'fred' + 3.0";
+      parseAndExecute(pathExpr);
       Assert.fail();
-    } catch (ParseException e) {
-      Assert.assertEquals("''fred' + 3.0' produced a semantic error: You cannot do arithmetic on a string", e.getMessage());
+    } catch (JsonPathException e) {
+      Assert.assertEquals("''fred' + 3.0' produced a semantic error: You cannot do arithmetic on a string at \"'fred' + 3.0\"", e.getMessage());
     }
   }
 
   @Test
-  public void badStringSubtract() throws IOException, ParseException {
-    String pathExpr = "'fred' - 3.0";
-    Context context = parseAndExecute(pathExpr, emptyJson);
+  public void badStringSubtract() throws IOException {
     try {
-      context.executor.getErrorListener().checkForErrors(pathExpr);
+      String pathExpr = "'fred' - 3.0";
+      parseAndExecute(pathExpr);
       Assert.fail();
-    } catch (ParseException e) {
-      Assert.assertEquals("''fred' - 3.0' produced a semantic error: You cannot do arithmetic on a string", e.getMessage());
+    } catch (JsonPathException e) {
+      Assert.assertEquals("''fred' - 3.0' produced a semantic error: You cannot do arithmetic on a string at \"'fred' - 3.0\"", e.getMessage());
     }
   }
 
   @Test
-  public void badStringMultiply() throws IOException, ParseException {
-    String pathExpr = "'fred' * 3.0";
-    Context context = parseAndExecute(pathExpr, emptyJson);
+  public void badStringMultiply() throws IOException {
     try {
-      context.executor.getErrorListener().checkForErrors(pathExpr);
+      String pathExpr = "'fred' * 3.0";
+      parseAndExecute(pathExpr);
       Assert.fail();
-    } catch (ParseException e) {
-      Assert.assertEquals("''fred' * 3.0' produced a semantic error: You cannot do arithmetic on a string", e.getMessage());
+    } catch (JsonPathException e) {
+      Assert.assertEquals("''fred' * 3.0' produced a semantic error: You cannot do arithmetic on a string at \"'fred' * 3.0\"", e.getMessage());
     }
   }
 
   @Test
-  public void badStringDivide() throws IOException, ParseException {
-    String pathExpr = "'fred' / 3.0";
-    Context context = parseAndExecute(pathExpr, emptyJson);
+  public void badStringDivide() throws IOException {
     try {
-      context.executor.getErrorListener().checkForErrors(pathExpr);
+      String pathExpr = "'fred' / 3.0";
+      parseAndExecute(pathExpr);
       Assert.fail();
-    } catch (ParseException e) {
-      Assert.assertEquals("''fred' / 3.0' produced a semantic error: You cannot do arithmetic on a string", e.getMessage());
+    } catch (JsonPathException e) {
+      Assert.assertEquals("''fred' / 3.0' produced a semantic error: You cannot do arithmetic on a string at \"'fred' / 3.0\"", e.getMessage());
     }
   }
 
   @Test
-  public void badStringMod() throws IOException, ParseException {
-    String pathExpr = "'fred' % 3.0";
-    Context context = parseAndExecute(pathExpr, emptyJson);
+  public void badStringMod() throws IOException {
     try {
-      context.executor.getErrorListener().checkForErrors(pathExpr);
+      String pathExpr = "'fred' % 3.0";
+      parseAndExecute(pathExpr);
       Assert.fail();
-    } catch (ParseException e) {
-      Assert.assertEquals("''fred' % 3.0' produced a semantic error: You cannot do mod on a string", e.getMessage());
+    } catch (JsonPathException e) {
+      Assert.assertEquals("''fred' % 3.0' produced a semantic error: You cannot do mod on a string at \"'fred' % 3.0\"", e.getMessage());
     }
   }
 
   @Test
-  public void addNull() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("20 + null");
-    Assert.assertTrue(context.val.isNull());
+  public void addNull() throws IOException {
+    try {
+      parseAndExecute("20 + null");
+      Assert.fail();
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'20 + null' produced a semantic error: You cannot do arithmetic on a null at \"20 + null\"", e.getMessage());
+    }
   }
 
   @Test
-  public void subtractNull() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("20.0 - null");
-    Assert.assertTrue(context.val.isNull());
+  public void subtractNull() throws IOException {
+    try {
+      parseAndExecute("20.0 - null");
+      Assert.fail();
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'20.0 - null' produced a semantic error: You cannot do arithmetic on a null at \"20.0 - null\"", e.getMessage());
+    }
   }
 
   @Test
-  public void multiplyNull() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("20 * null");
-    Assert.assertTrue(context.val.isNull());
+  public void multiplyNull() throws IOException {
+    try {
+      parseAndExecute("20 * null");
+      Assert.fail();
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'20 * null' produced a semantic error: You cannot do arithmetic on a null at \"20 * null\"", e.getMessage());
+    }
   }
 
   @Test
-  public void divideNull() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("20 / null");
-    Assert.assertTrue(context.val.isNull());
+  public void divideNull() throws IOException {
+    try {
+      parseAndExecute("20 / null");
+      Assert.fail();
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'20 / null' produced a semantic error: You cannot do arithmetic on a null at \"20 / null\"", e.getMessage());
+    }
   }
 
   @Test
-  public void modNull() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("20 % null");
-    Assert.assertTrue(context.val.isNull());
+  public void modNull() throws IOException {
+    try {
+      parseAndExecute("20 % null");
+      Assert.fail();
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'20 % null' produced a semantic error: You cannot do mod on a null at \"20 % null\"", e.getMessage());
+    }
   }
 
   @Test
-  public void nullAdd() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("null + 20");
-    Assert.assertTrue(context.val.isNull());
+  public void nullAdd() throws IOException {
+    try {
+      parseAndExecute("null + 20");
+      Assert.fail();
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'null + 20' produced a semantic error: You cannot do arithmetic on a null at \"null + 20\"", e.getMessage());
+    }
   }
 
   @Test
-  public void nullSubtract() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("null - 20.0");
-    Assert.assertTrue(context.val.isNull());
+  public void nullSubtract() throws IOException {
+    try {
+      parseAndExecute("null - 20.0");
+      Assert.fail();
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'null - 20.0' produced a semantic error: You cannot do arithmetic on a null at \"null - 20.0\"", e.getMessage());
+    }
   }
 
   @Test
-  public void nullMultiply() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("null * 20");
-    Assert.assertTrue(context.val.isNull());
+  public void nullMultiply() throws IOException {
+    try {
+      parseAndExecute("null * 20");
+      Assert.fail();
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'null * 20' produced a semantic error: You cannot do arithmetic on a null at \"null * 20\"", e.getMessage());
+    }
   }
 
   @Test
-  public void nullDivide() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("null / 20");
-    Assert.assertTrue(context.val.isNull());
+  public void nullDivide() throws IOException {
+    try {
+      parseAndExecute("null / 20");
+      Assert.fail();
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'null / 20' produced a semantic error: You cannot do arithmetic on a null at \"null / 20\"", e.getMessage());
+    }
   }
 
   @Test
-  public void nullMod() throws IOException, ParseException {
-    Context context = parseAdditiveExpr("null % 20");
-    Assert.assertTrue(context.val.isNull());
+  public void nullMod() throws IOException {
+    try {
+      parseAndExecute("null % 20");
+      Assert.fail();
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'null % 20' produced a semantic error: You cannot do mod on a null at \"null % 20\"", e.getMessage());
+    }
   }
 
   @Test
-  public void pathNamedVariable() throws IOException, ParseException {
+  public void pathNamedVariable() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"classes\" : [ \"pe\", \"history\" ] }");
-    Context context = parseAndExecute("$.classes[$i]", json, Collections.singletonMap("i", new JsonSequence(1L)));
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes[$i]", json, Collections.singletonMap("i", new JsonSequence(1L)));
 
     JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : \"history\" }");
-    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
+    Assert.assertEquals(wrappedExpected.asObject().get("k"), pathExecResult.match);
   }
 
   @Test
-  public void pathNamedVariableNoMatchingId() throws IOException, ParseException {
+  public void pathNamedVariableNoMatchingId() throws IOException {
     String pathExpr = "$fred";
-    Context context = parseAndExecute(pathExpr, emptyJson, Collections.singletonMap("bob", new JsonSequence(5L)));
     try {
-      context.executor.getErrorListener().checkForErrors(pathExpr);
+      parseAndExecute(pathExpr, emptyJson, Collections.singletonMap("bob", new JsonSequence(5L)));
       Assert.fail();
-    } catch (ParseException e) {
+    } catch (JsonPathException e) {
       Assert.assertEquals("'" + pathExpr + "' produced a semantic error: Variable fred" +
-          " referenced in path expression but no matching id found in passing clause", e.getMessage());
+          " referenced in path expression but no matching id found in passing clause at \"$ fred\"", e.getMessage());
     }
   }
 
   @Test
-  public void pathNamedVariableNullPassing() throws IOException, ParseException {
+  public void pathNamedVariableNullPassing() throws IOException {
     String pathExpr = "$fred";
-    Context context = parseAndExecute(pathExpr, emptyJson);
     try {
-      context.executor.getErrorListener().checkForErrors(pathExpr);
+      parseAndExecute(pathExpr, emptyJson);
       Assert.fail();
-    } catch (ParseException e) {
+    } catch (JsonPathException e) {
       Assert.assertEquals("'" + pathExpr + "' produced a semantic error: Variable fred" +
-          " referenced in path expression but no matching id found in passing clause", e.getMessage());
+          " referenced in path expression but no matching id found in passing clause at \"$ fred\"", e.getMessage());
     }
   }
 
   @Test
-  public void pathNamedVariableEmptyPassing() throws IOException, ParseException {
+  public void pathNamedVariableEmptyPassing() throws IOException {
     String pathExpr = "$fred";
-    Context context = parseAndExecute(pathExpr, emptyJson, Collections.emptyMap());
     try {
-      context.executor.getErrorListener().checkForErrors(pathExpr);
+      parseAndExecute(pathExpr, emptyJson, Collections.emptyMap());
       Assert.fail();
-    } catch (ParseException e) {
+    } catch (JsonPathException e) {
       Assert.assertEquals("'" + pathExpr + "' produced a semantic error: Variable fred" +
-          " referenced in path expression but no matching id found in passing clause", e.getMessage());
+          " referenced in path expression but no matching id found in passing clause at \"$ fred\"", e.getMessage());
     }
   }
 
   @Test
-  public void fullMatch() throws IOException, ParseException {
+  public void fullMatch() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(" { \"name\" : \"fred\" }");
-    Context context = parseAndExecute("$", json);
-    Assert.assertEquals(json, context.val);
+    PathExecutionResult pathExecResult = parseAndExecute("$", json);
+    Assert.assertEquals(json, pathExecResult.match);
   }
 
   @Test
-  public void matchKeyString() throws IOException, ParseException {
+  public void matchKeyString() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(" { \"name\" : \"fred\" }");
-    Context context = parseAndExecute("$.name", json);
-    Assert.assertTrue(context.val.isString());
-    Assert.assertEquals("fred", context.val.asString());
+    PathExecutionResult pathExecResult = parseAndExecute("$.name", json);
+    Assert.assertTrue(pathExecResult.match.isString());
+    Assert.assertEquals("fred", pathExecResult.match.asString());
   }
 
   @Test
-  public void matchKeyLong() throws IOException, ParseException {
+  public void matchKeyLong() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(" { \"name\" : \"fred\", \"age\" : 35 }");
-    Context context = parseAndExecute("$.age", json);
-    Assert.assertTrue(context.val.isLong());
-    Assert.assertEquals(35, context.val.asLong());
+    PathExecutionResult pathExecResult = parseAndExecute("$.age", json);
+    Assert.assertTrue(pathExecResult.match.isLong());
+    Assert.assertEquals(35, pathExecResult.match.asLong());
   }
 
   @Test
-  public void matchKeyDouble() throws IOException, ParseException {
+  public void matchKeyDouble() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(" { \"name\" : \"fred\", \"gpa\" : 2.73 }");
-    Context context = parseAndExecute("$.gpa", json);
-    Assert.assertTrue(context.val.isDouble());
-    Assert.assertEquals(2.73, context.val.asDouble(), 0.001);
+    PathExecutionResult pathExecResult = parseAndExecute("$.gpa", json);
+    Assert.assertTrue(pathExecResult.match.isDouble());
+    Assert.assertEquals(2.73, pathExecResult.match.asDouble(), 0.001);
   }
 
   @Test
-  public void matchKeyBool() throws IOException, ParseException {
+  public void matchKeyBool() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(" { \"name\" : \"fred\", \"honor roll\" : false }");
-    Context context = parseAndExecute("$.\"honor roll\"", json);
-    Assert.assertTrue(context.val.isBool());
-    Assert.assertFalse(context.val.asBool());
+    PathExecutionResult pathExecResult = parseAndExecute("$.\"honor roll\"", json);
+    Assert.assertTrue(pathExecResult.match.isBool());
+    Assert.assertFalse(pathExecResult.match.asBool());
   }
 
   @Test
-  public void matchKeyNull() throws IOException, ParseException {
+  public void matchKeyNull() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(" { \"name\" : \"fred\", \"sports\" : null }");
-    Context context = parseAndExecute("$.sports", json);
-    Assert.assertTrue(context.val.isNull());
+    PathExecutionResult pathExecResult = parseAndExecute("$.sports", json);
+    Assert.assertTrue(pathExecResult.match.isNull());
   }
 
   @Test
-  public void matchKeyQuotes() throws IOException, ParseException {
+  public void matchKeyQuotes() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(" { \"name\" : \"fred\" }");
-    Context context = parseAndExecute("$.\"name\"", json);
-    Assert.assertTrue(context.val.isString());
-    Assert.assertEquals("fred", context.val.asString());
+    PathExecutionResult pathExecResult = parseAndExecute("$.\"name\"", json);
+    Assert.assertTrue(pathExecResult.match.isString());
+    Assert.assertEquals("fred", pathExecResult.match.asString());
   }
 
   @Test
-  public void noMatchKey() throws IOException, ParseException {
+  public void noMatchKey() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(" { \"name\" : \"fred\" }");
-    Context context = parseAndExecute("$.address", json);
-    Assert.assertTrue(context.val.isEmpty());
+    PathExecutionResult pathExecResult = parseAndExecute("$.address", json);
+    Assert.assertTrue(pathExecResult.match.isEmpty());
   }
 
   @Test
-  public void noMatchKeyQuotes() throws IOException, ParseException {
+  public void noMatchKeyQuotes() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(" { \"name\" : \"fred\" }");
-    Context context = parseAndExecute("$.\"address\"", json);
-    Assert.assertTrue(context.val.isEmpty());
+    PathExecutionResult pathExecResult = parseAndExecute("$.\"address\"", json);
+    Assert.assertTrue(pathExecResult.match.isEmpty());
   }
 
   @Test
-  public void objectWildcard() throws IOException, ParseException {
+  public void objectWildcard() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(" { \"name\" : \"fred\", \"age\" : 35 }");
     JsonSequence expected = new JsonSequence(json);
-    Context context = parseAndExecute("$.*", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.*", json);
 
 
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void objectWildcardEmpty() throws IOException, ParseException {
-    Context context = parseAndExecute("$.*", emptyJson);
-    Assert.assertEquals(emptyJson, context.val);
+  public void objectWildcardEmpty() throws IOException, JsonPathException {
+    PathExecutionResult pathExecResult = parseAndExecute("$.*", emptyJson);
+    Assert.assertEquals(emptyJson, pathExecResult.match);
   }
 
   @Test
-  public void simpleSubscriptList() throws IOException, ParseException {
+  public void simpleSubscriptList() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"classes\" : [ \"science\", \"art\" ] }");
-    Context context = parseAndExecute("$.classes[0]", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes[0]", json);
 
     JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : \"science\" }");
-    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
+    Assert.assertEquals(wrappedExpected.asObject().get("k"), pathExecResult.match);
   }
 
   @Test
-  public void simpleSubscriptObject() throws IOException, ParseException {
+  public void simpleSubscriptObject() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\" ]," +
         "\"sports\"  : [ \"swimming\", \"baseball\" ] }");
-    Context context = parseAndExecute("$.*[1]", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.*[1]", json);
 
     JsonSequence expected = valueParser.parse(" { \"classes\" : \"art\", \"sports\" : \"baseball\" }");
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void lastSubscriptList() throws IOException, ParseException {
+  public void lastSubscriptList() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"classes\" : [ \"science\", \"art\" ] }");
-    Context context = parseAndExecute("$.classes[last]", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes[last]", json);
 
     JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : \"art\" }");
-    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
+    Assert.assertEquals(wrappedExpected.asObject().get("k"), pathExecResult.match);
   }
 
   @Test
-  public void lastSubscriptObject() throws IOException, ParseException {
+  public void lastSubscriptObject() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\" ]," +
         "\"sports\"  : [ \"swimming\", \"baseball\" ] }");
-    Context context = parseAndExecute("$.*[last]", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.*[last]", json);
 
     JsonSequence expected = valueParser.parse(" { \"classes\" : \"art\", \"sports\" : \"baseball\" }");
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void toSubscriptList() throws IOException, ParseException {
+  public void toSubscriptList() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ] }");
-    Context context = parseAndExecute("$.classes[1 to 3]", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes[1 to 3]", json);
 
     JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : [ \"art\", \"math\", \"history\" ] }");
-    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
+    Assert.assertEquals(wrappedExpected.asObject().get("k"), pathExecResult.match);
   }
 
   @Test
-  public void toSubscriptObject() throws IOException, ParseException {
+  public void toSubscriptObject() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ]," +
         "\"sports\"  : [ \"swimming\", \"baseball\", \"volleyball\", \"soccer\" ] }");
-    Context context = parseAndExecute("$.*[1 to 3]", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.*[1 to 3]", json);
 
     JsonSequence expected = valueParser.parse(" { \"classes\" : [ \"art\", \"math\", \"history\"]," +
                                                  "\"sports\" : [ \"baseball\", \"volleyball\", \"soccer\" ] }");
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void toLastSubscriptList() throws IOException, ParseException {
+  public void toLastSubscriptList() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ] }");
-    Context context = parseAndExecute("$.classes[1 to last]", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes[1 to last]", json);
 
     JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : [ \"art\", \"math\", \"history\", \"writing\" ] }");
-    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
+    Assert.assertEquals(wrappedExpected.asObject().get("k"), pathExecResult.match);
   }
 
   @Test
-  public void toLastSubscriptObject() throws IOException, ParseException {
+  public void toLastSubscriptObject() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ]," +
         "\"sports\"  : [ \"swimming\", \"baseball\", \"volleyball\", \"soccer\" ] }");
-    Context context = parseAndExecute("$.*[1 to last]", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.*[1 to last]", json);
 
     JsonSequence expected = valueParser.parse(" { \"classes\" : [ \"art\", \"math\", \"history\", \"writing\"]," +
         "                                         \"sports\" : [ \"baseball\", \"volleyball\", \"soccer\" ] }");
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void notAnArraySubscriptList() throws IOException, ParseException {
+  public void notAnArraySubscriptList() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"classes\" : [ \"science\", \"art\" ] }");
-    Context context = parseAndExecute("$.name[0]", json);
-    Assert.assertTrue(context.val.isEmpty());
+    PathExecutionResult pathExecResult = parseAndExecute("$.name[0]", json);
+    Assert.assertTrue(pathExecResult.match.isEmpty());
   }
 
   @Test
-  public void notAnArraySubscriptObject() throws IOException, ParseException {
+  public void notAnArraySubscriptObject() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\" }");
-    Context context = parseAndExecute("$.*[1]", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.*[1]", json);
 
-    Assert.assertEquals(emptyJson, context.val);
+    Assert.assertEquals(emptyJson, pathExecResult.match);
   }
 
   @Test
-  public void offEndSubscriptList() throws IOException, ParseException {
+  public void offEndSubscriptList() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"classes\" : [ \"science\", \"art\" ] }");
-    Context context = parseAndExecute("$.classes[3]", json);
-    Assert.assertTrue(context.val.isEmpty());
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes[3]", json);
+    Assert.assertTrue(pathExecResult.match.isEmpty());
   }
 
   @Test
-  public void offEndSubscriptObject() throws IOException, ParseException {
+  public void offEndSubscriptObject() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\" ]," +
         "\"sports\"  : [ \"swimming\", \"baseball\", \"soccer\" ] }");
-    Context context = parseAndExecute("$.*[2]", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.*[2]", json);
 
     JsonSequence expected = valueParser.parse(" { \"sports\" : \"soccer\" }");
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void toOffEndSubscriptList() throws IOException, ParseException {
+  public void toOffEndSubscriptList() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ] }");
-    Context context = parseAndExecute("$.classes[3 to 5]", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes[3 to 5]", json);
 
     JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : [ \"history\", \"writing\" ] }");
-    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
+    Assert.assertEquals(wrappedExpected.asObject().get("k"), pathExecResult.match);
   }
 
   @Test
-  public void toOffEndSubscriptObject() throws IOException, ParseException {
+  public void toOffEndSubscriptObject() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ]," +
         "\"sports\"  : [ \"swimming\", \"baseball\", \"volleyball\", \"soccer\" ] }");
-    Context context = parseAndExecute("$.*[3 to 5]", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.*[3 to 5]", json);
 
     JsonSequence expected = valueParser.parse(" { \"classes\" : [ \"history\", \"writing\"], \"sports\" : [ \"soccer\" ] }");
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void listSubscriptList() throws IOException, ParseException {
+  public void listSubscriptList() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ] }");
-    Context context = parseAndExecute("$.classes[1, 4]", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes[1, 4]", json);
 
     JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : [ \"art\", \"writing\" ] }");
-    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
+    Assert.assertEquals(wrappedExpected.asObject().get("k"), pathExecResult.match);
   }
 
   @Test
-  public void listSubscriptObject() throws IOException, ParseException {
+  public void listSubscriptObject() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ]," +
         "\"sports\"  : [ \"swimming\", \"baseball\", \"volleyball\", \"soccer\" ] }");
-    Context context = parseAndExecute("$.*[1, 4]", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.*[1, 4]", json);
 
     JsonSequence expected = valueParser.parse(" { \"classes\" : [ \"art\", \"writing\"], \"sports\" : [ \"baseball\" ] }");
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void listAndToSubscriptList() throws IOException, ParseException {
+  public void listAndToSubscriptList() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ] }");
-    Context context = parseAndExecute("$.classes[0, 3 to 5]", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes[0, 3 to 5]", json);
 
     JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : [ \"science\", \"history\", \"writing\" ] }");
-    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
+    Assert.assertEquals(wrappedExpected.asObject().get("k"), pathExecResult.match);
   }
 
   @Test
-  public void listAndToSubscriptObject() throws IOException, ParseException {
+  public void listAndToSubscriptObject() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ]," +
         "\"sports\"  : [ \"swimming\", \"baseball\", \"volleyball\", \"soccer\" ] }");
-    Context context = parseAndExecute("$.*[0, 2 to last]", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.*[0, 2 to last]", json);
 
     JsonSequence expected = valueParser.parse(" { \"classes\" : [ \"science\", \"math\", \"history\", \"writing\"]," +
         "                                         \"sports\" : [ \"swimming\", \"volleyball\", \"soccer\" ] }");
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void arithmeticSubscriptList() throws IOException, ParseException {
+  public void arithmeticSubscriptList() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\", \"history\", \"writing\" ] }");
-    Context context = parseAndExecute("$.classes[1 + 1]", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes[1 + 1]", json);
 
     JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : \"math\" }");
-    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
+    Assert.assertEquals(wrappedExpected.asObject().get("k"), pathExecResult.match);
   }
 
   @Test
-  public void wildcardSubscriptList() throws IOException, ParseException {
+  public void wildcardSubscriptList() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\" ] }");
-    Context context = parseAndExecute("$.classes[*]", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes[*]", json);
 
     JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : [ \"science\", \"art\", \"math\" ] }");
-    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
+    Assert.assertEquals(wrappedExpected.asObject().get("k"), pathExecResult.match);
   }
 
   @Test
-  public void wildcardSubscriptObject() throws IOException, ParseException {
+  public void wildcardSubscriptObject() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\"," +
         "\"classes\" : [ \"science\", \"art\", \"math\" ]," +
         "\"sports\"  : [ \"swimming\", \"baseball\" ] }");
-    Context context = parseAndExecute("$.*[*]", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.*[*]", json);
 
     JsonSequence expected = valueParser.parse(" { \"classes\" : [ \"science\", \"art\", \"math\"]," +
         "                                         \"sports\" : [ \"swimming\", \"baseball\" ] }");
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void typeLong() throws IOException, ParseException {
+  public void typeLong() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"age\" : 35 }");
-    Context context = parseAndExecute("$.age.type()", json);
-    Assert.assertTrue(context.val.isString());
-    Assert.assertEquals("number", context.val.asString());
+    PathExecutionResult pathExecResult = parseAndExecute("$.age.type()", json);
+    Assert.assertTrue(pathExecResult.match.isString());
+    Assert.assertEquals("number", pathExecResult.match.asString());
   }
 
   @Test
-  public void typeDouble() throws IOException, ParseException {
+  public void typeDouble() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : 3.58 }");
-    Context context = parseAndExecute("$.gpa.type()", json);
-    Assert.assertTrue(context.val.isString());
-    Assert.assertEquals("number", context.val.asString());
+    PathExecutionResult pathExecResult = parseAndExecute("$.gpa.type()", json);
+    Assert.assertTrue(pathExecResult.match.isString());
+    Assert.assertEquals("number", pathExecResult.match.asString());
   }
 
   @Test
-  public void typeString() throws IOException, ParseException {
+  public void typeString() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : 3.58 }");
-    Context context = parseAndExecute("$.name.type()", json);
-    Assert.assertTrue(context.val.isString());
-    Assert.assertEquals("string", context.val.asString());
+    PathExecutionResult pathExecResult = parseAndExecute("$.name.type()", json);
+    Assert.assertTrue(pathExecResult.match.isString());
+    Assert.assertEquals("string", pathExecResult.match.asString());
   }
 
   @Test
-  public void typeNull() throws IOException, ParseException {
+  public void typeNull() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"age\" : 35, \"sports\" : null }");
-    Context context = parseAndExecute("$.sports.type()", json);
-    Assert.assertTrue(context.val.isString());
-    Assert.assertEquals("null", context.val.asString());
+    PathExecutionResult pathExecResult = parseAndExecute("$.sports.type()", json);
+    Assert.assertTrue(pathExecResult.match.isString());
+    Assert.assertEquals("null", pathExecResult.match.asString());
   }
 
   @Test
-  public void typeBoolean() throws IOException, ParseException {
+  public void typeBoolean() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"age\" : 35, \"honor roll\" : true }");
-    Context context = parseAndExecute("$.\'honor roll\'.type()", json);
-    Assert.assertTrue(context.val.isString());
-    Assert.assertEquals("boolean", context.val.asString());
+    PathExecutionResult pathExecResult = parseAndExecute("$.\'honor roll\'.type()", json);
+    Assert.assertTrue(pathExecResult.match.isString());
+    Assert.assertEquals("boolean", pathExecResult.match.asString());
   }
 
   @Test
-  public void typeList() throws IOException, ParseException {
+  public void typeList() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"classes\" : [ \"art\", \"math\" ] }");
-    Context context = parseAndExecute("$.classes.type()", json);
-    Assert.assertTrue(context.val.isString());
-    Assert.assertEquals("array", context.val.asString());
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes.type()", json);
+    Assert.assertTrue(pathExecResult.match.isString());
+    Assert.assertEquals("array", pathExecResult.match.asString());
   }
 
   @Test
-  public void typeObject() throws IOException, ParseException {
+  public void typeObject() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"address\" : { \"street\" : \"123 main\", \"city\" : \"phoenix\" } }");
-    Context context = parseAndExecute("$.address.type()", json);
-    Assert.assertTrue(context.val.isString());
-    Assert.assertEquals("object", context.val.asString());
+    PathExecutionResult pathExecResult = parseAndExecute("$.address.type()", json);
+    Assert.assertTrue(pathExecResult.match.isString());
+    Assert.assertEquals("object", pathExecResult.match.asString());
   }
 
   @Test
-  public void typeEmpty() throws IOException, ParseException {
+  public void typeEmpty() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"age\" : 35 }");
-    Context context = parseAndExecute("$.gpa.type()", json);
-    Assert.assertTrue(context.val.isEmpty());
+    PathExecutionResult pathExecResult = parseAndExecute("$.gpa.type()", json);
+    Assert.assertTrue(pathExecResult.match.isEmpty());
   }
 
   @Test
-  public void sizeScalar() throws IOException, ParseException {
+  public void sizeScalar() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"age\" : 35, \"honor roll\" : true }");
-    Context context = parseAndExecute("$.\'honor roll\'.size()", json);
-    Assert.assertTrue(context.val.isLong());
-    Assert.assertEquals(1, context.val.asLong());
+    PathExecutionResult pathExecResult = parseAndExecute("$.\'honor roll\'.size()", json);
+    Assert.assertTrue(pathExecResult.match.isLong());
+    Assert.assertEquals(1, pathExecResult.match.asLong());
   }
 
   @Test
-  public void sizeList() throws IOException, ParseException {
+  public void sizeList() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"classes\" : [ \"art\", \"math\" ] }");
-    Context context = parseAndExecute("$.classes.size()", json);
-    Assert.assertTrue(context.val.isLong());
-    Assert.assertEquals(2, context.val.asLong());
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes.size()", json);
+    Assert.assertTrue(pathExecResult.match.isLong());
+    Assert.assertEquals(2, pathExecResult.match.asLong());
   }
 
   @Test
-  public void sizeObject() throws IOException, ParseException {
+  public void sizeObject() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"address\" : { \"street\" : \"123 main\", \"city\" : \"phoenix\" } }");
-    Context context = parseAndExecute("$.address.size()", json);
-    Assert.assertTrue(context.val.isLong());
-    Assert.assertEquals(2, context.val.asLong());
+    PathExecutionResult pathExecResult = parseAndExecute("$.address.size()", json);
+    Assert.assertTrue(pathExecResult.match.isLong());
+    Assert.assertEquals(2, pathExecResult.match.asLong());
   }
 
   @Test
-  public void sizeEmpty() throws IOException, ParseException {
+  public void sizeEmpty() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"age\" : 35 }");
-    Context context = parseAndExecute("$.gpa.size()", json);
-    Assert.assertTrue(context.val.isEmpty());
+    PathExecutionResult pathExecResult = parseAndExecute("$.gpa.size()", json);
+    Assert.assertTrue(pathExecResult.match.isEmpty());
   }
 
   @Test
-  public void doubleLong() throws IOException, ParseException {
+  public void doubleLong() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"age\" : 35 }");
-    Context context = parseAndExecute("$.age.double()", json);
-    Assert.assertTrue(context.val.isDouble());
-    Assert.assertEquals(35.0, context.val.asDouble(), 0.001);
+    PathExecutionResult pathExecResult = parseAndExecute("$.age.double()", json);
+    Assert.assertTrue(pathExecResult.match.isDouble());
+    Assert.assertEquals(35.0, pathExecResult.match.asDouble(), 0.001);
   }
 
   @Test
-  public void doubleDouble() throws IOException, ParseException {
+  public void doubleDouble() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : 3.58 }");
-    Context context = parseAndExecute("$.gpa.double()", json);
-    Assert.assertTrue(context.val.isDouble());
-    Assert.assertEquals(3.58, context.val.asDouble(), 0.001);
+    PathExecutionResult pathExecResult = parseAndExecute("$.gpa.double()", json);
+    Assert.assertTrue(pathExecResult.match.isDouble());
+    Assert.assertEquals(3.58, pathExecResult.match.asDouble(), 0.001);
   }
 
   @Test
-  public void doubleString() throws IOException, ParseException {
+  public void doubleString() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : \"3.58\" }");
-    Context context = parseAndExecute("$.gpa.double()", json);
-    Assert.assertTrue(context.val.isDouble());
-    Assert.assertEquals(3.58, context.val.asDouble(), 0.001);
+    PathExecutionResult pathExecResult = parseAndExecute("$.gpa.double()", json);
+    Assert.assertTrue(pathExecResult.match.isDouble());
+    Assert.assertEquals(3.58, pathExecResult.match.asDouble(), 0.001);
   }
 
   @Test
-  public void doubleNotStringOrNumeric() throws IOException, ParseException {
-    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"honor roll\" : true }");
-    Context context = parseAndExecute("$.\"honor roll\".double()", json);
+  public void doubleNotStringOrNumeric() throws IOException {
     try {
-      context.errorListener.checkForErrors("$.\"honor roll\".double()");
+      JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"honor roll\" : true }");
+      parseAndExecute("$.\"honor roll\".double()", json);
       Assert.fail();
-    } catch (ParseException e) {
+    } catch (JsonPathException e) {
       Assert.assertEquals("'$.\"honor roll\".double()' produced a runtime error: Double method" +
-          " requires numeric or string argument, passed a bool", e.getMessage());
+          " requires numeric or string argument, passed a bool at \"double ( )\"", e.getMessage());
 
     }
   }
 
   @Test
-  public void doubleEmpty() throws IOException, ParseException {
+  public void doubleEmpty() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : 3.58 }");
-    Context context = parseAndExecute("$.sports.double()", json);
-    Assert.assertTrue(context.val.isEmpty());
+    PathExecutionResult pathExecResult = parseAndExecute("$.sports.double()", json);
+    Assert.assertTrue(pathExecResult.match.isEmpty());
   }
 
   @Test
-  public void intLong() throws IOException, ParseException {
+  public void intLong() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"age\" : 35 }");
-    Context context = parseAndExecute("$.age.integer()", json);
-    Assert.assertTrue(context.val.isLong());
-    Assert.assertEquals(35, context.val.asLong());
+    PathExecutionResult pathExecResult = parseAndExecute("$.age.integer()", json);
+    Assert.assertTrue(pathExecResult.match.isLong());
+    Assert.assertEquals(35, pathExecResult.match.asLong());
   }
 
   @Test
-  public void intDouble() throws IOException, ParseException {
+  public void intDouble() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : 3.58 }");
-    Context context = parseAndExecute("$.gpa.integer()", json);
-    Assert.assertTrue(context.val.isLong());
-    Assert.assertEquals(3, context.val.asLong());
+    PathExecutionResult pathExecResult = parseAndExecute("$.gpa.integer()", json);
+    Assert.assertTrue(pathExecResult.match.isLong());
+    Assert.assertEquals(3, pathExecResult.match.asLong());
   }
 
   @Test
-  public void intString() throws IOException, ParseException {
+  public void intString() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"age\" : \"35\" }");
-    Context context = parseAndExecute("$.age.integer()", json);
-    Assert.assertTrue(context.val.isLong());
-    Assert.assertEquals(35, context.val.asLong());
+    PathExecutionResult pathExecResult = parseAndExecute("$.age.integer()", json);
+    Assert.assertTrue(pathExecResult.match.isLong());
+    Assert.assertEquals(35, pathExecResult.match.asLong());
   }
 
   @Test
-  public void intNotStringOrNumeric() throws IOException, ParseException {
-    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"honor roll\" : true }");
-    Context context = parseAndExecute("$.\"honor roll\".integer()", json);
+  public void intNotStringOrNumeric() throws IOException {
     try {
-      context.errorListener.checkForErrors("$.\"honor roll\".integer()");
+      JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"honor roll\" : true }");
+      parseAndExecute("$.\"honor roll\".integer()", json);
       Assert.fail();
-    } catch (ParseException e) {
+    } catch (JsonPathException e) {
       Assert.assertEquals("'$.\"honor roll\".integer()' produced a runtime error: Integer method" +
-          " requires numeric or string argument, passed a bool", e.getMessage());
+          " requires numeric or string argument, passed a bool at \"integer ( )\"", e.getMessage());
 
     }
   }
 
   @Test
-  public void intEmpty() throws IOException, ParseException {
+  public void intEmpty() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : 3.58 }");
-    Context context = parseAndExecute("$.sports.integer()", json);
-    Assert.assertTrue(context.val.isEmpty());
+    PathExecutionResult pathExecResult = parseAndExecute("$.sports.integer()", json);
+    Assert.assertTrue(pathExecResult.match.isEmpty());
   }
 
   @Test
-  public void ceilingLong() throws IOException, ParseException {
+  public void ceilingLong() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"age\" : 35 }");
-    Context context = parseAndExecute("$.age.ceiling()", json);
-    Assert.assertTrue(context.val.isLong());
-    Assert.assertEquals(35, context.val.asLong());
+    PathExecutionResult pathExecResult = parseAndExecute("$.age.ceiling()", json);
+    Assert.assertTrue(pathExecResult.match.isLong());
+    Assert.assertEquals(35, pathExecResult.match.asLong());
   }
 
   @Test
-  public void ceilingDouble() throws IOException, ParseException {
+  public void ceilingDouble() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : 3.58 }");
-    Context context = parseAndExecute("$.gpa.ceiling()", json);
-    Assert.assertTrue(context.val.isLong());
-    Assert.assertEquals(4, context.val.asLong());
+    PathExecutionResult pathExecResult = parseAndExecute("$.gpa.ceiling()", json);
+    Assert.assertTrue(pathExecResult.match.isLong());
+    Assert.assertEquals(4, pathExecResult.match.asLong());
   }
 
   @Test
-  public void ceilingNotNumeric() throws IOException, ParseException {
-    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"honor roll\" : true }");
-    Context context = parseAndExecute("$.name.ceiling()", json);
+  public void ceilingNotNumeric() throws IOException {
     try {
-      context.errorListener.checkForErrors("$.name.ceiling()");
+      JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"honor roll\" : true }");
+      parseAndExecute("$.name.ceiling()", json);
       Assert.fail();
-    } catch (ParseException e) {
+    } catch (JsonPathException e) {
       Assert.assertEquals("'$.name.ceiling()' produced a runtime error: Ceiling method" +
-          " requires numeric argument, passed a string", e.getMessage());
+          " requires numeric argument, passed a string at \"ceiling ( )\"", e.getMessage());
 
     }
   }
 
   @Test
-  public void ceilingEmpty() throws IOException, ParseException {
+  public void ceilingEmpty() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : 3.58 }");
-    Context context = parseAndExecute("$.sports.ceiling()", json);
-    Assert.assertTrue(context.val.isEmpty());
+    PathExecutionResult pathExecResult = parseAndExecute("$.sports.ceiling()", json);
+    Assert.assertTrue(pathExecResult.match.isEmpty());
   }
 
   @Test
-  public void floorLong() throws IOException, ParseException {
+  public void floorLong() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"age\" : 35 }");
-    Context context = parseAndExecute("$.age.floor()", json);
-    Assert.assertTrue(context.val.isLong());
-    Assert.assertEquals(35, context.val.asLong());
+    PathExecutionResult pathExecResult = parseAndExecute("$.age.floor()", json);
+    Assert.assertTrue(pathExecResult.match.isLong());
+    Assert.assertEquals(35, pathExecResult.match.asLong());
   }
 
   @Test
-  public void floorDouble() throws IOException, ParseException {
+  public void floorDouble() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : 3.58 }");
-    Context context = parseAndExecute("$.gpa.floor()", json);
-    Assert.assertTrue(context.val.isLong());
-    Assert.assertEquals(3, context.val.asLong());
+    PathExecutionResult pathExecResult = parseAndExecute("$.gpa.floor()", json);
+    Assert.assertTrue(pathExecResult.match.isLong());
+    Assert.assertEquals(3, pathExecResult.match.asLong());
   }
 
   @Test
-  public void floorNotNumeric() throws IOException, ParseException {
-    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"honor roll\" : true }");
-    Context context = parseAndExecute("$.name.floor()", json);
+  public void floorNotNumeric() throws IOException {
     try {
-      context.errorListener.checkForErrors("$.name.floor()");
+      JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"honor roll\" : true }");
+      parseAndExecute("$.name.floor()", json);
       Assert.fail();
-    } catch (ParseException e) {
+    } catch (JsonPathException e) {
       Assert.assertEquals("'$.name.floor()' produced a runtime error: Floor method" +
-          " requires numeric argument, passed a string", e.getMessage());
+          " requires numeric argument, passed a string at \"floor ( )\"", e.getMessage());
 
     }
   }
 
   @Test
-  public void floorEmpty() throws IOException, ParseException {
+  public void floorEmpty() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : 3.58 }");
-    Context context = parseAndExecute("$.sports.floor()", json);
-    Assert.assertTrue(context.val.isEmpty());
+    PathExecutionResult pathExecResult = parseAndExecute("$.sports.floor()", json);
+    Assert.assertTrue(pathExecResult.match.isEmpty());
   }
 
   @Test
-  public void absLong() throws IOException, ParseException {
+  public void absLong() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"age\" : 35 }");
-    Context context = parseAndExecute("$.age.abs()", json);
-    Assert.assertTrue(context.val.isLong());
-    Assert.assertEquals(35, context.val.asLong());
+    PathExecutionResult pathExecResult = parseAndExecute("$.age.abs()", json);
+    Assert.assertTrue(pathExecResult.match.isLong());
+    Assert.assertEquals(35, pathExecResult.match.asLong());
   }
 
   @Test
-  public void absDouble() throws IOException, ParseException {
+  public void absDouble() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : -3.58 }");
-    Context context = parseAndExecute("$.gpa.abs()", json);
-    Assert.assertTrue(context.val.isDouble());
-    Assert.assertEquals(3.58, context.val.asDouble(), 0.001);
+    PathExecutionResult pathExecResult = parseAndExecute("$.gpa.abs()", json);
+    Assert.assertTrue(pathExecResult.match.isDouble());
+    Assert.assertEquals(3.58, pathExecResult.match.asDouble(), 0.001);
   }
 
   @Test
-  public void absNotNumeric() throws IOException, ParseException {
-    JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"honor roll\" : true }");
-    Context context = parseAndExecute("$.name.abs()", json);
+  public void absNotNumeric() throws IOException {
     try {
-      context.errorListener.checkForErrors("$.name.abs()");
+      JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"honor roll\" : true }");
+      parseAndExecute("$.name.abs()", json);
       Assert.fail();
-    } catch (ParseException e) {
+    } catch (JsonPathException e) {
       Assert.assertEquals("'$.name.abs()' produced a runtime error: Abs method" +
-          " requires numeric argument, passed a string", e.getMessage());
+          " requires numeric argument, passed a string at \"abs ( )\"", e.getMessage());
 
     }
   }
 
   @Test
-  public void absEmpty() throws IOException, ParseException {
+  public void absEmpty() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse("{ \"name\" : \"fred\", \"gpa\" : 3.58 }");
-    Context context = parseAndExecute("$.sports.abs()", json);
-    Assert.assertTrue(context.val.isEmpty());
+    PathExecutionResult pathExecResult = parseAndExecute("$.sports.abs()", json);
+    Assert.assertTrue(pathExecResult.match.isEmpty());
   }
 
   @Test
-  public void bigHarryDeepThing() throws IOException, ParseException {
+  public void bigHarryDeepThing() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(
         "{" +
         "  \"name\" : \"fred\"," +
@@ -1103,14 +1126,14 @@ public class TestPathExecutor {
     Map<String, JsonSequence> passing = new HashMap<>();
     passing.put("class", new JsonSequence(0));
     passing.put("text", new JsonSequence(1));
-    Context context = parseAndExecute("$.classes[$class].texts[$text].author", json, passing);
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes[$class].texts[$text].author", json, passing);
 
     JsonSequence wrappedExpected = valueParser.parse(" { \"k\" : \"c. darwin\" }");
-    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
+    Assert.assertEquals(wrappedExpected.asObject().get("k"), pathExecResult.match);
   }
 
   @Test
-  public void bigHarryDeepMultiThing() throws IOException, ParseException {
+  public void bigHarryDeepMultiThing() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(
         "{" +
             "  \"name\" : \"fred\"," +
@@ -1136,14 +1159,14 @@ public class TestPathExecutor {
     Map<String, JsonSequence> passing = new HashMap<>();
     passing.put("class", new JsonSequence(0));
     passing.put("text", new JsonSequence(1));
-    Context context = parseAndExecute("$.classes[$class].texts[*].author", json, passing);
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes[$class].texts[*].author", json, passing);
 
     JsonSequence wrappedExpected = valueParser.parse("{ \"k\" : [ \"i. newton\", \"c. darwin\" ] }");
-    Assert.assertEquals(wrappedExpected.asObject().get("k"), context.val);
+    Assert.assertEquals(wrappedExpected.asObject().get("k"), pathExecResult.match);
   }
 
   @Test
-  public void filterExists() throws IOException, ParseException {
+  public void filterExists() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(
         "{" +
             "\"name\" : \"fred\"," +
@@ -1153,7 +1176,7 @@ public class TestPathExecutor {
                 "\"zip\"    : 12345" +
             "}" +
         "}");
-    Context context = parseAndExecute("$.address?(exists(@.city))", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.address?(exists(@.city))", json);
 
     JsonSequence expected = valueParser.parse(
         "{" +
@@ -1161,11 +1184,11 @@ public class TestPathExecutor {
             "\"city\"   : \"Springfield\"," +
             "\"zip\"    : 12345" +
         "}");
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterListExists() throws IOException, ParseException {
+  public void filterListExists() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(
         "{" +
           "\"classes\" : [" +
@@ -1194,13 +1217,13 @@ public class TestPathExecutor {
             "]" +
         "}");
 
-    Context context = parseAndExecute("$.classes[*]?(exists(@.prerequisites))", json);
-    Assert.assertEquals(expected.asObject().get("bogus"), context.val);
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes[*]?(exists(@.prerequisites))", json);
+    Assert.assertEquals(expected.asObject().get("bogus"), pathExecResult.match);
 
   }
 
   @Test
-  public void filterNonExistent() throws IOException, ParseException {
+  public void filterNonExistent() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(
         "{" +
             "\"name\" : \"fred\"," +
@@ -1210,12 +1233,12 @@ public class TestPathExecutor {
             "\"zip\"    : 12345" +
             "}" +
             "}");
-    Context context = parseAndExecute("$.address?(exists(@.state))", json);
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    PathExecutionResult pathExecResult = parseAndExecute("$.address?(exists(@.state))", json);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterNotExists() throws IOException, ParseException {
+  public void filterNotExists() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(
         "{" +
             "\"name\" : \"fred\"," +
@@ -1225,7 +1248,7 @@ public class TestPathExecutor {
             "\"zip\"    : 12345" +
             "}" +
             "}");
-    Context context = parseAndExecute("$.address?(!exists(@.state))", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.address?(!exists(@.state))", json);
 
     JsonSequence expected = valueParser.parse(
         "{" +
@@ -1233,11 +1256,11 @@ public class TestPathExecutor {
             "\"city\"   : \"Springfield\"," +
             "\"zip\"    : 12345" +
             "}");
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterAndTrue() throws IOException, ParseException {
+  public void filterAndTrue() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(
         "{" +
             "\"name\" : \"fred\"," +
@@ -1247,7 +1270,7 @@ public class TestPathExecutor {
             "\"zip\"    : 12345" +
             "}" +
             "}");
-    Context context = parseAndExecute("$.address?(exists(@.city) && exists(@.zip))", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.address?(exists(@.city) && exists(@.zip))", json);
 
     JsonSequence expected = valueParser.parse(
         "{" +
@@ -1255,11 +1278,11 @@ public class TestPathExecutor {
             "\"city\"   : \"Springfield\"," +
             "\"zip\"    : 12345" +
             "}");
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterAndFirstFalse() throws IOException, ParseException {
+  public void filterAndFirstFalse() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(
         "{" +
             "\"name\" : \"fred\"," +
@@ -1269,13 +1292,13 @@ public class TestPathExecutor {
             "\"zip\"    : 12345" +
             "}" +
             "}");
-    Context context = parseAndExecute("$.address?(exists(@.state) && exists(@.zip))", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.address?(exists(@.state) && exists(@.zip))", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterAndSecondFalse() throws IOException, ParseException {
+  public void filterAndSecondFalse() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(
         "{" +
             "\"name\" : \"fred\"," +
@@ -1285,13 +1308,13 @@ public class TestPathExecutor {
             "\"zip\"    : 12345" +
             "}" +
             "}");
-    Context context = parseAndExecute("$.address?(exists(@.city) && exists(@.state))", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.address?(exists(@.city) && exists(@.state))", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterOrBothTrue() throws IOException, ParseException {
+  public void filterOrBothTrue() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(
         "{" +
             "\"name\" : \"fred\"," +
@@ -1301,7 +1324,7 @@ public class TestPathExecutor {
             "\"zip\"    : 12345" +
             "}" +
             "}");
-    Context context = parseAndExecute("$.address?(exists(@.city) || exists(@.zip))", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.address?(exists(@.city) || exists(@.zip))", json);
 
     JsonSequence expected = valueParser.parse(
         "{" +
@@ -1309,11 +1332,11 @@ public class TestPathExecutor {
             "\"city\"   : \"Springfield\"," +
             "\"zip\"    : 12345" +
             "}");
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterOrFirstTrue() throws IOException, ParseException {
+  public void filterOrFirstTrue() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(
         "{" +
             "\"name\" : \"fred\"," +
@@ -1323,7 +1346,7 @@ public class TestPathExecutor {
             "\"zip\"    : 12345" +
             "}" +
             "}");
-    Context context = parseAndExecute("$.address?(exists(@.city) || exists(@.state))", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.address?(exists(@.city) || exists(@.state))", json);
 
     JsonSequence expected = valueParser.parse(
         "{" +
@@ -1331,11 +1354,11 @@ public class TestPathExecutor {
             "\"city\"   : \"Springfield\"," +
             "\"zip\"    : 12345" +
             "}");
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterOrSecondTrue() throws IOException, ParseException {
+  public void filterOrSecondTrue() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(
         "{" +
             "\"name\" : \"fred\"," +
@@ -1345,7 +1368,7 @@ public class TestPathExecutor {
             "\"zip\"    : 12345" +
             "}" +
             "}");
-    Context context = parseAndExecute("$.address?(exists(@.state) || exists(@.zip))", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.address?(exists(@.state) || exists(@.zip))", json);
 
     JsonSequence expected = valueParser.parse(
         "{" +
@@ -1353,11 +1376,11 @@ public class TestPathExecutor {
             "\"city\"   : \"Springfield\"," +
             "\"zip\"    : 12345" +
             "}");
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterBothFalse() throws IOException, ParseException {
+  public void filterBothFalse() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(
         "{" +
             "\"name\" : \"fred\"," +
@@ -1367,9 +1390,9 @@ public class TestPathExecutor {
             "\"zip\"    : 12345" +
             "}" +
             "}");
-    Context context = parseAndExecute("$.address?(exists(@.state) || exists(@.country))", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.address?(exists(@.state) || exists(@.country))", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   // The following is used in many of the following (in)equality tests.
@@ -1407,740 +1430,725 @@ public class TestPathExecutor {
       "}";
 
   @Test
-  public void filterLongEquals() throws IOException, ParseException {
+  public void filterLongEquals() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"years attended\" == 4)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"years attended\" == 4)", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterLongEqualsFails() throws IOException, ParseException {
+  public void filterLongEqualsFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"years attended\" == 3)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"years attended\" == 3)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterLongDoubleEquals() throws IOException, ParseException {
+  public void filterLongDoubleEquals() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"years attended\" == 4.0)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"years attended\" == 4.0)", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterLongDoubleEqualsFails() throws IOException, ParseException {
+  public void filterLongDoubleEqualsFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"years attended\" == 3.0)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"years attended\" == 3.0)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterDoubleEquals() throws IOException, ParseException {
+  public void filterDoubleEquals() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.gpa == 3.29)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.gpa == 3.29)", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterDoubleEqualsFails() throws IOException, ParseException {
+  public void filterDoubleEqualsFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.gpa == 3.00)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.gpa == 3.00)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterStringEquals() throws IOException, ParseException {
+  public void filterStringEquals() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.school == \"usc\")", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.school == \"usc\")", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterStringEqualsFails() throws IOException, ParseException {
+  public void filterStringEqualsFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.school == \"ucla\")", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.school == \"ucla\")", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterBoolEquals() throws IOException, ParseException {
+  public void filterBoolEquals() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.graduated == true)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.graduated == true)", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterBoolEqualsFails() throws IOException, ParseException {
+  public void filterBoolEqualsFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.graduated == false)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.graduated == false)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterNullEquals() throws IOException, ParseException {
+  public void filterNullEquals() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.sports == null)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.sports == null)", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterNullEqualsFails() throws IOException, ParseException {
+  public void filterNullEqualsFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.graduated == null)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.graduated == null)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterListEquals() throws IOException, ParseException {
+  public void filterListEquals() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.activities == @.clubs)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.activities == @.clubs)", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterListEqualsFails() throws IOException, ParseException {
+  public void filterListEqualsFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.activities == @.extracurricular)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.activities == @.extracurricular)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterObjectEquals() throws IOException, ParseException {
+  public void filterObjectEquals() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"best class\" == @.\"favorite class\")", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"best class\" == @.\"favorite class\")", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterObjectEqualsFails() throws IOException, ParseException {
+  public void filterObjectEqualsFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"best class\" == @.\"worst class\")", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"best class\" == @.\"worst class\")", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterEmptyEquals() throws IOException, ParseException {
+  public void filterEmptyEquals() throws IOException, JsonPathException {
     // Test that the right thing happens when the preceding path is empty
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.nosuch?(@.graduated == true)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.nosuch?(@.graduated == true)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterBadTypesEquals() throws IOException, ParseException {
-    String path = "$.education?(@.graduated == 3.141592654)";
-    JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute(path, json);
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+  public void filterBadTypesEquals() throws IOException {
     try {
-      context.errorListener.checkForErrors(path);
+      JsonSequence json = valueParser.parse(equalityJson);
+      PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.graduated == 3.141592654)", json);
+      Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
       Assert.fail();
-    } catch (ParseException e) {
-      Assert.assertEquals("'$.education?(@.graduated == 3.141592654)' produced a semantic error: Cannot compare a bool to a double", e.getMessage());
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'$.education?(@.graduated == 3.141592654)' produced a semantic error: Cannot compare a bool to a double at \"@.graduated == 3.141592654\"", e.getMessage());
     }
   }
 
   @Test
-  public void filterLongNe() throws IOException, ParseException {
+  public void filterLongNe() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"years attended\" != 5)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"years attended\" != 5)", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterLongNeFails() throws IOException, ParseException {
+  public void filterLongNeFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"years attended\" != 4)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"years attended\" != 4)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterLongDoubleNe() throws IOException, ParseException {
+  public void filterLongDoubleNe() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"years attended\" != 4.1)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"years attended\" != 4.1)", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterLongDoubleNeFails() throws IOException, ParseException {
+  public void filterLongDoubleNeFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"years attended\" != 4.0)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"years attended\" != 4.0)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterDoubleNe() throws IOException, ParseException {
+  public void filterDoubleNe() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.gpa != 3.19)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.gpa != 3.19)", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterDoubleNeFails() throws IOException, ParseException {
+  public void filterDoubleNeFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.gpa != 3.29)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.gpa != 3.29)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterStringNe() throws IOException, ParseException {
+  public void filterStringNe() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.school != \"ucla\")", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.school != \"ucla\")", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterStringNeFails() throws IOException, ParseException {
+  public void filterStringNeFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.school != \"usc\")", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.school != \"usc\")", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterBoolNe() throws IOException, ParseException {
+  public void filterBoolNe() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.graduated != false)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.graduated != false)", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterBoolNeFails() throws IOException, ParseException {
+  public void filterBoolNeFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.graduated <> true)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.graduated <> true)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterNullNe() throws IOException, ParseException {
+  public void filterNullNe() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.graduated <> null)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.graduated <> null)", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterNullNeFails() throws IOException, ParseException {
+  public void filterNullNeFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.sports != null)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.sports != null)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterListNe() throws IOException, ParseException {
+  public void filterListNe() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.activities != @.extracurricular)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.activities != @.extracurricular)", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterListNeFails() throws IOException, ParseException {
+  public void filterListNeFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.activities != @.clubs)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.activities != @.clubs)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterObjectNe() throws IOException, ParseException {
+  public void filterObjectNe() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"best class\" != @.\"worst class\")", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"best class\" != @.\"worst class\")", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterObjectNeFails() throws IOException, ParseException {
+  public void filterObjectNeFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"best class\" != @.\"favorite class\")", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"best class\" != @.\"favorite class\")", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterEmptyNe() throws IOException, ParseException {
+  public void filterEmptyNe() throws IOException, JsonPathException {
     // Test that the right thing happens when the preceding path is empty
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.nosuch?(@.graduated != true)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.nosuch?(@.graduated != true)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterBadTypesNe() throws IOException, ParseException {
-    String path = "$.education?(@.graduated != 3.141592654)";
-    JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute(path, json);
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+  public void filterBadTypesNe() throws IOException {
     try {
-      context.errorListener.checkForErrors(path);
+      String path = "$.education?(@.graduated != 3.141592654)";
+      JsonSequence json = valueParser.parse(equalityJson);
+      PathExecutionResult pathExecResult = parseAndExecute(path, json);
+      Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
       Assert.fail();
-    } catch (ParseException e) {
-      Assert.assertEquals("'$.education?(@.graduated != 3.141592654)' produced a semantic error: Cannot compare a bool to a double", e.getMessage());
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'$.education?(@.graduated != 3.141592654)' produced a semantic error: Cannot compare a bool to a double at \"@.graduated != 3.141592654\"", e.getMessage());
     }
   }
 
   @Test
-  public void filterLongLt() throws IOException, ParseException {
+  public void filterLongLt() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"years attended\" < 5)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"years attended\" < 5)", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterLongLtFails() throws IOException, ParseException {
+  public void filterLongLtFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"years attended\" < 4)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"years attended\" < 4)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterLongDoubleLt() throws IOException, ParseException {
+  public void filterLongDoubleLt() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"years attended\" < 4.1)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"years attended\" < 4.1)", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterLongDoubleLtFails() throws IOException, ParseException {
+  public void filterLongDoubleLtFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"years attended\" < 4.0)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"years attended\" < 4.0)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterDoubleLt() throws IOException, ParseException {
+  public void filterDoubleLt() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.gpa < 3.50)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.gpa < 3.50)", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterDoubleLtFails() throws IOException, ParseException {
+  public void filterDoubleLtFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.gpa < 2.29)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.gpa < 2.29)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterStringLt() throws IOException, ParseException {
+  public void filterStringLt() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.school < \"yyy\")", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.school < \"yyy\")", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterStringLtFails() throws IOException, ParseException {
+  public void filterStringLtFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.school < \"asc\")", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.school < \"asc\")", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterLtBadType() throws IOException, ParseException {
-    String path = "$.education?(@.graduated < false)";
-    JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute(path, json);
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
-
+  public void filterLtBadType() throws IOException {
     try {
-      context.errorListener.checkForErrors(path);
+      String path = "$.education?(@.graduated < false)";
+      JsonSequence json = valueParser.parse(equalityJson);
+      PathExecutionResult pathExecResult = parseAndExecute(path, json);
+      Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
       Assert.fail();
-    } catch (ParseException e) {
-      Assert.assertEquals("'$.education?(@.graduated < false)' produced a semantic error: Cannot apply an inequality operator to a bool", e.getMessage());
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'$.education?(@.graduated < false)' produced a semantic error: Cannot apply an inequality operator to a bool at \"@.graduated < false\"", e.getMessage());
     }
   }
 
   @Test
-  public void filterEmptyLt() throws IOException, ParseException {
+  public void filterEmptyLt() throws IOException, JsonPathException {
     // Test that the right thing happens when the preceding path is empty
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.nosuch?(@.gpa < 4.00)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.nosuch?(@.gpa < 4.00)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterBadTypesLt() throws IOException, ParseException {
-    String path = "$.education?(@.gpa < 'abc')";
-    JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute(path, json);
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+  public void filterBadTypesLt() throws IOException {
     try {
-      context.errorListener.checkForErrors(path);
+      String path = "$.education?(@.gpa < 'abc')";
+      JsonSequence json = valueParser.parse(equalityJson);
+      PathExecutionResult pathExecResult = parseAndExecute(path, json);
+      Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
       Assert.fail();
-    } catch (ParseException e) {
-      Assert.assertEquals("'$.education?(@.gpa < 'abc')' produced a semantic error: Cannot compare a decimal to a string", e.getMessage());
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'$.education?(@.gpa < 'abc')' produced a semantic error: Cannot compare a decimal to a string at \"@.gpa < 'abc'\"", e.getMessage());
     }
   }
 
   @Test
-  public void filterLongLe() throws IOException, ParseException {
+  public void filterLongLe() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"years attended\" <= 4)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"years attended\" <= 4)", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterLongLeFails() throws IOException, ParseException {
+  public void filterLongLeFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"years attended\" <= 3)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"years attended\" <= 3)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterLongDoubleLe() throws IOException, ParseException {
+  public void filterLongDoubleLe() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"years attended\" <= 4.1)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"years attended\" <= 4.1)", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterLongDoubleLeFails() throws IOException, ParseException {
+  public void filterLongDoubleLeFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"years attended\" <= 3.99)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"years attended\" <= 3.99)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterDoubleLe() throws IOException, ParseException {
+  public void filterDoubleLe() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.gpa <= 3.50)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.gpa <= 3.50)", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterDoubleLeFails() throws IOException, ParseException {
+  public void filterDoubleLeFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.gpa <= 2.29)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.gpa <= 2.29)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterStringLe() throws IOException, ParseException {
+  public void filterStringLe() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.school <= \"uscaaab\")", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.school <= \"uscaaab\")", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterStringLeFails() throws IOException, ParseException {
+  public void filterStringLeFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.school <= \"us\")", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.school <= \"us\")", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterLeBadType() throws IOException, ParseException {
-    String path = "$.education?(@.graduated <= false)";
-    JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute(path, json);
-
+  public void filterLeBadType() throws IOException {
     try {
-      context.errorListener.checkForErrors(path);
+      String path = "$.education?(@.graduated <= false)";
+      JsonSequence json = valueParser.parse(equalityJson);
+      parseAndExecute(path, json);
       Assert.fail();
-    } catch (ParseException e) {
-      Assert.assertEquals("'$.education?(@.graduated <= false)' produced a semantic error: Cannot apply an inequality operator to a bool", e.getMessage());
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'$.education?(@.graduated <= false)' produced a semantic error: Cannot apply an inequality operator to a bool at \"@.graduated <= false\"", e.getMessage());
     }
   }
 
   @Test
-  public void filterEmptyLe() throws IOException, ParseException {
+  public void filterEmptyLe() throws IOException, JsonPathException {
     // Test that the right thing happens when the preceding path is empty
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.nosuch?(@.gpa <= 4.00)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.nosuch?(@.gpa <= 4.00)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterBadTypesLe() throws IOException, ParseException {
-    String path = "$.education?(@.gpa <= 'abc')";
-    JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute(path, json);
+  public void filterBadTypesLe() throws IOException {
     try {
-      context.errorListener.checkForErrors(path);
+      String path = "$.education?(@.gpa <= 'abc')";
+      JsonSequence json = valueParser.parse(equalityJson);
+      parseAndExecute(path, json);
       Assert.fail();
-    } catch (ParseException e) {
-      Assert.assertEquals("'$.education?(@.gpa <= 'abc')' produced a semantic error: Cannot compare a decimal to a string", e.getMessage());
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'$.education?(@.gpa <= 'abc')' produced a semantic error: Cannot compare a decimal to a string at \"@.gpa <= 'abc'\"", e.getMessage());
     }
   }
 
   @Test
-  public void filterLongGt() throws IOException, ParseException {
+  public void filterLongGt() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"years attended\" > 3)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"years attended\" > 3)", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterLongGtFails() throws IOException, ParseException {
+  public void filterLongGtFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"years attended\" > 4)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"years attended\" > 4)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterLongDoubleGt() throws IOException, ParseException {
+  public void filterLongDoubleGt() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"years attended\" > 3.9)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"years attended\" > 3.9)", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterLongDoubleGtFails() throws IOException, ParseException {
+  public void filterLongDoubleGtFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"years attended\" > 4.0)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"years attended\" > 4.0)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterDoubleGt() throws IOException, ParseException {
+  public void filterDoubleGt() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.gpa > 3.00)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.gpa > 3.00)", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterDoubleGtFails() throws IOException, ParseException {
+  public void filterDoubleGtFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.gpa > 3.79)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.gpa > 3.79)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterStringGt() throws IOException, ParseException {
+  public void filterStringGt() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.school > \"u\")", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.school > \"u\")", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterStringGtFails() throws IOException, ParseException {
+  public void filterStringGtFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.school > \"z\")", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.school > \"z\")", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterGtBadType() throws IOException, ParseException {
-    String path = "$.education?(@.graduated > false)";
-    JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute(path, json);
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
-
+  public void filterGtBadType() throws IOException {
     try {
-      context.errorListener.checkForErrors(path);
+      String path = "$.education?(@.graduated > false)";
+      JsonSequence json = valueParser.parse(equalityJson);
+      PathExecutionResult pathExecResult = parseAndExecute(path, json);
+      Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
       Assert.fail();
-    } catch (ParseException e) {
-      Assert.assertEquals("'$.education?(@.graduated > false)' produced a semantic error: Cannot apply an inequality operator to a bool", e.getMessage());
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'$.education?(@.graduated > false)' produced a semantic error: Cannot apply an inequality operator to a bool at \"@.graduated > false\"", e.getMessage());
     }
   }
 
   @Test
-  public void filterEmptyGt() throws IOException, ParseException {
+  public void filterEmptyGt() throws IOException, JsonPathException {
     // Test that the right thing happens when the preceding path is empty
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.nosuch?(@.gpa > 4.00)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.nosuch?(@.gpa > 4.00)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterBadTypesGt() throws IOException, ParseException {
-    String path = "$.education?(@.gpa > 'abc')";
-    JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute(path, json);
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+  public void filterBadTypesGt() throws IOException {
     try {
-      context.errorListener.checkForErrors(path);
+      String path = "$.education?(@.gpa > 'abc')";
+      JsonSequence json = valueParser.parse(equalityJson);
+      PathExecutionResult pathExecResult = parseAndExecute(path, json);
+      Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
       Assert.fail();
-    } catch (ParseException e) {
-      Assert.assertEquals("'$.education?(@.gpa > 'abc')' produced a semantic error: Cannot compare a decimal to a string", e.getMessage());
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'$.education?(@.gpa > 'abc')' produced a semantic error: Cannot compare a decimal to a string at \"@.gpa > 'abc'\"", e.getMessage());
     }
   }
 
   @Test
-  public void filterLongGe() throws IOException, ParseException {
+  public void filterLongGe() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"years attended\" >= 4)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"years attended\" >= 4)", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterLongGeFails() throws IOException, ParseException {
+  public void filterLongGeFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"years attended\" >= 5)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"years attended\" >= 5)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterLongDoubleGe() throws IOException, ParseException {
+  public void filterLongDoubleGe() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"years attended\" >= 4.0)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"years attended\" >= 4.0)", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterLongDoubleGeFails() throws IOException, ParseException {
+  public void filterLongDoubleGeFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.\"years attended\" >= 4.99)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.\"years attended\" >= 4.99)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterDoubleGe() throws IOException, ParseException {
+  public void filterDoubleGe() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.gpa >= 3.29)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.gpa >= 3.29)", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterDoubleGeFails() throws IOException, ParseException {
+  public void filterDoubleGeFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.gpa >= 3.99)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.gpa >= 3.99)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterStringGe() throws IOException, ParseException {
+  public void filterStringGe() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.school >= \"usc\")", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.school >= \"usc\")", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterStringGeFails() throws IOException, ParseException {
+  public void filterStringGeFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.school >= \"uxxx\")", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.school >= \"uxxx\")", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterGeBadType() throws IOException, ParseException {
-    String path = "$.education?(@.graduated >= false)";
-    JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute(path, json);
-
+  public void filterGeBadType() throws IOException {
     try {
-      context.errorListener.checkForErrors(path);
+      String path = "$.education?(@.graduated >= false)";
+      JsonSequence json = valueParser.parse(equalityJson);
+      parseAndExecute(path, json);
       Assert.fail();
-    } catch (ParseException e) {
-      Assert.assertEquals("'$.education?(@.graduated >= false)' produced a semantic error: Cannot apply an inequality operator to a bool", e.getMessage());
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'$.education?(@.graduated >= false)' produced a semantic error: Cannot apply an inequality operator to a bool at \"@.graduated >= false\"", e.getMessage());
     }
   }
 
   @Test
-  public void filterEmptyGe() throws IOException, ParseException {
+  public void filterEmptyGe() throws IOException, JsonPathException {
     // Test that the right thing happens when the preceding path is empty
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.nosuch?(@.gpa >= 4.00)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.nosuch?(@.gpa >= 4.00)", json);
 
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterBadTypesGe() throws IOException, ParseException {
-    String path = "$.education?(@.gpa >= 'abc')";
-    JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute(path, json);
+  public void filterBadTypesGe() throws IOException {
     try {
-      context.errorListener.checkForErrors(path);
+      String path = "$.education?(@.gpa >= 'abc')";
+      JsonSequence json = valueParser.parse(equalityJson);
+      parseAndExecute(path, json);
       Assert.fail();
-    } catch (ParseException e) {
-      Assert.assertEquals("'$.education?(@.gpa >= 'abc')' produced a semantic error: Cannot compare a decimal to a string", e.getMessage());
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'$.education?(@.gpa >= 'abc')' produced a semantic error: Cannot compare a decimal to a string at \"@.gpa >= 'abc'\"", e.getMessage());
     }
   }
 
@@ -2208,218 +2216,196 @@ public class TestPathExecutor {
      "] }";
 
   @Test
-  public void filterListLongEquals() throws IOException, ParseException {
+  public void filterListLongEquals() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(listEqualityJson);
-    Context context = parseAndExecute("$.classes[*]?(@.number == 101)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes[*]?(@.number == 101)", json);
 
     JsonSequence expected = valueParser.parse(listEqualityJsonExpectedFirst);
-    Assert.assertEquals(expected.asObject().get("bogus"), context.val);
+    Assert.assertEquals(expected.asObject().get("bogus"), pathExecResult.match);
   }
 
   @Test
-  public void filterListStringNe() throws IOException, ParseException {
+  public void filterListStringNe() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(listEqualityJson);
-    Context context = parseAndExecute("$.classes[*]?(@.department != \"science\")", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes[*]?(@.department != \"science\")", json);
 
     JsonSequence expected = valueParser.parse(listEqualityJsonExpectedBoth);
-    Assert.assertEquals(expected.asObject().get("bogus"), context.val);
+    Assert.assertEquals(expected.asObject().get("bogus"), pathExecResult.match);
   }
 
   @Test
-  public void filterListDoubleGt() throws IOException, ParseException {
+  public void filterListDoubleGt() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(listEqualityJson);
-    Context context = parseAndExecute("$.classes[*]?(@.\"avg attendance\" > 50)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes[*]?(@.\"avg attendance\" > 50)", json);
 
     JsonSequence expected = valueParser.parse(listEqualityJsonExpectedFirst);
-    Assert.assertEquals(expected.asObject().get("bogus"), context.val);
+    Assert.assertEquals(expected.asObject().get("bogus"), pathExecResult.match);
   }
 
   @Test
-  public void filterListNullNe() throws IOException, ParseException {
+  public void filterListNullNe() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(listEqualityJson);
-    Context context = parseAndExecute("$.classes[*]?(@.prerequisites != null)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes[*]?(@.prerequisites != null)", json);
 
     JsonSequence expected = valueParser.parse(listEqualityJsonExpectedSecond);
-    Assert.assertEquals(expected.asObject().get("bogus"), context.val);
+    Assert.assertEquals(expected.asObject().get("bogus"), pathExecResult.match);
   }
 
   @Test
-  public void filterListOr() throws IOException, ParseException {
+  public void filterListOr() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(listEqualityJson);
-    Context context = parseAndExecute("$.classes[*]?(@.department == \"art\" || @.department == \"math\")", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes[*]?(@.department == \"art\" || @.department == \"math\")", json);
 
     JsonSequence expected = valueParser.parse(listEqualityJsonExpectedBoth);
-    Assert.assertEquals(expected.asObject().get("bogus"), context.val);
+    Assert.assertEquals(expected.asObject().get("bogus"), pathExecResult.match);
   }
 
   @Test
-  public void filterListAnd() throws IOException, ParseException {
+  public void filterListAnd() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(listEqualityJson);
-    Context context = parseAndExecute("$.classes[*]?(@.number >= 200 && @.\"avg attendance\" > 20)", json);
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes[*]?(@.number >= 200 && @.\"avg attendance\" > 20)", json);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterRegex() throws IOException, ParseException {
+  public void filterRegex() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.school like_regex \"u.c\")", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.school like_regex \"u.c\")", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterRegexFails() throws IOException, ParseException {
+  public void filterRegexFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.school like_regex \"u[x|y]c\")", json);
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.school like_regex \"u[x|y]c\")", json);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterRegexList() throws IOException, ParseException {
+  public void filterRegexList() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(listEqualityJson);
-    Context context = parseAndExecute("$.classes[*]?(@.department like_regex \"^a.*\")", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes[*]?(@.department like_regex \"^a.*\")", json);
 
     JsonSequence expected = valueParser.parse(listEqualityJsonExpectedSecond);
-    Assert.assertEquals(expected.asObject().get("bogus"), context.val);
+    Assert.assertEquals(expected.asObject().get("bogus"), pathExecResult.match);
   }
 
   @Test
-  public void filterRegexBadtype() throws IOException, ParseException {
-    String path = "$.education?(@.gpa like_regex 'abc.*')";
-    JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute(path, json);
+  public void filterRegexBadtype() throws IOException {
     try {
-      context.errorListener.checkForErrors(path);
+      String path = "$.education?(@.gpa like_regex 'abc.*')";
+      JsonSequence json = valueParser.parse(equalityJson);
+      parseAndExecute(path, json);
       Assert.fail();
-    } catch (ParseException e) {
-      Assert.assertEquals("'$.education?(@.gpa like_regex 'abc.*')' produced a semantic error: Regular expressions can only be used on strings", e.getMessage());
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'$.education?(@.gpa like_regex 'abc.*')' produced a semantic error: Regular expressions can only be used on strings at \"@.gpa like_regex 'abc.*'\"", e.getMessage());
     }
   }
 
   // TODO - figure out a regular expression that throws an error in the Java parser but not path parser
   /*
   @Test
-  public void filterRegexSyntaxError() throws IOException, ParseException {
+  public void filterRegexSyntaxError() throws IOException, JsonPathException {
     String path = "$.education?(@.school like_regex '\\\\u12x abc')";
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute(path, json);
+    PathExecutionResult pathExecResult = parseAndExecute(path, json);
     try {
-      context.errorListener.checkForErrors(path);
+      pathExecResult.errorListener.checkForErrors(path);
       Assert.fail();
-    } catch (ParseException e) {
+    } catch (JsonPathException e) {
       Assert.assertEquals("", e.getMessage());
     }
   }
   */
 
   @Test
-  public void filterStartsWith() throws IOException, ParseException {
+  public void filterStartsWith() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.school starts with \"us\")", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.school starts with \"us\")", json);
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterStartsWithVal() throws IOException, ParseException {
+  public void filterStartsWithVal() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.school starts with $val)", json, Collections.singletonMap("val", new JsonSequence("us")));
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.school starts with $match)", json, Collections.singletonMap("match", new JsonSequence("us")));
 
     JsonSequence expected = valueParser.parse(expectedEqualityJson);
-    Assert.assertEquals(expected, context.val);
+    Assert.assertEquals(expected, pathExecResult.match);
   }
 
   @Test
-  public void filterStartsWithFails() throws IOException, ParseException {
+  public void filterStartsWithFails() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute("$.education?(@.school starts with \"oregon\")", json);
-    Assert.assertEquals(JsonSequence.emptyResult, context.val);
+    PathExecutionResult pathExecResult = parseAndExecute("$.education?(@.school starts with \"oregon\")", json);
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
-  public void filterStartsWithList() throws IOException, ParseException {
+  public void filterStartsWithList() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(listEqualityJson);
-    Context context = parseAndExecute("$.classes[*]?(@.department starts with \"a\")", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes[*]?(@.department starts with \"a\")", json);
 
     JsonSequence expected = valueParser.parse(listEqualityJsonExpectedSecond);
-    Assert.assertEquals(expected.asObject().get("bogus"), context.val);
+    Assert.assertEquals(expected.asObject().get("bogus"), pathExecResult.match);
   }
 
   @Test
-  public void filterStartsWithBadtype() throws IOException, ParseException {
-    String path = "$.education?(@.gpa starts with 'abc')";
-    JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute(path, json);
+  public void filterStartsWithBadtype() throws IOException {
     try {
-      context.errorListener.checkForErrors(path);
+      String path = "$.education?(@.gpa starts with 'abc')";
+      JsonSequence json = valueParser.parse(equalityJson);
+      parseAndExecute(path, json);
       Assert.fail();
-    } catch (ParseException e) {
-      Assert.assertEquals("'$.education?(@.gpa starts with 'abc')' produced a semantic error: Starts with can only be used with strings", e.getMessage());
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'$.education?(@.gpa starts with 'abc')' produced a semantic error: Starts with can only be used with strings at \"@.gpa starts with 'abc'\"", e.getMessage());
     }
   }
 
   @Test
-  public void filterStartsWithBadtype2() throws IOException, ParseException {
-    String path = "$.education?(@.school starts with $val)";
-    JsonSequence json = valueParser.parse(equalityJson);
-    Context context = parseAndExecute(path, json, Collections.singletonMap("val", new JsonSequence(3.14)));
+  public void filterStartsWithBadtype2() throws IOException {
     try {
-      context.errorListener.checkForErrors(path);
+      String path = "$.education?(@.school starts with $match)";
+      JsonSequence json = valueParser.parse(equalityJson);
+      parseAndExecute(path, json, Collections.singletonMap("match", new JsonSequence(3.14)));
       Assert.fail();
-    } catch (ParseException e) {
-      Assert.assertEquals("'$.education?(@.school starts with $val)' produced a semantic error: Starts with can only be used with strings", e.getMessage());
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'$.education?(@.school starts with $match)' produced a semantic error: Starts with can only be used with strings at \"@.school starts with $match\"", e.getMessage());
     }
   }
 
-  private ParseTree parse(String path) throws IOException, ParseException {
+  // TODO - add test where several json values are run against the same parser/executor to test that everything resets properly.
+
+  private PathExecutionResult parseAndExecute(String path) throws IOException, JsonPathException {
+    return parseAndExecute(path, emptyJson, null);
+  }
+
+  private PathExecutionResult parseAndExecute(String path, JsonSequence values) throws IOException, JsonPathException {
+    return parseAndExecute(path, values, null);
+  }
+
+  private PathExecutionResult parseAndExecute(String path, JsonSequence values, Map<String, JsonSequence> passing)
+      throws IOException, JsonPathException {
     PathParser parser = new PathParser();
-    parser.parse(path);
-    return parser.getTree();
+    PathParseResult parseResult = parser.parse(path);
+    PathExecutor executor = new PathExecutor();
+    JsonSequence match = executor.execute(parseResult, values, passing);
+    return new PathExecutionResult(parseResult, executor, match);
   }
 
-  private Context parseAndExecute(String path, JsonSequence value) throws IOException, ParseException {
-    return parseAndExecute(path, value, null);
-  }
+  private static class PathExecutionResult {
+    final PathParseResult parseResult;
+    final PathExecutor executor;
+    final JsonSequence match;
 
-  private Context parseAndExecute(String path, JsonSequence value, Map<String, JsonSequence> passing)
-      throws IOException, ParseException {
-    ParseTree tree = parse(path);
-    ErrorListener errorListener = new ErrorListener();
-    Context context = new Context(tree, errorListener);
-    PathExecutor executor = new PathExecutor(errorListener);
-    context.executor = executor;
-    context.val = executor.execute(context.tree, value, passing);
-    return context;
-  }
-
-  // Useful for testing just the arithmetic portions
-  private Context parseAdditiveExpr(String path) throws IOException, ParseException {
-    ErrorListener errorListener = new ErrorListener();
-    SqlJsonPathLexer scanner = new SqlJsonPathLexer(new ANTLRInputStream(new ByteArrayInputStream(path.getBytes())));
-    CommonTokenStream tokens = new CommonTokenStream(scanner);
-    SqlJsonPathParser parser = new SqlJsonPathParser(tokens);
-    parser.addErrorListener(errorListener);
-    ParseTree tree = parser.additive_expression();
-    errorListener.checkForErrors(path);
-    PathExecutor executor = new PathExecutor(errorListener);
-    Context context =  new Context(tree, errorListener);
-    context.val = executor.visit(tree);
-    return context;
-  }
-
-  private static class Context {
-    final ParseTree tree;
-    final ErrorListener errorListener;
-    PathExecutor executor;
-    JsonSequence val;
-
-    public Context(ParseTree tree, ErrorListener errorListener) {
-      this.tree = tree;
-      this.errorListener = errorListener;
-      executor = null;
+    PathExecutionResult(PathParseResult parseResult, PathExecutor executor, JsonSequence match) {
+      this.parseResult = parseResult;
+      this.executor = executor;
+      this.match = match;
     }
-
   }
 }
