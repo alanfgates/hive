@@ -50,19 +50,22 @@ public class TestPathExecutor {
   }
 
   @Test
-  public void laxDefault() throws IOException, JsonPathException {
+  public void strictDefault() throws IOException, JsonPathException {
     PathExecutionResult pathExecResult = parseAndExecute("$.a");
-    Assert.assertEquals(Mode.LAX, pathExecResult.executor.getMode());
+    Assert.assertEquals(Mode.STRICT, pathExecResult.executor.getMode());
   }
 
   @Test
   public void laxSpecified() throws IOException, JsonPathException {
-    PathExecutionResult pathExecResult = parseAndExecute("lax $.a");
-    Assert.assertEquals(Mode.LAX, pathExecResult.executor.getMode());
+    try {
+      parseAndExecute("lax $.a");
+    } catch (JsonPathException e) {
+      Assert.assertEquals("'lax $.a' produced a semantic error: lax mode not supported at \"lax\"", e.getMessage());
+    }
   }
 
   @Test
-  public void strict() throws IOException, JsonPathException {
+  public void strictSpecified() throws IOException, JsonPathException {
     PathExecutionResult pathExecResult = parseAndExecute("strict $.a");
     Assert.assertEquals(Mode.STRICT, pathExecResult.executor.getMode());
   }
@@ -1099,30 +1102,32 @@ public class TestPathExecutor {
     Assert.assertTrue(pathExecResult.match.isEmpty());
   }
 
+  String bigHarryDeepThing =
+      "{" +
+          "  \"name\" : \"fred\"," +
+          "  \"classes\" : [ " +
+          "    {" +
+          "      \"name\"      : \"science\"," +
+          "      \"professor\" : \"d. who\"," +
+          "      \"texts\"     : [" +
+          "         {" +
+          "            \"title\"  : \"intro to physics\"," +
+          "            \"author\" : \"i. newton\"" +
+          "         }, {" +
+          "            \"title\"  : \"intro to biology\"," +
+          "            \"author\" : \"c. darwin\"" +
+          "         }" +
+          "       ]" +
+          "    }, {" +
+          "      \"name\"      : \"art\"," +
+          "      \"professor\" : \"v. van gogh\"" +
+          "    }" +
+          "  ]" +
+          "}";
+
   @Test
-  public void bigHarryDeepThing() throws IOException, JsonPathException {
-    JsonSequence json = valueParser.parse(
-        "{" +
-        "  \"name\" : \"fred\"," +
-        "  \"classes\" : [ " +
-        "    {" +
-        "      \"name\"      : \"science\"," +
-        "      \"professor\" : \"d. who\"," +
-        "      \"texts\"     : [" +
-        "         {" +
-        "            \"title\"  : \"intro to physics\"," +
-        "            \"author\" : \"i. newton\"" +
-        "         }, {" +
-        "            \"title\"  : \"intro to biology\"," +
-        "            \"author\" : \"c. darwin\"" +
-        "         }" +
-        "       ]" +
-        "    }, {" +
-        "      \"name\"      : \"art\"," +
-        "      \"professor\" : \"v. van gogh\"" +
-        "    }" +
-        "  ]" +
-        "}");
+  public void multiLevelMemberAccess() throws IOException, JsonPathException {
+    JsonSequence json = valueParser.parse(bigHarryDeepThing);
     Map<String, JsonSequence> passing = new HashMap<>();
     passing.put("class", new JsonSequence(0));
     passing.put("text", new JsonSequence(1));
@@ -1133,29 +1138,8 @@ public class TestPathExecutor {
   }
 
   @Test
-  public void bigHarryDeepMultiThing() throws IOException, JsonPathException {
-    JsonSequence json = valueParser.parse(
-        "{" +
-            "  \"name\" : \"fred\"," +
-            "  \"classes\" : [ " +
-            "    {" +
-            "      \"name\"      : \"science\"," +
-            "      \"professor\" : \"d. who\"," +
-            "      \"texts\"     : [" +
-            "         {" +
-            "            \"title\"  : \"intro to physics\"," +
-            "            \"author\" : \"i. newton\"" +
-            "         }, {" +
-            "            \"title\"  : \"intro to biology\"," +
-            "            \"author\" : \"c. darwin\"" +
-            "         }" +
-            "       ]" +
-            "    }, {" +
-            "      \"name\"      : \"art\"," +
-            "      \"professor\" : \"v. van gogh\"" +
-            "    }" +
-            "  ]" +
-            "}");
+  public void multiLevelMemberList() throws IOException, JsonPathException {
+    JsonSequence json = valueParser.parse(bigHarryDeepThing);
     Map<String, JsonSequence> passing = new HashMap<>();
     passing.put("class", new JsonSequence(0));
     passing.put("text", new JsonSequence(1));
@@ -1163,6 +1147,17 @@ public class TestPathExecutor {
 
     JsonSequence wrappedExpected = valueParser.parse("{ \"k\" : [ \"i. newton\", \"c. darwin\" ] }");
     Assert.assertEquals(wrappedExpected.asObject().get("k"), pathExecResult.match);
+  }
+
+  @Test
+  public void multiLevelMemberListNotSpecifiedStrict() throws IOException, JsonPathException {
+    JsonSequence json = valueParser.parse(bigHarryDeepThing);
+    Map<String, JsonSequence> passing = new HashMap<>();
+    passing.put("class", new JsonSequence(0));
+    passing.put("text", new JsonSequence(1));
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes[$class].texts.author", json, passing);
+
+    Assert.assertEquals(JsonSequence.emptyResult, pathExecResult.match);
   }
 
   @Test
@@ -2245,7 +2240,7 @@ public class TestPathExecutor {
   @Test
   public void filterListNullNe() throws IOException, JsonPathException {
     JsonSequence json = valueParser.parse(listEqualityJson);
-    PathExecutionResult pathExecResult = parseAndExecute("$.classes[*]?(@.prerequisites != null)", json);
+    PathExecutionResult pathExecResult = parseAndExecute("$.classes?(@.prerequisites != null)", json);
 
     JsonSequence expected = valueParser.parse(listEqualityJsonExpectedSecond);
     Assert.assertEquals(expected.asObject().get("bogus"), pathExecResult.match);
@@ -2376,6 +2371,12 @@ public class TestPathExecutor {
     } catch (JsonPathException e) {
       Assert.assertEquals("'$.education?(@.school starts with $match)' produced a semantic error: Starts with can only be used with strings at \"@.school starts with $match\"", e.getMessage());
     }
+  }
+
+  @Test
+  public void nullValue() throws IOException, JsonPathException {
+    PathExecutionResult result = parseAndExecute("$.name[1].phone", null);
+    Assert.assertTrue(result.match.isEmpty());
   }
 
   // TODO - add test where several json values are run against the same parser/executor to test that everything resets properly.

@@ -36,11 +36,29 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
+/**
+ * Evaluates SQL/JSON Path statements against a specific JSON value.  This is done by visiting the parse tree.  This
+ * class is not reentrant and is only intended to be used by a single thread at a time.  However, it does not depend
+ * on any static state and as many instances as desired can be created.
+ * <p>
+ *
+ * The class is designed to be used repeatedly and thus resets all its state on each call to
+ * {@link #execute(PathParseResult, JsonSequence, Map)}.
+ * <p>
+ *
+ * The following digressions from the SQL Spec are noted:
+ * <ol>
+ *   <li>Values passed in to execute via the passing clause are not parsed to see if they are JSON.  A simple
+ *   replace is done in the path expression.</li>
+ * </ol>
+ */
 public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
 
   private static final String START_SUBSCRIPT = "__json_start_subscript";
   private static final String END_SUBSCRIPT = "__json_end_subscript";
   private static final JsonSequence lastJsonSequence = new JsonSequence("last");
+
+  private enum PathElement { START, MEMBER_ACCESSOR, MEMBER_WILDCARD, SINGLE_SUBCRIPT, MULTI_SUBSCRIPT, METHOD }
 
   private JsonSequence value;
   private Map<String, JsonSequence> passing;
@@ -55,12 +73,12 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
   // Cache patterns that we compile as part of regular expression matching.  This gets reset each time we execute
   private Map<byte[], Pattern> regexPatterns;
   private MessageDigest md5;
+  private PathElement previousElement;
 
   @VisibleForTesting
   JsonSequence returnedByVisit;
 
-  // TODO I am assuming here that the passed in value is a single bit of JSON.  Is it valid to pass two
-  // JSON objects in value?  Or would that need to be in an array?
+  // TODO Check against spec on 709 2 near top
 
   public PathExecutor() {
     regexPatterns = new HashMap<>();
@@ -74,18 +92,22 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
   /**
    * Execute a SQL/JSON Path statement against a particular bit of JSON
    * @param parseResult info from parsing the expression
-   * @param value JSON value to execute the Path statement against
+   * @param value JSON value to execute the Path statement against.  If you want to pass a SQL NULL in this place
+   *              pass a Java null.
    * @param passing map of arguments defined in the parse tree
    * @return value of executing the Path statement against the value
    * @throws JsonPathException if a semantic or runtime error occurs.
    */
   public JsonSequence execute(PathParseResult parseResult, JsonSequence value, Map<String, JsonSequence> passing) throws JsonPathException {
+    // Per the spec, if a null value is passed in, the result is empty but successful (p 707, 11.b.i.1.A)
+    if (value == null) return JsonSequence.emptyResult;
     this.value = value;
     this.passing = passing == null ? Collections.emptyMap() : passing;
     errorListener = parseResult.errorListener;
     errorListener.clear();
     matching = null;
-    mode = Mode.LAX;
+    mode = Mode.STRICT;  // Strict is default, if the path expression specifies lax it will be set in the visit
+    previousElement = PathElement.START;
     regexPatterns.clear();
     returnedByVisit = visit(parseResult.parseTree);
     errorListener.checkForErrors(parseResult.pathExpr);
@@ -93,9 +115,12 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
   }
 
   @Override
-  final public JsonSequence visitPath_mode_strict(SqlJsonPathParser.Path_mode_strictContext ctx) {
-    mode = Mode.STRICT;
-    return JsonSequence.emptyResult;
+  public JsonSequence visitPath_mode(SqlJsonPathParser.Path_modeContext ctx) {
+    mode = Mode.valueOf(ctx.getText().toUpperCase());
+    if (mode == Mode.LAX) {
+      errorListener.semanticError("lax mode not supported", ctx);
+    }
+    return null;
   }
 
   // Visit methods return JSON sequences.  However, these are not the current match.  These are used for building
@@ -196,7 +221,7 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
 
   @Override
   public JsonSequence visitPath_at_variable(SqlJsonPathParser.Path_at_variableContext ctx) {
-    // Not 100% sure this will work.  Depending on a filter to always resolve to a boolean before another @ is seen.
+    previousElement = PathElement.START;
     matching = matchAtFilter;
     return null;
   }
@@ -204,12 +229,14 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
   @Override
   public JsonSequence visitMember_accessor_id(SqlJsonPathParser.Member_accessor_idContext ctx) {
     matching = accessMember(ctx.getChild(1).getText());
+    previousElement = PathElement.MEMBER_ACCESSOR;
     return null;
   }
 
   @Override
   public JsonSequence visitMember_accessor_string(SqlJsonPathParser.Member_accessor_stringContext ctx) {
     matching = accessMember(stripQuotes(ctx.getChild(1).getText()));
+    previousElement = PathElement.MEMBER_ACCESSOR;
     return null;
   }
 
@@ -217,7 +244,8 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
   public JsonSequence visitWildcard_member_accessor(SqlJsonPathParser.Wildcard_member_accessorContext ctx) {
     if (matching != null && matching.isObject()) {
       // I think I'm supposed to return the entire object here
-      return matching;
+      previousElement = PathElement.MEMBER_WILDCARD;
+      return null;
     }
     matching = JsonSequence.emptyResult;
     return null;
@@ -235,7 +263,7 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     // are a list.
     if (matching.isList()) {
       matching = applySubscriptsToOneArray(matching, subscripts, ctx);
-    } else if (matching.isObject()) {
+    } else if (matching.isObject() && previousElement == PathElement.MEMBER_WILDCARD) {
       JsonSequence newMatches = new JsonSequence(new HashMap<>());
       for (Map.Entry<String, JsonSequence> matchingEntry : matching.asObject().entrySet()) {
         if (matchingEntry.getValue().isList()) {
@@ -261,7 +289,7 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     // are a list.
     if (matching.isList()) {
       // NOP
-    } else if (matching.isObject()) {
+    } else if (matching.isObject() && previousElement == PathElement.MEMBER_WILDCARD) {
       JsonSequence newMatches = new JsonSequence(new HashMap<>());
       for (Map.Entry<String, JsonSequence> matchingEntry : matching.asObject().entrySet()) {
         if (matchingEntry.getValue().isList()) {
@@ -272,6 +300,7 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     } else {
       matching = JsonSequence.emptyResult;
     }
+    previousElement = PathElement.MULTI_SUBSCRIPT;
     return null;
   }
 
@@ -357,6 +386,7 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
           throw new RuntimeException("Programming error");
       }
     }
+    previousElement = PathElement.METHOD;
     return null;
   }
 
@@ -640,11 +670,6 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
     return mode;
   }
 
-  @VisibleForTesting
-  ErrorListener getErrorListener() {
-    return errorListener;
-  }
-
   private int checkSubscript(JsonSequence subscript, ParserRuleContext ctx) throws IOException {
     if (!subscript.isLong()) {
       errorListener.semanticError("Subscripts must be integer values", ctx);
@@ -685,9 +710,13 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
       }
       // if only one value was accessed unwrap it
       if (subscripts.asList().size() == 1 && (subscripts.asList().get(0) == lastJsonSequence || subscripts.asList().get(0).isLong())) {
-        if (newList.asList().size() > 0) return newList.asList().get(0);
+        if (newList.asList().size() > 0) {
+          previousElement = PathElement.SINGLE_SUBCRIPT;
+          return newList.asList().get(0);
+        }
         else return JsonSequence.emptyResult;
       } else {
+        previousElement = PathElement.MULTI_SUBSCRIPT;
         return newList;
       }
     } catch (IOException e) {
@@ -698,7 +727,7 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
   private JsonSequence accessMember(String memberKey) {
     if (matching.isObject()) {
       return accessMemberInObject(matching, memberKey);
-    } else if (matching.isList()) {
+    } else if (matching.isList() && (previousElement == PathElement.MULTI_SUBSCRIPT)) {
       JsonSequence newMatching = new JsonSequence(new ArrayList<>());
       for (JsonSequence element : matching.asList()) {
         if (element.isObject()) {

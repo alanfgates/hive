@@ -28,12 +28,8 @@ path_expression:
     ;
 
 path_mode:
-      path_mode_strict
+      T_STRICT
     | T_LAX
-    ;
-
-path_mode_strict:
-    T_STRICT
     ;
 
 path_wff:   // What does wff stand for?
