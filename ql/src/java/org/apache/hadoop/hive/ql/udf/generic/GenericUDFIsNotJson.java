@@ -22,7 +22,7 @@ import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.io.BooleanWritable;
 
 @Description(name = "isnotjson",
-    value = "_FUNC_(json) - Parses the given string to see if it is not valid JSON",
+    value = "string IS NOT JSON - Parses the given string to see if it is not valid JSON",
     extended = "Returns null if json is null, otherwise true or false")
 public class GenericUDFIsNotJson extends GenericUDFIsJson {
 

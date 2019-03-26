@@ -19,7 +19,7 @@ package org.apache.hadoop.hive.ql.udf.generic.sqljsonpath;
 
 import org.antlr.v4.runtime.tree.ParseTree;
 
-class PathParseResult {
+public class PathParseResult {
   final ParseTree parseTree;
   final ErrorListener errorListener;
   final String pathExpr;

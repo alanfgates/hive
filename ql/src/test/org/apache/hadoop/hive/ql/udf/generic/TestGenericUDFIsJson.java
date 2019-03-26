@@ -25,6 +25,9 @@ import org.apache.hadoop.io.Text;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class TestGenericUDFIsJson {
 
   // Goal here isn't to test JSON permutations, TestJsonValueParser handles that.  Just want to test that the
@@ -48,6 +51,29 @@ public class TestGenericUDFIsJson {
   @Test
   public void goodJson() throws HiveException {
     Assert.assertTrue(test("{ \"name\" : \"fred\" }"));
+  }
+
+  @Test
+  public void multipleLines() throws HiveException {
+    Map<String, Boolean> inputs = new HashMap<>();
+    inputs.put("{ \"name\" : \"fred\" }", true);
+    inputs.put("{ \"age\" : 35 }", true);
+    inputs.put("{ \"classes\" : [\"algebra\", \"painting\" ] }", true);
+    inputs.put("{ bad : }", false);
+    inputs.put("{ \"gpa\" : 1.35 }", true);
+
+    GenericUDFIsJson isJson = new GenericUDFIsJson();
+    ObjectInspector jsonOI = PrimitiveObjectInspectorFactory.writableStringObjectInspector;
+    ObjectInspector[] initArgs = {jsonOI};
+    isJson.initialize(initArgs);
+
+    for (Map.Entry<String, Boolean> input : inputs.entrySet()) {
+      GenericUDF.DeferredObject jsonStr = new GenericUDF.DeferredJavaObject(new Text(input.getKey()));
+      GenericUDF.DeferredObject[] execArgs = {jsonStr};
+      BooleanWritable result = (BooleanWritable)isJson.evaluate(execArgs);
+      Assert.assertNotNull(result);
+      Assert.assertEquals(input.getValue(), result.get());
+    }
   }
 
   private Boolean test(String json) throws HiveException {

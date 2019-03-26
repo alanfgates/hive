@@ -31,8 +31,11 @@ import org.apache.hadoop.io.BooleanWritable;
 
 import java.io.IOException;
 
+/**
+ * Implementation of SQL 2016 IS JSON feature.
+ */
 @Description(name = "isjson",
-             value = "_FUNC_(json) - Parses the given string to see if it is valid JSON",
+             value = "string IS JSON - Parses the given string to see if it is valid JSON",
              extended = "Returns null if json is null, otherwise true or false")
 public class GenericUDFIsJson extends GenericUDF {
 

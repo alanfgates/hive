@@ -17,7 +17,7 @@
  */
 package org.apache.hadoop.hive.ql.udf.generic.sqljsonpath;
 
-enum EmptyOrErrorBehavior {
+public enum EmptyOrErrorBehavior {
   ERROR,
   NULL,
   DEFAULT,

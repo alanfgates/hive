@@ -55,19 +55,19 @@ public class JsonSequence {
   /**
    * Represents the JSON null "key" : null
    */
-  static final JsonSequence nullJsonSequence = new JsonSequence(Type.NULL);
+  public static final JsonSequence nullJsonSequence = new JsonSequence(Type.NULL);
 
-  static final JsonSequence emptyResult = new JsonSequence(Type.EMPTY_RESULT);
+  public static final JsonSequence emptyResult = new JsonSequence(Type.EMPTY_RESULT);
 
   /**
    * Represents the JSON true "key" : true
    */
-  static final JsonSequence trueJsonSequence = new JsonSequence(true);
+  public static final JsonSequence trueJsonSequence = new JsonSequence(true);
 
   /**
    * Represents the JSON false "key" : false
    */
-  static final JsonSequence falseJsonSequence = new JsonSequence(false);
+  public static final JsonSequence falseJsonSequence = new JsonSequence(false);
 
   private Type type;
   private Object val;
@@ -93,7 +93,7 @@ public class JsonSequence {
    * Create a new JsonSequence that represents an integer value.
    * @param val integer value (as a long)
    */
-  JsonSequence(long val) {
+  public JsonSequence(long val) {
     this.val = val;
     type = Type.LONG;
   }
@@ -102,7 +102,7 @@ public class JsonSequence {
    * Creates a new JsonSequence that represents a decimal value.
    * @param val decimal value
    */
-  JsonSequence(double val) {
+  public JsonSequence(double val) {
     this.val = val;
     type = Type.DOUBLE;
   }
@@ -111,7 +111,7 @@ public class JsonSequence {
    * Creates a new JsonSequence that represents a string value.
    * @param val string value
    */
-  JsonSequence(String val) {
+  public JsonSequence(String val) {
     this.val = val;
     type = Type.STRING;
   }
