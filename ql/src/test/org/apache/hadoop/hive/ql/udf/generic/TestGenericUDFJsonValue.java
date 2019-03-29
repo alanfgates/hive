@@ -23,7 +23,9 @@ import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.JavaConstantStringObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.LongObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 import org.apache.hadoop.io.BooleanWritable;
 import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.io.LongWritable;
@@ -98,16 +100,39 @@ public class TestGenericUDFJsonValue {
     ObjectPair<ObjectInspector, Object[]> results =
         testNullOnEmptyErrorNoPassing(json, "$.name", serdeConstants.STRING_TYPE_NAME);
     Assert.assertEquals(6, results.getSecond().length);
-    Assert.assertTrue(results.getFirst() instanceof PrimitiveObjectInspector);
-    PrimitiveObjectInspector poi = (PrimitiveObjectInspector)results.getFirst();
-    Assert.assertEquals(String.class, poi.getJavaPrimitiveClass());
-    Assert.assertEquals("chris", poi.getPrimitiveJavaObject(results.getSecond()[0]));
-    Assert.assertEquals("tracy", poi.getPrimitiveJavaObject(results.getSecond()[1]));
-    Assert.assertEquals("kim", poi.getPrimitiveJavaObject(results.getSecond()[2]));
-    Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[3]));
-    Assert.assertEquals("madison", poi.getPrimitiveJavaObject(results.getSecond()[4]));
-    Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[5]));
+    Assert.assertTrue(results.getFirst() instanceof StringObjectInspector);
+    StringObjectInspector soi = (StringObjectInspector)results.getFirst();
+    Assert.assertEquals(String.class, soi.getJavaPrimitiveClass());
+    Assert.assertEquals("chris", soi.getPrimitiveJavaObject(results.getSecond()[0]));
+    Assert.assertEquals("tracy", soi.getPrimitiveJavaObject(results.getSecond()[1]));
+    Assert.assertEquals("kim", soi.getPrimitiveJavaObject(results.getSecond()[2]));
+    Assert.assertNull(soi.getPrimitiveJavaObject(results.getSecond()[3]));
+    Assert.assertEquals("madison", soi.getPrimitiveJavaObject(results.getSecond()[4]));
+    Assert.assertNull(soi.getPrimitiveJavaObject(results.getSecond()[5]));
   }
+
+  @Test
+  public void longNullOnEmptyErrorNoPassing() throws HiveException {
+    ObjectPair<ObjectInspector, Object[]> results =
+        testNullOnEmptyErrorNoPassing(json, "$.age", serdeConstants.BIGINT_TYPE_NAME);
+    Assert.assertEquals(6, results.getSecond().length);
+    Assert.assertTrue(results.getFirst() instanceof LongObjectInspector);
+    LongObjectInspector loi = (LongObjectInspector)results.getFirst();
+    Assert.assertEquals(Long.class, loi.getJavaPrimitiveClass());
+    Assert.assertEquals(21, loi.get(results.getSecond()[0]));
+    Assert.assertEquals(20, loi.get(results.getSecond()[1]));
+    Assert.assertEquals(29, loi.get(results.getSecond()[2]));
+    Assert.assertNull(loi.getPrimitiveJavaObject(results.getSecond()[3]));
+    Assert.assertEquals(0L, loi.get(results.getSecond()[3]));
+    Assert.assertEquals(19, loi.get(results.getSecond()[4]));
+    Assert.assertNull(loi.getPrimitiveJavaObject(results.getSecond()[5]));
+    Assert.assertEquals(0L, loi.get(results.getSecond()[5]));
+  }
+
+  // TODO test returning types from inptus of other types
+  // TODO test empty error and default
+  // TODO test error error and default
+  // TODO test passing
 
   private ObjectPair<ObjectInspector, Object[]> testNullOnEmptyErrorNoPassing(
       List<String> jsonValues, String pathExpr, String returning) throws HiveException {
@@ -159,8 +184,6 @@ public class TestGenericUDFJsonValue {
       }
       results[i] = udf.evaluate(execArgs.toArray(new DeferredObject[0]));
     }
-
-    for (Object o : results) System.out.println("XXX " + o.toString());
 
     return new ObjectPair<>(resultObjectInspector, results);
   }

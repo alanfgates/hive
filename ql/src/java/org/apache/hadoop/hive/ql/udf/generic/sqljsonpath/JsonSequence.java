@@ -175,34 +175,105 @@ public class JsonSequence {
     return type == Type.EMPTY_RESULT;
   }
 
+  /**
+   * Get as a long.  Will assert (or throw ClassCastException) if not really a long.
+   * @return as a long
+   */
   public final long asLong() {
     assert val instanceof Long;
     return (Long)val;
   }
 
+  /**
+   * Get as a boolean.  Will assert (or throw ClassCastException) if not really a boolean.
+   * @return as a boolean
+   */
   public final boolean asBool() {
     assert val instanceof Boolean;
     return (Boolean)val;
   }
 
+  /**
+   * Get as a double.  Will assert (or throw ClassCastException) if not really a double.
+   * @return as a double
+   */
   public final double asDouble() {
     assert val instanceof Double;
     return (Double)val;
 
   }
+
+  /**
+   * Get as a string.  Will assert (or throw ClassCastException) if not really a string.
+   * @return as a string
+   */
   public final String asString() {
     assert val instanceof String;
     return (String)val;
   }
 
+  /**
+   * Get as a list.  Will assert (or throw ClassCastException) if not really a list.
+   * @return as a list
+   */
   public final List<JsonSequence> asList() {
     assert val instanceof List;
     return (List<JsonSequence>)val;
   }
 
+  /**
+   * Get as an object.  Will assert (or throw ClassCastException) if not really an object.
+   * @return as an object
+   */
   public final Map<String, JsonSequence> asObject() {
     assert val instanceof Map;
     return (Map<String, JsonSequence>)val;
+  }
+
+  /**
+   * Get as a long, casting if necessary
+   * @return as a long
+   * @throws ClassCastException if this is not a string or a long
+   * @throws NumberFormatException if it is a string that cannot be parsed to a long
+   */
+  public final long castToLong() {
+    if (isLong()) return asLong();
+    else if (isString()) return Long.valueOf(asString());
+    else throw new ClassCastException("JsonSequence, attempt to cast " + type.name().toLowerCase() + " to a long");
+  }
+
+  /**
+   * Get as a boolean, casting if necessary
+   * @return as a boolean
+   * @throws ClassCastException if this is not a string or a boolean
+   */
+  public final boolean castToBool() {
+    if (isBool()) return asBool();
+    else if (isString()) return Boolean.valueOf(asString());
+    else throw new ClassCastException("JsonSequence, attempt to cast " + type.name().toLowerCase() + " to a boolean");
+  }
+
+  /**
+   * Get as a double, casting if necessary
+   * @return as a double
+   * @throws ClassCastException if this is not a string, double, or long
+   * @throws NumberFormatException if it is a string that cannot be parsed to a double
+   */
+  public final double castToDouble() {
+    if (isDouble()) return asDouble();
+    else if (isLong()) return asLong();
+    else if (isString()) return Double.valueOf(asString());
+    else throw new ClassCastException("JsonSequence, attempt to cast " + type.name().toLowerCase() + " to a double");
+  }
+
+  /**
+   * Get as a string, casting if necessary
+   * @return as a string
+   * @throws ClassCastException if this is not a simple type
+   */
+  public final String castToString() {
+    if (isBool() || isString() || isLong() || isDouble()) return val.toString();
+    else throw new ClassCastException("JsonSequence, attempt to cast " + type.name().toLowerCase() + " to a string");
   }
 
   final void add(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {

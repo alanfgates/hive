@@ -22,39 +22,32 @@ import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
+import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.AbstractJsonSequenceObjectInspector;
+import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.BooleanJsonSequenceObjectInspector;
+import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.DoubleJsonSequenceObjectInspector;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.EmptyOrErrorBehavior;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.ErrorListener;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.JsonPathException;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.JsonSequence;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.JsonValueParser;
+import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.ListJsonSequenceObjectInspector;
+import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.LongJsonSequenceObjectInspector;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.PathExecutor;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.PathParseResult;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.PathParser;
+import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.StringJsonSequenceObjectInspector;
 import org.apache.hadoop.hive.serde.serdeConstants;
-import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorConverter;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils;
-import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
-import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
-import org.apache.hadoop.io.BooleanWritable;
-import org.apache.hadoop.io.DoubleWritable;
-import org.apache.hadoop.io.LongWritable;
-import org.apache.hadoop.io.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-
-import static org.apache.hadoop.hive.ql.udf.generic.GenericUDFUtils.ReturnObjectInspectorResolver;
 
 @Description(name = "json_value",
              value = "_FUNC_(json_value, path_expression [PASSING id = val[, id = val...]] [RETURNING datatype]" +
@@ -89,13 +82,6 @@ public class GenericUDFJsonValue extends GenericUDF {
   private EmptyOrErrorBehavior onError;
   private ObjectInspector onErrorObjInspector;
   private Map<Integer, ObjectPair<String, ObjectInspector>> passingOIs;
-  private ReturnObjectInspectorResolver resultResolver;
-  private ObjectInspector resultObjectInspector;
-  private BooleanWritable boolResult;
-  private LongWritable longResult;
-  private Text stringResult;
-  private DoubleWritable doubleResult;
-  private List<Object> listResult;
 
   // The argument layout for this is a mess due to the possibility of passing any number of key/value pairs in the
   // PASSING clause.
@@ -140,9 +126,7 @@ public class GenericUDFJsonValue extends GenericUDF {
     if (returnType == null) {
       throw new UDFArgumentTypeException(RETURNING, getFuncName() + " requires RETURNING specification to be constant");
     }
-    resultObjectInspector = translateTypeNameToObjectInspector(returnType);
-    resultResolver = new ReturnObjectInspectorResolver(true);
-    resultResolver.update(resultObjectInspector);
+    AbstractJsonSequenceObjectInspector resultObjectInspector = translateTypeNameToObjectInspector(returnType);
 
     // ON EMPTY
     checkArgPrimitive(arguments, ON_EMPTY);
@@ -187,13 +171,6 @@ public class GenericUDFJsonValue extends GenericUDF {
       passingOIs.put(arg + 1, new ObjectPair<>(key, arguments[arg + 1]));
     }
 
-    // Create the return values.  We may or may not use all of these
-    boolResult = new BooleanWritable();
-    longResult = new LongWritable();
-    doubleResult = new DoubleWritable();
-    stringResult = new Text();
-    listResult = new ArrayList<>();
-
     // Need to return whatever object inspector we came up with
     return resultObjectInspector;
   }
@@ -231,10 +208,10 @@ public class GenericUDFJsonValue extends GenericUDF {
     try {
       JsonSequence result = pathExecutor.execute(parseResult, jsonValue, passing);
       if (LOG.isDebugEnabled()) LOG.debug("Received back: " + result.toString());
-      if (result == JsonSequence.emptyResult) {
+      if (result.isEmpty()) {
         return onEmptyResult(arguments[ON_EMPTY_DEFAULT_VAL].get(), input);
       } else {
-        return jsonSequenceToObj(result);
+        return result;
       }
     } catch (JsonPathException e) {
       LOG.error("Failed to execute path expression for input " + input, e);
@@ -247,24 +224,38 @@ public class GenericUDFJsonValue extends GenericUDF {
     return getStandardDisplayString("json_value", children);
   }
 
-  private ObjectInspector translateTypeNameToObjectInspector(String typeName) {
+  private AbstractJsonSequenceObjectInspector translateTypeNameToObjectInspector(String typeName) throws UDFArgumentTypeException {
     typeName = typeName.toLowerCase();
 
     if (typeName.startsWith(serdeConstants.LIST_TYPE_NAME)) {
-      PrimitiveTypeInfo subTypeInfo = TypeInfoFactory.getPrimitiveTypeInfo(typeName.substring(serdeConstants.LIST_TYPE_NAME.length() + 1));
-      ObjectInspector subObjInspector = PrimitiveObjectInspectorFactory.getPrimitiveJavaObjectInspector(subTypeInfo);
-      return ObjectInspectorFactory.getStandardListObjectInspector(subObjInspector);
+      AbstractJsonSequenceObjectInspector subObjInspector = translateTypeNameToObjectInspector(typeName.substring(serdeConstants.LIST_TYPE_NAME.length() + 1));
+      return new ListJsonSequenceObjectInspector(subObjInspector);
+    } else if (typeName.equals(serdeConstants.BOOLEAN_TYPE_NAME)) {
+      return new BooleanJsonSequenceObjectInspector();
+    } else if (typeName.equals(serdeConstants.BIGINT_TYPE_NAME)) {
+      return new LongJsonSequenceObjectInspector();
+    } else if (typeName.equals(serdeConstants.DOUBLE_TYPE_NAME)) {
+      return new DoubleJsonSequenceObjectInspector();
+    } else if (typeName.equals(serdeConstants.STRING_TYPE_NAME)) {
+      return new StringJsonSequenceObjectInspector();
     } else {
-      PrimitiveTypeInfo resultType = TypeInfoFactory.getPrimitiveTypeInfo(typeName);
-      return PrimitiveObjectInspectorFactory.getPrimitiveJavaObjectInspector(resultType);
+      throw new UDFArgumentTypeException(RETURNING, getFuncName() + " RETURNING currently only supports " +
+          serdeConstants.BOOLEAN_TYPE_NAME + ", " +
+          serdeConstants.BIGINT_TYPE_NAME + ", " +
+          serdeConstants.DOUBLE_TYPE_NAME + ", " +
+          serdeConstants.STRING_TYPE_NAME + ", or " +
+          serdeConstants.LIST_TYPE_NAME + " of one of the above");
     }
   }
 
+  // TODO - in most cases the default value will likely be constant.  We should be checking for that and
+  // parsing it once rather than doing the conversion on every error or empty.  Note that we can't assume
+  // it's constant as non-constants are allowed here.
   private Object onErrorResult(Object defaultVal, String jsonValue, String error) throws HiveException {
     switch (onError) {
       case ERROR: throw new HiveException("Error for input: " + jsonValue + ": " + error);
       case NULL: return null;
-      case DEFAULT: return resultResolver.convertIfNecessary(defaultVal, onErrorObjInspector);
+      case DEFAULT: return argToJsonSequence(defaultVal, onErrorObjInspector, ON_ERROR_DEFAULT_VAL);
       default: throw new RuntimeException("programming error");
     }
   }
@@ -273,7 +264,7 @@ public class GenericUDFJsonValue extends GenericUDF {
     switch (onEmpty) {
       case ERROR: throw new HiveException("Empty result for input: " + jsonValue);
       case NULL: return null;
-      case DEFAULT: return resultResolver.convertIfNecessary(defaultVal, onEmptyObjInspector);
+      case DEFAULT: return argToJsonSequence(defaultVal, onEmptyObjInspector, ON_EMPTY_DEFAULT_VAL);
       default: throw new RuntimeException("programming error");
     }
   }
@@ -306,40 +297,6 @@ public class GenericUDFJsonValue extends GenericUDF {
 
       default:
         throw new UDFArgumentTypeException(argNum, "Not a supported type for the PASSING clause " + objInspector.getTypeName());
-    }
-
-  }
-
-  private Object jsonSequenceToObj(JsonSequence result) throws UDFArgumentException {
-    if (result == JsonSequence.nullJsonSequence) return null;
-
-    if (result.isString()) {
-      stringResult.set(result.asString());
-      return resultResolver.convertIfNecessary(stringResult, PrimitiveObjectInspectorFactory.writableStringObjectInspector);
-    } else if (result.isBool()) {
-      boolResult.set(result.asBool());
-      return resultResolver.convertIfNecessary(boolResult, PrimitiveObjectInspectorFactory.writableBooleanObjectInspector);
-    } else if (result.isLong()) {
-      longResult.set(result.asLong());
-      return resultResolver.convertIfNecessary(longResult, PrimitiveObjectInspectorFactory.writableLongObjectInspector);
-    } else if (result.isDouble()) {
-      doubleResult.set(result.asDouble());
-      return resultResolver.convertIfNecessary(doubleResult, PrimitiveObjectInspectorFactory.writableDoubleObjectInspector);
-    } else if (result.isList()) {
-      if (resultObjectInspector instanceof ListObjectInspector) {
-
-        listResult.clear();
-        // Have to convert each element of the list
-        for (JsonSequence json : result.asList()) {
-          listResult.add(jsonSequenceToObj(json));
-        }
-        // No need to convert this, as nothing will cast to a list anyway.
-        return listResult;
-      } else {
-        throw new UDFArgumentException("JSON Path expression returned a list but primitive type was specified in PASSING clause");
-      }
-    } else {
-      throw new UDFArgumentException("Returning objects not supported by " + getFuncName());
     }
 
   }
