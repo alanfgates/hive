@@ -565,6 +565,8 @@ public class TestGenericUDFJsonValue {
     Assert.assertEquals("true", soi.getPrimitiveJavaObject(results.getSecond()[3]));
   }
 
+  // TODO test to make sure list subtype parser handles spaces, etc.
+
   private ObjectPair<ObjectInspector, Object[]> test(List<String> jsonValues, String pathExpr) throws HiveException {
     GenericUDFJsonValue udf = new GenericUDFJsonValue();
     ObjectInspector resultObjectInspector = udf.initialize(buildInitArgs(pathExpr, null, null, null, null));

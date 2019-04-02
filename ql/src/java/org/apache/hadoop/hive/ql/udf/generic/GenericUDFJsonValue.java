@@ -88,7 +88,8 @@ public class GenericUDFJsonValue extends GenericUDF {
   private static final Pattern listSubtypePattern = Pattern.compile("[^<]+<([^>]+)>");
 
   private PrimitiveObjectInspectorConverter.TextConverter jsonValueConverter;
-  private PathParseResult parseResult;
+  private transient PathParseResult parseResult;
+  private String pathExpr;
   private PathExecutor pathExecutor;
   private JsonValueParser jsonParser;
   private boolean errorOnError;
@@ -113,18 +114,13 @@ public class GenericUDFJsonValue extends GenericUDF {
 
     // Path expression, should be a constant
     checkArgPrimitive(arguments, PATH_EXPR);
-    String pathExpr = getConstantStringValue(arguments, PATH_EXPR);
+    pathExpr = getConstantStringValue(arguments, PATH_EXPR);
     if (pathExpr == null) {
       throw new UDFArgumentTypeException(PATH_EXPR, getFuncName() + " requires JSON path expression to be constant");
     }
-    try {
-      PathParser parser = new PathParser();
-      LOG.debug("Parsing " + pathExpr);
-      parseResult = parser.parse(pathExpr);
-    } catch (IOException | JsonPathException e) {
-      LOG.info("Failed to parse JSON path exception: " + e.getMessage(), e);
-      throw new UDFArgumentException("Failed to parse JSON path exception: " + e.getMessage());
-    }
+    // We can't keep the parse expression because it doesn't serialize, but we still parse it here up front to make
+    // sure it will work.
+    parse();
 
     String returnType;
     if (arguments.length > RETURNING) {
@@ -174,6 +170,9 @@ public class GenericUDFJsonValue extends GenericUDF {
     String input = jsonValueConverter.convert(jsonObj).toString();
     if (LOG.isDebugEnabled()) LOG.debug("Evaluating with " + input);
 
+    // The first time through we have to reparse, since we couldn't serialize the parse tree
+    if (parseResult == null) parse();
+
     Map<String, JsonSequence> passing = arguments.length > START_PASSING ?
         translatePassingObjects(arguments) : Collections.emptyMap();
 
@@ -210,24 +209,24 @@ public class GenericUDFJsonValue extends GenericUDF {
     returnType = returnType.toLowerCase().trim();
 
     if (returnType.equals(serdeConstants.STRING_TYPE_NAME)) {
-      resultResolver = jsonSequence -> jsonSequence.castToString(errorOnError);
+      resultResolver = new StringResolver();
       resultObjectInspector = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
     } else if (returnType.equals(serdeConstants.INT_TYPE_NAME)) {
-      resultResolver = jsonSequence -> jsonSequence.castToInt(errorOnError);
+      resultResolver = new IntResolver();
       resultObjectInspector = PrimitiveObjectInspectorFactory.javaIntObjectInspector;
     } else if (returnType.equals(serdeConstants.BIGINT_TYPE_NAME)) {
-      resultResolver = jsonSequence -> jsonSequence.castToLong(errorOnError);
+      resultResolver = new LongResolver();
       resultObjectInspector = PrimitiveObjectInspectorFactory.javaLongObjectInspector;
     } else if (returnType.equals(serdeConstants.DOUBLE_TYPE_NAME)) {
-      resultResolver = jsonSequence -> jsonSequence.castToDouble(errorOnError);
+      resultResolver = new DoubleResolver();
       resultObjectInspector = PrimitiveObjectInspectorFactory.javaDoubleObjectInspector;
     } else if (returnType.equals(serdeConstants.BOOLEAN_TYPE_NAME)) {
-      resultResolver = jsonSequence -> jsonSequence.castToBool(errorOnError);
+      resultResolver = new BoolResolver();
       resultObjectInspector = PrimitiveObjectInspectorFactory.javaBooleanObjectInspector;
     } else if (returnType.startsWith(serdeConstants.LIST_TYPE_NAME)) {
       translateObjectInspector(getListSubtype(returnType));
       resultObjectInspector = new ListJsonSequenceObjectInspector(resultObjectInspector, resultResolver);
-      resultResolver = jsonSequence -> jsonSequence.castToList(errorOnError);
+      resultResolver = new ListResolver();
     } else {
       throw new UDFArgumentTypeException(RETURNING, getFuncName() +
           " can return primitive type of list of primitive types");
@@ -287,5 +286,59 @@ public class GenericUDFJsonValue extends GenericUDF {
         throw new UDFArgumentTypeException(argNum, "Not a supported type for the PASSING clause " + objInspector.getTypeName());
     }
 
+  }
+
+  private void parse() throws UDFArgumentException {
+    try {
+      PathParser parser = new PathParser();
+      LOG.debug("Parsing " + pathExpr);
+      parseResult = parser.parse(pathExpr);
+    } catch (IOException | JsonPathException e) {
+      LOG.info("Failed to parse JSON path exception: " + e.getMessage(), e);
+      throw new UDFArgumentException("Failed to parse JSON path exception: " + e.getMessage());
+    }
+  }
+
+  // Kryo serializer can't handle lamdas.
+  private class StringResolver implements Function<JsonSequence, Object> {
+    @Override
+    public Object apply(JsonSequence jsonSequence) {
+      return jsonSequence.castToString(errorOnError);
+    }
+  }
+
+  private class IntResolver implements Function<JsonSequence, Object> {
+    @Override
+    public Object apply(JsonSequence jsonSequence) {
+      return jsonSequence.castToInt(errorOnError);
+    }
+  }
+
+  private class LongResolver implements Function<JsonSequence, Object> {
+    @Override
+    public Object apply(JsonSequence jsonSequence) {
+      return jsonSequence.castToLong(errorOnError);
+    }
+  }
+
+  private class DoubleResolver implements Function<JsonSequence, Object> {
+    @Override
+    public Object apply(JsonSequence jsonSequence) {
+      return jsonSequence.castToDouble(errorOnError);
+    }
+  }
+
+  private class BoolResolver implements Function<JsonSequence, Object> {
+    @Override
+    public Object apply(JsonSequence jsonSequence) {
+      return jsonSequence.castToBool(errorOnError);
+    }
+  }
+
+  private class ListResolver implements Function<JsonSequence, Object> {
+    @Override
+    public Object apply(JsonSequence jsonSequence) {
+      return jsonSequence.castToList(errorOnError);
+    }
   }
 }
