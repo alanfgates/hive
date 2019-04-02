@@ -71,9 +71,7 @@ public class ListJsonSequenceObjectInspector implements ListObjectInspector {
 
   private List<JsonSequence> asList(Object o) {
     if (o == null) return null;
-    if (!(o instanceof JsonSequence)) return null;
-    JsonSequence json = (JsonSequence)o;
-    if (!json.isList()) return null;
-    return json.asList();
+    if (!(o instanceof List)) return null;
+    return (List)o;
   }
 }

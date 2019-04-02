@@ -200,10 +200,10 @@ public class GenericUDFJsonValue extends GenericUDF {
     return getStandardDisplayString("json_value", children);
   }
 
-  private JsonSequence getDefaultValue(DeferredObject[] arguments) {
+  private JsonSequence getDefaultValue(DeferredObject[] arguments) throws HiveException {
     if (arguments.length <= DEFAULT_VAL) return JsonSequence.nullJsonSequence;
     if (jsonDefaultVal != null) return jsonDefaultVal;
-    return JsonSequence.fromWritable(defaultValOI.getPrimitiveWritableObject(arguments[DEFAULT_VAL]));
+    return JsonSequence.fromWritable(defaultValOI.getPrimitiveWritableObject(arguments[DEFAULT_VAL].get()));
   }
 
   private void translateObjectInspector(String returnType) throws UDFArgumentException {

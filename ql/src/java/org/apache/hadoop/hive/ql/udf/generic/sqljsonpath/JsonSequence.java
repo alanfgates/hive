@@ -260,7 +260,12 @@ public final class JsonSequence {
   public final Boolean castToBool(boolean errorOnBadCast) {
     if (isBool()) return asBool();
     if (isNull() || isEmpty()) return null;
-    if (isString()) return Boolean.valueOf(asString());
+    if (isString()) {
+      // Boolean.valueOf() returns false on anything but "true", which isn't what we want, so don't use it
+      if (asString().equalsIgnoreCase("true")) return true;
+      else if (asString().equalsIgnoreCase("false")) return false;
+      else return null;
+    }
     if (errorOnBadCast) throw new ClassCastException("Attempt to cast " + type.name().toLowerCase() + " as bool");
     else return null;
   }
