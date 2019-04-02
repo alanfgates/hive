@@ -18,18 +18,33 @@
 package org.apache.hadoop.hive.ql.udf.generic.sqljsonpath;
 
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.apache.hadoop.hive.common.ObjectPair;
+import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
+import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
+import org.apache.hadoop.io.BooleanWritable;
+import org.apache.hadoop.io.DoubleWritable;
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.Text;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.DoubleBinaryOperator;
+import java.util.function.Function;
 import java.util.function.LongBinaryOperator;
 
 /**
  * JsonSequence tracks the JSON value being returned from a section of the parse tree.  Since the value being returned
  * can change type as it moves through tree, JsonSequence can change its type as it goes along.
  *
- * Many methods are marked final to help the compiler inline methods, as we want operations on this to be as fast
+ * The class is final to help the compiler inline methods, as we want operations on this to be as fast
  * possible since they'll be in the inner loop.
  *
  * Ideally we'd like to determine the types as part of the parse and not do the type branching for things like
@@ -38,7 +53,7 @@ import java.util.function.LongBinaryOperator;
  * is that the branch prediction on the chip will kick in and save us.  It's worth experimenting in the future to see
  * if this could be sped up by at least generating typed methods for constants.
  */
-public class JsonSequence {
+public final class JsonSequence {
 
   enum Type {
     LONG,
@@ -51,6 +66,9 @@ public class JsonSequence {
     EMPTY_RESULT // This is not a JSON type.  It represents the result of Path query that did not match anything.
                  // It is returned separately from null so that the caller can decide how to deal with errors.
   }
+  private static final Logger LOG = LoggerFactory.getLogger(JsonSequence.class);
+
+  private static final Map<String, ListObjectInspector> LIST_OBJECT_INSPECTOR_CACHE = new HashMap<>();
 
   /**
    * Represents the JSON null "key" : null
@@ -143,35 +161,44 @@ public class JsonSequence {
     this.type = template.type;
   }
 
-  public final boolean isLong() {
+  public static JsonSequence fromWritable(Object writable) {
+    if (writable instanceof Text) return new JsonSequence(writable.toString());
+    if (writable instanceof LongWritable) return new JsonSequence(((LongWritable)writable).get());
+    if (writable instanceof IntWritable) return new JsonSequence(((IntWritable)writable).get());
+    if (writable instanceof DoubleWritable) return new JsonSequence(((DoubleWritable)writable).get());
+    if (writable instanceof BooleanWritable) return new JsonSequence(((BooleanWritable)writable).get());
+    else return null;
+  }
+
+  public boolean isLong() {
     return type == Type.LONG;
   }
 
-  public final boolean isDouble() {
+  public boolean isDouble() {
     return type == Type.DOUBLE;
   }
 
-  public final boolean isBool() {
+  public boolean isBool() {
     return type == Type.BOOL;
   }
 
-  public final boolean isString() {
+  public boolean isString() {
     return type == Type.STRING;
   }
 
-  public final boolean isList() {
+  public boolean isList() {
     return type == Type.LIST;
   }
 
-  public final boolean isObject() {
+  public boolean isObject() {
     return type == Type.OBJECT;
   }
 
-  public final boolean isNull() {
+  public boolean isNull() {
     return type == Type.NULL;
   }
 
-  public final boolean isEmpty() {
+  public boolean isEmpty() {
     return type == Type.EMPTY_RESULT;
   }
 
@@ -179,7 +206,7 @@ public class JsonSequence {
    * Get as a long.  Will assert (or throw ClassCastException) if not really a long.
    * @return as a long
    */
-  public final long asLong() {
+  public long asLong() {
     assert val instanceof Long;
     return (Long)val;
   }
@@ -188,7 +215,7 @@ public class JsonSequence {
    * Get as a boolean.  Will assert (or throw ClassCastException) if not really a boolean.
    * @return as a boolean
    */
-  public final boolean asBool() {
+  public boolean asBool() {
     assert val instanceof Boolean;
     return (Boolean)val;
   }
@@ -197,7 +224,7 @@ public class JsonSequence {
    * Get as a double.  Will assert (or throw ClassCastException) if not really a double.
    * @return as a double
    */
-  public final double asDouble() {
+  public double asDouble() {
     assert val instanceof Double;
     return (Double)val;
 
@@ -207,7 +234,7 @@ public class JsonSequence {
    * Get as a string.  Will assert (or throw ClassCastException) if not really a string.
    * @return as a string
    */
-  public final String asString() {
+  public String asString() {
     assert val instanceof String;
     return (String)val;
   }
@@ -216,7 +243,7 @@ public class JsonSequence {
    * Get as a list.  Will assert (or throw ClassCastException) if not really a list.
    * @return as a list
    */
-  public final List<JsonSequence> asList() {
+  public List<JsonSequence> asList() {
     assert val instanceof List;
     return (List<JsonSequence>)val;
   }
@@ -225,74 +252,99 @@ public class JsonSequence {
    * Get as an object.  Will assert (or throw ClassCastException) if not really an object.
    * @return as an object
    */
-  public final Map<String, JsonSequence> asObject() {
+  public Map<String, JsonSequence> asObject() {
     assert val instanceof Map;
     return (Map<String, JsonSequence>)val;
   }
 
-  /**
-   * Get as a long, casting if necessary
-   * @return as a long
-   * @throws ClassCastException if this is not a string or a long
-   * @throws NumberFormatException if it is a string that cannot be parsed to a long
-   */
-  public final long castToLong() {
-    if (isLong()) return asLong();
-    else if (isString()) return Long.valueOf(asString());
-    else throw new ClassCastException("JsonSequence, attempt to cast " + type.name().toLowerCase() + " to a long");
-  }
-
-  /**
-   * Get as a boolean, casting if necessary
-   * @return as a boolean
-   * @throws ClassCastException if this is not a string or a boolean
-   */
-  public final boolean castToBool() {
+  public final Boolean castToBool(boolean errorOnBadCast) {
     if (isBool()) return asBool();
-    else if (isString()) return Boolean.valueOf(asString());
-    else throw new ClassCastException("JsonSequence, attempt to cast " + type.name().toLowerCase() + " to a boolean");
+    if (isNull() || isEmpty()) return null;
+    if (isString()) return Boolean.valueOf(asString());
+    if (errorOnBadCast) throw new ClassCastException("Attempt to cast " + type.name().toLowerCase() + " as bool");
+    else return null;
   }
 
-  /**
-   * Get as a double, casting if necessary
-   * @return as a double
-   * @throws ClassCastException if this is not a string, double, or long
-   * @throws NumberFormatException if it is a string that cannot be parsed to a double
-   */
-  public final double castToDouble() {
+  public final Long castToLong(boolean errorOnBadCast) {
+    if (isLong()) return asLong();
+    if (isNull() || isEmpty()) return null;
+    if (isDouble()) return (long)asDouble();
+    if (isString()) {
+      try {
+        return Long.valueOf(asString());
+      } catch (NumberFormatException e) {
+        if (errorOnBadCast) {
+          throw e;
+        } else {
+          return null;
+        }
+      }
+    }
+    if (errorOnBadCast) throw new ClassCastException("Attempt to cast " + type.name().toLowerCase() + " as long");
+    else return null;
+  }
+
+  public final Integer castToInt(boolean errorOnBadCast) {
+    Long lg = castToLong(errorOnBadCast);
+    if (lg == null) return null;
+    if (lg > Integer.MAX_VALUE) {
+      if (errorOnBadCast) throw new NumberFormatException("Value too large to fit in integer");
+      else return null;
+    }
+    return (int)lg.longValue();
+  }
+
+  public final Double castToDouble(boolean errorOnBadCast) {
     if (isDouble()) return asDouble();
-    else if (isLong()) return asLong();
-    else if (isString()) return Double.valueOf(asString());
-    else throw new ClassCastException("JsonSequence, attempt to cast " + type.name().toLowerCase() + " to a double");
+    if (isLong()) return (double)asLong();
+    if (isNull() || isEmpty()) return null;
+    if (isString()) {
+      try {
+        return Double.valueOf(asString());
+      } catch (NumberFormatException e) {
+        if (errorOnBadCast) {
+          throw e;
+        } else {
+          return null;
+        }
+      }
+    }
+    if (errorOnBadCast) throw new ClassCastException("Attempt to cast " + type.name().toLowerCase() + " as double");
+    else return null;
   }
 
-  /**
-   * Get as a string, casting if necessary
-   * @return as a string
-   * @throws ClassCastException if this is not a simple type
-   */
-  public final String castToString() {
-    if (isBool() || isString() || isLong() || isDouble()) return val.toString();
-    else throw new ClassCastException("JsonSequence, attempt to cast " + type.name().toLowerCase() + " to a string");
+  public final String castToString(boolean errorOnBadCast) {
+    if (isNull() || isEmpty()) return null;
+    if (isString()) return asString();
+    if (isDouble() || isLong() || isBool()) return val.toString();
+    if (errorOnBadCast) throw new ClassCastException("Attempt to cast " + type.name().toLowerCase() + " as string");
+    else return null;
   }
 
-  final void add(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
+  public final List<JsonSequence> castToList(boolean errorOnBadCast) {
+    if (isList()) return asList();
+    if (isNull() || isEmpty()) return null;
+    if (errorOnBadCast) throw new ClassCastException("Attempt to cast " + type.name().toLowerCase() + " as list");
+    else return null;
+  }
+
+  void add(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
     arithmetic(other, (left, right) -> left + right, (left, right) -> left + right, false, errorListener, ctx);
   }
 
-  final void subtract(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
+  void subtract(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
     arithmetic(other, (left, right) -> left - right, (left, right) -> left - right, false, errorListener, ctx);
   }
 
-  final void multiply(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
+  void multiply(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
     arithmetic(other, (left, right) -> left * right, (left, right) -> left * right, false, errorListener, ctx);
   }
 
-  final void divide(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
+  void divide(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
     arithmetic(other, (left, right) -> left / right, (left, right) -> left / right, true, errorListener, ctx);
   }
 
-  final void modulo(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
+  void modulo(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
     switch (type) {
       case LONG:
         switch (other.type) {
@@ -319,7 +371,7 @@ public class JsonSequence {
     }
   }
 
-  final void negate(ErrorListener errorListener, ParserRuleContext ctx) {
+  void negate(ErrorListener errorListener, ParserRuleContext ctx) {
     switch (type) {
       case LONG:
         val = asLong() * -1;
@@ -343,7 +395,7 @@ public class JsonSequence {
    * @param errorListener error listener to log errors to
    * @return either trueJsonSequence or falseJsonSequence
    */
-  final JsonSequence equalsOp(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
+  JsonSequence equalsOp(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
     // Null requires special handling, because if two things are null they are immediately equal
     if (type == Type.NULL || other.type == Type.NULL) {
       return type == Type.NULL && other.type == Type.NULL ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
@@ -358,7 +410,7 @@ public class JsonSequence {
    * @param errorListener error listener to log errors to
    * @return either trueJsonSequence or falseJsonSequence
    */
-  final JsonSequence notEqualsOp(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
+  JsonSequence notEqualsOp(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
     if (type == Type.NULL || other.type == Type.NULL) {
       return type == Type.NULL && other.type == Type.NULL ? JsonSequence.falseJsonSequence : JsonSequence.trueJsonSequence;
     }
@@ -366,19 +418,19 @@ public class JsonSequence {
         JsonSequence.falseJsonSequence;
   }
 
-  final JsonSequence greaterThanOp(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
+  JsonSequence greaterThanOp(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
     return compareTo(other, errorListener, ctx) > 0 ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
   }
 
-  final JsonSequence greaterThanEqualOp(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
+  JsonSequence greaterThanEqualOp(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
     return compareTo(other, errorListener, ctx) >= 0 ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
   }
 
-  final JsonSequence lessThanOp(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
+  JsonSequence lessThanOp(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
     return compareTo(other, errorListener, ctx) < 0 ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
   }
 
-  final JsonSequence lessThanEqualOp(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
+  JsonSequence lessThanEqualOp(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {
     return compareTo(other, errorListener, ctx) <= 0 ? JsonSequence.trueJsonSequence : JsonSequence.falseJsonSequence;
   }
 

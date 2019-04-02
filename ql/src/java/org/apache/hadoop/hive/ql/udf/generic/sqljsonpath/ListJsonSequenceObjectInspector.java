@@ -24,11 +24,14 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import java.util.List;
 import java.util.function.Function;
 
-public class ListJsonSequenceObjectInspector extends AbstractJsonSequenceObjectInspector implements ListObjectInspector {
-  private final AbstractJsonSequenceObjectInspector elementOI;
+public class ListJsonSequenceObjectInspector implements ListObjectInspector {
+  private final ObjectInspector elementOI;
+  private final Function<JsonSequence, Object> elementResolver;
 
-  public ListJsonSequenceObjectInspector(AbstractJsonSequenceObjectInspector elementObjectInspector) {
+  public ListJsonSequenceObjectInspector(ObjectInspector elementObjectInspector,
+                                         Function<JsonSequence, Object> elementResolver) {
     this.elementOI = elementObjectInspector;
+    this.elementResolver = elementResolver;
   }
 
   @Override
@@ -39,7 +42,9 @@ public class ListJsonSequenceObjectInspector extends AbstractJsonSequenceObjectI
   @Override
   public Object getListElement(Object data, int index) {
     List<JsonSequence> list = asList(data);
-    return list == null || index >= list.size() ? null : list.get(index);
+    if (list == null || index >= list.size()) return null;
+    JsonSequence element = list.get(index);
+    return elementResolver.apply(element);
   }
 
   @Override
@@ -50,12 +55,13 @@ public class ListJsonSequenceObjectInspector extends AbstractJsonSequenceObjectI
 
   @Override
   public List<?> getList(Object data) {
+    // If this is a list of primitive data, we have to convert the JsonSequence's to Objects
     return asList(data);
   }
 
   @Override
   public String getTypeName() {
-    return serdeConstants.LIST_TYPE_NAME;
+    return serdeConstants.LIST_TYPE_NAME + "<" + elementOI.getTypeName() + ">";
   }
 
   @Override
@@ -64,6 +70,10 @@ public class ListJsonSequenceObjectInspector extends AbstractJsonSequenceObjectI
   }
 
   private List<JsonSequence> asList(Object o) {
-    return asType(JsonSequence::isList, JsonSequence::asList, o, "list");
+    if (o == null) return null;
+    if (!(o instanceof JsonSequence)) return null;
+    JsonSequence json = (JsonSequence)o;
+    if (!json.isList()) return null;
+    return json.asList();
   }
 }
