@@ -705,7 +705,7 @@ public class PathExecutor extends SqlJsonPathBaseVisitor<JsonSequence> {
             newList.asList().add(oneList.asList().get(i));
           }
         } else {
-          throw new RuntimeException("programming error");
+          throw new RuntimeException("programming error, sub is a " + sub.getType());
         }
       }
       // if only one value was accessed unwrap it

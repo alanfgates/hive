@@ -22,7 +22,10 @@ import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class ListJsonSequenceObjectInspector implements ListObjectInspector {
   private final ObjectInspector elementOI;
@@ -55,8 +58,9 @@ public class ListJsonSequenceObjectInspector implements ListObjectInspector {
 
   @Override
   public List<?> getList(Object data) {
-    // If this is a list of primitive data, we have to convert the JsonSequence's to Objects
-    return asList(data);
+    List<JsonSequence> list = asList(data);
+    if (list == null) return null;
+    return list.stream().map(elementResolver).collect(Collectors.toList());
   }
 
   @Override
@@ -67,6 +71,19 @@ public class ListJsonSequenceObjectInspector implements ListObjectInspector {
   @Override
   public Category getCategory() {
     return Category.LIST;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    ListJsonSequenceObjectInspector that = (ListJsonSequenceObjectInspector) o;
+    return Objects.equals(elementOI, that.elementOI);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(elementOI);
   }
 
   private List<JsonSequence> asList(Object o) {

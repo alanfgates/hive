@@ -21,23 +21,21 @@ import org.apache.hadoop.hive.common.ObjectPair;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
-import org.apache.hadoop.hive.serde.serdeConstants;
+import org.apache.hadoop.hive.serde2.io.DoubleWritable;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.BooleanObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.DoubleObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.IntObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.JavaConstantBooleanObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.JavaConstantDoubleObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.JavaConstantIntObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.JavaConstantLongObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.JavaConstantStringObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.LongObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.hadoop.io.BooleanWritable;
-import org.apache.hadoop.io.DoubleWritable;
+import org.apache.hadoop.io.FloatWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
@@ -47,6 +45,7 @@ import org.junit.Test;
 
 import static org.apache.hadoop.hive.ql.udf.generic.GenericUDF.DeferredObject;
 import static org.apache.hadoop.hive.ql.udf.generic.GenericUDF.DeferredJavaObject;
+import static org.apache.hadoop.hive.ql.udf.generic.GenericUDFJsonValue.WhatToReturn;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -110,7 +109,7 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void simpleLong() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.age", serdeConstants.BIGINT_TYPE_NAME);
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.age", wrapInList(1L));
     Assert.assertEquals(4, results.getSecond().length);
     Assert.assertTrue(results.getFirst() instanceof LongObjectInspector);
     LongObjectInspector loi = (LongObjectInspector)results.getFirst();
@@ -122,7 +121,7 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void simpleInt() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.age", serdeConstants.INT_TYPE_NAME);
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.age", wrapInList(1));
     Assert.assertEquals(4, results.getSecond().length);
     Assert.assertTrue(results.getFirst() instanceof IntObjectInspector);
     IntObjectInspector ioi = (IntObjectInspector)results.getFirst();
@@ -134,7 +133,7 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void simpleDouble() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.gpa", serdeConstants.DOUBLE_TYPE_NAME);
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.gpa", wrapInList(1.0));
     Assert.assertEquals(4, results.getSecond().length);
     Assert.assertTrue(results.getFirst() instanceof DoubleObjectInspector);
     DoubleObjectInspector doi = (DoubleObjectInspector)results.getFirst();
@@ -146,7 +145,7 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void simpleBoolean() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.honors", serdeConstants.BOOLEAN_TYPE_NAME);
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.honors", wrapInList(true));
     Assert.assertEquals(4, results.getSecond().length);
     Assert.assertTrue(results.getFirst() instanceof BooleanObjectInspector);
     BooleanObjectInspector boi = (BooleanObjectInspector)results.getFirst();
@@ -158,7 +157,8 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void simpleListStr() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.sports", serdeConstants.LIST_TYPE_NAME + "<" + serdeConstants.STRING_TYPE_NAME + ">");
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.sports",
+        wrapInList(Collections.singletonList("a")));
     Assert.assertEquals(4, results.getSecond().length);
     Assert.assertTrue(results.getFirst() instanceof ListObjectInspector);
     ListObjectInspector loi = (ListObjectInspector)results.getFirst();
@@ -174,7 +174,8 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void simpleListLong() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.longlist", serdeConstants.LIST_TYPE_NAME + "<" + serdeConstants.BIGINT_TYPE_NAME + ">");
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.longlist",
+        wrapInList(Collections.singletonList(1L)));
     Assert.assertEquals(4, results.getSecond().length);
     Assert.assertTrue(results.getFirst() instanceof ListObjectInspector);
     ListObjectInspector loi = (ListObjectInspector)results.getFirst();
@@ -186,7 +187,8 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void simpleListDouble() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.doublelist", serdeConstants.LIST_TYPE_NAME + "<" + serdeConstants.DOUBLE_TYPE_NAME + ">");
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.doublelist",
+        wrapInList(Collections.singletonList(1.0)));
     Assert.assertEquals(4, results.getSecond().length);
     Assert.assertTrue(results.getFirst() instanceof ListObjectInspector);
     ListObjectInspector loi = (ListObjectInspector)results.getFirst();
@@ -198,7 +200,8 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void simpleListBool() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.boollist", serdeConstants.LIST_TYPE_NAME + "<" + serdeConstants.BOOLEAN_TYPE_NAME + ">");
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.boollist",
+        wrapInList(Collections.singletonList(true)));
     Assert.assertEquals(4, results.getSecond().length);
     Assert.assertTrue(results.getFirst() instanceof ListObjectInspector);
     ListObjectInspector loi = (ListObjectInspector)results.getFirst();
@@ -210,7 +213,8 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void multitypeList() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.multilist", serdeConstants.LIST_TYPE_NAME + "<" + serdeConstants.STRING_TYPE_NAME + ">");
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.multilist",
+        wrapInList(Collections.singletonList("a")));
     Assert.assertEquals(4, results.getSecond().length);
     Assert.assertTrue(results.getFirst() instanceof ListObjectInspector);
     ListObjectInspector loi = (ListObjectInspector)results.getFirst();
@@ -220,21 +224,21 @@ public class TestGenericUDFJsonValue {
     Assert.assertEquals("2.3", loi.getListElement(results.getSecond()[3], 2));
     Assert.assertEquals("false", loi.getListElement(results.getSecond()[3], 3));
 
-    results = test(json, "$.multilist", serdeConstants.LIST_TYPE_NAME + "<" + serdeConstants.BIGINT_TYPE_NAME + ">");
+    results = test(json, "$.multilist", wrapInList(Collections.singletonList(1L)));
     loi = (ListObjectInspector)results.getFirst();
     Assert.assertNull(loi.getListElement(results.getSecond()[3], 0));
     Assert.assertEquals(1L, loi.getListElement(results.getSecond()[3], 1));
     Assert.assertEquals(2L, loi.getListElement(results.getSecond()[3], 2));
     Assert.assertNull(loi.getListElement(results.getSecond()[3], 3));
 
-    results = test(json, "$.multilist", serdeConstants.LIST_TYPE_NAME + "<" + serdeConstants.DOUBLE_TYPE_NAME + ">");
+    results = test(json, "$.multilist", wrapInList(Collections.singletonList(1.0)));
     loi = (ListObjectInspector)results.getFirst();
     Assert.assertNull(loi.getListElement(results.getSecond()[3], 0));
     Assert.assertEquals(1.0, loi.getListElement(results.getSecond()[3], 1));
     Assert.assertEquals(2.3, loi.getListElement(results.getSecond()[3], 2));
     Assert.assertNull(loi.getListElement(results.getSecond()[3], 3));
 
-    results = test(json, "$.multilist", serdeConstants.LIST_TYPE_NAME + "<" + serdeConstants.BOOLEAN_TYPE_NAME + ">");
+    results = test(json, "$.multilist", wrapInList(Collections.singletonList(true)));
     loi = (ListObjectInspector)results.getFirst();
     Assert.assertNull(loi.getListElement(results.getSecond()[3], 0));
     Assert.assertNull(loi.getListElement(results.getSecond()[3], 1));
@@ -278,11 +282,11 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void stringAsLong() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.name", serdeConstants.BIGINT_TYPE_NAME);
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.name", wrapInList(1L));
     Assert.assertEquals(4, results.getSecond().length);
     PrimitiveObjectInspector poi = (PrimitiveObjectInspector) results.getFirst();
     Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[0]));
-    results = test(json, "$.longstring", serdeConstants.BIGINT_TYPE_NAME);
+    results = test(json, "$.longstring", wrapInList(1L));
     Assert.assertEquals(4, results.getSecond().length);
     poi = (PrimitiveObjectInspector) results.getFirst();
     Assert.assertEquals(42L, poi.getPrimitiveJavaObject(results.getSecond()[3]));
@@ -290,7 +294,7 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void doubleAsLong() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.gpa", serdeConstants.BIGINT_TYPE_NAME);
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.gpa", wrapInList(1L));
     Assert.assertEquals(4, results.getSecond().length);
     PrimitiveObjectInspector poi = (PrimitiveObjectInspector) results.getFirst();
     Assert.assertEquals(3L, poi.getPrimitiveJavaObject(results.getSecond()[0]));
@@ -301,7 +305,7 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void booleanAsLong() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.honors", serdeConstants.BIGINT_TYPE_NAME);
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.honors", wrapInList(1L));
     Assert.assertEquals(4, results.getSecond().length);
     PrimitiveObjectInspector poi = (PrimitiveObjectInspector) results.getFirst();
     Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[0]));
@@ -312,11 +316,11 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void stringAsDouble() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.name", serdeConstants.DOUBLE_TYPE_NAME);
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.name", wrapInList(1.0));
     Assert.assertEquals(4, results.getSecond().length);
     PrimitiveObjectInspector poi = (PrimitiveObjectInspector) results.getFirst();
     Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[0]));
-    results = test(json, "$.doublestring", serdeConstants.DOUBLE_TYPE_NAME);
+    results = test(json, "$.doublestring", wrapInList(1.0));
     Assert.assertEquals(4, results.getSecond().length);
     poi = (PrimitiveObjectInspector) results.getFirst();
     Assert.assertEquals(3.1415, poi.getPrimitiveJavaObject(results.getSecond()[3]));
@@ -324,7 +328,7 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void longAsDouble() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.age", serdeConstants.DOUBLE_TYPE_NAME);
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.age", wrapInList(1.0));
     Assert.assertEquals(4, results.getSecond().length);
     PrimitiveObjectInspector poi = (PrimitiveObjectInspector) results.getFirst();
     Assert.assertEquals(21.0, poi.getPrimitiveJavaObject(results.getSecond()[0]));
@@ -335,7 +339,7 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void booleanAsDouble() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.honors", serdeConstants.DOUBLE_TYPE_NAME);
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.honors", wrapInList(1.0));
     Assert.assertEquals(4, results.getSecond().length);
     PrimitiveObjectInspector poi = (PrimitiveObjectInspector) results.getFirst();
     Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[0]));
@@ -346,14 +350,14 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void stringAsBoolean() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.name", serdeConstants.BOOLEAN_TYPE_NAME);
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.name", wrapInList(true));
     Assert.assertEquals(4, results.getSecond().length);
     PrimitiveObjectInspector poi = (PrimitiveObjectInspector) results.getFirst();
     Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[0]));
     Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[1]));
     Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[2]));
     Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[3]));
-    results = test(json, "$.boolstring", serdeConstants.BOOLEAN_TYPE_NAME);
+    results = test(json, "$.boolstring", wrapInList(true));
     Assert.assertEquals(4, results.getSecond().length);
     poi = (PrimitiveObjectInspector) results.getFirst();
     Assert.assertEquals(true, poi.getPrimitiveJavaObject(results.getSecond()[3]));
@@ -361,7 +365,7 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void longAsBoolean() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.age", serdeConstants.BOOLEAN_TYPE_NAME);
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.age", wrapInList(true));
     Assert.assertEquals(4, results.getSecond().length);
     PrimitiveObjectInspector poi = (PrimitiveObjectInspector) results.getFirst();
     Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[0]));
@@ -372,7 +376,7 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void doubleAsBoolean() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.gpa", serdeConstants.BOOLEAN_TYPE_NAME);
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.gpa", wrapInList(true));
     Assert.assertEquals(4, results.getSecond().length);
     PrimitiveObjectInspector poi = (PrimitiveObjectInspector) results.getFirst();
     Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[0]));
@@ -384,16 +388,16 @@ public class TestGenericUDFJsonValue {
   @Test
   public void unsupportedReturnType() throws HiveException {
     try {
-      test(json, "$.gpa", serdeConstants.CHAR_TYPE_NAME);
+      test(json, "$.gpa", wrapInList(3.0f));
     } catch (UDFArgumentTypeException e) {
-      Assert.assertEquals("jsonvalue can return primitive type of list of primitive types", e.getMessage());
+      Assert.assertEquals("jsonvalue can return string, int, long, double, boolean, array of one of these, or struct with these", e.getMessage());
     }
   }
 
   @Test
   public void stringStaticDefaultOnEmpty() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.name", serdeConstants.STRING_TYPE_NAME,
-        new JavaConstantStringObjectInspector("fred"));
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.name",
+        wrapInList("fred"), WhatToReturn.DEFAULT);
     Assert.assertEquals(4, results.getSecond().length);
     Assert.assertTrue(results.getFirst() instanceof StringObjectInspector);
     StringObjectInspector soi = (StringObjectInspector)results.getFirst();
@@ -405,8 +409,8 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void longStaticDefaultOnEmpty() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.age", serdeConstants.BIGINT_TYPE_NAME,
-        new JavaConstantLongObjectInspector(87L));
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.age",
+        wrapInList(87L), WhatToReturn.DEFAULT);
     Assert.assertEquals(4, results.getSecond().length);
     Assert.assertTrue(results.getFirst() instanceof LongObjectInspector);
     LongObjectInspector loi = (LongObjectInspector)results.getFirst();
@@ -418,8 +422,8 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void intStaticDefaultOnEmpty() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.age", serdeConstants.INT_TYPE_NAME,
-        new JavaConstantIntObjectInspector(93));
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.age",
+        wrapInList(93), WhatToReturn.DEFAULT);
     Assert.assertEquals(4, results.getSecond().length);
     Assert.assertTrue(results.getFirst() instanceof IntObjectInspector);
     IntObjectInspector ioi = (IntObjectInspector)results.getFirst();
@@ -431,8 +435,8 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void doubleStaticDefaultOnEmpty() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.gpa", serdeConstants.DOUBLE_TYPE_NAME,
-        new JavaConstantDoubleObjectInspector(2.5));
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.gpa",
+        wrapInList(2.5), WhatToReturn.DEFAULT);
     Assert.assertEquals(4, results.getSecond().length);
     Assert.assertTrue(results.getFirst() instanceof DoubleObjectInspector);
     DoubleObjectInspector doi = (DoubleObjectInspector)results.getFirst();
@@ -444,8 +448,8 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void boolStaticDefaultOnEmpty() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.honors", serdeConstants.BOOLEAN_TYPE_NAME,
-        new JavaConstantBooleanObjectInspector(true));
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.honors",
+        wrapInList(true), WhatToReturn.DEFAULT);
     Assert.assertEquals(4, results.getSecond().length);
     Assert.assertTrue(results.getFirst() instanceof BooleanObjectInspector);
     BooleanObjectInspector boi = (BooleanObjectInspector)results.getFirst();
@@ -457,8 +461,8 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void stringDynamicDefaultOnEmpty() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.name", serdeConstants.STRING_TYPE_NAME,
-        PrimitiveObjectInspectorFactory.writableStringObjectInspector, Arrays.asList("one", "two", "three", "four"));
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.name",
+        Arrays.asList("one", "two", "three", "four"), WhatToReturn.DEFAULT);
     Assert.assertEquals(4, results.getSecond().length);
     Assert.assertTrue(results.getFirst() instanceof StringObjectInspector);
     StringObjectInspector soi = (StringObjectInspector)results.getFirst();
@@ -470,8 +474,8 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void longDynamicDefaultOnEmpty() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.age", serdeConstants.BIGINT_TYPE_NAME,
-        PrimitiveObjectInspectorFactory.writableLongObjectInspector, Arrays.asList(1L, 2L, 3L, 4L));
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.age",
+        Arrays.asList(1L, 2L, 3L, 4L), WhatToReturn.DEFAULT);
     Assert.assertEquals(4, results.getSecond().length);
     Assert.assertTrue(results.getFirst() instanceof LongObjectInspector);
     LongObjectInspector loi = (LongObjectInspector)results.getFirst();
@@ -483,8 +487,8 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void doubleDynamicDefaultOnEmpty() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.gpa", serdeConstants.DOUBLE_TYPE_NAME,
-        PrimitiveObjectInspectorFactory.writableDoubleObjectInspector, Arrays.asList(1.0, 2.0, 3.0, 4.0));
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.gpa",
+        Arrays.asList(1.0, 2.0, 3.0, 4.0), WhatToReturn.DEFAULT);
     Assert.assertEquals(4, results.getSecond().length);
     Assert.assertTrue(results.getFirst() instanceof DoubleObjectInspector);
     DoubleObjectInspector doi = (DoubleObjectInspector)results.getFirst();
@@ -496,8 +500,8 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void booleanDynamicDefaultOnEmpty() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.honors", serdeConstants.BOOLEAN_TYPE_NAME,
-        PrimitiveObjectInspectorFactory.writableBooleanObjectInspector, Arrays.asList(false, false, false, true));
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.honors",
+        Arrays.asList(false, false, false, true), WhatToReturn.DEFAULT);
     Assert.assertEquals(4, results.getSecond().length);
     Assert.assertTrue(results.getFirst() instanceof BooleanObjectInspector);
     BooleanObjectInspector boi = (BooleanObjectInspector)results.getFirst();
@@ -509,13 +513,12 @@ public class TestGenericUDFJsonValue {
 
   @Test
   public void defaultOnError() throws HiveException {
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.subobj?(@.str == 5)", serdeConstants.STRING_TYPE_NAME,
-        new JavaConstantStringObjectInspector("fred"));
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.subobj?(@.str == 5)",
+        wrapInList("fred"), WhatToReturn.NULL, WhatToReturn.DEFAULT);
     Assert.assertEquals(4, results.getSecond().length);
     StringObjectInspector soi = (StringObjectInspector)results.getFirst();
-    Assert.assertEquals("fred", soi.getPrimitiveJavaObject(results.getSecond()[0]));
-    Assert.assertEquals("fred", soi.getPrimitiveJavaObject(results.getSecond()[1]));
-    Assert.assertEquals("fred", soi.getPrimitiveJavaObject(results.getSecond()[2]));
+    // The error will only occur on the final entry because it is the only one with 'subobj' key.  The filter
+    // won't be evaluated on all the other records.
     Assert.assertEquals("fred", soi.getPrimitiveJavaObject(results.getSecond()[3]));
   }
 
@@ -524,9 +527,8 @@ public class TestGenericUDFJsonValue {
     ObjectPair<ObjectInspector, Object[]> results = test(json, "$.subobj?(@.str == 5)");
     Assert.assertEquals(4, results.getSecond().length);
     StringObjectInspector soi = (StringObjectInspector)results.getFirst();
-    Assert.assertNull(soi.getPrimitiveJavaObject(results.getSecond()[0]));
-    Assert.assertNull(soi.getPrimitiveJavaObject(results.getSecond()[1]));
-    Assert.assertNull(soi.getPrimitiveJavaObject(results.getSecond()[2]));
+    // The error will only occur on the final entry because it is the only one with 'subobj' key.  The filter
+    // won't be evaluated on all the other records.
     Assert.assertNull(soi.getPrimitiveJavaObject(results.getSecond()[3]));
   }
 
@@ -534,19 +536,34 @@ public class TestGenericUDFJsonValue {
   public void badSyntax() throws HiveException {
     try {
       test(json, "$.nosuchfunc()");
+      Assert.fail();
     } catch (UDFArgumentException e) {
       Assert.assertTrue(e.getMessage().startsWith("Failed to parse JSON path exception: '$.nosuchfunc()'"));
     }
   }
 
   @Test
-  public void errorOnError() throws HiveException {
-    test(json, "$.subojb?(@.str == 5)", serdeConstants.STRING_TYPE_NAME, true);
+  public void errorOnEmpty() {
+    try {
+      test(json, "$.nosuch", wrapInList("a"), WhatToReturn.ERROR);
+      Assert.fail();
+    } catch (HiveException e) {
+      Assert.assertTrue(e.getMessage().contains("Result of path expression is empty"));
+    }
+  }
+
+  @Test
+  public void errorOnError() {
+    try {
+      test(json, "$.subobj?(@.str == 5)", wrapInList("a"), WhatToReturn.NULL, WhatToReturn.ERROR);
+      Assert.fail();
+    } catch (HiveException e) {
+      Assert.assertTrue(e.getMessage().contains("produced a semantic error: Cannot compare a string to a long at \"@.str == 5\""));
+    }
   }
 
   @Test
   public void passing() throws HiveException {
-    Map<String, ObjectInspector> passingOIs = Collections.singletonMap("index", PrimitiveObjectInspectorFactory.writableIntObjectInspector);
     List<Map<String, Object>> passingVals = Arrays.asList(
         Collections.singletonMap("index", 1),
         Collections.singletonMap("index", 0),
@@ -554,99 +571,91 @@ public class TestGenericUDFJsonValue {
         Collections.singletonMap("index", 2)
     );
 
-    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.sports[$index]", serdeConstants.STRING_TYPE_NAME,
-        passingOIs, passingVals);
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.sports[$index]", wrapInList("a"),
+        WhatToReturn.NULL, WhatToReturn.NULL, passingVals);
     Assert.assertEquals(4, results.getSecond().length);
     StringObjectInspector soi = (StringObjectInspector)results.getFirst();
     Assert.assertEquals("soccer", soi.getPrimitiveJavaObject(results.getSecond()[0]));
     Assert.assertEquals("basketball", soi.getPrimitiveJavaObject(results.getSecond()[1]));
     Assert.assertNull(soi.getPrimitiveJavaObject(results.getSecond()[2]));
-    // Side affect of the way we call test with a default value
-    Assert.assertEquals("true", soi.getPrimitiveJavaObject(results.getSecond()[3]));
+    Assert.assertNull(soi.getPrimitiveJavaObject(results.getSecond()[3]));
   }
-
-  // TODO test to make sure list subtype parser handles spaces, etc.
 
   private ObjectPair<ObjectInspector, Object[]> test(List<String> jsonValues, String pathExpr) throws HiveException {
-    GenericUDFJsonValue udf = new GenericUDFJsonValue();
-    ObjectInspector resultObjectInspector = udf.initialize(buildInitArgs(pathExpr, null, null, null, null));
-    Object[] results = new Object[jsonValues.size()];
-    for (int i = 0; i < jsonValues.size(); i++) {
-      results[i] = udf.evaluate(buildExecArgs(jsonValues.get(i), pathExpr, null, null, null, null));
-    }
-    return new ObjectPair<>(resultObjectInspector, results);
+    return test(jsonValues, pathExpr, null);
   }
 
-  private ObjectPair<ObjectInspector, Object[]> test(List<String> jsonValues, String pathExpr, String returnType)
+  private ObjectPair<ObjectInspector, Object[]> test(List<String> jsonValues, String pathExpr, List<Object> defaultVals)
       throws HiveException {
-    GenericUDFJsonValue udf = new GenericUDFJsonValue();
-    ObjectInspector resultObjectInspector = udf.initialize(buildInitArgs(pathExpr, returnType, null, null, null));
-    Object[] results = new Object[jsonValues.size()];
-    for (int i = 0; i < jsonValues.size(); i++) {
-      results[i] = udf.evaluate(buildExecArgs(jsonValues.get(i), pathExpr, returnType, null, null, null));
-    }
-    return new ObjectPair<>(resultObjectInspector, results);
+    return test(jsonValues, pathExpr, defaultVals, null);
   }
 
-  // Test constant default value
-  private ObjectPair<ObjectInspector, Object[]> test(List<String> jsonValues, String pathExpr, String returnType,
-                                                     ObjectInspector defaultValOI) throws HiveException {
-    GenericUDFJsonValue udf = new GenericUDFJsonValue();
-    ObjectInspector resultObjectInspector = udf.initialize(buildInitArgs(pathExpr, returnType, defaultValOI, null, null));
-    Object[] results = new Object[jsonValues.size()];
-    for (int i = 0; i < jsonValues.size(); i++) {
-      results[i] = udf.evaluate(buildExecArgs(jsonValues.get(i), pathExpr, returnType, "dummy", null, null));
-    }
-    return new ObjectPair<>(resultObjectInspector, results);
+  private ObjectPair<ObjectInspector, Object[]> test(List<String> jsonValues, String pathExpr, List<Object> defaultVals,
+                                                     WhatToReturn onEmpty) throws HiveException {
+    return test(jsonValues, pathExpr, defaultVals, onEmpty, null);
   }
 
-  // Test dynamic default value
-  private ObjectPair<ObjectInspector, Object[]> test(List<String> jsonValues, String pathExpr, String returnType,
-                                                     ObjectInspector defaultValOI, List<Object> defaultVal) throws HiveException {
-    GenericUDFJsonValue udf = new GenericUDFJsonValue();
-    ObjectInspector resultObjectInspector = udf.initialize(buildInitArgs(pathExpr, returnType, defaultValOI, null, null));
-    Object[] results = new Object[jsonValues.size()];
-    for (int i = 0; i < jsonValues.size(); i++) {
-      results[i] = udf.evaluate(buildExecArgs(jsonValues.get(i), pathExpr, returnType, defaultVal.get(i), null, null));
-    }
-    return new ObjectPair<>(resultObjectInspector, results);
+  private ObjectPair<ObjectInspector, Object[]> test(List<String> jsonValues, String pathExpr, List<Object> defaultVals,
+                                                     WhatToReturn onEmpty, WhatToReturn onError) throws HiveException {
+    return test(jsonValues, pathExpr, defaultVals, onEmpty, onError, null);
   }
 
-  private ObjectPair<ObjectInspector, Object[]> test(List<String> jsonValues, String pathExpr, String returnType,
-                                                     Boolean errorOnError) throws HiveException {
-    GenericUDFJsonValue udf = new GenericUDFJsonValue();
-    ObjectInspector resultObjectInspector = udf.initialize(buildInitArgs(pathExpr, returnType, new JavaConstantBooleanObjectInspector(true), errorOnError, null));
-    Object[] results = new Object[jsonValues.size()];
-    for (int i = 0; i < jsonValues.size(); i++) {
-      results[i] = udf.evaluate(buildExecArgs(jsonValues.get(i), pathExpr, returnType, true, errorOnError, null));
-    }
-    return new ObjectPair<>(resultObjectInspector, results);
-  }
-
-  private ObjectPair<ObjectInspector, Object[]> test(List<String> jsonValues, String pathExpr, String returnType,
-                                                     Map<String, ObjectInspector> passingOIs,
+  /**
+   * Run a test.
+   * @param jsonValues list of values to pass to json_value()
+   * @param pathExpr path expression
+   * @param defaultVals list of default values.  Can be null if there are no default values.  Can contain a single
+   *                    element if you want the default to be constant.  Otherwise it should have the same number of
+   *                    values as jsonValues.
+   * @param onEmpty action on empty, can be null
+   * @param onError action on error, can be null
+   * @param passing list of maps to pass in as passing values, can be null
+   * @return object inspector to read results with and array of results
+   * @throws HiveException if thrown by json_value
+   */
+  private ObjectPair<ObjectInspector, Object[]> test(List<String> jsonValues, String pathExpr, List<Object> defaultVals,
+                                                     WhatToReturn onEmpty, WhatToReturn onError,
                                                      List<Map<String, Object>> passing) throws HiveException {
     GenericUDFJsonValue udf = new GenericUDFJsonValue();
-    ObjectInspector resultObjectInspector = udf.initialize(buildInitArgs(pathExpr, returnType, new JavaConstantBooleanObjectInspector(true), false, passingOIs));
+    // Figure out our default values, if there are any.  Note that this also fills out the contents of defaultVal if
+    // one 1 constant value was passed there
+    ObjectInspector returnOI = objectInspectorFromDefaultVals(defaultVals, jsonValues.size(), defaultVals == null || defaultVals.size() == 1);
+    // Figure out our passing object inspectors, if we need them
+    Map<String, ObjectInspector> passingOIs = null;
+    if (passing != null) {
+      passingOIs = new HashMap<>(passing.get(0).size());
+      Map<String, List<Object>> inverted = new HashMap<>();
+      for (Map<String, Object> p : passing) {
+        for (Map.Entry<String, Object> e : p.entrySet()) {
+          List<Object> list = inverted.computeIfAbsent(e.getKey(), s -> new ArrayList<>());
+          list.add(e.getValue());
+        }
+      }
+      for (Map.Entry<String, List<Object>> inv : inverted.entrySet()) {
+        passingOIs.put(inv.getKey(), objectInspectorFromDefaultVals(inv.getValue(), inv.getValue().size(), false));
+      }
+    }
+    ObjectInspector resultObjectInspector = udf.initialize(buildInitArgs(pathExpr, returnOI, onEmpty, onError, passingOIs));
     Object[] results = new Object[jsonValues.size()];
     for (int i = 0; i < jsonValues.size(); i++) {
-      results[i] = udf.evaluate(buildExecArgs(jsonValues.get(i), pathExpr, returnType, false, false, passing.get(i)));
+      results[i] = udf.evaluate(buildExecArgs(jsonValues.get(i), pathExpr,
+          defaultVals == null ? null : defaultVals.get(i), onEmpty, onError, passing == null ? null : passing.get(i)));
     }
     return new ObjectPair<>(resultObjectInspector, results);
   }
 
-  private ObjectInspector[] buildInitArgs(String pathExpr, String returnType, ObjectInspector defaultValOI,
-                                          Boolean errorOnError, Map<String, ObjectInspector> passing) {
+  private ObjectInspector[] buildInitArgs(String pathExpr, ObjectInspector returnOI, WhatToReturn onEmpty,
+                                          WhatToReturn onError, Map<String, ObjectInspector> passing) {
     List<ObjectInspector> initArgs = new ArrayList<>();
     initArgs.add(PrimitiveObjectInspectorFactory.writableStringObjectInspector);
     initArgs.add(new JavaConstantStringObjectInspector(pathExpr));
     // Nesting here is important because we want it to come out with the right number of args
-    if (returnType != null) {
-      initArgs.add(new JavaConstantStringObjectInspector(returnType));
-      if (defaultValOI != null) {
-        initArgs.add(defaultValOI);
-        if (errorOnError != null) {
-          initArgs.add(new JavaConstantBooleanObjectInspector(errorOnError));
+    if (returnOI != null) {
+      initArgs.add(returnOI);
+      if (onEmpty != null) {
+        initArgs.add(new JavaConstantStringObjectInspector(onEmpty.name()));
+        if (onError != null) {
+          initArgs.add(new JavaConstantStringObjectInspector(onError.name()));
           if (passing != null) {
             for (Map.Entry<String, ObjectInspector> entry : passing.entrySet()) {
               initArgs.add(new JavaConstantStringObjectInspector(entry.getKey()));
@@ -659,17 +668,18 @@ public class TestGenericUDFJsonValue {
     return initArgs.toArray(new ObjectInspector[0]);
   }
 
-  private DeferredObject[] buildExecArgs(String jsonValue, String pathExpr, String returnType, Object defaultVal,
-                                         Boolean errorOnError, Map<String, Object> passing) {
+
+  private DeferredObject[] buildExecArgs(String jsonValue, String pathExpr, Object defaultVal, WhatToReturn onEmpty,
+                                         WhatToReturn onError, Map<String, Object> passing) {
     List<DeferredObject> execArgs = new ArrayList<>();
     execArgs.add(wrapInDeferred(jsonValue));
     execArgs.add(wrapInDeferred(pathExpr));
-    if (returnType != null) {
-      execArgs.add(wrapInDeferred(returnType));
-      if (defaultVal != null) {
-        execArgs.add(wrapInDeferred(defaultVal));
-        if (errorOnError != null) {
-          execArgs.add(wrapInDeferred(errorOnError));
+    if (defaultVal != null) {
+      execArgs.add(wrapInDeferred(defaultVal));
+      if (onEmpty != null) {
+        execArgs.add(wrapInDeferred(onEmpty.name()));
+        if (onError != null) {
+          execArgs.add(wrapInDeferred(onError.name()));
           if (passing != null) {
             for (Map.Entry<String, Object> entry : passing.entrySet()) {
               execArgs.add(wrapInDeferred(entry.getKey()));
@@ -689,7 +699,71 @@ public class TestGenericUDFJsonValue {
     else if (obj instanceof Long) return new DeferredJavaObject(new LongWritable((Long)obj));
     else if (obj instanceof Integer) return new DeferredJavaObject(new IntWritable((Integer) obj));
     else if (obj instanceof Double) return new DeferredJavaObject(new DoubleWritable((Double)obj));
+    else if (obj instanceof Float) return new DeferredJavaObject(new FloatWritable((Float)obj));
     else if (obj instanceof Boolean) return new DeferredJavaObject(new BooleanWritable((Boolean)obj));
     else throw new RuntimeException("what?");
+  }
+
+  private ObjectInspector objectInspectorFromDefaultVals(List<Object> defaultVals, int numRecords, boolean isConstant) {
+    if (defaultVals == null || defaultVals.isEmpty()) return PrimitiveObjectInspectorFactory.writableStringObjectInspector;
+
+    Object first = defaultVals.get(0);
+    if (isConstant) {
+      while (defaultVals.size() < numRecords) defaultVals.add(defaultVals.get(0));
+    }
+    return objToObjectInspector(first, isConstant);
+  }
+
+  private ObjectInspector objToObjectInspector(Object obj, boolean isConstant) {
+    if (obj instanceof List) {
+      List list = (List)obj;
+      if (isConstant) {
+        return ObjectInspectorFactory.getStandardConstantListObjectInspector(objToObjectInspector(
+            list.get(0), isConstant), list);
+      } else {
+        return ObjectInspectorFactory.getStandardListObjectInspector(objToObjectInspector(list.get(0), isConstant));
+      }
+    } else if (obj instanceof Map) {
+      Map<String, Object> map = (Map<String, Object>)obj;
+      List<String> fields = new ArrayList<>();
+      List<ObjectInspector> ois = new ArrayList<>();
+      List<Object> values = new ArrayList<>();
+      for (Map.Entry<String, Object> e : map.entrySet()) {
+        fields.add(e.getKey());
+        ois.add(objToObjectInspector(e.getValue(), isConstant));
+        values.add(e.getValue());
+      }
+      if (isConstant) {
+        return ObjectInspectorFactory.getStandardConstantStructObjectInspector(fields, ois, values);
+      } else {
+        return ObjectInspectorFactory.getStandardStructObjectInspector(fields, ois);
+      }
+    } else if (obj instanceof String) {
+      return isConstant ? new JavaConstantStringObjectInspector((String)obj) :
+          PrimitiveObjectInspectorFactory.writableStringObjectInspector;
+    } else if (obj instanceof Long) {
+      return isConstant ? PrimitiveObjectInspectorFactory.getPrimitiveWritableConstantObjectInspector(TypeInfoFactory.longTypeInfo, new LongWritable((Long)obj)) :
+          PrimitiveObjectInspectorFactory.writableLongObjectInspector;
+    } else if (obj instanceof Integer) {
+      return isConstant ? PrimitiveObjectInspectorFactory.getPrimitiveWritableConstantObjectInspector(TypeInfoFactory.intTypeInfo, new IntWritable((Integer)obj)) :
+          PrimitiveObjectInspectorFactory.writableIntObjectInspector;
+    } else if (obj instanceof Float) {
+      return isConstant ? PrimitiveObjectInspectorFactory.getPrimitiveWritableConstantObjectInspector(TypeInfoFactory.floatTypeInfo, new FloatWritable((Float)obj)) :
+          PrimitiveObjectInspectorFactory.writableFloatObjectInspector;
+    } else if (obj instanceof Double) {
+      return isConstant ? PrimitiveObjectInspectorFactory.getPrimitiveWritableConstantObjectInspector(TypeInfoFactory.doubleTypeInfo, new DoubleWritable((Double)obj)) :
+          PrimitiveObjectInspectorFactory.writableDoubleObjectInspector;
+    } else if (obj instanceof Boolean) {
+      return isConstant ? PrimitiveObjectInspectorFactory.getPrimitiveWritableConstantObjectInspector(TypeInfoFactory.booleanTypeInfo, new BooleanWritable((Boolean)obj)) :
+          PrimitiveObjectInspectorFactory.writableBooleanObjectInspector;
+    } else {
+      throw new RuntimeException("programming error");
+    }
+  }
+
+  private <T> List<T> wrapInList(T element) {
+    List<T> list = new ArrayList<>();
+    list.add(element);
+    return list;
   }
 }

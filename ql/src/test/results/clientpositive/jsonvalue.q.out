@@ -1,41 +1,102 @@
-PREHOOK: query: create temporary table jsonvalue (jsonval string)
+PREHOOK: query: create temporary table jsonvalue (jsonval string, defaultval string)
 PREHOOK: type: CREATETABLE
 PREHOOK: Output: database:default
 PREHOOK: Output: default@jsonvalue
-POSTHOOK: query: create temporary table jsonvalue (jsonval string)
+POSTHOOK: query: create temporary table jsonvalue (jsonval string, defaultval string)
 POSTHOOK: type: CREATETABLE
 POSTHOOK: Output: database:default
 POSTHOOK: Output: default@jsonvalue
 PREHOOK: query: insert into jsonvalue values
-  ('{"name" : "harry", "age" : 17, "gpa" : 3.03, "honors" : false, "classes" : [ "math", "history" ] }'),
-  ('{"name" : "hermione", "age" : 18, "gpa" : 4.00, "honors" : true, "classes" : [ "science", "french" ]}'),
-  ('{"name" : null, "age" : null, "gpa" : null, "honors" : null, "classes" : null}'),
-  ('{}')
+  ('{"name" : "harry", "age" : 17, "gpa" : 3.03, "honors" : false, "classes" : [ "math", "history" ] }', 'ron'),
+  ('{"name" : "hermione", "age" : 18, "gpa" : 4.00, "honors" : true, "classes" : [ "science", "french" ]}', 'ginny'),
+  ('{"name" : null, "age" : null, "gpa" : null, "honors" : null, "classes" : null}', 'no name'),
+  ('{}', 'empty')
 PREHOOK: type: QUERY
 PREHOOK: Input: _dummy_database@_dummy_table
 PREHOOK: Output: default@jsonvalue
 POSTHOOK: query: insert into jsonvalue values
-  ('{"name" : "harry", "age" : 17, "gpa" : 3.03, "honors" : false, "classes" : [ "math", "history" ] }'),
-  ('{"name" : "hermione", "age" : 18, "gpa" : 4.00, "honors" : true, "classes" : [ "science", "french" ]}'),
-  ('{"name" : null, "age" : null, "gpa" : null, "honors" : null, "classes" : null}'),
-  ('{}')
+  ('{"name" : "harry", "age" : 17, "gpa" : 3.03, "honors" : false, "classes" : [ "math", "history" ] }', 'ron'),
+  ('{"name" : "hermione", "age" : 18, "gpa" : 4.00, "honors" : true, "classes" : [ "science", "french" ]}', 'ginny'),
+  ('{"name" : null, "age" : null, "gpa" : null, "honors" : null, "classes" : null}', 'no name'),
+  ('{}', 'empty')
 POSTHOOK: type: QUERY
 POSTHOOK: Input: _dummy_database@_dummy_table
 POSTHOOK: Output: default@jsonvalue
+POSTHOOK: Lineage: jsonvalue.defaultval SCRIPT []
 POSTHOOK: Lineage: jsonvalue.jsonval SCRIPT []
-PREHOOK: query: select json_value(jsonval, '$.name'), json_value(jsonval, '$.age', 'bigint'),
-       json_value(jsonval, '$.gpa', 'double'), json_value(jsonval, '$.honors', 'boolean')
-       from jsonvalue
+PREHOOK: query: select json_value(jsonval, '$.name'),
+       json_value(jsonval, '$.age', 1L),
+       json_value(jsonval, '$.age', 1),
+
+       json_value(jsonval, '$.honors', true)
+    from jsonvalue
 PREHOOK: type: QUERY
 PREHOOK: Input: default@jsonvalue
 #### A masked pattern was here ####
-POSTHOOK: query: select json_value(jsonval, '$.name'), json_value(jsonval, '$.age', 'bigint'),
-       json_value(jsonval, '$.gpa', 'double'), json_value(jsonval, '$.honors', 'boolean')
-       from jsonvalue
+POSTHOOK: query: select json_value(jsonval, '$.name'),
+       json_value(jsonval, '$.age', 1L),
+       json_value(jsonval, '$.age', 1),
+
+       json_value(jsonval, '$.honors', true)
+    from jsonvalue
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@jsonvalue
 #### A masked pattern was here ####
-harry	17	3.03	false
-hermione	18	4.0	true
+harry	17	17	false
+hermione	18	18	true
 NULL	NULL	NULL	NULL
 NULL	NULL	NULL	NULL
+PREHOOK: query: select json_value(jsonval, '$.name', 'fred', 'DEFAULT'),
+       json_value(jsonval, '$.age', 1L, 'DEFAULT'),
+       json_value(jsonval, '$.age', 1, 'DEFAULT'),
+
+       json_value(jsonval, '$.honors', true, 'DEFAULT')
+    from jsonvalue
+PREHOOK: type: QUERY
+PREHOOK: Input: default@jsonvalue
+#### A masked pattern was here ####
+POSTHOOK: query: select json_value(jsonval, '$.name', 'fred', 'DEFAULT'),
+       json_value(jsonval, '$.age', 1L, 'DEFAULT'),
+       json_value(jsonval, '$.age', 1, 'DEFAULT'),
+
+       json_value(jsonval, '$.honors', true, 'DEFAULT')
+    from jsonvalue
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@jsonvalue
+#### A masked pattern was here ####
+harry	17	17	false
+hermione	18	18	true
+NULL	NULL	NULL	NULL
+fred	1	1	true
+PREHOOK: query: select json_value(jsonval, '$.name', defaultval, 'DEFAULT')
+    from jsonvalue
+PREHOOK: type: QUERY
+PREHOOK: Input: default@jsonvalue
+#### A masked pattern was here ####
+POSTHOOK: query: select json_value(jsonval, '$.name', defaultval, 'DEFAULT')
+    from jsonvalue
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@jsonvalue
+#### A masked pattern was here ####
+harry
+hermione
+NULL
+empty
+PREHOOK: query: select 
+
+       json_value(jsonval, '$.classes[$index]', 'a', 'NULL', 'NULL', 'index', 0)
+    from jsonvalue
+PREHOOK: type: QUERY
+PREHOOK: Input: default@jsonvalue
+#### A masked pattern was here ####
+POSTHOOK: query: select 
+
+       json_value(jsonval, '$.classes[$index]', 'a', 'NULL', 'NULL', 'index', 0)
+    from jsonvalue
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@jsonvalue
+#### A masked pattern was here ####
+math
+science
+NULL
+NULL

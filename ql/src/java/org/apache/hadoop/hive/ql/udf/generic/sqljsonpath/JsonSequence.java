@@ -18,26 +18,21 @@
 package org.apache.hadoop.hive.ql.udf.generic.sqljsonpath;
 
 import org.antlr.v4.runtime.ParserRuleContext;
-import org.apache.hadoop.hive.common.ObjectPair;
-import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
+import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
-import org.apache.hadoop.io.BooleanWritable;
-import org.apache.hadoop.io.DoubleWritable;
-import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.LongWritable;
-import org.apache.hadoop.io.Text;
+import org.apache.hadoop.hive.serde2.objectinspector.StructField;
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.DoubleBinaryOperator;
-import java.util.function.Function;
 import java.util.function.LongBinaryOperator;
 
 /**
@@ -161,13 +156,39 @@ public final class JsonSequence {
     this.type = template.type;
   }
 
-  public static JsonSequence fromWritable(Object writable) {
-    if (writable instanceof Text) return new JsonSequence(writable.toString());
-    if (writable instanceof LongWritable) return new JsonSequence(((LongWritable)writable).get());
-    if (writable instanceof IntWritable) return new JsonSequence(((IntWritable)writable).get());
-    if (writable instanceof DoubleWritable) return new JsonSequence(((DoubleWritable)writable).get());
-    if (writable instanceof BooleanWritable) return new JsonSequence(((BooleanWritable)writable).get());
-    else return null;
+  public static JsonSequence fromObjectInspector(ObjectInspector oi, Object data) throws UDFArgumentException {
+    switch (oi.getCategory()) {
+      case LIST:
+        ListObjectInspector loi = (ListObjectInspector)oi;
+        List<JsonSequence> jsonSequences = new ArrayList<>(loi.getListLength(data));
+        for (int i = 0; i < loi.getListLength(data); i++) {
+          jsonSequences.add(fromObjectInspector(loi.getListElementObjectInspector(), loi.getListElement(data, i)));
+        }
+        return new JsonSequence(jsonSequences);
+
+      case STRUCT:
+        StructObjectInspector soi = (StructObjectInspector)oi;
+        Map<String, JsonSequence> fields = new HashMap<>();
+        for (StructField sf : soi.getAllStructFieldRefs()) {
+          JsonSequence json = fromObjectInspector(sf.getFieldObjectInspector(), soi.getStructFieldData(data, sf));
+          fields.put(sf.getFieldName(), json);
+        }
+        return new JsonSequence(fields);
+
+      case PRIMITIVE:
+        PrimitiveObjectInspector poi = (PrimitiveObjectInspector)oi;
+        switch (poi.getPrimitiveCategory()) {
+          case STRING: return new JsonSequence((String)poi.getPrimitiveJavaObject(data));
+          case LONG: return new JsonSequence((Long)poi.getPrimitiveJavaObject(data));
+          case INT: return new JsonSequence((Integer)poi.getPrimitiveJavaObject(data));
+          case DOUBLE: return new JsonSequence((Double)poi.getPrimitiveJavaObject(data));
+          case BOOLEAN: return new JsonSequence((Boolean)poi.getPrimitiveJavaObject(data));
+          default: throw new UDFArgumentException("Cannot cast a " + poi.getPrimitiveCategory().name() + " to JsonSequence");
+        }
+
+      default:
+        throw new UDFArgumentException("Cannot cast a " + oi.getCategory().name() + " to JsonSequence");
+    }
   }
 
   public boolean isLong() {
@@ -330,6 +351,13 @@ public final class JsonSequence {
     if (isList()) return asList();
     if (isNull() || isEmpty()) return null;
     if (errorOnBadCast) throw new ClassCastException("Attempt to cast " + type.name().toLowerCase() + " as list");
+    else return null;
+  }
+
+  public final Map<String, JsonSequence> castToObject(boolean errorOnBadCast) {
+    if (isObject()) return asObject();
+    if (isNull() || isEmpty()) return null;
+    if (errorOnBadCast) throw new ClassCastException("Attempt to cast " + type.name().toLowerCase() + " as object");
     else return null;
   }
 
