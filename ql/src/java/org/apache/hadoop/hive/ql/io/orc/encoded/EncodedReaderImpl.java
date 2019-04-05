@@ -131,11 +131,11 @@ class EncodedReaderImpl implements EncodedReader {
   private AtomicBoolean isStopped;
   private StoppableAllocator allocator;
 
-  public EncodedReaderImpl(Object fileKey, List<OrcProto.Type> types, CompressionCodec codec,
+  public EncodedReaderImpl(Object fileKey, List<OrcProto.Type> types,
       int bufferSize, long strideRate, DataCache cacheWrapper, DataReader dataReader,
       PoolFactory pf, IoTrace trace) throws IOException {
     this.fileKey = fileKey;
-    this.codec = codec;
+    this.codec = dataReader.getCompressionCodec();
     this.types = types;
     this.bufferSize = bufferSize;
     this.rowIndexStride = strideRate;

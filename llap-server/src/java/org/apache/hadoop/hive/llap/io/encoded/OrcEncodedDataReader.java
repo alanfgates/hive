@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.hadoop.hive.llap.counters.LlapIOCounters;
+import org.apache.orc.CompressionCodec;
 import org.apache.orc.TypeDescription;
 import org.apache.orc.impl.DataReaderProperties;
 import org.apache.orc.impl.OrcIndex;
@@ -894,6 +895,11 @@ public class OrcEncodedDataReader extends CallableWithNdc<Void>
       if (metadataReader != null) {
         metadataReader.close();
       }
+    }
+
+    @Override
+    public CompressionCodec getCompressionCodec() {
+      return orcDataReader.getCompressionCodec();
     }
 
     @Override
