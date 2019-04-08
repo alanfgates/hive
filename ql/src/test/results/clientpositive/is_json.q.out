@@ -2,12 +2,12 @@ PREHOOK: query: DESCRIBE FUNCTION isjson
 PREHOOK: type: DESCFUNCTION
 POSTHOOK: query: DESCRIBE FUNCTION isjson
 POSTHOOK: type: DESCFUNCTION
-isjson(json) - Parses the given string to see if it is valid JSON
+string IS JSON - Parses the given string to see if it is valid JSON
 PREHOOK: query: DESCRIBE FUNCTION EXTENDED isjson
 PREHOOK: type: DESCFUNCTION
 POSTHOOK: query: DESCRIBE FUNCTION EXTENDED isjson
 POSTHOOK: type: DESCFUNCTION
-isjson(json) - Parses the given string to see if it is valid JSON
+string IS JSON - Parses the given string to see if it is valid JSON
 Returns null if json is null, otherwise true or false
 Function class:org.apache.hadoop.hive.ql.udf.generic.GenericUDFIsJson
 Function type:BUILTIN
@@ -15,12 +15,12 @@ PREHOOK: query: DESCRIBE FUNCTION isnotjson
 PREHOOK: type: DESCFUNCTION
 POSTHOOK: query: DESCRIBE FUNCTION isnotjson
 POSTHOOK: type: DESCFUNCTION
-isnotjson(json) - Parses the given string to see if it is not valid JSON
+string IS NOT JSON - Parses the given string to see if it is not valid JSON
 PREHOOK: query: DESCRIBE FUNCTION EXTENDED isnotjson
 PREHOOK: type: DESCFUNCTION
 POSTHOOK: query: DESCRIBE FUNCTION EXTENDED isnotjson
 POSTHOOK: type: DESCFUNCTION
-isnotjson(json) - Parses the given string to see if it is not valid JSON
+string IS NOT JSON - Parses the given string to see if it is not valid JSON
 Returns null if json is null, otherwise true or false
 Function class:org.apache.hadoop.hive.ql.udf.generic.GenericUDFIsNotJson
 Function type:BUILTIN

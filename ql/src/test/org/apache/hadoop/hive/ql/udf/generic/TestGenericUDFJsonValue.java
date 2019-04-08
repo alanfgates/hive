@@ -164,10 +164,11 @@ public class TestGenericUDFJsonValue {
     ListObjectInspector loi = (ListObjectInspector)results.getFirst();
     Assert.assertTrue(loi.getListElementObjectInspector() instanceof StringObjectInspector);
     Assert.assertEquals(2, loi.getListLength(results.getSecond()[0]));
-    Assert.assertEquals("baseball", loi.getListElement(results.getSecond()[0], 0));
-    Assert.assertEquals("soccer", loi.getListElement(results.getSecond()[0], 1));
+    StringObjectInspector soi = (StringObjectInspector)loi.getListElementObjectInspector();
+    Assert.assertEquals("baseball", soi.getPrimitiveJavaObject(loi.getListElement(results.getSecond()[0], 0)));
+    Assert.assertEquals("soccer", soi.getPrimitiveJavaObject(loi.getListElement(results.getSecond()[0], 1)));
     Assert.assertEquals(1, loi.getListLength(results.getSecond()[1]));
-    Assert.assertEquals("basketball", loi.getListElement(results.getSecond()[1], 0));
+    Assert.assertEquals("basketball", soi.getPrimitiveJavaObject(loi.getListElement(results.getSecond()[1], 0)));
     Assert.assertNull(loi.getList(results.getSecond()[2]));
     Assert.assertNull(loi.getList(results.getSecond()[3]));
   }
@@ -179,10 +180,11 @@ public class TestGenericUDFJsonValue {
     Assert.assertEquals(4, results.getSecond().length);
     Assert.assertTrue(results.getFirst() instanceof ListObjectInspector);
     ListObjectInspector loi = (ListObjectInspector)results.getFirst();
-    Assert.assertTrue(loi.getListElementObjectInspector() instanceof LongObjectInspector);
     Assert.assertEquals(2, loi.getListLength(results.getSecond()[3]));
-    Assert.assertEquals(3L, loi.getListElement(results.getSecond()[3], 0));
-    Assert.assertEquals(26L, loi.getListElement(results.getSecond()[3], 1));
+    Assert.assertTrue(loi.getListElementObjectInspector() instanceof LongObjectInspector);
+    LongObjectInspector lloi = (LongObjectInspector)loi.getListElementObjectInspector();
+    Assert.assertEquals(3L, lloi.getPrimitiveJavaObject(loi.getListElement(results.getSecond()[3], 0)));
+    Assert.assertEquals(26L, lloi.getPrimitiveJavaObject(loi.getListElement(results.getSecond()[3], 1)));
   }
 
   @Test
@@ -193,9 +195,10 @@ public class TestGenericUDFJsonValue {
     Assert.assertTrue(results.getFirst() instanceof ListObjectInspector);
     ListObjectInspector loi = (ListObjectInspector)results.getFirst();
     Assert.assertTrue(loi.getListElementObjectInspector() instanceof DoubleObjectInspector);
+    DoubleObjectInspector doi = (DoubleObjectInspector)loi.getListElementObjectInspector();
     Assert.assertEquals(2, loi.getListLength(results.getSecond()[3]));
-    Assert.assertEquals(3.52, loi.getListElement(results.getSecond()[3], 0));
-    Assert.assertEquals(2.86, loi.getListElement(results.getSecond()[3], 1));
+    Assert.assertEquals(3.52, doi.getPrimitiveJavaObject(loi.getListElement(results.getSecond()[3], 0)));
+    Assert.assertEquals(2.86, doi.getPrimitiveJavaObject(loi.getListElement(results.getSecond()[3], 1)));
   }
 
   @Test
@@ -206,9 +209,10 @@ public class TestGenericUDFJsonValue {
     Assert.assertTrue(results.getFirst() instanceof ListObjectInspector);
     ListObjectInspector loi = (ListObjectInspector)results.getFirst();
     Assert.assertTrue(loi.getListElementObjectInspector() instanceof BooleanObjectInspector);
+    BooleanObjectInspector boi = (BooleanObjectInspector)loi.getListElementObjectInspector();
     Assert.assertEquals(2, loi.getListLength(results.getSecond()[3]));
-    Assert.assertEquals(true, loi.getListElement(results.getSecond()[3], 0));
-    Assert.assertEquals(false, loi.getListElement(results.getSecond()[3], 1));
+    Assert.assertEquals(true, boi.getPrimitiveJavaObject(loi.getListElement(results.getSecond()[3], 0)));
+    Assert.assertEquals(false, boi.getPrimitiveJavaObject(loi.getListElement(results.getSecond()[3], 1)));
   }
 
   @Test
@@ -222,7 +226,7 @@ public class TestGenericUDFJsonValue {
     Assert.assertEquals("string", loi.getListElement(results.getSecond()[3], 0));
     Assert.assertEquals("1", loi.getListElement(results.getSecond()[3], 1));
     Assert.assertEquals("2.3", loi.getListElement(results.getSecond()[3], 2));
-    Assert.assertEquals("false", loi.getListElement(results.getSecond()[3], 3));
+    Assert.assertEquals("FALSE", loi.getListElement(results.getSecond()[3], 3));
 
     results = test(json, "$.multilist", wrapInList(Collections.singletonList(1L)));
     loi = (ListObjectInspector)results.getFirst();
@@ -274,8 +278,8 @@ public class TestGenericUDFJsonValue {
     ObjectPair<ObjectInspector, Object[]> results = test(json, "$.honors");
     Assert.assertEquals(4, results.getSecond().length);
     PrimitiveObjectInspector poi = (PrimitiveObjectInspector)results.getFirst();
-    Assert.assertEquals("false", poi.getPrimitiveJavaObject(results.getSecond()[0]));
-    Assert.assertEquals("true", poi.getPrimitiveJavaObject(results.getSecond()[1]));
+    Assert.assertEquals("FALSE", poi.getPrimitiveJavaObject(results.getSecond()[0]));
+    Assert.assertEquals("TRUE", poi.getPrimitiveJavaObject(results.getSecond()[1]));
     Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[2]));
     Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[3]));
   }
@@ -308,8 +312,9 @@ public class TestGenericUDFJsonValue {
     ObjectPair<ObjectInspector, Object[]> results = test(json, "$.honors", wrapInList(1L));
     Assert.assertEquals(4, results.getSecond().length);
     PrimitiveObjectInspector poi = (PrimitiveObjectInspector) results.getFirst();
-    Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[0]));
-    Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[1]));
+    // Hive allows booleans to be cast to longs.  This is sick and wrong, but ok
+    Assert.assertEquals(0L, poi.getPrimitiveJavaObject(results.getSecond()[0]));
+    Assert.assertEquals(1L, poi.getPrimitiveJavaObject(results.getSecond()[1]));
     Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[2]));
     Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[3]));
   }
@@ -342,8 +347,9 @@ public class TestGenericUDFJsonValue {
     ObjectPair<ObjectInspector, Object[]> results = test(json, "$.honors", wrapInList(1.0));
     Assert.assertEquals(4, results.getSecond().length);
     PrimitiveObjectInspector poi = (PrimitiveObjectInspector) results.getFirst();
-    Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[0]));
-    Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[1]));
+    // Hive allows booleans to be cast to doubles.  This is sick and wrong, but ok
+    Assert.assertEquals(0.0, poi.getPrimitiveJavaObject(results.getSecond()[0]));
+    Assert.assertEquals(1.0, poi.getPrimitiveJavaObject(results.getSecond()[1]));
     Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[2]));
     Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[3]));
   }
@@ -353,8 +359,8 @@ public class TestGenericUDFJsonValue {
     ObjectPair<ObjectInspector, Object[]> results = test(json, "$.name", wrapInList(true));
     Assert.assertEquals(4, results.getSecond().length);
     PrimitiveObjectInspector poi = (PrimitiveObjectInspector) results.getFirst();
-    Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[0]));
-    Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[1]));
+    Assert.assertEquals(true, poi.getPrimitiveJavaObject(results.getSecond()[0]));
+    Assert.assertEquals(true, poi.getPrimitiveJavaObject(results.getSecond()[1]));
     Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[2]));
     Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[3]));
     results = test(json, "$.boolstring", wrapInList(true));
@@ -368,8 +374,8 @@ public class TestGenericUDFJsonValue {
     ObjectPair<ObjectInspector, Object[]> results = test(json, "$.age", wrapInList(true));
     Assert.assertEquals(4, results.getSecond().length);
     PrimitiveObjectInspector poi = (PrimitiveObjectInspector) results.getFirst();
-    Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[0]));
-    Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[1]));
+    Assert.assertEquals(true, poi.getPrimitiveJavaObject(results.getSecond()[0]));
+    Assert.assertEquals(true, poi.getPrimitiveJavaObject(results.getSecond()[1]));
     Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[2]));
     Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[3]));
   }
@@ -379,8 +385,8 @@ public class TestGenericUDFJsonValue {
     ObjectPair<ObjectInspector, Object[]> results = test(json, "$.gpa", wrapInList(true));
     Assert.assertEquals(4, results.getSecond().length);
     PrimitiveObjectInspector poi = (PrimitiveObjectInspector) results.getFirst();
-    Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[0]));
-    Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[1]));
+    Assert.assertEquals(true, poi.getPrimitiveJavaObject(results.getSecond()[0]));
+    Assert.assertEquals(true, poi.getPrimitiveJavaObject(results.getSecond()[1]));
     Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[2]));
     Assert.assertNull(poi.getPrimitiveJavaObject(results.getSecond()[3]));
   }

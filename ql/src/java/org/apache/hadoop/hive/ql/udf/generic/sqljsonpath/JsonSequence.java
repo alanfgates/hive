@@ -33,7 +33,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.DoubleBinaryOperator;
+import java.util.function.Function;
 import java.util.function.LongBinaryOperator;
+import java.util.stream.Collectors;
 
 /**
  * JsonSequence tracks the JSON value being returned from a section of the parse tree.  Since the value being returned
@@ -278,87 +280,13 @@ public final class JsonSequence {
     return (Map<String, JsonSequence>)val;
   }
 
-  public final Boolean castToBool(boolean errorOnBadCast) {
-    if (isBool()) return asBool();
-    if (isNull() || isEmpty()) return null;
-    if (isString()) {
-      // Boolean.valueOf() returns false on anything but "true", which isn't what we want, so don't use it
-      if (asString().equalsIgnoreCase("true")) return true;
-      else if (asString().equalsIgnoreCase("false")) return false;
-      else return null;
-    }
-    if (errorOnBadCast) throw new ClassCastException("Attempt to cast " + type.name().toLowerCase() + " as bool");
-    else return null;
-  }
-
-  public final Long castToLong(boolean errorOnBadCast) {
-    if (isLong()) return asLong();
-    if (isNull() || isEmpty()) return null;
-    if (isDouble()) return (long)asDouble();
-    if (isString()) {
-      try {
-        return Long.valueOf(asString());
-      } catch (NumberFormatException e) {
-        if (errorOnBadCast) {
-          throw e;
-        } else {
-          return null;
-        }
-      }
-    }
-    if (errorOnBadCast) throw new ClassCastException("Attempt to cast " + type.name().toLowerCase() + " as long");
-    else return null;
-  }
-
-  public final Integer castToInt(boolean errorOnBadCast) {
-    Long lg = castToLong(errorOnBadCast);
-    if (lg == null) return null;
-    if (lg > Integer.MAX_VALUE) {
-      if (errorOnBadCast) throw new NumberFormatException("Value too large to fit in integer");
-      else return null;
-    }
-    return (int)lg.longValue();
-  }
-
-  public final Double castToDouble(boolean errorOnBadCast) {
-    if (isDouble()) return asDouble();
-    if (isLong()) return (double)asLong();
-    if (isNull() || isEmpty()) return null;
-    if (isString()) {
-      try {
-        return Double.valueOf(asString());
-      } catch (NumberFormatException e) {
-        if (errorOnBadCast) {
-          throw e;
-        } else {
-          return null;
-        }
-      }
-    }
-    if (errorOnBadCast) throw new ClassCastException("Attempt to cast " + type.name().toLowerCase() + " as double");
-    else return null;
-  }
-
-  public final String castToString(boolean errorOnBadCast) {
-    if (isNull() || isEmpty()) return null;
-    if (isString()) return asString();
-    if (isDouble() || isLong() || isBool()) return val.toString();
-    if (errorOnBadCast) throw new ClassCastException("Attempt to cast " + type.name().toLowerCase() + " as string");
-    else return null;
-  }
-
-  public final List<JsonSequence> castToList(boolean errorOnBadCast) {
-    if (isList()) return asList();
-    if (isNull() || isEmpty()) return null;
-    if (errorOnBadCast) throw new ClassCastException("Attempt to cast " + type.name().toLowerCase() + " as list");
-    else return null;
-  }
-
-  public final Map<String, JsonSequence> castToObject(boolean errorOnBadCast) {
-    if (isObject()) return asObject();
-    if (isNull() || isEmpty()) return null;
-    if (errorOnBadCast) throw new ClassCastException("Attempt to cast " + type.name().toLowerCase() + " as object");
-    else return null;
+  /**
+   * Get the underlying object with no cast.  You should only call this if you're sure you want it as an object
+   * and aren't worried about the type.
+   * @return the value
+   */
+  Object getVal() {
+    return val;
   }
 
   void add(JsonSequence other, ErrorListener errorListener, ParserRuleContext ctx) {

@@ -18,7 +18,6 @@
 package org.apache.hadoop.hive.ql.udf.generic;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.hadoop.hive.common.ObjectPair;
 import org.apache.hadoop.hive.ql.exec.Description;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentLengthException;
@@ -27,28 +26,18 @@ import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.ErrorListener;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.JsonPathException;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.JsonSequence;
+import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.JsonSequenceConverter;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.JsonValueParser;
-import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.ListJsonSequenceObjectInspector;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.PathExecutor;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.PathParseResult;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.PathParser;
-import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.StructJsonSequenceObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ConstantObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.StructField;
-import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorConverter;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils;
-import org.apache.hadoop.io.BooleanWritable;
-import org.apache.hadoop.io.DoubleWritable;
-import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.LongWritable;
-import org.apache.hadoop.io.Text;
-import org.apache.hadoop.io.Writable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,7 +45,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Function;
 
 @Description(name = "json_value",
              value = "_FUNC_(json_value, path_expression [, return_datatype [, on_empty [, on_error [, passing key, passing value...]]])\n",
@@ -113,9 +101,9 @@ public class GenericUDFJsonValue extends GenericUDF {
   private Map<String, ObjectInspector> passingOIs;
   // This OI servers as a template for the ObjectInspector we'll return.  It also is used to decode the default value
   // we've been passed.
-  private ObjectInspector templateOI;
-  private JsonSequence jsonDefaultVal;
-  private Function<JsonSequence, Object> resultResolver;
+  private ObjectInspector returnOI;
+  private Object constantDefaultVal;
+  private JsonSequenceConverter jsonConverter;
 
   @Override
   public ObjectInspector initialize(ObjectInspector[] arguments) throws UDFArgumentException {
@@ -137,18 +125,16 @@ public class GenericUDFJsonValue extends GenericUDF {
     // sure it will work.
     parse();
 
-    templateOI = arguments.length > RETURNING ? arguments[RETURNING]
-        : PrimitiveObjectInspectorFactory.javaStringObjectInspector;
+    returnOI = arguments.length > RETURNING ? arguments[RETURNING]
+        : PrimitiveObjectInspectorFactory.writableStringObjectInspector;
 
     onEmpty = getOnEmptyOrOnError(arguments, ON_EMPTY);
     onError = getOnEmptyOrOnError(arguments, ON_ERROR);
 
-    ReturnInfo ri = translateObjectInspector(templateOI);
-    resultResolver = ri.getResolver();
-    ObjectInspector resultObjectInspector = ri.getObjectInspector();
-    if (ObjectInspectorUtils.isConstantObjectInspector(templateOI)) {
-      ConstantObjectInspector coi = (ConstantObjectInspector) templateOI;
-      jsonDefaultVal = JsonSequence.fromObjectInspector(templateOI, coi.getWritableConstantValue());
+    // We only have to translate the default value if we might need to return it
+    if (ObjectInspectorUtils.isConstantObjectInspector(returnOI) && (onEmpty == WhatToReturn.DEFAULT || onError == WhatToReturn.DEFAULT)) {
+      ConstantObjectInspector coi = (ConstantObjectInspector) returnOI;
+      constantDefaultVal = coi.getWritableConstantValue();
     }
 
     if (arguments.length > START_PASSING) {
@@ -167,7 +153,7 @@ public class GenericUDFJsonValue extends GenericUDF {
       passingOIs = Collections.emptyMap();
     }
 
-    return resultObjectInspector;
+    return returnOI;
   }
 
   @Override
@@ -185,6 +171,7 @@ public class GenericUDFJsonValue extends GenericUDF {
       parse();
       pathExecutor = new PathExecutor();
       jsonParser = new JsonValueParser(new ErrorListener());
+      jsonConverter = new JsonSequenceConverter();
     }
 
     Map<String, JsonSequence> passing = arguments.length > START_PASSING ?
@@ -200,7 +187,7 @@ public class GenericUDFJsonValue extends GenericUDF {
     try {
       JsonSequence result = pathExecutor.execute(parseResult, jsonValue, passing);
       if (LOG.isDebugEnabled()) LOG.debug("Received back: " + result.toString());
-      return result.isEmpty() ? getOnEmpty(arguments, input) : resultResolver.apply(result);
+      return result.isEmpty() ? getOnEmpty(arguments, input) : jsonConverter.convert(returnOI, result, onError == WhatToReturn.ERROR);
     } catch (JsonPathException e) {
       LOG.warn("Failed to execute path expression for input " + input, e);
       return getOnError(arguments, input, e.getMessage());
@@ -210,53 +197,6 @@ public class GenericUDFJsonValue extends GenericUDF {
   @Override
   public String getDisplayString(String[] children) {
     return getStandardDisplayString("json_value", children);
-  }
-
-  private ReturnInfo translateObjectInspector(ObjectInspector returnOI) throws UDFArgumentException {
-
-    switch (returnOI.getCategory()) {
-      case PRIMITIVE:
-        PrimitiveObjectInspector poi = (PrimitiveObjectInspector)returnOI;
-        switch (poi.getPrimitiveCategory()) {
-          case STRING:
-            return new ReturnInfo(new StringResolver(), PrimitiveObjectInspectorFactory.javaStringObjectInspector);
-
-          case INT:
-            return new ReturnInfo(new IntResolver(), PrimitiveObjectInspectorFactory.javaIntObjectInspector);
-
-          case LONG:
-            return new ReturnInfo(new LongResolver(), PrimitiveObjectInspectorFactory.javaLongObjectInspector);
-
-          case DOUBLE:
-            return new ReturnInfo(new DoubleResolver(), PrimitiveObjectInspectorFactory.javaDoubleObjectInspector);
-
-          case BOOLEAN:
-            return new ReturnInfo(new BoolResolver(), PrimitiveObjectInspectorFactory.javaBooleanObjectInspector);
-
-          default:
-            LOG.error("Unsupported primitive category " + poi.getPrimitiveCategory().name());
-            throw new UDFArgumentTypeException(RETURNING, getFuncName() +
-                " can return string, int, long, double, boolean, array of one of these, or struct with these");
-        }
-
-      case LIST:
-        ListObjectInspector loi = (ListObjectInspector)returnOI;
-        ReturnInfo sub = translateObjectInspector(loi.getListElementObjectInspector());
-        return new ReturnInfo(new ListResolver(), new ListJsonSequenceObjectInspector(sub.getObjectInspector(), sub.getResolver()));
-
-      case STRUCT:
-        StructObjectInspector soi = (StructObjectInspector)returnOI;
-        StructJsonSequenceObjectInspector.Builder builder = StructJsonSequenceObjectInspector.builder();
-        for (StructField sf : soi.getAllStructFieldRefs()) {
-          ReturnInfo field = translateObjectInspector(sf.getFieldObjectInspector());
-          builder.addField(sf.getFieldName(), field.getObjectInspector(), field.getResolver());
-        }
-        return new ReturnInfo(new StructResolver(), builder.build());
-
-      default:
-        throw new UDFArgumentTypeException(RETURNING, getFuncName() +
-            " can return string, int, long, double, boolean, array of one of these, or struct with these");
-    }
   }
 
   private Object getOnError(DeferredObject[] arguments, String jsonValue, String error) throws HiveException {
@@ -270,15 +210,15 @@ public class GenericUDFJsonValue extends GenericUDF {
   private Object onErrorOrEmpty(DeferredObject[] arguments, String jsonValue, String error, WhatToReturn errorOrEmpty) throws HiveException {
     switch (errorOrEmpty) {
       case ERROR: throw new HiveException("Error for input: " + jsonValue + ": " + error);
-      case NULL: return null; //JsonSequence.nullJsonSequence;
-      case DEFAULT: return resultResolver.apply(getDefaultValue(arguments));
+      case NULL: return null;
+      case DEFAULT: return getDefaultValue(arguments);
       default: throw new RuntimeException("programming error");
     }
   }
 
-  private JsonSequence getDefaultValue(DeferredObject[] arguments) throws HiveException {
-    if (jsonDefaultVal != null) return jsonDefaultVal;
-    else return JsonSequence.fromObjectInspector(templateOI, arguments[RETURNING].get());
+  private Object getDefaultValue(DeferredObject[] arguments) throws HiveException {
+    if (constantDefaultVal != null) return constantDefaultVal;
+    else return arguments[RETURNING].get();
   }
 
   // TODO could optimize this for constants, not sure it's worth it
@@ -287,7 +227,6 @@ public class GenericUDFJsonValue extends GenericUDF {
     for (int i = START_PASSING; i < args.length; i += 2) {
       assert i + 1 < args.length;
       String argName = PrimitiveObjectInspectorUtils.getString(args[i].get(), PrimitiveObjectInspectorFactory.writableStringObjectInspector);
-      LOG.debug("XXX passingOI is " + passingOIs.get(argName).getClass().getName() + " and arg is " + args[i+1].get().getClass().getName());
       passingObjs.put(argName, JsonSequence.fromObjectInspector(passingOIs.get(argName), args[i + 1].get()));
     }
     return passingObjs;
@@ -304,56 +243,6 @@ public class GenericUDFJsonValue extends GenericUDF {
     }
   }
 
-  // Kryo serializer can't handle lamdas.
-  private class StringResolver implements Function<JsonSequence, Object> {
-    @Override
-    public Object apply(JsonSequence jsonSequence) {
-      return jsonSequence.castToString(onError == WhatToReturn.ERROR);
-    }
-  }
-
-  private class IntResolver implements Function<JsonSequence, Object> {
-    @Override
-    public Object apply(JsonSequence jsonSequence) {
-      return jsonSequence.castToInt(onError == WhatToReturn.ERROR);
-    }
-  }
-
-  private class LongResolver implements Function<JsonSequence, Object> {
-    @Override
-    public Object apply(JsonSequence jsonSequence) {
-      return jsonSequence.castToLong(onError == WhatToReturn.ERROR);
-    }
-  }
-
-  private class DoubleResolver implements Function<JsonSequence, Object> {
-    @Override
-    public Object apply(JsonSequence jsonSequence) {
-      return jsonSequence.castToDouble(onError == WhatToReturn.ERROR);
-    }
-  }
-
-  private class BoolResolver implements Function<JsonSequence, Object> {
-    @Override
-    public Object apply(JsonSequence jsonSequence) {
-      return jsonSequence.castToBool(onError == WhatToReturn.ERROR);
-    }
-  }
-
-  private class ListResolver implements Function<JsonSequence, Object> {
-    @Override
-    public Object apply(JsonSequence jsonSequence) {
-      return jsonSequence.castToList(onError == WhatToReturn.ERROR);
-    }
-  }
-
-  private class StructResolver implements Function<JsonSequence, Object> {
-    @Override
-    public Object apply(JsonSequence jsonSequence) {
-      return jsonSequence.castToObject(onError == WhatToReturn.ERROR);
-    }
-  }
-
   private WhatToReturn getOnEmptyOrOnError(ObjectInspector[] arguments, int index) throws UDFArgumentTypeException {
     if (arguments.length > index) {
       checkArgPrimitive(arguments, index);
@@ -366,20 +255,5 @@ public class GenericUDFJsonValue extends GenericUDF {
     } else {
       return WhatToReturn.NULL;
     }
-  }
-
-  private static class ReturnInfo extends ObjectPair<Function<JsonSequence, Object>, ObjectInspector> {
-    ReturnInfo(Function<JsonSequence, Object> first, ObjectInspector second) {
-      super(first, second);
-    }
-
-    ObjectInspector getObjectInspector() {
-      return getSecond();
-    }
-
-    Function<JsonSequence, Object> getResolver() {
-      return getFirst();
-    }
-
   }
 }
