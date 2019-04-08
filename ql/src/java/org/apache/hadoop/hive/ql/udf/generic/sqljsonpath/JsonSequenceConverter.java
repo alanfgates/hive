@@ -54,7 +54,7 @@ public class JsonSequenceConverter {
     if (json.isNull() || json.isEmpty()) return null;
 
     ObjectInspectorConverters.Converter converter;
-    ObjectInspector inputOI = getInputObjectInspector(json);
+    ObjectInspector inputOI = getInputObjectInspector(json, outputOI);
     switch (outputOI.getCategory()) {
       case STRUCT:
         if (json.isObject()) {
@@ -74,9 +74,10 @@ public class JsonSequenceConverter {
         if (json.isList()) {
           ListObjectInspector loi = (ListObjectInspector)outputOI;
           converter = ObjectInspectorConverters.getConverter(inputOI, loi);
+          ObjectInspectorConverters.Converter subConverter = ObjectInspectorConverters.getConverter(((ListObjectInspector)inputOI).getListElementObjectInspector(), loi.getListElementObjectInspector());
           return converter.convert(json.asList()
               .stream()
-              .map(JsonSequence::getVal)
+              .map(s -> subConverter.convert(s.getVal()))
               .collect(Collectors.toList()));
         }
         if (errorOnBadCast) throw new ClassCastException("Attempt to cast " + json.getType().name().toLowerCase() + " as list");
@@ -91,19 +92,22 @@ public class JsonSequenceConverter {
     }
   }
 
-  private ObjectInspector getInputObjectInspector(JsonSequence json) {
+  private ObjectInspector getInputObjectInspector(JsonSequence json, ObjectInspector outputOI) {
     switch (json.getType()) {
       case OBJECT:
         List<String> names = new ArrayList<>();
         List<ObjectInspector> fieldOIs = new ArrayList<>();
         for (Map.Entry<String, JsonSequence> field : json.asObject().entrySet()) {
           names.add(field.getKey());
-          fieldOIs.add(getInputObjectInspector(field.getValue()));
+          fieldOIs.add(getInputObjectInspector(field.getValue(), null)); // FIXME, should be outputOI from outputOI
         }
         return ObjectInspectorFactory.getStandardStructObjectInspector(names, fieldOIs);
 
       case LIST:
         // We have to return a union of all object inspectors needed to read elements of this list.
+        ListObjectInspector loi = (ListObjectInspector)outputOI;  // FIXME need to test before cast
+        return ObjectInspectorFactory.getStandardListObjectInspector(translate(loi.getListElementObjectInspector()));
+        /*
         Set<ObjectInspectorSetWrapper> uniqueSubOIs = new HashSet<>();
         for (JsonSequence seq : json.asList()) {
           uniqueSubOIs.add(new ObjectInspectorSetWrapper(getInputObjectInspector(seq)));
@@ -111,6 +115,7 @@ public class JsonSequenceConverter {
         ObjectInspector subInspector = uniqueSubOIs.size() == 1 ? uniqueSubOIs.iterator().next().get() :
             ObjectInspectorFactory.getStandardUnionObjectInspector(uniqueSubOIs.stream().map(ObjectInspectorSetWrapper::get).collect(Collectors.toList()));
         return ObjectInspectorFactory.getStandardListObjectInspector(subInspector);
+        */
 
       case BOOL:
         return PrimitiveObjectInspectorFactory.javaBooleanObjectInspector;
@@ -128,7 +133,24 @@ public class JsonSequenceConverter {
       default:
         throw new RuntimeException("Programming error, unexpected type " + json.getType().name());
     }
+  }
 
+  private ObjectInspector translate(ObjectInspector outputOI) {
+    switch (outputOI.getCategory()) {
+      case STRUCT:
+        // TODO
+
+
+      case LIST:
+        // TODO
+
+      default:
+        throw new RuntimeException("Programming error, unexpected category " + outputOI.getCategory().name());
+
+      case PRIMITIVE:
+        PrimitiveObjectInspector poi = (PrimitiveObjectInspector)outputOI;
+        return PrimitiveObjectInspectorFactory.getPrimitiveJavaObjectInspector(poi.getPrimitiveCategory());
+    }
   }
 
   private static class ObjectInspectorSetWrapper {

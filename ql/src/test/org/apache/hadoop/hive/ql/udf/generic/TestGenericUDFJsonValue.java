@@ -226,7 +226,7 @@ public class TestGenericUDFJsonValue {
     Assert.assertEquals("string", loi.getListElement(results.getSecond()[3], 0));
     Assert.assertEquals("1", loi.getListElement(results.getSecond()[3], 1));
     Assert.assertEquals("2.3", loi.getListElement(results.getSecond()[3], 2));
-    Assert.assertEquals("FALSE", loi.getListElement(results.getSecond()[3], 3));
+    Assert.assertEquals("false", loi.getListElement(results.getSecond()[3], 3));
 
     results = test(json, "$.multilist", wrapInList(Collections.singletonList(1L)));
     loi = (ListObjectInspector)results.getFirst();
