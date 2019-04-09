@@ -25,6 +25,7 @@ import org.apache.hadoop.hive.serde2.io.DoubleWritable;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.BooleanObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.DoubleObjectInspector;
@@ -652,8 +653,9 @@ public class TestGenericUDFJsonValue {
     ObjectInspector resultObjectInspector = udf.initialize(buildInitArgs(pathExpr, returnOI, onEmpty, onError, passingOIs));
     Object[] results = new Object[jsonValues.size()];
     for (int i = 0; i < jsonValues.size(); i++) {
-      results[i] = udf.evaluate(buildExecArgs(jsonValues.get(i), pathExpr,
+      Object o = udf.evaluate(buildExecArgs(jsonValues.get(i), pathExpr,
           defaultVals == null ? null : defaultVals.get(i), onEmpty, onError, passing == null ? null : passing.get(i)));
+      results[i] = ObjectInspectorUtils.copyToStandardObject(o, resultObjectInspector);
     }
     return new ObjectPair<>(resultObjectInspector, results);
   }

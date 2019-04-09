@@ -171,7 +171,7 @@ public class GenericUDFJsonValue extends GenericUDF {
       parse();
       pathExecutor = new PathExecutor();
       jsonParser = new JsonValueParser(new ErrorListener());
-      jsonConverter = new JsonSequenceConverter();
+      jsonConverter = new JsonSequenceConverter(returnOI, onError == WhatToReturn.ERROR);
     }
 
     Map<String, JsonSequence> passing = arguments.length > START_PASSING ?
@@ -187,7 +187,7 @@ public class GenericUDFJsonValue extends GenericUDF {
     try {
       JsonSequence result = pathExecutor.execute(parseResult, jsonValue, passing);
       if (LOG.isDebugEnabled()) LOG.debug("Received back: " + result.toString());
-      return result.isEmpty() ? getOnEmpty(arguments, input) : jsonConverter.convert(returnOI, result, onError == WhatToReturn.ERROR);
+      return result.isEmpty() ? getOnEmpty(arguments, input) : jsonConverter.convert(result);
     } catch (JsonPathException e) {
       LOG.warn("Failed to execute path expression for input " + input, e);
       return getOnError(arguments, input, e.getMessage());

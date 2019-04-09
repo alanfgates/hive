@@ -21,7 +21,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
@@ -30,12 +29,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Given a JsonSequence and an ObjectInspector, convert the JsonSequence to the expected output type.   This is done
@@ -44,21 +40,49 @@ import java.util.stream.Collectors;
 public class JsonSequenceConverter {
   private static final Logger LOG = LoggerFactory.getLogger(JsonSequenceConverter.class);
 
+  private final ObjectInspector outputObjectInspector;
+  private final boolean errorOnBadCast;
+  private final Map<String, ObjectInspector> objectInspectorCache;
+  private final Map<String, ObjectInspectorConverters.Converter> converterCache;
+
   /**
-   * Convert the JsonSequence to something that can pass on to the rest of Hive.  The conversion will be based on
-   * the object inspector.
-   * @param outputOI ObjectInspector to use to determine what form the writable should take.
-   * @param json JsonSequence to be converted to an object that can be read by outputOI.
+   *
+   * @param outputObjectInspector ObjectInspector to use to determine what form the writable should take.
    * @param errorOnBadCast whether to throw an error if the attempted cast fails.  For example, if the underlying type
    *                       is a boolean and the passed in ObjectInspector is a LongObjectInspector that's bad.  If
    *                       true, a {@link ClassCastException} will be thrown.  If false, null is returned.
+   */
+  public JsonSequenceConverter(ObjectInspector outputObjectInspector, boolean errorOnBadCast) {
+    this.outputObjectInspector = outputObjectInspector;
+    this.errorOnBadCast = errorOnBadCast;
+    objectInspectorCache = new HashMap<>();
+    converterCache = new HashMap<>();
+  }
+
+  /**
+   * Convert the JsonSequence to something that can pass on to the rest of Hive.  The conversion will be based on
+   * the object inspector.
+   * @param json JsonSequence to be converted to an object that can be read by outputOI.
    * @return an object, not necessary a writable (may be a list or a map), or null.
    */
-  public Object convert(ObjectInspector outputOI, JsonSequence json, boolean errorOnBadCast) {
+  public Object convert(JsonSequence json) {
+    return convert(outputObjectInspector, json, true);
+  }
+
+  private Object convert(ObjectInspector outputOI, JsonSequence json, boolean useCache) {
     if (json.isNull() || json.isEmpty()) return null;
 
-    ObjectInspectorConverters.Converter converter;
-    ObjectInspector inputOI = getInputObjectInspector(json, outputOI);
+    String cacheKey = buildCacheKey(json, outputOI);
+    ObjectInspectorConverters.Converter converter = null;
+    // Don't use the cache when we're converting nested objects.  Converters have a member object they always return,
+    // so for example if you use one converter to convert all the elements of a list you'll end up with everything
+    // in your list pointing to the same object, which will have the value of the last thing converted.  We could
+    // still cache the converter and then copy the result, but this seems equivalent to not caching the converter.
+    if (useCache) converter = converterCache.get(cacheKey);
+    if (converter == null) {
+      converter = ObjectInspectorConverters.getConverter(getInputObjectInspector(json, outputOI), outputOI);
+      converterCache.put(cacheKey, converter);
+    }
     switch (outputOI.getCategory()) {
       case STRUCT:
         if (json.isObject()) {
@@ -66,9 +90,8 @@ public class JsonSequenceConverter {
           List<Object> output = new ArrayList<>();
           for (StructField sf : soi.getAllStructFieldRefs()) {
             JsonSequence seq = json.asObject().get(sf.getFieldName());
-            output.add(seq == null ? null : convert(sf.getFieldObjectInspector(), seq, errorOnBadCast));
+            output.add(seq == null ? null : convert(sf.getFieldObjectInspector(), seq, false));
           }
-          converter = ObjectInspectorConverters.getConverter(inputOI, soi);
           return converter.convert(output);
         }
         if (errorOnBadCast) throw new ClassCastException("Attempt to cast " + json.getType().name().toLowerCase() + " as object");
@@ -77,10 +100,9 @@ public class JsonSequenceConverter {
       case LIST:
         if (json.isList()) {
           ListObjectInspector loi = (ListObjectInspector)outputOI;
-          converter = ObjectInspectorConverters.getConverter(inputOI, loi);
           List<Object> converted = new ArrayList<>();
           for (JsonSequence element : json.asList()) {
-            converted.add(convert(loi.getListElementObjectInspector(), element, errorOnBadCast));
+            converted.add(convert(loi.getListElementObjectInspector(), element, false));
           }
           return converter.convert(converted);
         }
@@ -88,7 +110,6 @@ public class JsonSequenceConverter {
         else return null;
 
       case PRIMITIVE:
-        converter = ObjectInspectorConverters.getConverter(inputOI, outputOI);
         return converter.convert(json.getVal());
 
       default:
@@ -97,6 +118,10 @@ public class JsonSequenceConverter {
   }
 
   private ObjectInspector getInputObjectInspector(JsonSequence json, ObjectInspector outputOI) {
+    String cacheKey = buildCacheKey(json, outputOI);
+    ObjectInspector cached = objectInspectorCache.get(cacheKey);
+    if (cached != null) return cached;
+    ObjectInspector inputOI;
     switch (json.getType()) {
       case OBJECT:
         if (outputOI.getCategory() == ObjectInspector.Category.STRUCT) {
@@ -107,41 +132,52 @@ public class JsonSequenceConverter {
             names.add(field.getKey());
             StructField sf = soi.getStructFieldRef(field.getKey());
             ObjectInspector fieldInspector = sf == null ? PrimitiveObjectInspectorFactory.javaStringObjectInspector :
-                translate(sf.getFieldObjectInspector());
+                translateOutputOI(sf.getFieldObjectInspector());
             fieldOIs.add(getInputObjectInspector(field.getValue(), fieldInspector));
           }
-          return ObjectInspectorFactory.getStandardStructObjectInspector(names, fieldOIs);
+          inputOI = ObjectInspectorFactory.getStandardStructObjectInspector(names, fieldOIs);
         } else {
-          return PrimitiveObjectInspectorFactory.javaStringObjectInspector;
+          inputOI = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         }
+        break;
+
 
       case LIST:
         if (outputOI.getCategory() == ObjectInspector.Category.LIST) {
           ListObjectInspector loi = (ListObjectInspector) outputOI;
-          return ObjectInspectorFactory.getStandardListObjectInspector(translate(loi.getListElementObjectInspector()));
+          inputOI = ObjectInspectorFactory.getStandardListObjectInspector(translateOutputOI(loi.getListElementObjectInspector()));
         } else {
-          return PrimitiveObjectInspectorFactory.javaStringObjectInspector;
+          inputOI = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
         }
+        break;
 
       case BOOL:
-        return PrimitiveObjectInspectorFactory.javaBooleanObjectInspector;
+        inputOI = PrimitiveObjectInspectorFactory.javaBooleanObjectInspector;
+        break;
 
       case LONG:
-        return PrimitiveObjectInspectorFactory.javaLongObjectInspector;
+        inputOI = PrimitiveObjectInspectorFactory.javaLongObjectInspector;
+        break;
 
       case DOUBLE:
-        return PrimitiveObjectInspectorFactory.javaDoubleObjectInspector;
+        inputOI = PrimitiveObjectInspectorFactory.javaDoubleObjectInspector;
+        break;
 
       case STRING:
       case NULL: // here to handle case where there's a null in a list or a struct
-        return PrimitiveObjectInspectorFactory.javaStringObjectInspector;
+        inputOI = PrimitiveObjectInspectorFactory.javaStringObjectInspector;
+        break;
 
       default:
         throw new RuntimeException("Programming error, unexpected type " + json.getType().name());
     }
+    objectInspectorCache.put(cacheKey, inputOI);
+    return inputOI;
   }
 
-  private ObjectInspector translate(ObjectInspector outputOI) {
+  // Translate the output object inspector to the right type.  This is necessary to get rid of constant
+  // OIs.
+  private ObjectInspector translateOutputOI(ObjectInspector outputOI) {
     switch (outputOI.getCategory()) {
       case STRUCT:
         List<String> names = new ArrayList<>();
@@ -149,12 +185,12 @@ public class JsonSequenceConverter {
         StructObjectInspector soi = (StructObjectInspector)outputOI;
         for (StructField sf : soi.getAllStructFieldRefs()) {
           names.add(sf.getFieldName());
-          inspectors.add(translate(sf.getFieldObjectInspector()));
+          inspectors.add(translateOutputOI(sf.getFieldObjectInspector()));
         }
         return ObjectInspectorFactory.getStandardStructObjectInspector(names, inspectors);
 
       case LIST:
-        return ObjectInspectorFactory.getStandardListObjectInspector(translate(((ListObjectInspector)outputOI).getListElementObjectInspector()));
+        return ObjectInspectorFactory.getStandardListObjectInspector(translateOutputOI(((ListObjectInspector)outputOI).getListElementObjectInspector()));
 
       case PRIMITIVE:
         PrimitiveObjectInspector poi = (PrimitiveObjectInspector)outputOI;
@@ -165,28 +201,41 @@ public class JsonSequenceConverter {
     }
   }
 
-  private static class ObjectInspectorSetWrapper {
-    private final ObjectInspector wrapped;
-
-    ObjectInspectorSetWrapper(ObjectInspector oi) {
-      this.wrapped = oi;
-    }
-
-    ObjectInspector get() {
-      return wrapped;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-      if (!(o instanceof ObjectInspectorSetWrapper)) return false;
-      ObjectInspectorSetWrapper other = (ObjectInspectorSetWrapper)o;
-      return ObjectInspectorUtils.compareTypes(wrapped, other.wrapped);
-    }
-
-    @Override
-    public int hashCode() {
-      return Objects.hash(wrapped.getTypeName());
-    }
+  private String buildCacheKey(JsonSequence json, ObjectInspector outputOI) {
+    return buildJsonTypeName(json) + outputOI.getClass().getName();
   }
 
+  // This does not build a human readable type name.  The point here is to build a unique string that can be used
+  // as a key in a map
+  private String buildJsonTypeName(JsonSequence json) {
+    switch (json.getType()) {
+      case OBJECT:
+        StringBuilder buf = new StringBuilder("O{");
+        for (JsonSequence seq : json.asObject().values()) {
+          buf.append(buildJsonTypeName(seq));
+        }
+        buf.append("}");
+        return buf.toString();
+
+      case LIST:
+        return "L";
+
+      case BOOL:
+        return "b";
+
+      case LONG:
+        return "l";
+
+      case DOUBLE:
+        return "d";
+
+      case NULL:
+      case EMPTY_RESULT:
+      case STRING:
+        return "s";
+
+      default:
+        throw new RuntimeException("Programming error, unexpected type " + json.getType());
+    }
+  }
 }
