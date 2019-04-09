@@ -10,7 +10,8 @@ PREHOOK: query: insert into jsonvalue values
   ('{"name" : "harry", "age" : 17, "gpa" : 3.03, "honors" : false, "classes" : [ "math", "history" ], "numbers" : [ 1 , 2]}', 'ron'),
   ('{"name" : "hermione", "age" : 18, "gpa" : 4.00, "honors" : true, "classes" : [ "science", "french" ], "numbers" : [10, 20]}', 'ginny'),
   ('{"name" : null, "age" : null, "gpa" : null, "honors" : null, "classes" : null}', 'no name'),
-  ('{}', 'empty')
+  ('{}', 'empty'),
+  ('{ "nested" : { "street" : "12 Grimmauld Place", "years at this address" : 1 } }', 'whatever')
 PREHOOK: type: QUERY
 PREHOOK: Input: _dummy_database@_dummy_table
 PREHOOK: Output: default@jsonvalue
@@ -18,7 +19,8 @@ POSTHOOK: query: insert into jsonvalue values
   ('{"name" : "harry", "age" : 17, "gpa" : 3.03, "honors" : false, "classes" : [ "math", "history" ], "numbers" : [ 1 , 2]}', 'ron'),
   ('{"name" : "hermione", "age" : 18, "gpa" : 4.00, "honors" : true, "classes" : [ "science", "french" ], "numbers" : [10, 20]}', 'ginny'),
   ('{"name" : null, "age" : null, "gpa" : null, "honors" : null, "classes" : null}', 'no name'),
-  ('{}', 'empty')
+  ('{}', 'empty'),
+  ('{ "nested" : { "street" : "12 Grimmauld Place", "years at this address" : 1 } }', 'whatever')
 POSTHOOK: type: QUERY
 POSTHOOK: Input: _dummy_database@_dummy_table
 POSTHOOK: Output: default@jsonvalue
@@ -46,6 +48,7 @@ harry	17	17	3	false
 hermione	18	18	4	true
 NULL	NULL	NULL	NULL	NULL
 NULL	NULL	NULL	NULL	NULL
+NULL	NULL	NULL	NULL	NULL
 PREHOOK: query: select json_value(jsonval, '$.name', 'fred', 'DEFAULT'),
        json_value(jsonval, '$.age', 1L, 'DEFAULT'),
        json_value(jsonval, '$.age', 1, 'DEFAULT'),
@@ -68,6 +71,7 @@ harry	17	17	3	false
 hermione	18	18	4	true
 NULL	NULL	NULL	NULL	NULL
 fred	1	1	1	true
+fred	1	1	1	true
 PREHOOK: query: select json_value(jsonval, '$.name', defaultval, 'DEFAULT')
     from jsonvalue
 PREHOOK: type: QUERY
@@ -82,9 +86,10 @@ harry
 hermione
 NULL
 empty
+whatever
 PREHOOK: query: select 
        json_value(jsonval, '$.classes', array('a')),
-       json_value(jsonval, '$.numbers', array(1L)),
+       json_value(jsonval, '$.numbers', array(1)),
        json_value(jsonval, '$.classes[$index]', 'a', 'NULL', 'NULL', 'index', 0)
     from jsonvalue
 PREHOOK: type: QUERY
@@ -92,7 +97,7 @@ PREHOOK: Input: default@jsonvalue
 #### A masked pattern was here ####
 POSTHOOK: query: select 
        json_value(jsonval, '$.classes', array('a')),
-       json_value(jsonval, '$.numbers', array(1L)),
+       json_value(jsonval, '$.numbers', array(1)),
        json_value(jsonval, '$.classes[$index]', 'a', 'NULL', 'NULL', 'index', 0)
     from jsonvalue
 POSTHOOK: type: QUERY
@@ -102,3 +107,23 @@ POSTHOOK: Input: default@jsonvalue
 ["science","french"]	[10,20]	science
 NULL	NULL	NULL
 NULL	NULL	NULL
+NULL	NULL	NULL
+PREHOOK: query: select json_value(jsonval, '$.nested.street'), 
+       json_value(jsonval, '$.nested."years at this address"', 1),
+       json_value(jsonval, '$.nested', named_struct('street', 'a', 'years at this address', 1))
+    from jsonvalue
+PREHOOK: type: QUERY
+PREHOOK: Input: default@jsonvalue
+#### A masked pattern was here ####
+POSTHOOK: query: select json_value(jsonval, '$.nested.street'), 
+       json_value(jsonval, '$.nested."years at this address"', 1),
+       json_value(jsonval, '$.nested', named_struct('street', 'a', 'years at this address', 1))
+    from jsonvalue
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@jsonvalue
+#### A masked pattern was here ####
+NULL	NULL	NULL
+NULL	NULL	NULL
+NULL	NULL	NULL
+NULL	NULL	NULL
+12 Grimmauld Place	1	{"street":"12 Grimmauld Place","years at this address":1}

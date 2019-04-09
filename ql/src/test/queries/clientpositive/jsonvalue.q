@@ -4,7 +4,8 @@ insert into jsonvalue values
   ('{"name" : "harry", "age" : 17, "gpa" : 3.03, "honors" : false, "classes" : [ "math", "history" ], "numbers" : [ 1 , 2]}', 'ron'),
   ('{"name" : "hermione", "age" : 18, "gpa" : 4.00, "honors" : true, "classes" : [ "science", "french" ], "numbers" : [10, 20]}', 'ginny'),
   ('{"name" : null, "age" : null, "gpa" : null, "honors" : null, "classes" : null}', 'no name'),
-  ('{}', 'empty');
+  ('{}', 'empty'),
+  ('{ "nested" : { "street" : "12 Grimmauld Place", "years at this address" : 1 } }', 'whatever');
 
 select json_value(jsonval, '$.name'),
        json_value(jsonval, '$.age', 1L),
@@ -25,8 +26,14 @@ select json_value(jsonval, '$.name', defaultval, 'DEFAULT')
 
 select 
        json_value(jsonval, '$.classes', array('a')),
-       json_value(jsonval, '$.numbers', array(1L)),
+       json_value(jsonval, '$.numbers', array(1)),
        json_value(jsonval, '$.classes[$index]', 'a', 'NULL', 'NULL', 'index', 0)
     from jsonvalue;
+
+select json_value(jsonval, '$.nested.street'), 
+       json_value(jsonval, '$.nested."years at this address"', 1),
+       json_value(jsonval, '$.nested', named_struct('street', 'a', 'years at this address', 1))
+    from jsonvalue;
+
 
   

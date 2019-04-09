@@ -22,11 +22,14 @@ import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.serde2.io.DoubleWritable;
+import org.apache.hadoop.hive.serde2.objectinspector.ConstantObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.StructField;
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.BooleanObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.DoubleObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.IntObjectInspector;
@@ -91,7 +94,12 @@ public class TestGenericUDFJsonValue {
             "\"longstring\" : \"42\"," +
             "\"doublestring\" : \"3.1415\"," +
             "\"boolstring\" :\"true\"," +
-            "\"subobj\"     : { \"str\" : \"strval\" }" +
+            "\"subobj\"     : { " +
+                "\"str\"     : \"strval\"," +
+                "\"long\"    : -1," +
+                "\"decimal\" : -2.2," +
+                "\"bool\"    : true" +
+            "}" +
         "}"
     );
   }
@@ -259,6 +267,96 @@ public class TestGenericUDFJsonValue {
     Assert.assertEquals(false, boi.getPrimitiveJavaObject(loi.getListElement(results.getSecond()[3], 3)));
 
   }
+
+  @Test
+  public void scalarInList() throws HiveException {
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.sports[0]");
+    PrimitiveObjectInspector poi = (PrimitiveObjectInspector)results.getFirst();
+    Assert.assertEquals("baseball", poi.getPrimitiveJavaObject(results.getSecond()[0]));
+    Assert.assertEquals("basketball", poi.getPrimitiveJavaObject(results.getSecond()[1]));
+
+    results = test(json, "$.longlist[1]", wrapInList(1L));
+    Assert.assertTrue(results.getFirst() instanceof LongObjectInspector);
+    poi = (PrimitiveObjectInspector)results.getFirst();
+    Assert.assertEquals(26L, poi.getPrimitiveJavaObject(results.getSecond()[3]));
+
+    results = test(json, "$.doublelist[1]", wrapInList(1.0));
+    Assert.assertTrue(results.getFirst() instanceof DoubleObjectInspector);
+    poi = (PrimitiveObjectInspector)results.getFirst();
+    Assert.assertEquals(2.86, poi.getPrimitiveJavaObject(results.getSecond()[3]));
+
+    results = test(json, "$.boollist[1]", wrapInList(true));
+    Assert.assertTrue(results.getFirst() instanceof BooleanObjectInspector);
+    poi = (PrimitiveObjectInspector)results.getFirst();
+    Assert.assertEquals(false, poi.getPrimitiveJavaObject(results.getSecond()[3]));
+  }
+
+  @Test
+  public void simpleObj() throws HiveException {
+    Map<String, Object> defaultVal = new HashMap<>();
+    defaultVal.put("str", "a");
+    defaultVal.put("long", 1L);
+    defaultVal.put("decimal", 1.0);
+    defaultVal.put("bool", true);
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.subobj", wrapInList(defaultVal));
+
+    // First three return values should be null, last one should be a struct
+    for (int i = 0; i < 3; i++) Assert.assertNull(results.getSecond()[i]);
+    Assert.assertNotNull(results.getSecond()[3]);
+    Object struct = results.getSecond()[3];
+
+    // We should have a StructObjectInspector
+    Assert.assertTrue(results.getFirst() instanceof StructObjectInspector);
+    StructObjectInspector soi = (StructObjectInspector)results.getFirst();
+
+    // Look for the string
+    StructField sf = soi.getStructFieldRef("str");
+    Assert.assertNotNull(sf);
+    Assert.assertEquals("str", sf.getFieldName());
+    Assert.assertTrue(sf.getFieldObjectInspector() instanceof StringObjectInspector);
+    Assert.assertEquals("strval", ((StringObjectInspector)sf.getFieldObjectInspector()).getPrimitiveJavaObject(soi.getStructFieldData(struct, sf)));
+
+    // Look for the long
+    sf = soi.getStructFieldRef("long");
+    Assert.assertNotNull(sf);
+    Assert.assertEquals("long", sf.getFieldName());
+    Assert.assertTrue(sf.getFieldObjectInspector() instanceof LongObjectInspector);
+    Assert.assertEquals(-1L, ((LongObjectInspector)sf.getFieldObjectInspector()).getPrimitiveJavaObject(soi.getStructFieldData(struct, sf)));
+
+    // Look for the double
+    sf = soi.getStructFieldRef("decimal");
+    Assert.assertNotNull(sf);
+    Assert.assertEquals("decimal", sf.getFieldName());
+    Assert.assertTrue(sf.getFieldObjectInspector() instanceof DoubleObjectInspector);
+    Assert.assertEquals(-2.2, ((DoubleObjectInspector)sf.getFieldObjectInspector()).getPrimitiveJavaObject(soi.getStructFieldData(struct, sf)));
+
+    // Look for the boolean
+    sf = soi.getStructFieldRef("bool");
+    Assert.assertNotNull(sf);
+    Assert.assertEquals("bool", sf.getFieldName());
+    Assert.assertTrue(sf.getFieldObjectInspector() instanceof BooleanObjectInspector);
+    Assert.assertEquals(true, ((BooleanObjectInspector)sf.getFieldObjectInspector()).getPrimitiveJavaObject(soi.getStructFieldData(struct, sf)));
+  }
+
+  @Test
+  public void scalarInObj() throws HiveException {
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.subobj.str");
+    PrimitiveObjectInspector poi = (PrimitiveObjectInspector)results.getFirst();
+    Assert.assertEquals("strval", poi.getPrimitiveJavaObject(results.getSecond()[3]));
+
+    results = test(json, "$.subobj.long", wrapInList(1L));
+    poi = (PrimitiveObjectInspector)results.getFirst();
+    Assert.assertEquals(-1L, poi.getPrimitiveJavaObject(results.getSecond()[3]));
+
+    results = test(json, "$.subobj.decimal", wrapInList(1.0));
+    poi = (PrimitiveObjectInspector)results.getFirst();
+    Assert.assertEquals(-2.2, poi.getPrimitiveJavaObject(results.getSecond()[3]));
+
+    results = test(json, "$.subobj.bool", wrapInList(true));
+    poi = (PrimitiveObjectInspector)results.getFirst();
+    Assert.assertEquals(true, poi.getPrimitiveJavaObject(results.getSecond()[3]));
+  }
+
 
   @Test
   public void longAsString() throws HiveException {
@@ -710,6 +808,7 @@ public class TestGenericUDFJsonValue {
 
   private DeferredObject wrapInDeferred(Object obj) {
     if (obj == null) return null;
+    else if (obj instanceof Map) return new DeferredJavaObject(new ArrayList<>(((Map)obj).values()));
     else if (obj instanceof List) return new DeferredJavaObject(obj);
     else if (obj instanceof String) return new DeferredJavaObject(new Text((String)obj));
     else if (obj instanceof Long) return new DeferredJavaObject(new LongWritable((Long)obj));

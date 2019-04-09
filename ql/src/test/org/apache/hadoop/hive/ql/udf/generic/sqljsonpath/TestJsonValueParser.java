@@ -31,12 +31,11 @@ import java.util.Map;
 public class TestJsonValueParser {
 
   private static JsonValueParser parser;
-  private static ErrorListener errorListener;
 
   // Done once to test that re-using the parser works
   @BeforeClass
   public static void createParser() {
-    errorListener = new ErrorListener();
+    ErrorListener errorListener = new ErrorListener();
     parser = new JsonValueParser(errorListener);
   }
 
@@ -139,5 +138,22 @@ public class TestJsonValueParser {
     } catch (JsonPathException e) {
       Assert.assertEquals("'{ \"oops\" }' produced a syntax error: mismatched input '}' expecting ':' on line 1 at position 9", e.getMessage());
     }
+  }
+
+  @Test
+  public void negativeNumbers() throws IOException, JsonPathException {
+    JsonSequence json = parser.parse("{" +
+        "\"longnumber\" : -1," +
+        "\"decimalnumber\" : -10.1, " +
+        "\"anotherdecimal\" : -.9," +
+        "\"pluslong\" : +3," +
+        "\"plusdec\" : +3.1415" +
+    "}");
+
+    Assert.assertEquals(-1L, json.asObject().get("longnumber").asLong());
+    Assert.assertEquals(-10.1, json.asObject().get("decimalnumber").asDouble(), 0.001);
+    Assert.assertEquals(-0.9, json.asObject().get("anotherdecimal").asDouble(), 0.001);
+    Assert.assertEquals(3L, json.asObject().get("pluslong").asLong());
+    Assert.assertEquals(3.1415, json.asObject().get("plusdec").asDouble(), 0.001);
   }
 }

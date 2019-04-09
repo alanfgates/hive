@@ -133,7 +133,7 @@ public class JsonSequenceConverter {
             StructField sf = soi.getStructFieldRef(field.getKey());
             ObjectInspector fieldInspector = sf == null ? PrimitiveObjectInspectorFactory.javaStringObjectInspector :
                 translateOutputOI(sf.getFieldObjectInspector());
-            fieldOIs.add(getInputObjectInspector(field.getValue(), fieldInspector));
+            fieldOIs.add(fieldInspector);
           }
           inputOI = ObjectInspectorFactory.getStandardStructObjectInspector(names, fieldOIs);
         } else {
