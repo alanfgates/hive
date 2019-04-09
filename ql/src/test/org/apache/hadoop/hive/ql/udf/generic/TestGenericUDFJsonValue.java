@@ -223,31 +223,39 @@ public class TestGenericUDFJsonValue {
     Assert.assertTrue(results.getFirst() instanceof ListObjectInspector);
     ListObjectInspector loi = (ListObjectInspector)results.getFirst();
     Assert.assertEquals(5, loi.getListLength(results.getSecond()[3]));
-    Assert.assertEquals("string", loi.getListElement(results.getSecond()[3], 0));
-    Assert.assertEquals("1", loi.getListElement(results.getSecond()[3], 1));
-    Assert.assertEquals("2.3", loi.getListElement(results.getSecond()[3], 2));
-    Assert.assertEquals("false", loi.getListElement(results.getSecond()[3], 3));
+    Assert.assertTrue(loi.getListElementObjectInspector() instanceof StringObjectInspector);
+    StringObjectInspector soi = (StringObjectInspector)loi.getListElementObjectInspector();
+    Assert.assertEquals("string", soi.getPrimitiveJavaObject(loi.getListElement(results.getSecond()[3], 0)));
+    Assert.assertEquals("1", soi.getPrimitiveJavaObject(loi.getListElement(results.getSecond()[3], 1)));
+    Assert.assertEquals("2.3", soi.getPrimitiveJavaObject(loi.getListElement(results.getSecond()[3], 2)));
+    Assert.assertEquals("FALSE", soi.getPrimitiveJavaObject(loi.getListElement(results.getSecond()[3], 3)));
 
     results = test(json, "$.multilist", wrapInList(Collections.singletonList(1L)));
     loi = (ListObjectInspector)results.getFirst();
+    Assert.assertTrue(loi.getListElementObjectInspector() instanceof LongObjectInspector);
+    LongObjectInspector lloi = (LongObjectInspector)loi.getListElementObjectInspector();
     Assert.assertNull(loi.getListElement(results.getSecond()[3], 0));
-    Assert.assertEquals(1L, loi.getListElement(results.getSecond()[3], 1));
-    Assert.assertEquals(2L, loi.getListElement(results.getSecond()[3], 2));
-    Assert.assertNull(loi.getListElement(results.getSecond()[3], 3));
+    Assert.assertEquals(1L, lloi.getPrimitiveJavaObject(loi.getListElement(results.getSecond()[3], 1)));
+    Assert.assertEquals(2L, lloi.getPrimitiveJavaObject(loi.getListElement(results.getSecond()[3], 2)));
+    Assert.assertEquals(0L, lloi.getPrimitiveJavaObject(loi.getListElement(results.getSecond()[3], 3)));
 
     results = test(json, "$.multilist", wrapInList(Collections.singletonList(1.0)));
     loi = (ListObjectInspector)results.getFirst();
     Assert.assertNull(loi.getListElement(results.getSecond()[3], 0));
-    Assert.assertEquals(1.0, loi.getListElement(results.getSecond()[3], 1));
-    Assert.assertEquals(2.3, loi.getListElement(results.getSecond()[3], 2));
-    Assert.assertNull(loi.getListElement(results.getSecond()[3], 3));
+    Assert.assertTrue(loi.getListElementObjectInspector() instanceof DoubleObjectInspector);
+    DoubleObjectInspector doi = (DoubleObjectInspector)loi.getListElementObjectInspector();
+    Assert.assertEquals(1.0, doi.getPrimitiveJavaObject(loi.getListElement(results.getSecond()[3], 1)));
+    Assert.assertEquals(2.3, doi.getPrimitiveJavaObject(loi.getListElement(results.getSecond()[3], 2)));
+    Assert.assertEquals(0.0, doi.getPrimitiveJavaObject(loi.getListElement(results.getSecond()[3], 3)));
 
     results = test(json, "$.multilist", wrapInList(Collections.singletonList(true)));
     loi = (ListObjectInspector)results.getFirst();
-    Assert.assertNull(loi.getListElement(results.getSecond()[3], 0));
-    Assert.assertNull(loi.getListElement(results.getSecond()[3], 1));
-    Assert.assertNull(loi.getListElement(results.getSecond()[3], 2));
-    Assert.assertEquals(false, loi.getListElement(results.getSecond()[3], 3));
+    Assert.assertTrue(loi.getListElementObjectInspector() instanceof BooleanObjectInspector);
+    BooleanObjectInspector boi = (BooleanObjectInspector)loi.getListElementObjectInspector();
+    Assert.assertEquals(true, boi.getPrimitiveJavaObject(loi.getListElement(results.getSecond()[3], 0)));
+    Assert.assertEquals(true, boi.getPrimitiveJavaObject(loi.getListElement(results.getSecond()[3], 1)));
+    Assert.assertEquals(true, boi.getPrimitiveJavaObject(loi.getListElement(results.getSecond()[3], 2)));
+    Assert.assertEquals(false, boi.getPrimitiveJavaObject(loi.getListElement(results.getSecond()[3], 3)));
 
   }
 
@@ -745,7 +753,7 @@ public class TestGenericUDFJsonValue {
         return ObjectInspectorFactory.getStandardStructObjectInspector(fields, ois);
       }
     } else if (obj instanceof String) {
-      return isConstant ? new JavaConstantStringObjectInspector((String)obj) :
+      return isConstant ? PrimitiveObjectInspectorFactory.getPrimitiveWritableConstantObjectInspector(TypeInfoFactory.stringTypeInfo, new Text((String)obj)) :
           PrimitiveObjectInspectorFactory.writableStringObjectInspector;
     } else if (obj instanceof Long) {
       return isConstant ? PrimitiveObjectInspectorFactory.getPrimitiveWritableConstantObjectInspector(TypeInfoFactory.longTypeInfo, new LongWritable((Long)obj)) :

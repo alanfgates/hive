@@ -33,9 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.DoubleBinaryOperator;
-import java.util.function.Function;
 import java.util.function.LongBinaryOperator;
-import java.util.stream.Collectors;
 
 /**
  * JsonSequence tracks the JSON value being returned from a section of the parse tree.  Since the value being returned

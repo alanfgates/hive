@@ -7,16 +7,16 @@ POSTHOOK: type: CREATETABLE
 POSTHOOK: Output: database:default
 POSTHOOK: Output: default@jsonvalue
 PREHOOK: query: insert into jsonvalue values
-  ('{"name" : "harry", "age" : 17, "gpa" : 3.03, "honors" : false, "classes" : [ "math", "history" ] }', 'ron'),
-  ('{"name" : "hermione", "age" : 18, "gpa" : 4.00, "honors" : true, "classes" : [ "science", "french" ]}', 'ginny'),
+  ('{"name" : "harry", "age" : 17, "gpa" : 3.03, "honors" : false, "classes" : [ "math", "history" ], "numbers" : [ 1 , 2]}', 'ron'),
+  ('{"name" : "hermione", "age" : 18, "gpa" : 4.00, "honors" : true, "classes" : [ "science", "french" ], "numbers" : [10, 20]}', 'ginny'),
   ('{"name" : null, "age" : null, "gpa" : null, "honors" : null, "classes" : null}', 'no name'),
   ('{}', 'empty')
 PREHOOK: type: QUERY
 PREHOOK: Input: _dummy_database@_dummy_table
 PREHOOK: Output: default@jsonvalue
 POSTHOOK: query: insert into jsonvalue values
-  ('{"name" : "harry", "age" : 17, "gpa" : 3.03, "honors" : false, "classes" : [ "math", "history" ] }', 'ron'),
-  ('{"name" : "hermione", "age" : 18, "gpa" : 4.00, "honors" : true, "classes" : [ "science", "french" ]}', 'ginny'),
+  ('{"name" : "harry", "age" : 17, "gpa" : 3.03, "honors" : false, "classes" : [ "math", "history" ], "numbers" : [ 1 , 2]}', 'ron'),
+  ('{"name" : "hermione", "age" : 18, "gpa" : 4.00, "honors" : true, "classes" : [ "science", "french" ], "numbers" : [10, 20]}', 'ginny'),
   ('{"name" : null, "age" : null, "gpa" : null, "honors" : null, "classes" : null}', 'no name'),
   ('{}', 'empty')
 POSTHOOK: type: QUERY
@@ -27,7 +27,7 @@ POSTHOOK: Lineage: jsonvalue.jsonval SCRIPT []
 PREHOOK: query: select json_value(jsonval, '$.name'),
        json_value(jsonval, '$.age', 1L),
        json_value(jsonval, '$.age', 1),
-
+       json_value(jsonval, '$.gpa', 1.00),
        json_value(jsonval, '$.honors', true)
     from jsonvalue
 PREHOOK: type: QUERY
@@ -36,20 +36,20 @@ PREHOOK: Input: default@jsonvalue
 POSTHOOK: query: select json_value(jsonval, '$.name'),
        json_value(jsonval, '$.age', 1L),
        json_value(jsonval, '$.age', 1),
-
+       json_value(jsonval, '$.gpa', 1.00),
        json_value(jsonval, '$.honors', true)
     from jsonvalue
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@jsonvalue
 #### A masked pattern was here ####
-harry	17	17	false
-hermione	18	18	true
-NULL	NULL	NULL	NULL
-NULL	NULL	NULL	NULL
+harry	17	17	3	false
+hermione	18	18	4	true
+NULL	NULL	NULL	NULL	NULL
+NULL	NULL	NULL	NULL	NULL
 PREHOOK: query: select json_value(jsonval, '$.name', 'fred', 'DEFAULT'),
        json_value(jsonval, '$.age', 1L, 'DEFAULT'),
        json_value(jsonval, '$.age', 1, 'DEFAULT'),
-
+       json_value(jsonval, '$.gpa', 1.00, 'DEFAULT'),
        json_value(jsonval, '$.honors', true, 'DEFAULT')
     from jsonvalue
 PREHOOK: type: QUERY
@@ -58,16 +58,16 @@ PREHOOK: Input: default@jsonvalue
 POSTHOOK: query: select json_value(jsonval, '$.name', 'fred', 'DEFAULT'),
        json_value(jsonval, '$.age', 1L, 'DEFAULT'),
        json_value(jsonval, '$.age', 1, 'DEFAULT'),
-
+       json_value(jsonval, '$.gpa', 1.00, 'DEFAULT'),
        json_value(jsonval, '$.honors', true, 'DEFAULT')
     from jsonvalue
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@jsonvalue
 #### A masked pattern was here ####
-harry	17	17	false
-hermione	18	18	true
-NULL	NULL	NULL	NULL
-fred	1	1	true
+harry	17	17	3	false
+hermione	18	18	4	true
+NULL	NULL	NULL	NULL	NULL
+fred	1	1	1	true
 PREHOOK: query: select json_value(jsonval, '$.name', defaultval, 'DEFAULT')
     from jsonvalue
 PREHOOK: type: QUERY
@@ -83,20 +83,22 @@ hermione
 NULL
 empty
 PREHOOK: query: select 
-
+       json_value(jsonval, '$.classes', array('a')),
+       json_value(jsonval, '$.numbers', array(1L)),
        json_value(jsonval, '$.classes[$index]', 'a', 'NULL', 'NULL', 'index', 0)
     from jsonvalue
 PREHOOK: type: QUERY
 PREHOOK: Input: default@jsonvalue
 #### A masked pattern was here ####
 POSTHOOK: query: select 
-
+       json_value(jsonval, '$.classes', array('a')),
+       json_value(jsonval, '$.numbers', array(1L)),
        json_value(jsonval, '$.classes[$index]', 'a', 'NULL', 'NULL', 'index', 0)
     from jsonvalue
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@jsonvalue
 #### A masked pattern was here ####
-math
-science
-NULL
-NULL
+["math","history"]	[1,2]	math
+["science","french"]	[10,20]	science
+NULL	NULL	NULL
+NULL	NULL	NULL
