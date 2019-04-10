@@ -1,0 +1,157 @@
+PREHOOK: query: create temporary table jsonalltypes(
+    strjson    string,
+    charjson   char(200),
+    vcharjson  varchar(255),
+    chardef    char(5),
+    vchardef   varchar(100),
+    int1       tinyint,
+    int2       smallint,
+    int4       int,
+    int8       bigint,
+    dec4       float,
+    dec8       double,
+    decbig     decimal(12, 4),
+    bbool      boolean,
+    llist      array<int>,
+    sstruct    struct<key : int, name : string>
+    )
+PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
+PREHOOK: Output: default@jsonalltypes
+POSTHOOK: query: create temporary table jsonalltypes(
+    strjson    string,
+    charjson   char(200),
+    vcharjson  varchar(255),
+    chardef    char(5),
+    vchardef   varchar(100),
+    int1       tinyint,
+    int2       smallint,
+    int4       int,
+    int8       bigint,
+    dec4       float,
+    dec8       double,
+    decbig     decimal(12, 4),
+    bbool      boolean,
+    llist      array<int>,
+    sstruct    struct<key : int, name : string>
+    )
+POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
+POSTHOOK: Output: default@jsonalltypes
+PREHOOK: query: insert into jsonalltypes values
+  ('{ "skey" : "sval", "ikey" : 3, "dkey" : 3.141592654, "bkey" : true , "lkey" : [ 100, 200 ], "stkey" : { "key" : -1, "name" : "structname" }}',
+   '{ "skey" : "xxxx", "ikey" : 4, "dkey" : 2.718281828, "bkey" : false, "lkey" : [ 101, 201 ], "stkey" : { "key" : 18, "name" : "yyyyyyyyyy" }}',
+   '{ "skey" : "zzzz", "ikey" : 5, "dkey" : 1.618033988, "bkey" : false, "lkey" : [ 102, 202 ], "stkey" : { "key" : 19, "name" : "aaaaaaaaaa" }}',
+   'zz', 'yy', 1, 2, 3, 4, 1.1, 2.2, 10328.23, true, array(5, 6), named_struct('key', 3, 'name', 'n')),
+  ('{ "skey" : "bbbb", "ikey" : 6, "dkey" : 1.414213562, "bkey" : true , "lkey" : [ 103, 204 ], "stkey" : { "key" : -8, "name" : "eeeeeeeeee" }}',
+   '{ "skey" : "cccc", "ikey" : 7, "dkey" : 1.732050807, "bkey" : false, "lkey" : [ 104, 204 ], "stkey" : { "key" : 18, "name" : "ffffffffff" }}',
+   '{ "skey" : "dddd", "ikey" : 8, "dkey" : 2.000000000, "bkey" : false, "lkey" : [ 105, 205 ], "stkey" : { "key" : 19, "name" : "gggggggggg" }}',
+   'aa', 'bb', 5, 6, 7, 8, 3.1, 3.2, 30328.23, false, array(1, 2), named_struct('key', 2, 'name', 'b')),
+  ('{}', NULL, NULL, 'cc', 'dd', 15, 16, 17, 18, 13.1, 13.2, 130328.23, false, array(11, 12), named_struct('key', 12, 'name', 'c'))
+PREHOOK: type: QUERY
+PREHOOK: Input: _dummy_database@_dummy_table
+PREHOOK: Output: default@jsonalltypes
+POSTHOOK: query: insert into jsonalltypes values
+  ('{ "skey" : "sval", "ikey" : 3, "dkey" : 3.141592654, "bkey" : true , "lkey" : [ 100, 200 ], "stkey" : { "key" : -1, "name" : "structname" }}',
+   '{ "skey" : "xxxx", "ikey" : 4, "dkey" : 2.718281828, "bkey" : false, "lkey" : [ 101, 201 ], "stkey" : { "key" : 18, "name" : "yyyyyyyyyy" }}',
+   '{ "skey" : "zzzz", "ikey" : 5, "dkey" : 1.618033988, "bkey" : false, "lkey" : [ 102, 202 ], "stkey" : { "key" : 19, "name" : "aaaaaaaaaa" }}',
+   'zz', 'yy', 1, 2, 3, 4, 1.1, 2.2, 10328.23, true, array(5, 6), named_struct('key', 3, 'name', 'n')),
+  ('{ "skey" : "bbbb", "ikey" : 6, "dkey" : 1.414213562, "bkey" : true , "lkey" : [ 103, 204 ], "stkey" : { "key" : -8, "name" : "eeeeeeeeee" }}',
+   '{ "skey" : "cccc", "ikey" : 7, "dkey" : 1.732050807, "bkey" : false, "lkey" : [ 104, 204 ], "stkey" : { "key" : 18, "name" : "ffffffffff" }}',
+   '{ "skey" : "dddd", "ikey" : 8, "dkey" : 2.000000000, "bkey" : false, "lkey" : [ 105, 205 ], "stkey" : { "key" : 19, "name" : "gggggggggg" }}',
+   'aa', 'bb', 5, 6, 7, 8, 3.1, 3.2, 30328.23, false, array(1, 2), named_struct('key', 2, 'name', 'b')),
+  ('{}', NULL, NULL, 'cc', 'dd', 15, 16, 17, 18, 13.1, 13.2, 130328.23, false, array(11, 12), named_struct('key', 12, 'name', 'c'))
+POSTHOOK: type: QUERY
+POSTHOOK: Input: _dummy_database@_dummy_table
+POSTHOOK: Output: default@jsonalltypes
+POSTHOOK: Lineage: jsonalltypes.bbool SCRIPT []
+POSTHOOK: Lineage: jsonalltypes.chardef SCRIPT []
+POSTHOOK: Lineage: jsonalltypes.charjson SCRIPT []
+POSTHOOK: Lineage: jsonalltypes.dec4 SCRIPT []
+POSTHOOK: Lineage: jsonalltypes.dec8 SCRIPT []
+POSTHOOK: Lineage: jsonalltypes.decbig SCRIPT []
+POSTHOOK: Lineage: jsonalltypes.int1 SCRIPT []
+POSTHOOK: Lineage: jsonalltypes.int2 SCRIPT []
+POSTHOOK: Lineage: jsonalltypes.int4 SCRIPT []
+POSTHOOK: Lineage: jsonalltypes.int8 SCRIPT []
+POSTHOOK: Lineage: jsonalltypes.llist SCRIPT []
+POSTHOOK: Lineage: jsonalltypes.sstruct SCRIPT []
+POSTHOOK: Lineage: jsonalltypes.strjson SCRIPT []
+POSTHOOK: Lineage: jsonalltypes.vchardef SCRIPT []
+POSTHOOK: Lineage: jsonalltypes.vcharjson SCRIPT []
+PREHOOK: query: select json_value(strjson, "$.skey", chardef, 'DEFAULT'),
+       json_value(strjson, "$.skey", vchardef, 'DEFAULT'),
+       json_value(charjson, "$.skey", vchardef, 'DEFAULT'),
+       json_value(vcharjson, "$.skey", chardef, 'DEFAULT')
+  from jsonalltypes
+PREHOOK: type: QUERY
+PREHOOK: Input: default@jsonalltypes
+#### A masked pattern was here ####
+POSTHOOK: query: select json_value(strjson, "$.skey", chardef, 'DEFAULT'),
+       json_value(strjson, "$.skey", vchardef, 'DEFAULT'),
+       json_value(charjson, "$.skey", vchardef, 'DEFAULT'),
+       json_value(vcharjson, "$.skey", chardef, 'DEFAULT')
+  from jsonalltypes
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@jsonalltypes
+#### A masked pattern was here ####
+sval 	sval	xxxx	zzzz 
+bbbb 	bbbb	cccc	dddd 
+cc   	dd	NULL	NULL
+PREHOOK: query: select json_value(strjson, "$.ikey", int1, 'DEFAULT'),
+       json_value(strjson, "$.ikey", int2, 'DEFAULT'),
+       json_value(strjson, "$.ikey", int4, 'DEFAULT'),
+       json_value(strjson, "$.ikey", int8, 'DEFAULT')
+  from jsonalltypes
+PREHOOK: type: QUERY
+PREHOOK: Input: default@jsonalltypes
+#### A masked pattern was here ####
+POSTHOOK: query: select json_value(strjson, "$.ikey", int1, 'DEFAULT'),
+       json_value(strjson, "$.ikey", int2, 'DEFAULT'),
+       json_value(strjson, "$.ikey", int4, 'DEFAULT'),
+       json_value(strjson, "$.ikey", int8, 'DEFAULT')
+  from jsonalltypes
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@jsonalltypes
+#### A masked pattern was here ####
+3	3	3	3
+6	6	6	6
+15	16	17	18
+PREHOOK: query: select json_value(strjson, "$.dkey", dec4, 'DEFAULT'),
+       json_value(strjson, "$.dkey", dec8, 'DEFAULT'),
+       json_value(strjson, "$.dkey", decbig, 'default'),
+       json_value(strjson, "$.bkey", bbool, 'DEFAULT')
+  from jsonalltypes
+PREHOOK: type: QUERY
+PREHOOK: Input: default@jsonalltypes
+#### A masked pattern was here ####
+POSTHOOK: query: select json_value(strjson, "$.dkey", dec4, 'DEFAULT'),
+       json_value(strjson, "$.dkey", dec8, 'DEFAULT'),
+       json_value(strjson, "$.dkey", decbig, 'default'),
+       json_value(strjson, "$.bkey", bbool, 'DEFAULT')
+  from jsonalltypes
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@jsonalltypes
+#### A masked pattern was here ####
+3.1415927	3.141592654	3.1416	true
+1.4142135	1.414213562	1.4142	true
+13.1	13.2	130328.2300	false
+PREHOOK: query: select json_value(strjson, "$.lkey[0]", 1),
+       json_value(strjson, "$.stkey.key", 1),
+       json_value(strjson, "$.lkey", llist, 'DEFAULT'),
+       json_value(strjson, "$.stkey", sstruct, 'DEFAULT')
+  from jsonalltypes
+PREHOOK: type: QUERY
+PREHOOK: Input: default@jsonalltypes
+#### A masked pattern was here ####
+POSTHOOK: query: select json_value(strjson, "$.lkey[0]", 1),
+       json_value(strjson, "$.stkey.key", 1),
+       json_value(strjson, "$.lkey", llist, 'DEFAULT'),
+       json_value(strjson, "$.stkey", sstruct, 'DEFAULT')
+  from jsonalltypes
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@jsonalltypes
+#### A masked pattern was here ####
+100	-1	[100,200]	{"key":-1,"name":"structname"}
+103	-8	[103,204]	{"key":-8,"name":"eeeeeeeeee"}
+NULL	NULL	[11,12]	{"key":12,"name":"c"}

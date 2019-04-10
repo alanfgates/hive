@@ -99,7 +99,12 @@ public class TestGenericUDFJsonValue {
                 "\"long\"    : -1," +
                 "\"decimal\" : -2.2," +
                 "\"bool\"    : true" +
-            "}" +
+            "}," +
+            "\"nested\"     : { " +
+              "\"nestedlist\" : [ " +
+                "{" +
+                  "\"anothernest\" : [ 10, 100, 1000 ]" +
+                "} ] }" +
         "}"
     );
   }
@@ -355,6 +360,31 @@ public class TestGenericUDFJsonValue {
     results = test(json, "$.subobj.bool", wrapInList(true));
     poi = (PrimitiveObjectInspector)results.getFirst();
     Assert.assertEquals(true, poi.getPrimitiveJavaObject(results.getSecond()[3]));
+  }
+
+  @Test
+  public void nested() throws HiveException {
+    ObjectPair<ObjectInspector, Object[]> results = test(json, "$.nested.nestedlist[0].anothernest[2]", wrapInList(1));
+    PrimitiveObjectInspector poi = (PrimitiveObjectInspector)results.getFirst();
+    Assert.assertEquals(1000, poi.getPrimitiveJavaObject(results.getSecond()[3]));
+
+    Map<String, Object> defaultVal = new HashMap<>();
+    defaultVal.put("anothernest", Arrays.asList(10L, 100L, 1000L));
+    results = test(json, "$.nested.nestedlist[0]", wrapInList(defaultVal));
+    StructObjectInspector soi = (StructObjectInspector)results.getFirst();
+
+    StructField sf = soi.getStructFieldRef("anothernest");
+    Assert.assertNotNull(sf);
+    Assert.assertEquals("anothernest", sf.getFieldName());
+    Assert.assertTrue(sf.getFieldObjectInspector() instanceof ListObjectInspector);
+    ListObjectInspector loi = (ListObjectInspector)sf.getFieldObjectInspector();
+    List list = ((ListObjectInspector) sf.getFieldObjectInspector()).getList(soi.getStructFieldData(results.getSecond()[3], sf));
+    Assert.assertEquals(3, loi.getListLength(list));
+    Assert.assertTrue(loi.getListElementObjectInspector() instanceof LongObjectInspector);
+    LongObjectInspector lloi = (LongObjectInspector)loi.getListElementObjectInspector();
+    Assert.assertEquals(10L, lloi.getPrimitiveJavaObject(loi.getListElement(list, 0)));
+    Assert.assertEquals(100L, lloi.getPrimitiveJavaObject(loi.getListElement(list, 1)));
+    Assert.assertEquals(1000L, lloi.getPrimitiveJavaObject(loi.getListElement(list, 2)));
   }
 
 

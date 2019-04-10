@@ -2,7 +2,7 @@ create temporary table jsonvalue (jsonval string, defaultval string);
 
 insert into jsonvalue values
   ('{"name" : "harry", "age" : 17, "gpa" : 3.03, "honors" : false, "classes" : [ "math", "history" ], "numbers" : [ 1 , 2]}', 'ron'),
-  ('{"name" : "hermione", "age" : 18, "gpa" : 4.00, "honors" : true, "classes" : [ "science", "french" ], "numbers" : [10, 20]}', 'ginny'),
+  ('{"name" : "hermione", "age" : 18, "gpa" : 3.99, "honors" : true, "classes" : [ "science", "french" ], "numbers" : [10, 20]}', 'ginny'),
   ('{"name" : null, "age" : null, "gpa" : null, "honors" : null, "classes" : null}', 'no name'),
   ('{}', 'empty'),
   ('{ "nested" : { "street" : "12 Grimmauld Place", "years at this address" : 1 } }', 'whatever');
@@ -10,7 +10,7 @@ insert into jsonvalue values
 select json_value(jsonval, '$.name'),
        json_value(jsonval, '$.age', 1L),
        json_value(jsonval, '$.age', 1),
-       json_value(jsonval, '$.gpa', 1.00),
+       json_value(jsonval, '$.gpa', 100.00),
        json_value(jsonval, '$.honors', true)
     from jsonvalue;
 

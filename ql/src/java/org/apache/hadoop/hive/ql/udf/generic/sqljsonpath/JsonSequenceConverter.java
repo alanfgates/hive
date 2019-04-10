@@ -21,6 +21,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorConverters;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
@@ -80,7 +81,13 @@ public class JsonSequenceConverter {
     // still cache the converter and then copy the result, but this seems equivalent to not caching the converter.
     if (useCache) converter = converterCache.get(cacheKey);
     if (converter == null) {
-      converter = ObjectInspectorConverters.getConverter(getInputObjectInspector(json, outputOI), outputOI);
+      ObjectInspector inputObjectInspector = getInputObjectInspector(json, outputOI);
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("Using output ObjectInspector " +
+            ObjectInspectorUtils.getObjectInspectorName(outputOI));
+        LOG.debug("Using input ObjectInspector " + ObjectInspectorUtils.getObjectInspectorName(inputObjectInspector));
+      }
+      converter = ObjectInspectorConverters.getConverter(inputObjectInspector, outputOI);
       converterCache.put(cacheKey, converter);
     }
     switch (outputOI.getCategory()) {
@@ -128,11 +135,9 @@ public class JsonSequenceConverter {
           StructObjectInspector soi = (StructObjectInspector)outputOI;
           List<String> names = new ArrayList<>();
           List<ObjectInspector> fieldOIs = new ArrayList<>();
-          for (Map.Entry<String, JsonSequence> field : json.asObject().entrySet()) {
-            names.add(field.getKey());
-            StructField sf = soi.getStructFieldRef(field.getKey());
-            ObjectInspector fieldInspector = sf == null ? PrimitiveObjectInspectorFactory.javaStringObjectInspector :
-                translateOutputOI(sf.getFieldObjectInspector());
+          for (StructField sf : soi.getAllStructFieldRefs()) {
+            names.add(sf.getFieldName());
+            ObjectInspector fieldInspector = translateOutputOI(sf.getFieldObjectInspector());
             fieldOIs.add(fieldInspector);
           }
           inputOI = ObjectInspectorFactory.getStandardStructObjectInspector(names, fieldOIs);
