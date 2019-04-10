@@ -1,0 +1,357 @@
+PREHOOK: query: create temporary table jsonvectorized (jsonval string)
+PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
+PREHOOK: Output: default@jsonvectorized
+POSTHOOK: query: create temporary table jsonvectorized (jsonval string)
+POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
+POSTHOOK: Output: default@jsonvectorized
+PREHOOK: query: insert into jsonvectorized values
+  ('{"var" : "imastring" }'),
+  ('{"var" : -3 }'),
+  ('{"var" : 1987.12342 }'),
+  ('{"var" : true }'),
+  ('{"var" : [ 1, 2, 3] }'),
+  ('{"var" : { "nested" : true } }'),
+  ('{"var" : null }'),
+  ('{}')
+PREHOOK: type: QUERY
+PREHOOK: Input: _dummy_database@_dummy_table
+PREHOOK: Output: default@jsonvectorized
+POSTHOOK: query: insert into jsonvectorized values
+  ('{"var" : "imastring" }'),
+  ('{"var" : -3 }'),
+  ('{"var" : 1987.12342 }'),
+  ('{"var" : true }'),
+  ('{"var" : [ 1, 2, 3] }'),
+  ('{"var" : { "nested" : true } }'),
+  ('{"var" : null }'),
+  ('{}')
+POSTHOOK: type: QUERY
+POSTHOOK: Input: _dummy_database@_dummy_table
+POSTHOOK: Output: default@jsonvectorized
+POSTHOOK: Lineage: jsonvectorized.jsonval SCRIPT []
+PREHOOK: query: explain vectorization detail
+select 1 from jsonvectorized where jsonval is json
+PREHOOK: type: QUERY
+PREHOOK: Input: default@jsonvectorized
+#### A masked pattern was here ####
+POSTHOOK: query: explain vectorization detail
+select 1 from jsonvectorized where jsonval is json
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@jsonvectorized
+#### A masked pattern was here ####
+PLAN VECTORIZATION:
+  enabled: true
+  enabledConditionsMet: [hive.vectorized.execution.enabled IS true]
+
+STAGE DEPENDENCIES:
+  Stage-1 is a root stage
+  Stage-0 depends on stages: Stage-1
+
+STAGE PLANS:
+  Stage: Stage-1
+    Map Reduce
+      Map Operator Tree:
+          TableScan
+            alias: jsonvectorized
+            filterExpr: isjson(jsonval) (type: boolean)
+            Statistics: Num rows: 8 Data size: 1472 Basic stats: COMPLETE Column stats: NONE
+            TableScan Vectorization:
+                native: true
+                vectorizationSchemaColumns: [0:jsonval:string, 1:ROW__ID:struct<writeid:bigint,bucketid:int,rowid:bigint>]
+            Filter Operator
+              Filter Vectorization:
+                  className: VectorFilterOperator
+                  native: true
+                  predicateExpression: SelectColumnIsTrue(col 2:boolean)(children: VectorUDFAdaptor(isjson(jsonval)) -> 2:boolean)
+              predicate: isjson(jsonval) (type: boolean)
+              Statistics: Num rows: 4 Data size: 736 Basic stats: COMPLETE Column stats: NONE
+              Select Operator
+                expressions: 1 (type: int)
+                outputColumnNames: _col0
+                Select Vectorization:
+                    className: VectorSelectOperator
+                    native: true
+                    projectedOutputColumnNums: [3]
+                    selectExpressions: ConstantVectorExpression(val 1) -> 3:int
+                Statistics: Num rows: 4 Data size: 736 Basic stats: COMPLETE Column stats: NONE
+                File Output Operator
+                  compressed: false
+                  File Sink Vectorization:
+                      className: VectorFileSinkOperator
+                      native: false
+                  Statistics: Num rows: 4 Data size: 736 Basic stats: COMPLETE Column stats: NONE
+                  table:
+                      input format: org.apache.hadoop.mapred.SequenceFileInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+      Execution mode: vectorized
+      Map Vectorization:
+          enabled: true
+          enabledConditionsMet: hive.vectorized.use.vector.serde.deserialize IS true
+          inputFormatFeatureSupport: [DECIMAL_64]
+          featureSupportInUse: [DECIMAL_64]
+          inputFileFormats: org.apache.hadoop.mapred.TextInputFormat
+          allNative: false
+          usesVectorUDFAdaptor: true
+          vectorized: true
+          rowBatchContext:
+              dataColumnCount: 1
+              includeColumns: [0]
+              dataColumns: jsonval:string
+              partitionColumnCount: 0
+              scratchColumnTypeNames: [bigint, bigint]
+
+  Stage: Stage-0
+    Fetch Operator
+      limit: -1
+      Processor Tree:
+        ListSink
+
+PREHOOK: query: explain vectorization detail
+select 1 from jsonvectorized where jsonval is not json
+PREHOOK: type: QUERY
+PREHOOK: Input: default@jsonvectorized
+#### A masked pattern was here ####
+POSTHOOK: query: explain vectorization detail
+select 1 from jsonvectorized where jsonval is not json
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@jsonvectorized
+#### A masked pattern was here ####
+PLAN VECTORIZATION:
+  enabled: true
+  enabledConditionsMet: [hive.vectorized.execution.enabled IS true]
+
+STAGE DEPENDENCIES:
+  Stage-1 is a root stage
+  Stage-0 depends on stages: Stage-1
+
+STAGE PLANS:
+  Stage: Stage-1
+    Map Reduce
+      Map Operator Tree:
+          TableScan
+            alias: jsonvectorized
+            filterExpr: isjson(jsonval) (type: boolean)
+            Statistics: Num rows: 8 Data size: 1472 Basic stats: COMPLETE Column stats: NONE
+            TableScan Vectorization:
+                native: true
+                vectorizationSchemaColumns: [0:jsonval:string, 1:ROW__ID:struct<writeid:bigint,bucketid:int,rowid:bigint>]
+            Filter Operator
+              Filter Vectorization:
+                  className: VectorFilterOperator
+                  native: true
+                  predicateExpression: SelectColumnIsTrue(col 2:boolean)(children: VectorUDFAdaptor(isjson(jsonval)) -> 2:boolean)
+              predicate: isjson(jsonval) (type: boolean)
+              Statistics: Num rows: 4 Data size: 736 Basic stats: COMPLETE Column stats: NONE
+              Select Operator
+                expressions: 1 (type: int)
+                outputColumnNames: _col0
+                Select Vectorization:
+                    className: VectorSelectOperator
+                    native: true
+                    projectedOutputColumnNums: [3]
+                    selectExpressions: ConstantVectorExpression(val 1) -> 3:int
+                Statistics: Num rows: 4 Data size: 736 Basic stats: COMPLETE Column stats: NONE
+                File Output Operator
+                  compressed: false
+                  File Sink Vectorization:
+                      className: VectorFileSinkOperator
+                      native: false
+                  Statistics: Num rows: 4 Data size: 736 Basic stats: COMPLETE Column stats: NONE
+                  table:
+                      input format: org.apache.hadoop.mapred.SequenceFileInputFormat
+                      output format: org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat
+                      serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+      Execution mode: vectorized
+      Map Vectorization:
+          enabled: true
+          enabledConditionsMet: hive.vectorized.use.vector.serde.deserialize IS true
+          inputFormatFeatureSupport: [DECIMAL_64]
+          featureSupportInUse: [DECIMAL_64]
+          inputFileFormats: org.apache.hadoop.mapred.TextInputFormat
+          allNative: false
+          usesVectorUDFAdaptor: true
+          vectorized: true
+          rowBatchContext:
+              dataColumnCount: 1
+              includeColumns: [0]
+              dataColumns: jsonval:string
+              partitionColumnCount: 0
+              scratchColumnTypeNames: [bigint, bigint]
+
+  Stage: Stage-0
+    Fetch Operator
+      limit: -1
+      Processor Tree:
+        ListSink
+
+PREHOOK: query: explain vectorization detail
+select json_value(jsonval, '$.var'),
+       json_value(jsonval, '$.var', 'a'),
+       json_value(jsonval, '$.var', 1, 'default'),
+       json_value(jsonval, '$.var', 1000000.000001, 'default'),
+       json_value(jsonval, '$.var', false, 'default')
+    from jsonvectorized
+PREHOOK: type: QUERY
+PREHOOK: Input: default@jsonvectorized
+#### A masked pattern was here ####
+POSTHOOK: query: explain vectorization detail
+select json_value(jsonval, '$.var'),
+       json_value(jsonval, '$.var', 'a'),
+       json_value(jsonval, '$.var', 1, 'default'),
+       json_value(jsonval, '$.var', 1000000.000001, 'default'),
+       json_value(jsonval, '$.var', false, 'default')
+    from jsonvectorized
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@jsonvectorized
+#### A masked pattern was here ####
+PLAN VECTORIZATION:
+  enabled: true
+  enabledConditionsMet: [hive.vectorized.execution.enabled IS true]
+
+STAGE DEPENDENCIES:
+  Stage-1 is a root stage
+  Stage-0 depends on stages: Stage-1
+
+STAGE PLANS:
+  Stage: Stage-1
+    Map Reduce
+      Map Operator Tree:
+          TableScan
+            alias: jsonvectorized
+            Statistics: Num rows: 8 Data size: 1472 Basic stats: COMPLETE Column stats: NONE
+            TableScan Vectorization:
+                native: true
+                vectorizationSchemaColumns: [0:jsonval:string, 1:ROW__ID:struct<writeid:bigint,bucketid:int,rowid:bigint>]
+            Select Operator
+              expressions: json_value(jsonval, '$.var') (type: string), json_value(jsonval, '$.var', 'a') (type: string), json_value(jsonval, '$.var', 1, 'default') (type: int), json_value(jsonval, '$.var', 1000000.000001, 'default') (type: decimal(13,6)), json_value(jsonval, '$.var', false, 'default') (type: boolean)
+              outputColumnNames: _col0, _col1, _col2, _col3, _col4
+              Select Vectorization:
+                  className: VectorSelectOperator
+                  native: true
+                  projectedOutputColumnNums: [2, 3, 4, 5, 6]
+                  selectExpressions: VectorUDFAdaptor(json_value(jsonval, '$.var')) -> 2:string, VectorUDFAdaptor(json_value(jsonval, '$.var', 'a')) -> 3:string, VectorUDFAdaptor(json_value(jsonval, '$.var', 1, 'default')) -> 4:int, VectorUDFAdaptor(json_value(jsonval, '$.var', 1000000.000001, 'default')) -> 5:decimal(13,6), VectorUDFAdaptor(json_value(jsonval, '$.var', false, 'default')) -> 6:boolean
+              Statistics: Num rows: 8 Data size: 1472 Basic stats: COMPLETE Column stats: NONE
+              File Output Operator
+                compressed: false
+                File Sink Vectorization:
+                    className: VectorFileSinkOperator
+                    native: false
+                Statistics: Num rows: 8 Data size: 1472 Basic stats: COMPLETE Column stats: NONE
+                table:
+                    input format: org.apache.hadoop.mapred.SequenceFileInputFormat
+                    output format: org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat
+                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+      Execution mode: vectorized
+      Map Vectorization:
+          enabled: true
+          enabledConditionsMet: hive.vectorized.use.vector.serde.deserialize IS true
+          inputFormatFeatureSupport: [DECIMAL_64]
+          featureSupportInUse: [DECIMAL_64]
+          inputFileFormats: org.apache.hadoop.mapred.TextInputFormat
+          allNative: false
+          usesVectorUDFAdaptor: true
+          vectorized: true
+          rowBatchContext:
+              dataColumnCount: 1
+              includeColumns: [0]
+              dataColumns: jsonval:string
+              partitionColumnCount: 0
+              scratchColumnTypeNames: [string, string, bigint, decimal(13,6), bigint]
+
+  Stage: Stage-0
+    Fetch Operator
+      limit: -1
+      Processor Tree:
+        ListSink
+
+PREHOOK: query: explain vectorization detail
+select json_value(jsonval, '$.var'),
+       json_value(jsonval, '$.var', 'a'),
+       json_value(jsonval, '$.var', 1, 'default'),
+       json_value(jsonval, '$.var', 1000000.000001, 'default'),
+       json_value(jsonval, '$.var', false, 'default'),
+       json_value(jsonval, '$.var', array(4, 5), 'default'),
+       json_value(jsonval, '$.var', array(4, 5), 'default', 'default'),
+       json_value(jsonval, '$.var', named_struct('nested', false), 'default'),
+       json_value(jsonval, '$.var', named_struct('nested', false), 'default', 'default')
+    from jsonvectorized
+PREHOOK: type: QUERY
+PREHOOK: Input: default@jsonvectorized
+#### A masked pattern was here ####
+POSTHOOK: query: explain vectorization detail
+select json_value(jsonval, '$.var'),
+       json_value(jsonval, '$.var', 'a'),
+       json_value(jsonval, '$.var', 1, 'default'),
+       json_value(jsonval, '$.var', 1000000.000001, 'default'),
+       json_value(jsonval, '$.var', false, 'default'),
+       json_value(jsonval, '$.var', array(4, 5), 'default'),
+       json_value(jsonval, '$.var', array(4, 5), 'default', 'default'),
+       json_value(jsonval, '$.var', named_struct('nested', false), 'default'),
+       json_value(jsonval, '$.var', named_struct('nested', false), 'default', 'default')
+    from jsonvectorized
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@jsonvectorized
+#### A masked pattern was here ####
+PLAN VECTORIZATION:
+  enabled: true
+  enabledConditionsMet: [hive.vectorized.execution.enabled IS true]
+
+STAGE DEPENDENCIES:
+  Stage-1 is a root stage
+  Stage-0 depends on stages: Stage-1
+
+STAGE PLANS:
+  Stage: Stage-1
+    Map Reduce
+      Map Operator Tree:
+          TableScan
+            alias: jsonvectorized
+            Statistics: Num rows: 8 Data size: 1472 Basic stats: COMPLETE Column stats: NONE
+            TableScan Vectorization:
+                native: true
+                vectorizationSchemaColumns: [0:jsonval:string, 1:ROW__ID:struct<writeid:bigint,bucketid:int,rowid:bigint>]
+            Select Operator
+              expressions: json_value(jsonval, '$.var') (type: string), json_value(jsonval, '$.var', 'a') (type: string), json_value(jsonval, '$.var', 1, 'default') (type: int), json_value(jsonval, '$.var', 1000000.000001, 'default') (type: decimal(13,6)), json_value(jsonval, '$.var', false, 'default') (type: boolean), json_value(jsonval, '$.var', array(4,5), 'default') (type: array<int>), json_value(jsonval, '$.var', array(4,5), 'default', 'default') (type: array<int>), json_value(jsonval, '$.var', named_struct('nested',false), 'default') (type: struct<nested:boolean>), json_value(jsonval, '$.var', named_struct('nested',false), 'default', 'default') (type: struct<nested:boolean>)
+              outputColumnNames: _col0, _col1, _col2, _col3, _col4, _col5, _col6, _col7, _col8
+              Select Vectorization:
+                  className: VectorSelectOperator
+                  native: true
+                  projectedOutputColumnNums: [2, 3, 4, 5, 6, 8, 10, 12, 14]
+                  selectExpressions: VectorUDFAdaptor(json_value(jsonval, '$.var')) -> 2:string, VectorUDFAdaptor(json_value(jsonval, '$.var', 'a')) -> 3:string, VectorUDFAdaptor(json_value(jsonval, '$.var', 1, 'default')) -> 4:int, VectorUDFAdaptor(json_value(jsonval, '$.var', 1000000.000001, 'default')) -> 5:decimal(13,6), VectorUDFAdaptor(json_value(jsonval, '$.var', false, 'default')) -> 6:boolean, VectorUDFAdaptor(json_value(jsonval, '$.var', array(4,5), 'default'))(children: VectorUDFAdaptor(array(4,5)) -> 7:array<int>) -> 8:array<int>, VectorUDFAdaptor(json_value(jsonval, '$.var', array(4,5), 'default', 'default'))(children: VectorUDFAdaptor(array(4,5)) -> 9:array<int>) -> 10:array<int>, VectorUDFAdaptor(json_value(jsonval, '$.var', named_struct('nested',false), 'default'))(children: VectorUDFAdaptor(named_struct('nested',false)) -> 11:struct<nested:boolean>) -> 12:struct<nested:boolean>, VectorUDFAdaptor(json_value(jsonval, '$.var', named_struct('nested',false), 'default', 'default'))(children: VectorUDFAdaptor(named_struct('nested',false)) -> 13:struct<nested:boolean>) -> 14:struct<nested:boolean>
+              Statistics: Num rows: 8 Data size: 1472 Basic stats: COMPLETE Column stats: NONE
+              File Output Operator
+                compressed: false
+                File Sink Vectorization:
+                    className: VectorFileSinkOperator
+                    native: false
+                Statistics: Num rows: 8 Data size: 1472 Basic stats: COMPLETE Column stats: NONE
+                table:
+                    input format: org.apache.hadoop.mapred.SequenceFileInputFormat
+                    output format: org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat
+                    serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+      Execution mode: vectorized
+      Map Vectorization:
+          enabled: true
+          enabledConditionsMet: hive.vectorized.use.vector.serde.deserialize IS true
+          inputFormatFeatureSupport: [DECIMAL_64]
+          featureSupportInUse: [DECIMAL_64]
+          inputFileFormats: org.apache.hadoop.mapred.TextInputFormat
+          allNative: false
+          usesVectorUDFAdaptor: true
+          vectorized: true
+          rowBatchContext:
+              dataColumnCount: 1
+              includeColumns: [0]
+              dataColumns: jsonval:string
+              partitionColumnCount: 0
+              scratchColumnTypeNames: [string, string, bigint, decimal(13,6), bigint, array<int>, array<int>, array<int>, array<int>, struct<nested:boolean>, struct<nested:boolean>, struct<nested:boolean>, struct<nested:boolean>]
+
+  Stage: Stage-0
+    Fetch Operator
+      limit: -1
+      Processor Tree:
+        ListSink
+
