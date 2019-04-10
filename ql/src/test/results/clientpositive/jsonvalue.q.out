@@ -29,7 +29,7 @@ POSTHOOK: Lineage: jsonvalue.jsonval SCRIPT []
 PREHOOK: query: select json_value(jsonval, '$.name'),
        json_value(jsonval, '$.age', 1L),
        json_value(jsonval, '$.age', 1),
-       json_value(jsonval, '$.gpa', 100.00),
+       json_value(jsonval, '$.gpa', 100.001),
        json_value(jsonval, '$.honors', true)
     from jsonvalue
 PREHOOK: type: QUERY
@@ -38,21 +38,21 @@ PREHOOK: Input: default@jsonvalue
 POSTHOOK: query: select json_value(jsonval, '$.name'),
        json_value(jsonval, '$.age', 1L),
        json_value(jsonval, '$.age', 1),
-       json_value(jsonval, '$.gpa', 100.00),
+       json_value(jsonval, '$.gpa', 100.001),
        json_value(jsonval, '$.honors', true)
     from jsonvalue
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@jsonvalue
 #### A masked pattern was here ####
-harry	17	17	3	false
-hermione	18	18	4	true
+harry	17	17	3.030	false
+hermione	18	18	3.990	true
 NULL	NULL	NULL	NULL	NULL
 NULL	NULL	NULL	NULL	NULL
 NULL	NULL	NULL	NULL	NULL
 PREHOOK: query: select json_value(jsonval, '$.name', 'fred', 'DEFAULT'),
        json_value(jsonval, '$.age', 1L, 'DEFAULT'),
        json_value(jsonval, '$.age', 1, 'DEFAULT'),
-       json_value(jsonval, '$.gpa', 1.00, 'DEFAULT'),
+       json_value(jsonval, '$.gpa', 100.001, 'DEFAULT'),
        json_value(jsonval, '$.honors', true, 'DEFAULT')
     from jsonvalue
 PREHOOK: type: QUERY
@@ -61,17 +61,17 @@ PREHOOK: Input: default@jsonvalue
 POSTHOOK: query: select json_value(jsonval, '$.name', 'fred', 'DEFAULT'),
        json_value(jsonval, '$.age', 1L, 'DEFAULT'),
        json_value(jsonval, '$.age', 1, 'DEFAULT'),
-       json_value(jsonval, '$.gpa', 1.00, 'DEFAULT'),
+       json_value(jsonval, '$.gpa', 100.001, 'DEFAULT'),
        json_value(jsonval, '$.honors', true, 'DEFAULT')
     from jsonvalue
 POSTHOOK: type: QUERY
 POSTHOOK: Input: default@jsonvalue
 #### A masked pattern was here ####
-harry	17	17	3	false
-hermione	18	18	4	true
+harry	17	17	3.030	false
+hermione	18	18	3.990	true
 NULL	NULL	NULL	NULL	NULL
-fred	1	1	1	true
-fred	1	1	1	true
+fred	1	1	100.001	true
+fred	1	1	100.001	true
 PREHOOK: query: select json_value(jsonval, '$.name', defaultval, 'DEFAULT')
     from jsonvalue
 PREHOOK: type: QUERY

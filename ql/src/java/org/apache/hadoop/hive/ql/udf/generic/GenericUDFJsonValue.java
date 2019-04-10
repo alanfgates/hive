@@ -24,6 +24,7 @@ import org.apache.hadoop.hive.ql.exec.UDFArgumentLengthException;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.ErrorListener;
+import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.JsonConversionException;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.JsonPathException;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.JsonSequence;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.JsonSequenceConverter;
@@ -171,7 +172,7 @@ public class GenericUDFJsonValue extends GenericUDF {
       parse();
       pathExecutor = new PathExecutor();
       jsonParser = new JsonValueParser(new ErrorListener());
-      jsonConverter = new JsonSequenceConverter(returnOI, onError == WhatToReturn.ERROR);
+      jsonConverter = new JsonSequenceConverter(returnOI);
     }
 
     Map<String, JsonSequence> passing = arguments.length > START_PASSING ?
@@ -190,6 +191,9 @@ public class GenericUDFJsonValue extends GenericUDF {
       return result.isEmpty() ? getOnEmpty(arguments, input) : jsonConverter.convert(result);
     } catch (JsonPathException e) {
       LOG.warn("Failed to execute path expression for input " + input, e);
+      return getOnError(arguments, input, e.getMessage());
+    } catch (JsonConversionException e) {
+      LOG.info("Conversion failure", e);
       return getOnError(arguments, input, e.getMessage());
     }
   }

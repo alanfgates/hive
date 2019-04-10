@@ -1,0 +1,67 @@
+PREHOOK: query: create temporary table jsonvaluecast (jsonval string)
+PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
+PREHOOK: Output: default@jsonvaluecast
+POSTHOOK: query: create temporary table jsonvaluecast (jsonval string)
+POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
+POSTHOOK: Output: default@jsonvaluecast
+PREHOOK: query: insert into jsonvaluecast values
+  ('{"var" : "imastring" }'),
+  ('{"var" : -3 }'),
+  ('{"var" : 1987.12342 }'),
+  ('{"var" : true }'),
+  ('{"var" : [ 1, 2, 3] }'),
+  ('{"var" : { "nested" : true } }'),
+  ('{"var" : null }'),
+  ('{}')
+PREHOOK: type: QUERY
+PREHOOK: Input: _dummy_database@_dummy_table
+PREHOOK: Output: default@jsonvaluecast
+POSTHOOK: query: insert into jsonvaluecast values
+  ('{"var" : "imastring" }'),
+  ('{"var" : -3 }'),
+  ('{"var" : 1987.12342 }'),
+  ('{"var" : true }'),
+  ('{"var" : [ 1, 2, 3] }'),
+  ('{"var" : { "nested" : true } }'),
+  ('{"var" : null }'),
+  ('{}')
+POSTHOOK: type: QUERY
+POSTHOOK: Input: _dummy_database@_dummy_table
+POSTHOOK: Output: default@jsonvaluecast
+POSTHOOK: Lineage: jsonvaluecast.jsonval SCRIPT []
+PREHOOK: query: select json_value(jsonval, '$.var'),
+       json_value(jsonval, '$.var', 'a'),
+       json_value(jsonval, '$.var', 1, 'default'),
+       json_value(jsonval, '$.var', 1000000.000001, 'default'),
+       json_value(jsonval, '$.var', false, 'default'),
+       json_value(jsonval, '$.var', array(4, 5), 'default'),
+       json_value(jsonval, '$.var', array(4, 5), 'default', 'default'),
+       json_value(jsonval, '$.var', named_struct('nested', false), 'default'),
+       json_value(jsonval, '$.var', named_struct('nested', false), 'default', 'default')
+    from jsonvaluecast
+PREHOOK: type: QUERY
+PREHOOK: Input: default@jsonvaluecast
+#### A masked pattern was here ####
+POSTHOOK: query: select json_value(jsonval, '$.var'),
+       json_value(jsonval, '$.var', 'a'),
+       json_value(jsonval, '$.var', 1, 'default'),
+       json_value(jsonval, '$.var', 1000000.000001, 'default'),
+       json_value(jsonval, '$.var', false, 'default'),
+       json_value(jsonval, '$.var', array(4, 5), 'default'),
+       json_value(jsonval, '$.var', array(4, 5), 'default', 'default'),
+       json_value(jsonval, '$.var', named_struct('nested', false), 'default'),
+       json_value(jsonval, '$.var', named_struct('nested', false), 'default', 'default')
+    from jsonvaluecast
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@jsonvaluecast
+#### A masked pattern was here ####
+imastring	imastring	NULL	NULL	true	NULL	[4,5]	NULL	{"nested":false}
+-3	-3	-3	-3.000000	true	NULL	[4,5]	NULL	{"nested":false}
+1987.12342	1987.12342	1987	1987.123420	true	NULL	[4,5]	NULL	{"nested":false}
+TRUE	TRUE	1	1.000000	true	NULL	[4,5]	NULL	{"nested":false}
+[1, 2, 3]	[1, 2, 3]	NULL	NULL	true	[1,2,3]	[1,2,3]	NULL	{"nested":false}
+{nested=true}	{nested=true}	NULL	NULL	true	NULL	[4,5]	{"nested":true}	{"nested":true}
+NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+NULL	NULL	1	1000000.000001	false	[4,5]	[4,5]	{"nested":false}	{"nested":false}

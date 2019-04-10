@@ -10,14 +10,14 @@ insert into jsonvalue values
 select json_value(jsonval, '$.name'),
        json_value(jsonval, '$.age', 1L),
        json_value(jsonval, '$.age', 1),
-       json_value(jsonval, '$.gpa', 100.00),
+       json_value(jsonval, '$.gpa', 100.001),
        json_value(jsonval, '$.honors', true)
     from jsonvalue;
 
 select json_value(jsonval, '$.name', 'fred', 'DEFAULT'),
        json_value(jsonval, '$.age', 1L, 'DEFAULT'),
        json_value(jsonval, '$.age', 1, 'DEFAULT'),
-       json_value(jsonval, '$.gpa', 1.00, 'DEFAULT'),
+       json_value(jsonval, '$.gpa', 100.001, 'DEFAULT'),
        json_value(jsonval, '$.honors', true, 'DEFAULT')
     from jsonvalue;
 

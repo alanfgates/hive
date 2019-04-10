@@ -42,20 +42,15 @@ public class JsonSequenceConverter {
   private static final Logger LOG = LoggerFactory.getLogger(JsonSequenceConverter.class);
 
   private final ObjectInspector outputObjectInspector;
-  private final boolean errorOnBadCast;
   private final Map<String, ObjectInspector> objectInspectorCache;
   private final Map<String, ObjectInspectorConverters.Converter> converterCache;
 
   /**
    *
    * @param outputObjectInspector ObjectInspector to use to determine what form the writable should take.
-   * @param errorOnBadCast whether to throw an error if the attempted cast fails.  For example, if the underlying type
-   *                       is a boolean and the passed in ObjectInspector is a LongObjectInspector that's bad.  If
-   *                       true, a {@link ClassCastException} will be thrown.  If false, null is returned.
    */
-  public JsonSequenceConverter(ObjectInspector outputObjectInspector, boolean errorOnBadCast) {
+  public JsonSequenceConverter(ObjectInspector outputObjectInspector) {
     this.outputObjectInspector = outputObjectInspector;
-    this.errorOnBadCast = errorOnBadCast;
     objectInspectorCache = new HashMap<>();
     converterCache = new HashMap<>();
   }
@@ -65,12 +60,13 @@ public class JsonSequenceConverter {
    * the object inspector.
    * @param json JsonSequence to be converted to an object that can be read by outputOI.
    * @return an object, not necessary a writable (may be a list or a map), or null.
+   * @throws JsonConversionException if a bad conversion is attempted.
    */
-  public Object convert(JsonSequence json) {
+  public Object convert(JsonSequence json) throws JsonConversionException {
     return convert(outputObjectInspector, json, true);
   }
 
-  private Object convert(ObjectInspector outputOI, JsonSequence json, boolean useCache) {
+  private Object convert(ObjectInspector outputOI, JsonSequence json, boolean useCache) throws JsonConversionException {
     if (json.isNull() || json.isEmpty()) return null;
 
     String cacheKey = buildCacheKey(json, outputOI);
@@ -80,47 +76,53 @@ public class JsonSequenceConverter {
     // in your list pointing to the same object, which will have the value of the last thing converted.  We could
     // still cache the converter and then copy the result, but this seems equivalent to not caching the converter.
     if (useCache) converter = converterCache.get(cacheKey);
-    if (converter == null) {
-      ObjectInspector inputObjectInspector = getInputObjectInspector(json, outputOI);
-      if (LOG.isDebugEnabled()) {
-        LOG.debug("Using output ObjectInspector " +
-            ObjectInspectorUtils.getObjectInspectorName(outputOI));
-        LOG.debug("Using input ObjectInspector " + ObjectInspectorUtils.getObjectInspectorName(inputObjectInspector));
+
+    // Wrap the whole thing in a try because some of the converters throw RuntimeExceptions if you try a conversion
+    // they don't support.  We don't want to blow up the execution with a RuntimeException
+    try {
+      if (converter == null) {
+        ObjectInspector inputObjectInspector = getInputObjectInspector(json, outputOI);
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("Using output ObjectInspector " +
+              ObjectInspectorUtils.getObjectInspectorName(outputOI));
+          LOG.debug("Using input ObjectInspector " + ObjectInspectorUtils.getObjectInspectorName(inputObjectInspector));
+        }
+        converter = ObjectInspectorConverters.getConverter(inputObjectInspector, outputOI);
+        converterCache.put(cacheKey, converter);
       }
-      converter = ObjectInspectorConverters.getConverter(inputObjectInspector, outputOI);
-      converterCache.put(cacheKey, converter);
-    }
-    switch (outputOI.getCategory()) {
-      case STRUCT:
-        if (json.isObject()) {
-          StructObjectInspector soi = (StructObjectInspector)outputOI;
-          List<Object> output = new ArrayList<>();
-          for (StructField sf : soi.getAllStructFieldRefs()) {
-            JsonSequence seq = json.asObject().get(sf.getFieldName());
-            output.add(seq == null ? null : convert(sf.getFieldObjectInspector(), seq, false));
+
+      switch (outputOI.getCategory()) {
+        case STRUCT:
+          if (json.isObject()) {
+            StructObjectInspector soi = (StructObjectInspector) outputOI;
+            List<Object> output = new ArrayList<>();
+            for (StructField sf : soi.getAllStructFieldRefs()) {
+              JsonSequence seq = json.asObject().get(sf.getFieldName());
+              output.add(seq == null ? null : convert(sf.getFieldObjectInspector(), seq, false));
+            }
+            return converter.convert(output);
           }
-          return converter.convert(output);
-        }
-        if (errorOnBadCast) throw new ClassCastException("Attempt to cast " + json.getType().name().toLowerCase() + " as object");
-        else return null;
+          throw new JsonConversionException("Attempt to cast " + json.getType().name().toLowerCase() + " as object");
 
-      case LIST:
-        if (json.isList()) {
-          ListObjectInspector loi = (ListObjectInspector)outputOI;
-          List<Object> converted = new ArrayList<>();
-          for (JsonSequence element : json.asList()) {
-            converted.add(convert(loi.getListElementObjectInspector(), element, false));
+        case LIST:
+          if (json.isList()) {
+            ListObjectInspector loi = (ListObjectInspector) outputOI;
+            List<Object> converted = new ArrayList<>();
+            for (JsonSequence element : json.asList()) {
+              converted.add(convert(loi.getListElementObjectInspector(), element, false));
+            }
+            return converter.convert(converted);
           }
-          return converter.convert(converted);
-        }
-        if (errorOnBadCast) throw new ClassCastException("Attempt to cast " + json.getType().name().toLowerCase() + " as list");
-        else return null;
+          throw new JsonConversionException("Attempt to cast " + json.getType().name().toLowerCase() + " as list");
 
-      case PRIMITIVE:
-        return converter.convert(json.getVal());
+        case PRIMITIVE:
+          return converter.convert(json.getVal());
 
-      default:
-        throw new RuntimeException("Programming error, unexpected category " + outputOI.getCategory());
+        default:
+          throw new RuntimeException("Programming error, unexpected category " + outputOI.getCategory());
+      }
+    } catch (Exception e) {
+      throw new JsonConversionException("Failed conversion", e);
     }
   }
 
