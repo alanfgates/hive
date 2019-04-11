@@ -45,7 +45,26 @@ public class JsonValueParser extends JsonBaseVisitor<JsonSequence> {
     objStack = new ArrayDeque<>();
   }
 
+  /**
+   * Parse a string into a JsonSequence.
+   * @param jsonStr string to be parsed
+   * @return JsonSequence representing the string
+   * @throws IOException probably is never really thrown
+   * @throws JsonPathException if the string failed parse as valid JSON.
+   */
   public JsonSequence parse(String jsonStr) throws IOException, JsonPathException {
+    return doParse(jsonStr);
+  }
+
+  /**
+   * Separated from {@link #parse(String)} so that subclasses can play games before actually parsing (like check
+   * the cache).
+   * @param jsonStr string to be parsed
+   * @return JsonSequence representing the string
+   * @throws IOException probably is never really thrown
+   * @throws JsonPathException if the string failed parse as valid JSON.
+   */
+  JsonSequence doParse(String jsonStr) throws IOException, JsonPathException {
     clear();
     JsonLexer scanner = new JsonLexer(new ANTLRInputStream(new ByteArrayInputStream(jsonStr.getBytes())));
     CommonTokenStream tokens = new CommonTokenStream(scanner);

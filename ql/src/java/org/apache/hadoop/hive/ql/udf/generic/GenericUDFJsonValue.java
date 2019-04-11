@@ -23,6 +23,7 @@ import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentLengthException;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentTypeException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
+import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.CachingJsonValueParser;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.ErrorListener;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.JsonConversionException;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.JsonPathException;
@@ -93,7 +94,7 @@ public class GenericUDFJsonValue extends GenericUDF {
   @VisibleForTesting
   enum WhatToReturn { NULL, DEFAULT, ERROR }
 
-  private PrimitiveObjectInspectorConverter.TextConverter jsonValueConverter;
+  private PrimitiveObjectInspectorConverter.TextConverter textConverter;
   private transient PathParseResult parseResult;  // Antlr parse trees aren't serializable
   private String pathExpr;
   private PathExecutor pathExecutor;
@@ -115,7 +116,7 @@ public class GenericUDFJsonValue extends GenericUDF {
 
     // Json Value, needs to be a string
     checkArgPrimitive(arguments, JSON_VALUE);
-    jsonValueConverter = new PrimitiveObjectInspectorConverter.TextConverter((PrimitiveObjectInspector)arguments[JSON_VALUE]);
+    textConverter = new PrimitiveObjectInspectorConverter.TextConverter((PrimitiveObjectInspector)arguments[JSON_VALUE]);
 
     // Path expression, should be a constant
     checkArgPrimitive(arguments, PATH_EXPR);
@@ -163,16 +164,16 @@ public class GenericUDFJsonValue extends GenericUDF {
     Object jsonObj = arguments[JSON_VALUE].get();
     if (jsonObj == null) return null; // Per spec top of page 312, null input = null output
     JsonSequence jsonValue;
-    String input = jsonValueConverter.convert(jsonObj).toString();
+    String input = textConverter.convert(jsonObj).toString();
     if (LOG.isDebugEnabled()) LOG.debug("Evaluating with " + input);
 
     // The first time through we have to reparse, since we couldn't serialize the parse tree.  The second branch
-    // the 'or' will never be activated in production, but without it unit tests fail since the UDF isn't
+    // of the 'or' will never be activated in production, but without it unit tests fail since the UDF isn't
     // serialized between initialize and evaluate in unit tests.
     if (parseResult == null || pathExecutor == null) {
       parse();
       pathExecutor = new PathExecutor();
-      jsonParser = new JsonValueParser(new ErrorListener());
+      jsonParser = new CachingJsonValueParser(new ErrorListener());
       jsonConverter = getConverter(returnOI);
     }
 
@@ -180,6 +181,7 @@ public class GenericUDFJsonValue extends GenericUDF {
         translatePassingObjects(arguments) : Collections.emptyMap();
 
     try {
+      LOG.debug("Going to call parser with " + input);
       jsonValue = jsonParser.parse(input);
     } catch (JsonPathException|IOException e) {
       LOG.warn("Failed to parse input " + input + " as JSON", e);
