@@ -570,12 +570,26 @@ public final class JsonSequence {
     else return type == other.type && val.equals(other.val);
   }
 
+  /**
+   * This will return a valid JSON value with minimal white space.  The result is a valid JSON fragment.
+   * @return valid JSON string
+   */
   @Override
   public String toString() {
-    return prettyPrint(0);
+    return prettyPrint(0, false);
   }
 
-  private String prettyPrint(int in) {
+  /**
+   * Same as {@link #toString()}, but with returns to make it more easily human readable.  Also, if
+   * {@link #isEmpty()} is true for this, it will print "empty result", which means this is not guaranteed
+   * to produce valid JSON.
+   * @return human readable (usually) valid JSON string.
+   */
+  public String prettyPrint() {
+    return prettyPrint(0, true);
+  }
+
+  private String prettyPrint(int in, boolean whitespace) {
     StringBuilder buf = new StringBuilder();
     switch (type) {
       case LONG:
@@ -590,38 +604,54 @@ public final class JsonSequence {
         return "null";
 
       case EMPTY_RESULT:
-        return "empty result";
+        return whitespace ? "empty result" : "";
 
       case LIST:
-        indent(buf, in);
-        buf.append("[\n");
+        if (whitespace) indent(buf, in);
+        buf.append("[");
+        if (whitespace) buf.append("\n");
         boolean first = true;
         for (JsonSequence element : asList()) {
-          if (first) first = false;
-          else buf.append(",\n");
-          indent(buf, in);
-          buf.append(element.prettyPrint(in + 1));
+          if (first) {
+            first = false;
+          } else {
+            buf.append(",");
+            if (whitespace) buf.append("\n");
+          }
+          if (whitespace) indent(buf, in);
+          buf.append(element.prettyPrint(in + 1, whitespace));
         }
-        buf.append("\n");
-        indent(buf, in);
+        if (whitespace) {
+          buf.append("\n");
+          indent(buf, in);
+        }
         buf.append("]");
         return buf.toString();
 
       case OBJECT:
-        indent(buf, in);
-        buf.append("{\n");
+        if (whitespace) indent(buf, in);
+        buf.append("{");
+        if (whitespace) buf.append("\n");
         first = true;
         for (Map.Entry<String, JsonSequence> entry : asObject().entrySet()) {
           if (first) first = false;
-          else buf.append(",\n");
-          indent(buf, in);
+          else {
+            buf.append(",");
+            if (whitespace) buf.append("\n");
+          }
+          if (whitespace) indent(buf, in);
           buf.append("\"")
               .append(entry.getKey())
-              .append("\" : ")
-              .append(entry.getValue().prettyPrint(in + 1));
+              .append("\"");
+          if (whitespace) buf.append(" ");
+          buf.append(":");
+          if (whitespace) buf.append(" ");
+          buf.append(entry.getValue().prettyPrint(in + 1, whitespace));
         }
-        buf.append("\n");
-        indent(buf, in);
+        if (whitespace) {
+          buf.append("\n");
+          indent(buf, in);
+        }
         buf.append("}");
         return buf.toString();
 

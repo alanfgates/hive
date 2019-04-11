@@ -510,6 +510,7 @@ public class Vectorizer implements PhysicalPlanResolver {
     // Json UDFs
     supportedGenericUDFs.add(GenericUDFIsJson.class);
     supportedGenericUDFs.add(GenericUDFJsonValue.class);
+    supportedGenericUDFs.add(GenericUDFJsonQuery.class);
 
     supportedAggregationUdfs.add("min");
     supportedAggregationUdfs.add("max");

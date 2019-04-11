@@ -28,6 +28,7 @@ import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.JsonConversionException
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.JsonPathException;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.JsonSequence;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.JsonSequenceConverter;
+import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.JsonValueConverter;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.JsonValueParser;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.PathExecutor;
 import org.apache.hadoop.hive.ql.udf.generic.sqljsonpath.PathParseResult;
@@ -82,12 +83,12 @@ public class GenericUDFJsonValue extends GenericUDF {
 
   private static final Logger LOG = LoggerFactory.getLogger(GenericUDFJsonValue.class);
 
-  private static final int JSON_VALUE = 0;
-  private static final int PATH_EXPR = 1;
-  private static final int RETURNING = 2;
-  private static final int ON_EMPTY = 3;
-  private static final int ON_ERROR = 4;
-  private static final int START_PASSING = 5;
+  protected static final int JSON_VALUE = 0;
+  protected static final int PATH_EXPR = 1;
+  protected static final int RETURNING = 2;
+  protected static final int ON_EMPTY = 3;
+  protected static final int ON_ERROR = 4;
+  protected static final int START_PASSING = 5;
 
   @VisibleForTesting
   enum WhatToReturn { NULL, DEFAULT, ERROR }
@@ -172,7 +173,7 @@ public class GenericUDFJsonValue extends GenericUDF {
       parse();
       pathExecutor = new PathExecutor();
       jsonParser = new JsonValueParser(new ErrorListener());
-      jsonConverter = new JsonSequenceConverter(returnOI);
+      jsonConverter = getConverter(returnOI);
     }
 
     Map<String, JsonSequence> passing = arguments.length > START_PASSING ?
@@ -187,7 +188,7 @@ public class GenericUDFJsonValue extends GenericUDF {
 
     try {
       JsonSequence result = pathExecutor.execute(parseResult, jsonValue, passing);
-      if (LOG.isDebugEnabled()) LOG.debug("Received back: " + result.toString());
+      if (LOG.isDebugEnabled()) LOG.debug("Received back: " + result.prettyPrint());
       return result.isEmpty() ? getOnEmpty(arguments, input) : jsonConverter.convert(result);
     } catch (JsonPathException e) {
       LOG.warn("Failed to execute path expression for input " + input, e);
@@ -201,6 +202,10 @@ public class GenericUDFJsonValue extends GenericUDF {
   @Override
   public String getDisplayString(String[] children) {
     return getStandardDisplayString("json_value", children);
+  }
+
+  protected JsonSequenceConverter getConverter(ObjectInspector oi) {
+    return new JsonValueConverter(oi);
   }
 
   private Object getOnError(DeferredObject[] arguments, String jsonValue, String error) throws HiveException {

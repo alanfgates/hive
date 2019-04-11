@@ -1,0 +1,65 @@
+PREHOOK: query: create temporary table jsonquery (
+    jsonval string,
+    c       char(5),
+    vc      varchar(100))
+PREHOOK: type: CREATETABLE
+PREHOOK: Output: database:default
+PREHOOK: Output: default@jsonquery
+POSTHOOK: query: create temporary table jsonquery (
+    jsonval string,
+    c       char(5),
+    vc      varchar(100))
+POSTHOOK: type: CREATETABLE
+POSTHOOK: Output: database:default
+POSTHOOK: Output: default@jsonquery
+PREHOOK: query: insert into jsonquery values
+  ('{"var" : "imastring" }', 'abc', 'def'),
+  ('{"var" : -3 }', 'ghi', 'jkl'),
+  ('{"var" : 1987.12342 }', 'mno', 'pqr'),
+  ('{"var" : true }', 'stu', 'vwx'),
+  ('{"var" : [ 1, 2, 3] }', 'yzA', 'BCD'),
+  ('{"var" : { "nested" : [ 1, { "key" : "value", "anotherkey" : 23 } ] } }', 'EFG', 'HIJ'),
+  ('{"var" : null }', 'KLM', 'NOP'),
+  ('{}', 'QRS', 'TUV')
+PREHOOK: type: QUERY
+PREHOOK: Input: _dummy_database@_dummy_table
+PREHOOK: Output: default@jsonquery
+POSTHOOK: query: insert into jsonquery values
+  ('{"var" : "imastring" }', 'abc', 'def'),
+  ('{"var" : -3 }', 'ghi', 'jkl'),
+  ('{"var" : 1987.12342 }', 'mno', 'pqr'),
+  ('{"var" : true }', 'stu', 'vwx'),
+  ('{"var" : [ 1, 2, 3] }', 'yzA', 'BCD'),
+  ('{"var" : { "nested" : [ 1, { "key" : "value", "anotherkey" : 23 } ] } }', 'EFG', 'HIJ'),
+  ('{"var" : null }', 'KLM', 'NOP'),
+  ('{}', 'QRS', 'TUV')
+POSTHOOK: type: QUERY
+POSTHOOK: Input: _dummy_database@_dummy_table
+POSTHOOK: Output: default@jsonquery
+POSTHOOK: Lineage: jsonquery.c SCRIPT []
+POSTHOOK: Lineage: jsonquery.jsonval SCRIPT []
+POSTHOOK: Lineage: jsonquery.vc SCRIPT []
+PREHOOK: query: select json_query(jsonval, '$.var'),
+       json_query(jsonval, '$.var', 'a'),
+       json_query(jsonval, '$.var', c, 'default'),
+       json_query(jsonval, '$.var', vc, 'default')
+    from jsonquery
+PREHOOK: type: QUERY
+PREHOOK: Input: default@jsonquery
+#### A masked pattern was here ####
+POSTHOOK: query: select json_query(jsonval, '$.var'),
+       json_query(jsonval, '$.var', 'a'),
+       json_query(jsonval, '$.var', c, 'default'),
+       json_query(jsonval, '$.var', vc, 'default')
+    from jsonquery
+POSTHOOK: type: QUERY
+POSTHOOK: Input: default@jsonquery
+#### A masked pattern was here ####
+imastring	imastring	imast	imastring
+-3	-3	-3   	-3
+1987.12342	1987.12342	1987.	1987.12342
+true	true	true 	true
+[1,2,3]	[1,2,3]	[1,2,	[1,2,3]
+{"nested":[1,{"anotherkey":23,"key":"value"}]}	{"nested":[1,{"anotherkey":23,"key":"value"}]}	{"nes	{"nested":[1,{"anotherkey":23,"key":"value"}]}
+NULL	NULL	NULL	NULL
+NULL	NULL	QRS  	TUV
