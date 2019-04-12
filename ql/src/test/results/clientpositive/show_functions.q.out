@@ -147,14 +147,18 @@ inline
 instr
 internal_interval
 isfalse
+isjson
 isnotfalse
+isnotjson
 isnotnull
 isnottrue
 isnull
 istrue
 java_method
+json_query
 json_read
 json_tuple
+json_value
 lag
 last_day
 last_value
@@ -404,6 +408,7 @@ isnotfalse
 isnottrue
 istrue
 json_tuple
+json_value
 last_value
 lcase
 like
