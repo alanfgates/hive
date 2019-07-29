@@ -19,9 +19,7 @@
 package org.apache.hive.streaming;
 
 
-import java.io.InputStream;
 import java.util.Properties;
-import java.util.Scanner;
 
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.SerDeException;
@@ -39,11 +37,13 @@ import com.google.common.base.Joiner;
  *
  * NOTE: This record writer is NOT thread-safe. Use one record writer per streaming connection.
  */
-public class StrictDelimitedInputWriter extends AbstractRecordWriter {
+public class StrictDelimitedInputWriter extends AbstractRecordWriter<byte[]> {
   private char fieldDelimiter;
   private char collectionDelimiter;
   private char mapKeyDelimiter;
   private LazySimpleSerDe serde;
+  private Object encoded;
+  private long length;
 
   private StrictDelimitedInputWriter(Builder builder) {
     super(builder.lineDelimiter);
@@ -88,11 +88,12 @@ public class StrictDelimitedInputWriter extends AbstractRecordWriter {
   }
 
   @Override
-  public Object encode(byte[] record) throws SerializationError {
+  public void encode(byte[] record) throws SerializationError {
     try {
       BytesWritable blob = new BytesWritable();
       blob.set(record, 0, record.length);
-      return serde.deserialize(blob);
+      encoded = serde.deserialize(blob);
+      length = record.length;
     } catch (SerDeException e) {
       throw new SerializationError("Unable to convert byte[] record into Object", e);
     }
@@ -114,5 +115,15 @@ public class StrictDelimitedInputWriter extends AbstractRecordWriter {
     } catch (SerDeException e) {
       throw new SerializationError("Error initializing serde", e);
     }
+  }
+
+  @Override
+  protected Object getEncoded() {
+    return encoded;
+  }
+
+  @Override
+  protected long getRecordLength() {
+    return length;
   }
 }

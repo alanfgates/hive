@@ -51,12 +51,21 @@ public interface StreamingConnection extends ConnectionInfo, PartitionHandler {
   void write(byte[] record) throws StreamingException;
 
   /**
-   * Write record using RecordWriter.
+   * Write record using RecordWriter.  This can only be used with records in byte format, not object format.
    *
    * @param inputStream - input stream of records
    * @throws StreamingException - if there are errors when writing
    */
   void write(InputStream inputStream) throws StreamingException;
+
+  /**
+   * Write records in object format rather than text.  To use this you must use a {@link RecordWriter} that knows
+   * how to write records of this format.
+   * @param record record to write.
+   * @param <T> type of the record to write out
+   * @throws StreamingException if there are errors writing
+   */
+  <T> void write(T record) throws StreamingException;
 
   /**
    * Commit a transaction to make the writes visible for readers.

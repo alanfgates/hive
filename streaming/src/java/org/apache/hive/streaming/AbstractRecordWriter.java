@@ -64,7 +64,15 @@ import org.apache.hadoop.util.ReflectionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public abstract class AbstractRecordWriter implements RecordWriter {
+/**
+ * All RecordWriter impelmentations should extend this class.
+ *
+ * NOTE: the way this class is written it is not thread safe.  It sets the state for each record and then
+ * has its implementations do multiple operations on it.  Callers should use a separate instance for each writing
+ * thread.
+ * @param <T> type of the records to write
+ */
+public abstract class AbstractRecordWriter<T> implements RecordWriter<T> {
   private static final Logger LOG = LoggerFactory.getLogger(AbstractRecordWriter.class.getName());
 
   private static final String DEFAULT_LINE_DELIMITER_PATTERN = "[\r\n]";
@@ -110,6 +118,14 @@ public abstract class AbstractRecordWriter implements RecordWriter {
   public AbstractRecordWriter(final String lineDelimiter) {
     this.lineDelimiter = lineDelimiter == null || lineDelimiter.isEmpty() ?
       DEFAULT_LINE_DELIMITER_PATTERN : lineDelimiter;
+  }
+
+  /**
+   * Used with implementations that do not operate on text types.
+   */
+  protected AbstractRecordWriter() {
+    lineDelimiter = "";
+
   }
 
   protected static class OrcMemoryPressureMonitor implements HeapMemoryMonitor.Listener {
@@ -299,7 +315,31 @@ public abstract class AbstractRecordWriter implements RecordWriter {
    * @return deserialized record as an Object
    * @throws SerializationError - any error during serialization or deserialization of record
    */
-  public abstract Object encode(byte[] record) throws SerializationError;
+  /*
+  public Object encode(byte[] record) throws SerializationError {
+    throw new UnsupportedOperationException();
+  }
+  */
+
+  /**
+   * This sets the record to be used for subsequent {@link #getEncoded()} and {@link #getRecordLength()} calls.
+   * @param record record to be encoded and measured.
+   * @throws SerializationError any error during serialization of the record
+   */
+  protected abstract void encode(T record) throws SerializationError;
+
+  /**
+   * Encode the record as an Object that Hive can read with the ObjectInspector associated with the
+   * serde returned by {@link #createSerde}.  {@link #encode(Object)} must be called before this.
+   * @return deserialized record as an Object
+   */
+  protected abstract Object getEncoded();
+
+  /**
+   * Get the length of the record.  {@link #encode(Object)} must be called before this.
+   * @return length of the record before encoding.
+   */
+  protected abstract long getRecordLength();
 
   // returns the bucket number to which the record belongs to
   protected int getBucket(Object row) {
@@ -434,13 +474,17 @@ public abstract class AbstractRecordWriter implements RecordWriter {
   public void write(final long writeId, final InputStream inputStream) throws StreamingException {
     try (Scanner scanner = new Scanner(inputStream).useDelimiter(lineDelimiter)) {
       while (scanner.hasNext()) {
-        write(writeId, scanner.next().getBytes());
+        writeBytes(writeId, scanner.next().getBytes());
       }
     }
   }
 
-  @Override
-  public void write(final long writeId, final byte[] record) throws StreamingException {
+  //@Override
+  // TODO only here for write(InputStream), need to figure out how to get rid of it
+  private void writeBytes(final long writeId, final byte[] record) throws StreamingException {
+    // TODO this won't end well if we're not using text, see what I can do to improve this
+    write(writeId, (T)record);
+    /*
     checkAutoFlush();
     ingestSizeBytes += record.length;
     try {
@@ -455,6 +499,28 @@ public abstract class AbstractRecordWriter implements RecordWriter {
     } catch (IOException e) {
       throw new StreamingIOFailure("Error writing record in transaction write id ("
         + writeId + ")", e);
+    }
+    */
+  }
+
+  @Override
+  public void write(long writeId, T record) throws StreamingException {
+    checkAutoFlush();
+    try {
+      encode(record);
+      Object encodedRow = getEncoded();
+      long recordSize = getRecordLength();
+      int bucket = getBucket(encodedRow);
+      ingestSizeBytes += recordSize;
+      List<String> partitionValues = getPartitionValues(encodedRow);
+      getRecordUpdater(partitionValues, bucket).insert(writeId, encodedRow);
+
+      // ingest size bytes gets resetted on flush() whereas connection stats is not
+      conn.getConnectionStats().incrementRecordsWritten();
+      conn.getConnectionStats().incrementRecordsSize(recordSize);
+    } catch (IOException e) {
+      throw new StreamingIOFailure("Error writing record in transaction write id ("
+          + writeId + ")", e);
     }
   }
 

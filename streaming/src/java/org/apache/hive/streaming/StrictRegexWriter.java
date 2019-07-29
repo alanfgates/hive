@@ -38,9 +38,11 @@ import com.google.common.collect.Lists;
  *
  * NOTE: This record writer is NOT thread-safe. Use one record writer per streaming connection.
  */
-public class StrictRegexWriter extends AbstractRecordWriter {
+public class StrictRegexWriter extends AbstractRecordWriter<byte[]> {
   private String regex;
   private RegexSerDe serde;
+  private Object encoded;
+  private long length;
 
   private StrictRegexWriter(final Builder builder) {
     super(builder.lineDelimiter);
@@ -108,13 +110,23 @@ public class StrictRegexWriter extends AbstractRecordWriter {
    * @throws SerializationError - in case of any deserialization error
    */
   @Override
-  public Object encode(byte[] utf8StrRecord) throws SerializationError {
+  public void encode(byte[] utf8StrRecord) throws SerializationError {
     try {
       Text blob = new Text(utf8StrRecord);
-      return serde.deserialize(blob);
+      encoded = serde.deserialize(blob);
+      length = utf8StrRecord.length;
     } catch (SerDeException e) {
       throw new SerializationError("Unable to convert byte[] record into Object", e);
     }
   }
 
+  @Override
+  protected Object getEncoded() {
+    return encoded;
+  }
+
+  @Override
+  protected long getRecordLength() {
+    return length;
+  }
 }

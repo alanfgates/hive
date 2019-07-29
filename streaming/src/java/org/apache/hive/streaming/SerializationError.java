@@ -20,6 +20,10 @@ package org.apache.hive.streaming;
 
 
 public class SerializationError extends StreamingException {
+  public SerializationError(String msg) {
+    super(msg);
+  }
+
   SerializationError(String msg, Exception e) {
     super(msg,e);
   }

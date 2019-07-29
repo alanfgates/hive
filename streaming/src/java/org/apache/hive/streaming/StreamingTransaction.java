@@ -81,6 +81,15 @@ public interface StreamingTransaction {
   void write(InputStream stream) throws StreamingException;
 
   /**
+   * Write object based data within a transaction.  This expects {@link #beginNextTransaction()} to have been
+   * called before this and for {@link #commit()} to be called after (perhaps after many calls to this).
+   * @param record record to write
+   * @param <T> type of the record to write
+   * @throws StreamingException if the attempt to serialize and write the record fails.
+   */
+  <T> void write(T record) throws StreamingException;
+
+  /**
    * Free/close resources used by the streaming transaction.
    * @throws StreamingException
    */

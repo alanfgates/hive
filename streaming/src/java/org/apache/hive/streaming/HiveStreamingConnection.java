@@ -640,6 +640,12 @@ public class HiveStreamingConnection implements StreamingConnection {
     currentTransactionBatch.write(inputStream);
   }
 
+  @Override
+  public <T> void write(T record) throws StreamingException {
+    checkState();
+    currentTransactionBatch.write(record);
+  }
+
   /**
    * Close connection
    */

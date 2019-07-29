@@ -3220,7 +3220,7 @@ public class TestStreaming {
    * This is test-only wrapper around the real RecordWriter.
    * It can simulate faults from lower levels to test error handling logic.
    */
-  private static final class FaultyWriter implements RecordWriter {
+  private static final class FaultyWriter implements RecordWriter<byte[]> {
     private final RecordWriter delegate;
     private boolean shouldThrow = false;
 

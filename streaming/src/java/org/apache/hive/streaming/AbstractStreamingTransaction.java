@@ -105,6 +105,25 @@ abstract class AbstractStreamingTransaction
     }
   }
 
+  @Override
+  public <T> void write(T record) throws StreamingException {
+    checkIsClosed();
+    boolean success = false;
+    try {
+      recordWriter.write(getCurrentWriteId(), record);
+      success = true;
+    } catch (SerializationError ex) {
+      //this exception indicates that a {@code record} could not be parsed and the
+      //caller can decide whether to drop it or send it to dead letter queue.
+      //rolling back the txn and retrying won't help since the tuple will be exactly the same
+      //when it's replayed.
+      success = true;
+      throw ex;
+    } finally {
+      markDead(success);
+    }
+  }
+
   /**
    * A transaction batch opens a single HDFS file and writes multiple transaction to it.  If there is any issue
    * with the write, we can't continue to write to the same file any as it may be corrupted now (at the tail).

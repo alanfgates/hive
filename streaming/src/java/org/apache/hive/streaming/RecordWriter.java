@@ -21,13 +21,14 @@ package org.apache.hive.streaming;
 
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.ql.metadata.Table;
+import org.apache.hadoop.io.Writable;
 
 import java.io.InputStream;
 
 import java.util.List;
 import java.util.Set;
 
-public interface RecordWriter {
+public interface RecordWriter<T> {
 
   /**
    * Initialize record writer.
@@ -54,23 +55,35 @@ public interface RecordWriter {
   }
 
   /**
-   * Writes using a hive RecordUpdater.
+   * Writes using a hive RecordUpdater.  This is intended for use with text types, like CSV or JSON.  Implementation
+   * is optional.
    *
    * @param writeId - the write ID of the table mapping to Txn in which the write occurs
    * @param record  - the record to be written
    * @throws StreamingException - thrown when write fails
    */
-  void write(long writeId, byte[] record) throws StreamingException;
+  //void write(long writeId, byte[] record) throws StreamingException;
 
   /**
    * Writes using a hive RecordUpdater. The specified input stream will be automatically closed
-   * by the API after reading all the records out of it.
+   * by the API after reading all the records out of it.  This is intended for use with text types, like CSV or
+   * JSON.  Implementation is optional.
    *
    * @param writeId     - the write ID of the table mapping to Txn in which the write occurs
    * @param inputStream - the record to be written
    * @throws StreamingException - thrown when write fails
    */
   void write(long writeId, InputStream inputStream) throws StreamingException;
+
+  /**
+   * Writes using a hive RecordUpdater.  This is intended for use with non-text types, such as Avro.  Implementation
+   * is optional.
+   * @param writeId the write ID of the table mapping to Txn in which the write occurs
+   * @param record the record to be written
+   * @throws StreamingException if the write fails, serialization fails, or the underlying implementation does not
+   * support writing this type of record.
+   */
+  void write(long writeId, T record) throws StreamingException;
 
   /**
    * Flush records from buffer. Invoked by TransactionBatch.commitTransaction()
