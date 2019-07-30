@@ -21,6 +21,7 @@ import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.serde2.AbstractSerDe;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.SerDeStats;
@@ -108,11 +109,7 @@ public class AvroWriter extends AbstractRecordWriter<GenericRecord> {
 
   @Override
   protected void encode(GenericRecord record) throws SerializationError {
-    try {
-      encoded = serde.deserialize(record);
-    } catch (SerDeException e) {
-      throw new SerializationError("Unable to convert GenericRecord record into Object", e);
-    }
+    encoded = serde.deserialize(record);
   }
 
   @Override
@@ -133,7 +130,7 @@ public class AvroWriter extends AbstractRecordWriter<GenericRecord> {
     private final ObjectInspectorAndDeserializer objectInspectorAndDeserializer = buildRecordObjectInspectorAndDeserializer(avroSchema);
 
     @Override
-    public void initialize(@Nullable Configuration conf, Properties tbl) throws SerDeException {
+    public void initialize(@Nullable Configuration conf, Properties tbl) {
       // Not necessary, as only the outer class will be constructing it.
       throw new UnsupportedOperationException();
     }
@@ -145,7 +142,7 @@ public class AvroWriter extends AbstractRecordWriter<GenericRecord> {
     }
 
     @Override
-    public Writable serialize(Object obj, ObjectInspector objInspector) throws SerDeException {
+    public Writable serialize(Object obj, ObjectInspector objInspector) {
       // Not necessary, this SerDe is for deserialization only
       throw new UnsupportedOperationException();
     }
@@ -157,13 +154,13 @@ public class AvroWriter extends AbstractRecordWriter<GenericRecord> {
     }
 
     @Override
-    public Object deserialize(Writable blob) throws SerDeException {
+    public Object deserialize(Writable blob) {
       // Use deserialize(GenericRecord) instead
       throw new UnsupportedOperationException();
     }
 
     @Override
-    public ObjectInspector getObjectInspector() throws SerDeException {
+    public ObjectInspector getObjectInspector() {
       return objectInspectorAndDeserializer.oi;
     }
 
@@ -233,9 +230,7 @@ public class AvroWriter extends AbstractRecordWriter<GenericRecord> {
           return buildMapObjectInspectorAndDeserializer(schema);
 
         case NULL:
-          return new ObjectInspectorAndDeserializer(
-              PrimitiveObjectInspectorFactory.getPrimitiveJavaObjectInspector(PrimitiveObjectInspector.PrimitiveCategory.STRING),
-              (avroVal) -> null);
+          throw new UnsupportedOperationException("Null type only supported as part of nullable struct");
 
         case RECORD:
           return buildRecordObjectInspectorAndDeserializer(schema);
@@ -310,6 +305,7 @@ public class AvroWriter extends AbstractRecordWriter<GenericRecord> {
     private ObjectInspectorAndDeserializer buildUnionObjectInspectorAndDeserializer(final Schema schema) {
       // If this is just a union to make a type nullable, don't model it as a union, model it as the type.
       if (AvroSerdeUtils.isNullableType(schema)) {
+        LOG.debug("Encountered union of just nullable type, treating it as the type");
         return buildColObjectInspectorAndDeserializer(AvroSerdeUtils.getOtherTypeFromNullableType(schema));
       }
       List<ObjectInspector> ois = new ArrayList<>(schema.getTypes().size());
@@ -327,7 +323,7 @@ public class AvroWriter extends AbstractRecordWriter<GenericRecord> {
       });
     }
 
-    private Object deserialize(GenericRecord record) throws SerDeException, SerializationError {
+    private Object deserialize(GenericRecord record) throws SerializationError {
       length = 0;
       return objectInspectorAndDeserializer.deserializer.apply(record);
     }
