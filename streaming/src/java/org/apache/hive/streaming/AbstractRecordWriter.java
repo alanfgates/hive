@@ -521,6 +521,9 @@ public abstract class AbstractRecordWriter<T> implements RecordWriter<T> {
     } catch (IOException e) {
       throw new StreamingIOFailure("Error writing record in transaction write id ("
           + writeId + ")", e);
+    } catch (ClassCastException e) {
+      throw new SerializationError("Column type mismatch when serializing record, usually" +
+          " this means the record doesn't match the schema the writer expected", e);
     }
   }
 

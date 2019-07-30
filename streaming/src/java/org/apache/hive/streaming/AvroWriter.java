@@ -21,9 +21,7 @@ import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.serde2.AbstractSerDe;
-import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.SerDeStats;
 import org.apache.hadoop.hive.serde2.avro.AvroSerdeUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -109,7 +107,13 @@ public class AvroWriter extends AbstractRecordWriter<GenericRecord> {
 
   @Override
   protected void encode(GenericRecord record) throws SerializationError {
-    encoded = serde.deserialize(record);
+    try {
+      encoded = serde.deserialize(record);
+    } catch (ArrayIndexOutOfBoundsException e) {
+      // This generally means the schema is screwed up
+      throw new SerializationError("Unable to serialize record, likely due to record schema not matching schema " +
+          "passed to writer", e);
+    }
   }
 
   @Override
