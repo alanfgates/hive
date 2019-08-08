@@ -28,46 +28,43 @@ import org.apache.hive.streaming.SerializationError;
 import org.apache.hive.streaming.StreamingException;
 import org.junit.Assert;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class TestStrictAvroWriter extends AvroTestBase {
-  private static final Logger LOG = LoggerFactory.getLogger(TestStrictAvroWriter.class);
-
-  public TestStrictAvroWriter() throws Exception {
+public class TestMappingAvroWriter extends AvroTestBase {
+  public TestMappingAvroWriter() throws Exception {
   }
 
   @Test
-  public void withSchemaObject() throws StreamingException, IOException {
-    Schema schema = SchemaBuilder.record("wsoasw")
-                                   .namespace("org.apache.hive.streaming")
-                                   .fields()
-                                     .requiredString("field1")
-                                     .requiredInt("field2")
-                                 .endRecord();
+  public void basic() throws StreamingException, IOException {
+    Schema schema = SchemaBuilder.record("basic")
+        .namespace("org.apache.hive.streaming")
+        .fields()
+        .requiredString("field1")
+        .requiredInt("field2")
+        .endRecord();
     List<GenericRecord> records = new ArrayList<>();
     GenericRecordBuilder recordBuilder = new GenericRecordBuilder(schema);
     for (int i = 0; i < 10; i++) {
-      recordBuilder.set("field1", Integer.toString(i));
+      recordBuilder.set("field1", Integer.toString(i + 10));
       recordBuilder.set("field2", i);
       records.add(recordBuilder.build());
     }
 
-    String tableName = "wso";
+    String tableName = "b";
     String fullTableName = dbName + "." + tableName;
-    dropAndCreateTable(fullTableName, "f1 string, f2 int");
+    dropAndCreateTable(fullTableName, "f1 int, f2 string");
 
-    RecordWriter writer = StrictAvroWriter.newBuilder()
-                                    .withSchema(schema)
-                                    .build();
+    RecordWriter writer = MappingAvroWriter.newBuilder()
+        .withAvroSchema(schema)
+        .addMappingColumn("f1", "field2")
+        .addMappingColumn("f2", "field1")
+        .build();
 
     HiveStreamingConnection conn = HiveStreamingConnection.newBuilder()
         .withDatabase(dbName)
@@ -84,9 +81,210 @@ public class TestStrictAvroWriter extends AvroTestBase {
 
     List<String> results = querySql("select f1, f2 from " + fullTableName);
     Assert.assertEquals(10, results.size());
-    for (int i = 0; i < 10; i++) Assert.assertEquals(i + "\t" + i, results.get(i));
+    for (int i = 0; i < 10; i++) Assert.assertEquals(i + "\t" + (i + 10), results.get(i));
   }
 
+  @Test
+  public void hiveColumnMissing() throws StreamingException, IOException {
+    Schema schema = SchemaBuilder.record("hiveColMissing")
+        .namespace("org.apache.hive.streaming")
+        .fields()
+        .nullableBoolean("nullableBoolean", false)
+        .requiredBytes("avroBytes")
+        .endRecord();
+
+    List<GenericRecord> records = new ArrayList<>();
+    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(schema);
+    for (int i = 0; i < 10; i++) {
+      if (i % 2 == 0) recordBuilder.set("nullableBoolean", true);
+      else if (i % 7 == 0) recordBuilder.set("nullableBoolean", false);
+      else recordBuilder.set("nullableBoolean", null);
+
+      recordBuilder.set("avroBytes", ByteBuffer.wrap(Integer.toString(i).getBytes()));
+
+      records.add(recordBuilder.build());
+    }
+    String tableName = "hiveColMissing";
+    String fullTableName = dbName + "." + tableName;
+    dropAndCreateTable(fullTableName, "hiveBoolean boolean, hiveMia string, hiveBinary binary");
+
+    Map<String, String> schemaMap = new HashMap<>();
+    schemaMap.put("hiveBoolean", "nullableBoolean");
+    schemaMap.put("hiveBinary", "avroBytes");
+
+    RecordWriter writer = MappingAvroWriter.newBuilder()
+        .withAvroSchema(schema.toString())
+        .withSchemaMapping(schemaMap)
+        .build();
+
+    HiveStreamingConnection conn = HiveStreamingConnection.newBuilder()
+        .withDatabase(dbName)
+        .withTable(tableName)
+        .withTransactionBatchSize(5)
+        .withRecordWriter(writer)
+        .withHiveConf(conf)
+        .connect();
+
+    conn.beginTransaction();
+    for (GenericRecord r : records) conn.write(r);
+    conn.commitTransaction();
+    conn.close();
+
+    List<String> results = querySql("select hiveBoolean, hiveMia, hiveBinary " +
+        " from " + fullTableName);
+    Assert.assertEquals(10, results.size());
+    for (int i = 0; i < 10; i++) {
+      StringBuilder buf = new StringBuilder();
+
+      if (i % 2 == 0) buf.append("true");
+      else if (i % 7 == 0) buf.append("false");
+      else buf.append("NULL");
+
+      buf.append("\tNULL");
+
+      buf.append("\t")
+          .append(i);
+
+      Assert.assertEquals(buf.toString(), results.get(i));
+    }
+  }
+
+  @Test
+  public void avroColMissing() throws StreamingException, IOException {
+    Schema fixedSchema = SchemaBuilder.fixed("avroColMissing").size(10);
+    Schema schema = SchemaBuilder.record("allTypes")
+        .namespace("org.apache.hive.streaming")
+        .fields()
+        .requiredDouble("avroDouble")
+        .name("avroEnum")
+        .type().enumeration("enumType").symbols("apple", "orange", "banana").enumDefault("apple")
+        .requiredInt("avroInt")
+        .name("avroFixed")
+        .type(fixedSchema).noDefault()
+        .endRecord();
+
+    List<GenericRecord> records = new ArrayList<>();
+    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(schema);
+    for (int i = 0; i < 10; i++) {
+      double d = i + (double)i * 0.1;
+      recordBuilder.set("avroDouble", d);
+
+      if (i % 2 == 0) recordBuilder.set("avroEnum", "apple");
+      else if (i % 7 == 0) recordBuilder.set("avroEnum", "orange");
+      else recordBuilder.set("avroEnum", "banana");
+
+      recordBuilder.set("avroInt", i);
+
+      StringBuilder buf = new StringBuilder();
+      for (int j = 0; j < 10; j++) buf.append(i);
+      GenericData.Fixed fixed = new GenericData.Fixed(fixedSchema, buf.toString().getBytes());
+      recordBuilder.set("avroFixed", fixed);
+
+      records.add(recordBuilder.build());
+    }
+    String tableName = "avroColMissing";
+    String fullTableName = dbName + "." + tableName;
+    dropAndCreateTable(fullTableName, "hiveDouble double, hiveEnum string, hiveFixed binary "
+    );
+
+
+    RecordWriter writer = MappingAvroWriter.newBuilder()
+        .withAvroSchema(schema)
+        .addMappingColumn("hiveDouble", "avroDouble")
+        .addMappingColumn("hiveEnum", "avroEnum")
+        .addMappingColumn("hiveFixed", "avroFixed")
+        .build();
+
+    HiveStreamingConnection conn = HiveStreamingConnection.newBuilder()
+        .withDatabase(dbName)
+        .withTable(tableName)
+        .withTransactionBatchSize(5)
+        .withRecordWriter(writer)
+        .withHiveConf(conf)
+        .connect();
+
+    conn.beginTransaction();
+    for (GenericRecord r : records) conn.write(r);
+    conn.commitTransaction();
+    conn.close();
+
+    List<String> results = querySql("select hiveDouble, hiveEnum, hiveFixed from " + fullTableName);
+    Assert.assertEquals(10, results.size());
+    for (int i = 0; i < 10; i++) {
+      StringBuilder buf = new StringBuilder();
+      double d = i + (double)i * 0.1;
+      buf.append(d);
+
+      if (i % 2 == 0) buf.append("\tapple");
+      else if (i % 7 == 0) buf.append("\torange");
+      else buf.append("\tbanana");
+
+      buf.append('\t');
+      for (int j = 0; j < 10; j++) buf.append(i);
+
+      Assert.assertEquals(buf.toString(), results.get(i));
+    }
+  }
+
+  @Test
+  public void recordDereference() throws StreamingException, IOException {
+    Schema innerRecordSchema = SchemaBuilder.record("recordType")
+        .fields()
+        .requiredString("innerString")
+        .requiredInt("innerInt")
+        .endRecord();
+    Schema schema = SchemaBuilder.record("recordDeref")
+        .namespace("org.apache.hive.streaming")
+        .fields()
+        .requiredDouble("avroDouble")
+        .name("recordField")
+        .type(innerRecordSchema).noDefault()
+        .endRecord();
+
+    List<GenericRecord> records = new ArrayList<>();
+    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(schema);
+    for (int i = 0; i < 10; i++) {
+      double d = i + (double)i * 0.1;
+      recordBuilder.set("avroDouble", d);
+
+      GenericRecordBuilder innerBuilder = new GenericRecordBuilder(innerRecordSchema);
+      innerBuilder.set("innerString", Integer.toString(i*100));
+      innerBuilder.set("innerInt", i);
+      recordBuilder.set("recordField", innerBuilder.build());
+
+      records.add(recordBuilder.build());
+    }
+    String tableName = "recordderef";
+    String fullTableName = dbName + "." + tableName;
+    dropAndCreateTable(fullTableName, "hiveInt int ");
+
+
+    RecordWriter writer = MappingAvroWriter.newBuilder()
+        .withAvroSchema(schema)
+        .addMappingColumn("hiveInt", "recordField.innerInt")
+        .build();
+
+    HiveStreamingConnection conn = HiveStreamingConnection.newBuilder()
+        .withDatabase(dbName)
+        .withTable(tableName)
+        .withTransactionBatchSize(5)
+        .withRecordWriter(writer)
+        .withHiveConf(conf)
+        .connect();
+
+    conn.beginTransaction();
+    for (GenericRecord r : records) conn.write(r);
+    conn.commitTransaction();
+    conn.close();
+
+    List<String> results = querySql("select hiveInt from " + fullTableName);
+    Assert.assertEquals(10, results.size());
+    for (int i = 0; i < 10; i++) {
+      Assert.assertEquals(Integer.toString(i), results.get(i));
+    }
+  }
+
+  /*
   @Test
   public void allAvroTypes() throws StreamingException, IOException {
     Schema fixedSchema = SchemaBuilder.fixed("fixedType").size(10);
@@ -252,290 +450,117 @@ public class TestStrictAvroWriter extends AvroTestBase {
     }
   }
 
+   */
+  // TODO test record dereference
+  // TODO test array dereference
+  // TODO test map dereference
+  // TODO test union dereference
+  // TODO test multi-level dereference
+    // TODO test missing schema mapping
+
   @Test
-  public void withSchemaString() throws StreamingException, IOException {
-    Schema schema = SchemaBuilder.record("wssasw")
+  public void nonExistentHiveCol() throws StreamingException, IOException {
+    Schema schema = SchemaBuilder.record("noHiveCol")
         .namespace("org.apache.hive.streaming")
         .fields()
         .requiredString("field1")
         .requiredInt("field2")
         .endRecord();
-    List<GenericRecord> records = new ArrayList<>();
-    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(schema);
-    for (int i = 0; i < 10; i++) {
-      recordBuilder.set("field1", Integer.toString(i));
-      recordBuilder.set("field2", i);
-      records.add(recordBuilder.build());
-    }
 
-    String tableName = "wss";
+    String tableName = "nohivecol";
     String fullTableName = dbName + "." + tableName;
-    dropAndCreateTable(fullTableName, "f1 string, f2 int");
+    dropAndCreateTable(fullTableName, "f1 int, f2 string");
 
-    RecordWriter writer = StrictAvroWriter.newBuilder()
-        .withSchema(schema.toString())
+    RecordWriter writer = MappingAvroWriter.newBuilder()
+        .withAvroSchema(schema)
+        .addMappingColumn("f1", "field2")
+        .addMappingColumn("nosuch", "field1")
         .build();
 
-    HiveStreamingConnection conn = HiveStreamingConnection.newBuilder()
-        .withDatabase(dbName)
-        .withTable(tableName)
-        .withTransactionBatchSize(5)
-        .withRecordWriter(writer)
-        .withHiveConf(conf)
-        .connect();
-
-    conn.beginTransaction();
-    for (GenericRecord r : records) conn.write(r);
-    conn.commitTransaction();
-    conn.close();
-
-    List<String> results = querySql("select f1, f2 from " + fullTableName);
-    Assert.assertEquals(10, results.size());
-    for (int i = 0; i < 10; i++) Assert.assertEquals(i + "\t" + i, results.get(i));
-  }
-
-  @Test(expected = IllegalStateException.class)
-  public void noSchema() {
-    RecordWriter writer = StrictAvroWriter.newBuilder()
-        .build();
-  }
-
-  @Test(expected = IllegalStateException.class)
-  public void twoSchemas() {
-    Schema schema = SchemaBuilder.record("twoschemas")
-        .namespace("org.apache.hive.streaming")
-        .fields()
-        .requiredString("field1")
-        .requiredInt("field2")
-        .endRecord();
-    RecordWriter writer = StrictAvroWriter.newBuilder()
-        .withSchema(schema)
-        .withSchema(schema.toString())
-        .build();
-  }
-
-  // Test where the record has columns that the schema handed to the streaming writer does not
-  @Test
-  public void fieldsInStreamingSchemaNotInRecordSchema() throws StreamingException, IOException {
-    Schema recordSchema = SchemaBuilder.record("rswrecord")
-        .namespace("org.apache.hive.streaming")
-        .fields()
-        .requiredString("field1")
-        .endRecord();
-
-    Schema streamingSchema = SchemaBuilder.record("rswstreaming")
-        .namespace("org.apache.hive.streaming")
-        .fields()
-        .requiredString("field1")
-        .requiredInt("field2")
-        .endRecord();
-
-    List<GenericRecord> records = new ArrayList<>();
-    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(recordSchema);
-    for (int i = 0; i < 10; i++) {
-      recordBuilder.set("field1", Integer.toString(i));
-      records.add(recordBuilder.build());
-    }
-
-    String tableName = "rsw";
-    String fullTableName = dbName + "." + tableName;
-    dropAndCreateTable(fullTableName, "f1 string, f2 int");
-
-    RecordWriter writer = StrictAvroWriter.newBuilder()
-        .withSchema(streamingSchema)
-        .build();
-
-    HiveStreamingConnection conn = HiveStreamingConnection.newBuilder()
-        .withDatabase(dbName)
-        .withTable(tableName)
-        .withTransactionBatchSize(5)
-        .withRecordWriter(writer)
-        .withHiveConf(conf)
-        .connect();
-
-    conn.beginTransaction();
     try {
-      conn.write(records.get(0));
+      HiveStreamingConnection conn = HiveStreamingConnection.newBuilder()
+          .withDatabase(dbName)
+          .withTable(tableName)
+          .withTransactionBatchSize(5)
+          .withRecordWriter(writer)
+          .withHiveConf(conf)
+          .connect();
+      conn.beginTransaction();
       Assert.fail();
     } catch (SerializationError e) {
-      Assert.assertTrue(e.getMessage().startsWith("Unable to serialize record, likely due to record schema not" +
-          " matching schema passed to writer"));
-      Assert.assertEquals(ArrayIndexOutOfBoundsException.class, e.getCause().getClass());
+      Assert.assertEquals("Unknown Hive columns nosuch referenced in schema mapping", e.getMessage());
     }
+
   }
 
   @Test
-  public void fieldsInRecordSchemaNotInStreamingSchema() throws StreamingException, IOException {
-    Schema recordSchema = SchemaBuilder.record("firsnissr")
+  public void nonExistentAvroCol() throws StreamingException, IOException {
+    Schema schema = SchemaBuilder.record("noAvroCol")
         .namespace("org.apache.hive.streaming")
         .fields()
         .requiredString("field1")
         .requiredInt("field2")
         .endRecord();
 
-    Schema streamingSchema = SchemaBuilder.record("firsnisss")
-        .namespace("org.apache.hive.streaming")
-        .fields()
-        .requiredString("field1")
-        .endRecord();
-
-    List<GenericRecord> records = new ArrayList<>();
-    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(recordSchema);
-    for (int i = 0; i < 10; i++) {
-      recordBuilder.set("field1", Integer.toString(i));
-      recordBuilder.set("field2", i);
-      records.add(recordBuilder.build());
-    }
-
-    String tableName = "firsniss";
+    String tableName = "noavrocol";
     String fullTableName = dbName + "." + tableName;
-    dropAndCreateTable(fullTableName, "f1 string");
+    dropAndCreateTable(fullTableName, "f1 int, f2 string");
 
-    RecordWriter writer = StrictAvroWriter.newBuilder()
-        .withSchema(streamingSchema)
+    RecordWriter writer = MappingAvroWriter.newBuilder()
+        .withAvroSchema(schema)
+        .addMappingColumn("f1", "field2")
+        .addMappingColumn("f2", "nosuch")
         .build();
 
-    HiveStreamingConnection conn = HiveStreamingConnection.newBuilder()
-        .withDatabase(dbName)
-        .withTable(tableName)
-        .withTransactionBatchSize(5)
-        .withRecordWriter(writer)
-        .withHiveConf(conf)
-        .connect();
-
-    conn.beginTransaction();
-    for (GenericRecord r : records) conn.write(r);
-    conn.commitTransaction();
-    conn.close();
-
-    List<String> results = querySql("select f1 from " + fullTableName);
-    Assert.assertEquals(10, results.size());
-    for (int i = 0; i < 10; i++) Assert.assertEquals(Integer.toString(i), results.get(i));
-  }
-
-  @Test
-  public void withDifferentTypesInRecordAndStreamingSchemas() throws StreamingException, IOException {
-    Schema recordSchema = SchemaBuilder.record("wdtirssr")
-        .namespace("org.apache.hive.streaming")
-        .fields()
-        .requiredString("field1")
-        .requiredString("field2")
-        .endRecord();
-
-    Schema streamingSchema = SchemaBuilder.record("wdtirsss")
-        .namespace("org.apache.hive.streaming")
-        .fields()
-        .requiredString("field1")
-        .requiredInt("field2")
-        .endRecord();
-
-    List<GenericRecord> records = new ArrayList<>();
-    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(recordSchema);
-    for (int i = 0; i < 10; i++) {
-      recordBuilder.set("field1", Integer.toString(i));
-      recordBuilder.set("field2", Integer.toString(i*10));
-      records.add(recordBuilder.build());
-    }
-
-    String tableName = "wdtirss";
-    String fullTableName = dbName + "." + tableName;
-    dropAndCreateTable(fullTableName, "f1 string, f2 int");
-
-    RecordWriter writer = StrictAvroWriter.newBuilder()
-        .withSchema(streamingSchema)
-        .build();
-
-    HiveStreamingConnection conn = HiveStreamingConnection.newBuilder()
-        .withDatabase(dbName)
-        .withTable(tableName)
-        .withTransactionBatchSize(5)
-        .withRecordWriter(writer)
-        .withHiveConf(conf)
-        .connect();
-
-    conn.beginTransaction();
     try {
-      conn.write(records.get(0));
+      HiveStreamingConnection conn = HiveStreamingConnection.newBuilder()
+          .withDatabase(dbName)
+          .withTable(tableName)
+          .withTransactionBatchSize(5)
+          .withRecordWriter(writer)
+          .withHiveConf(conf)
+          .connect();
+      conn.beginTransaction();
       Assert.fail();
     } catch (SerializationError e) {
-      Assert.assertTrue(e.getMessage().startsWith("Column type mismatch when serializing record"));
-      Assert.assertEquals(ClassCastException.class, e.getCause().getClass());
-    }
-  }
-
-
-  @Test
-  public void recordHasColumnsTableDoesnt() throws StreamingException, IOException {
-    Schema schema = SchemaBuilder.record("tdtr")
-        .namespace("org.apache.hive.streaming")
-        .fields()
-        .requiredString("field1")
-        .requiredInt("field2")
-        .endRecord();
-    List<GenericRecord> records = new ArrayList<>();
-    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(schema);
-    for (int i = 0; i < 10; i++) {
-      recordBuilder.set("field1", Integer.toString(i));
-      recordBuilder.set("field2", i);
-      records.add(recordBuilder.build());
+      Assert.assertEquals("Mapping to non-existent avro column nosuch", e.getMessage());
     }
 
-    String tableName = "tdtr";
-    String fullTableName = dbName + "." + tableName;
-    dropAndCreateTable(fullTableName, "f1 string");
-
-    RecordWriter writer = StrictAvroWriter.newBuilder()
-        .withSchema(schema)
-        .build();
-
-    HiveStreamingConnection conn = HiveStreamingConnection.newBuilder()
-        .withDatabase(dbName)
-        .withTable(tableName)
-        .withTransactionBatchSize(5)
-        .withRecordWriter(writer)
-        .withHiveConf(conf)
-        .connect();
-
-    conn.beginTransaction();
-    for (GenericRecord r : records) conn.write(r);
-    conn.commitTransaction();
-    conn.close();
-
-    List<String> results = querySql("select f1 from " + fullTableName);
-    Assert.assertEquals(10, results.size());
-    for (int i = 0; i < 10; i++) Assert.assertEquals(Integer.toString(i), results.get(i));
   }
 
   @Test
   public void partitioned() throws StreamingException, IOException {
-    Schema schema = SchemaBuilder.record("p")
+    Schema schema = SchemaBuilder.record("partitioned")
         .namespace("org.apache.hive.streaming")
         .fields()
         .requiredString("field1")
         .requiredInt("field2")
-        .requiredString("f3")
+        .requiredString("field3")
         .endRecord();
     List<GenericRecord> records = new ArrayList<>();
     GenericRecordBuilder recordBuilder = new GenericRecordBuilder(schema);
     for (int i = 0; i < 10; i++) {
       recordBuilder.set("field1", Integer.toString(i));
       recordBuilder.set("field2", i);
-      recordBuilder.set("f3", "a");
+      recordBuilder.set("field3", "a");
       records.add(recordBuilder.build());
     }
     for (int i = 0; i < 10; i++) {
       recordBuilder.set("field1", Integer.toString(i));
       recordBuilder.set("field2", i);
-      recordBuilder.set("f3", "b");
+      recordBuilder.set("field3", "b");
       records.add(recordBuilder.build());
     }
 
-    String tableName = "p";
+    String tableName = "ptable";
     String fullTableName = dbName + "." + tableName;
     dropAndCreateTable(fullTableName, "f1 string, f2 int", "f3 string");
 
-    RecordWriter writer = StrictAvroWriter.newBuilder()
-        .withSchema(schema)
+    RecordWriter writer = MappingAvroWriter.newBuilder()
+        .withAvroSchema(schema)
+        .addMappingColumn("f1", "field1")
+        .addMappingColumn("f2", "field2")
+        .addMappingColumn("f3", "field3")
         .build();
 
     HiveStreamingConnection conn = HiveStreamingConnection.newBuilder()
@@ -558,6 +583,4 @@ public class TestStrictAvroWriter extends AvroTestBase {
     Assert.assertEquals(10, results.size());
     for (int i = 0; i < 10; i++) Assert.assertEquals(i + "\t" + i, results.get(i));
   }
-
-
 }

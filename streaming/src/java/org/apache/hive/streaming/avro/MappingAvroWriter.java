@@ -20,6 +20,7 @@ package org.apache.hive.streaming.avro;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.serde2.AbstractSerDe;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -30,11 +31,15 @@ import org.apache.hive.streaming.AbstractRecordWriter;
 import org.apache.hive.streaming.SerializationError;
 import org.apache.hive.streaming.StreamingConnection;
 import org.apache.hive.streaming.StreamingException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -49,17 +54,23 @@ import java.util.function.Function;
  * a field <i>a</i> could be mapped to a Hive top level column <i>a</i> if the rest of the record is not
  * of interest.  For unions created for nullable types, there is no need to specify the union in the map,
  * this will "see through it" to the non-nullable type.  The syntax for specifying elements of complex
- * types is:
+ * types is a basic path type expression:
  * <ul>
- *   <li>maps: <i>colname.mapkey</i> </li>
+ *   <li>maps: <i>colname[mapkey]</i> </li>
  *   <li>records:  <i>colname.subcolname</i></li>
- *   <li>lists:  <i>colname.element_number</i></li>
- *   <li>unions: <i>colname.offset_number</i></li>
+ *   <li>lists:  <i>colname[element_number]</i></li>
+ *   <li>unions: <i>colname[offset_number]</i></li>
  * </ul>
+ * <p>This can be multiple level, so if there is a table T with column <i>a</i> which is a union where the 1st element
+ *    is a record with a column <i>b</i> which is a map with value type integer, then you could map the the
+ *    <i>total</i> key of that map to an integer column with <i>a[1].b[total]</i></p>
+ *
  * <p>At this time writing in to non-top level columns in Hive (ie, into a field of a record) is not supported.</p>
  */
 public class MappingAvroWriter extends AbstractRecordWriter<GenericRecord> {
-  private final AvroWriterAvroSerde serde;
+  private static final Logger LOG = LoggerFactory.getLogger(MappingAvroWriter.class);
+
+  private final MappingAvroWriterAvroSerDe serde;
   private final Map<String, String> schemaMapping;
   private Object encoded;
   private long length;
@@ -105,7 +116,7 @@ public class MappingAvroWriter extends AbstractRecordWriter<GenericRecord> {
      * @return this pointer
      */
     public Builder withSchemaMapping(Map<String, String> mapping) {
-      if (schemaMapping != null) schemaMapping = new HashMap<>();
+      if (schemaMapping == null) schemaMapping = new HashMap<>();
       for (Map.Entry<String, String> mapEntry : mapping.entrySet()) {
         schemaMapping.put(mapEntry.getKey().toLowerCase(), mapEntry.getValue());
       }
@@ -133,6 +144,10 @@ public class MappingAvroWriter extends AbstractRecordWriter<GenericRecord> {
         throw new IllegalStateException("You have provided two schemas, provide either an object or a string");
       }
 
+      if (schemaMapping == null) {
+        throw new IllegalStateException("You have not provided a schema mapping");
+      }
+
       return new MappingAvroWriter(this);
     }
   }
@@ -149,10 +164,31 @@ public class MappingAvroWriter extends AbstractRecordWriter<GenericRecord> {
   @Override
   public void init(StreamingConnection conn, long minWriteId, long maxWriteId, int statementId) throws StreamingException {
     // Override this so we can set up our translator properly, as it needs the Hive schema, which is only available once
-    // the RecordWriter has been embedded in a StreamingConection.
+    // the RecordWriter has been embedded in a StreamingConection.  However, this leads to an extremely intricate dance.
+    // We have to build the translator before super.init is called because it fetches the ObjectInspector.
+    // But if we get an exception while building the translator we still need to go ahead and call super.init so it
+    // can set itself up properly, even though we're just going to tear it all down.  Otherwise it fails during the
+    // connection close.
+    StreamingException cachedException = null;
+    try {
+      hiveSchema = conn.getTable().getAllCols();
+      serde.buildTranslator();
+    } catch (SerializationError e) {
+      cachedException = e;
+      // This is a hack and a half, but I can't think of a better way around it atm.
+      // Build a quick fake object inspector so the following init call doesn't blow up.  All the fields can be
+      // string as this object inspector shouldn't be used for anything other than fetching the names of
+      // partition columns
+      List<String> colNames = new ArrayList<>(hiveSchema.size());
+      List<ObjectInspector> ois = new ArrayList<>(hiveSchema.size());
+      for (FieldSchema fs : hiveSchema) {
+        colNames.add(fs.getName());
+        ois.add(PrimitiveObjectInspectorFactory.getPrimitiveJavaObjectInspector(PrimitiveObjectInspector.PrimitiveCategory.STRING));
+      }
+      serde.setFakeObjectInspector(ObjectInspectorFactory.getStandardStructObjectInspector(colNames, ois));
+    }
     super.init(conn, minWriteId, maxWriteId, statementId);
-    hiveSchema = conn.getTable().getAllCols();
-    serde.buildTranslator();
+    if (cachedException != null) throw cachedException;
   }
 
   @Override
@@ -192,12 +228,19 @@ public class MappingAvroWriter extends AbstractRecordWriter<GenericRecord> {
 
     @Override
     protected void buildTranslator() throws SerializationError {
-      //return Translators.buildRecordTranslatorInfo(schema);
+      // Do a quick sanity to check to assure that all the Hive columns they specified actually exist
+      // Have to make a copy of the key set to avoid screwing up the map.
+      Set<String> hiveColsFromSchemaMapping = new HashSet<>(schemaMapping.keySet());
+      for (FieldSchema fs : hiveSchema) hiveColsFromSchemaMapping.remove(fs.getName());
+      if (hiveColsFromSchemaMapping.size() > 0) {
+        throw new SerializationError("Unknown Hive columns " + StringUtils.join(hiveColsFromSchemaMapping, ", ") +
+            " referenced in schema mapping");
+      }
       final int size = schemaMapping.size();
       List<String> colNames = new ArrayList<>(size);
       List<ObjectInspector> ois = new ArrayList<>(size);
       // a map of Hive field name to (avro field name, deserializer)
-      final Map<String, MappableTranslatorInfo> deserializers = new HashMap<>(size);
+      final Map<String, MappingTranslatorInfo> deserializers = new HashMap<>(size);
       for (FieldSchema fs : hiveSchema) {
         colNames.add(fs.getName());
         String avroCol = schemaMapping.get(fs.getName().toLowerCase());
@@ -205,12 +248,17 @@ public class MappingAvroWriter extends AbstractRecordWriter<GenericRecord> {
           // This wasn't in the map, so just set it to null
           ObjectInspector oi = PrimitiveObjectInspectorFactory.getPrimitiveJavaObjectInspector(PrimitiveObjectInspector.PrimitiveCategory.STRING);
           ois.add(oi);
-          deserializers.put(fs.getName(), new MappableTranslatorInfo(new TranslatorInfo(oi, o -> null), fs.getName()));
+          deserializers.put(fs.getName(), null);
           // TODO should I be setting this to a default value?
+        } else {
+          String topLevelColName = findTopLevelColName(avroCol);
+          Schema.Field field = avroSchema.getField(topLevelColName);
+          // Make sure the mapped to Avro column exists
+          if (field == null) throw new SerializationError("Mapping to non-existent avro column " + topLevelColName);
+          MappingTranslatorInfo mtInfo = mapAvroColumn(avroCol, field.schema(), topLevelColName);
+          ois.add(mtInfo.getObjectInspector());
+          deserializers.put(fs.getName(), mtInfo);
         }
-        MappableTranslatorInfo mtInfo = mapAvroColumn(avroCol, avroSchema);
-        ois.add(mtInfo.getObjectInspector());
-        deserializers.put(fs.getName(), mtInfo);
       }
 
       tInfo = new TranslatorInfo(ObjectInspectorFactory.getStandardStructObjectInspector(colNames, ois),
@@ -220,70 +268,151 @@ public class MappingAvroWriter extends AbstractRecordWriter<GenericRecord> {
             List<Object> row = new ArrayList<>(size);
             long length = 0;
             for (FieldSchema fs : hiveSchema) {
-              MappableTranslatorInfo mtInfo = deserializers.get(fs.getName());
-              DeserializerOutput output = mtInfo.getDeserializer().apply(record.get(mtInfo.getTopLevelColumn()));
-              length += output.getAddedLength();
-              row.add(output.getDeserialized());
+              MappingTranslatorInfo mtInfo = deserializers.get(fs.getName());
+              if (mtInfo == null) {
+                row.add(null);
+              } else {
+                DeserializerOutput output = mtInfo.getDeserializer().apply(record.get(mtInfo.getTopLevelColumn()));
+                length += output.getAddedLength();
+                row.add(output.getDeserialized());
+              }
             }
             return new DeserializerOutput(length, row);
           });
     }
 
-    protected Object deserialize(GenericRecord record) throws SerializationError {
+    protected Object deserialize(GenericRecord record) {
       assert tInfo != null;
       DeserializerOutput output = tInfo.getDeserializer().apply(record);
       length = output.getAddedLength();
       return output.getDeserialized();
     }
 
-    private MappableTranslatorInfo mapAvroColumn(String avroCol, Schema schema) throws SerializationError {
-      // TODO - this is all wrong, I need to write a path parser for this.
-      Schema.Field field = schema.getField(avroCol);
-      if (field == null) throw new SerializationError("Mapping to non-existent avro column " + avroCol);
-      /*
+    void setFakeObjectInspector(ObjectInspector oi) {
+      tInfo = new TranslatorInfo(oi, null);
+    }
+
+    /*
+    private String[] parseColName(String avroCol) {
       int dotAt = avroCol.indexOf('.');
-      // Handle the map case
+      assert dotAt != 0;
       if (dotAt > 0) {
-        if (field.schema().getType() != Schema.Type.RECORD) {
-          throw new SerializationError("Attempt to dereference sub-column in non-record type: " + avroCol);
+        return new String[] {avroCol.substring(0, dotAt), avroCol.substring(dotAt)};
+      }
+      int openBracketAt = avroCol.in
+      return avroCol.split("[\\[.]", 2)[0];
+    }
+    */
+
+    private String findTopLevelColName(String avroCol) {
+      return avroCol.split("[\\[.]", 2)[0];
+    }
+
+    private MappingTranslatorInfo mapAvroColumn(String avroCol, Schema schema, String topLevelColName) throws SerializationError {
+      return new MappingTranslatorInfo(parseAvroColumn(avroCol, schema), topLevelColName);
+    }
+
+    private TranslatorInfo parseAvroColumn(String avroCol, Schema schema) throws SerializationError {
+      LOG.debug("XXX entering parseAvroColumn with " + avroCol);
+      if (avroCol.charAt(0) == '.') {
+        // its a record
+        if (schema.getType() != Schema.Type.RECORD) {
+          throw new SerializationError("Attempt to dereference " + avroCol + " when containing column is not a record");
         }
-        String topLevelCol = avroCol.substring(0, dotAt);
-        String remainder = avroCol.substring(dotAt + 1);
-        MappableTranslatorInfo remainderTInfo;
-        Function<Object, DeserializerOutput> deserializer;
-        switch (field.schema().getType()) {
-          case RECORD:
-            remainderTInfo = mapAvroColumn(remainder, field.schema());
-            deserializer = obj -> {
-              GenericData.Record record = (GenericData.Record)obj;
-              return remainderTInfo.getDeserializer().apply(record.get(remainderTInfo.getTopLevelColumn()));
-            };
-            break;
+        String[] split = avroCol.substring(1).split("[\\[.]", 2);
+        LOG.debug("XXX Looking for record field " + split[0]);
+        Schema.Field innerField = schema.getField(split[0]);
+        if (innerField == null) {
+          throw new SerializationError("Attempt to reference non-existent record field " + split[0]);
+        }
+        LOG.debug("XXX schema for inner field is of type " + innerField.schema().getType());
+        final TranslatorInfo subInfo = getSubTranslatorInfo(split, innerField.schema());
+        LOG.debug("XXX resulting object inspector is of type " + subInfo.getObjectInspector().getClass().getName());
+        return new TranslatorInfo(subInfo.getObjectInspector(), o -> {
+          GenericData.Record record = (GenericData.Record)o;
+          Object element = record.get(split[0]);
+          return element == null ? null : subInfo.getDeserializer().apply(element);
+        });
+      } else if (avroCol.charAt(0) == '[') {
+        // it's a array, map, or union
+        String[] split = avroCol.substring(1).split("]");
+        // Make sure this is a properly formed dereference
+        if (split.length == 1 && avroCol.charAt(avroCol.length() - 1) != ']') {
+          throw new SerializationError("Unmatched [ in " + avroCol);
+        }
+        switch (schema.getType()) {
+          case ARRAY:
+            int index;
+            try {
+              index = Integer.valueOf(split[0]);
+            } catch (NumberFormatException e) {
+              throw new SerializationError("Attempt to dereference array with non-number " + split[0], e);
+            }
+            final TranslatorInfo arraySubInfo = getSubTranslatorInfo(split, schema.getElementType());
+            return new TranslatorInfo(arraySubInfo.getObjectInspector(), o -> {
+              List<Object> avroList = (List)o;
+              Object element = avroList.get(index);
+              return element == null ? null : arraySubInfo.getDeserializer().apply(element);
+            });
 
           case MAP:
-            remainderTInfo = mapAvroColumn()
-
-          case ARRAY:
+            final TranslatorInfo mapSubInfo = getSubTranslatorInfo(split, schema.getValueType());
+            final String key = split[0];
+            return new TranslatorInfo(mapSubInfo.getObjectInspector(), o -> {
+              Map<CharSequence, Object> avroMap = (Map)o;
+              Object val = avroMap.get(key);
+              return val == null ? null : mapSubInfo.getDeserializer().apply(val);
+            });
 
           case UNION:
-
+            int unionTag;
+            try {
+              unionTag = Integer.valueOf(split[0]);
+            } catch (NumberFormatException e) {
+              throw new SerializationError("Attempt to dereference union with non-number " + split[0], e);
+            }
+            if (unionTag >= schema.getTypes().size()) {
+              throw new SerializationError("Attempt to read union element " + unionTag + " in union with only " +
+                  schema.getTypes().size() + " elements");
+            }
+            final TranslatorInfo unionSubInfo = getSubTranslatorInfo(split, schema.getTypes().get(unionTag));
+            return new TranslatorInfo(unionSubInfo.getObjectInspector(), o -> {
+              int offset = GenericData.get().resolveUnion(schema, o);
+              return offset == unionTag ?
+                  unionSubInfo.getDeserializer().apply(o) :
+                  null; // When the unionTag and offset don't match, it means this union has a different element in it.
+            });
 
           default:
-            throw new SerializationError("Attempt to use index on non-array/map/union type " + avroCol);
+            throw new SerializationError("Attempt to deference " + avroCol +
+                " when containing column is not an array, map, or union");
         }
-        return new MappableTranslatorInfo(new TranslatorInfo(remainderTInfo.getObjectInspector(), deserializer), topLevelCol);
       } else {
-      */
-        return new MappableTranslatorInfo(Translators.buildColTranslatorInfo(field.schema()), avroCol);
-      //}
+        // it's a column name
+        // If this column name is followed by a dereference symbol (. or [) than we need to parse it.  Otherwise take
+        // this column as is and place it in the map, whether it's simple or complex.
+        String[] split = avroCol.split("[.\\[]", 2);
+        LOG.debug("XXX for avroCol " + avroCol + " split length is " + split.length);
+        return (split.length == 2) ?
+            parseAvroColumn(split[1], schema) :
+            Translators.buildColTranslatorInfo(schema);
+      }
+    }
+
+    private TranslatorInfo getSubTranslatorInfo(String[] splitColName, Schema subSchema) throws SerializationError {
+      // if split col name has only one element (that is, the name wasn't really split), then just return
+      // a translator info for that field.  If it has a subelement, then parse further down.
+      return splitColName.length == 2 ?
+          parseAvroColumn(splitColName[1], subSchema) :
+          Translators.buildColTranslatorInfo(subSchema);
     }
   }
 
-  private static class MappableTranslatorInfo {
+  private static class MappingTranslatorInfo {
     private final String topLevelColumn;
     private final TranslatorInfo tInfo;
 
-    MappableTranslatorInfo(TranslatorInfo tInfo, String topLevelColumn) {
+    MappingTranslatorInfo(TranslatorInfo tInfo, String topLevelColumn) {
       this.topLevelColumn = topLevelColumn;
       this.tInfo = tInfo;
     }
@@ -300,5 +429,17 @@ public class MappingAvroWriter extends AbstractRecordWriter<GenericRecord> {
       return tInfo.getDeserializer();
     }
   }
+
+  /*
+  private static class ParsedColName {
+    private final String colName;
+    private final String index;
+    private final ParsedColName next;
+
+    ParsedColName(String inputColName) {
+      if ()
+    }
+  }
+  */
 
 }

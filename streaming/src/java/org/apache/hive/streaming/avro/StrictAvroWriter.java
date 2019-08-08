@@ -27,7 +27,8 @@ import org.slf4j.LoggerFactory;
 
 /**
  * A writer for Avro records that assumes the Avro schema and Hive schema match.  Matching
- * means that they have the same number of columns and compatible types.  It is assumed that
+ * means that they have the same number of columns and compatible types.  For partition columns and
+ * struct types, the name matching has to be exact.  It is assumed that
  * every Avro record has the same schema, with the Hive partition columns at the end of the row.
  * <p>The Avro to Hive type compatibility is:</p>
  * <table>
