@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.hive.streaming;
+package org.apache.hive.streaming.avro;
 
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
@@ -31,6 +31,11 @@ import org.apache.hadoop.hive.ql.DriverFactory;
 import org.apache.hadoop.hive.ql.IDriver;
 import org.apache.hadoop.hive.ql.processors.CommandProcessorResponse;
 import org.apache.hadoop.hive.ql.session.SessionState;
+import org.apache.hive.streaming.HiveStreamingConnection;
+import org.apache.hive.streaming.RecordWriter;
+import org.apache.hive.streaming.SerializationError;
+import org.apache.hive.streaming.StreamingException;
+import org.apache.hive.streaming.TestStreaming;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -46,15 +51,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class TestAvroWriter {
-  private static final Logger LOG = LoggerFactory.getLogger(TestAvroWriter.class);
+public class TestStrictAvroWriter {
+  private static final Logger LOG = LoggerFactory.getLogger(TestStrictAvroWriter.class);
   private static final String dbName = "avrostreamingdb";
 
   private static HiveConf conf = null;
   private IDriver driver;
   private final IMetaStoreClient msClient;
 
-  public TestAvroWriter() throws Exception {
+  public TestStrictAvroWriter() throws Exception {
     conf = new HiveConf(this.getClass());
     conf.set("fs.raw.impl", TestStreaming.RawFileSystem.class.getName());
     conf.setVar(HiveConf.ConfVars.HIVE_AUTHORIZATION_MANAGER,
@@ -108,7 +113,7 @@ public class TestAvroWriter {
     String fullTableName = dbName + "." + tableName;
     dropAndCreateTable(fullTableName, "f1 string, f2 int");
 
-    RecordWriter writer = AvroWriter.newBuilder()
+    RecordWriter writer = StrictAvroWriter.newBuilder()
                                     .withSchema(schema)
                                     .build();
 
@@ -217,7 +222,7 @@ public class TestAvroWriter {
     );
 
 
-    RecordWriter writer = AvroWriter.newBuilder()
+    RecordWriter writer = StrictAvroWriter.newBuilder()
         .withSchema(schema)
         .build();
 
@@ -315,7 +320,7 @@ public class TestAvroWriter {
     String fullTableName = dbName + "." + tableName;
     dropAndCreateTable(fullTableName, "f1 string, f2 int");
 
-    RecordWriter writer = AvroWriter.newBuilder()
+    RecordWriter writer = StrictAvroWriter.newBuilder()
         .withSchema(schema.toString())
         .build();
 
@@ -339,7 +344,7 @@ public class TestAvroWriter {
 
   @Test(expected = IllegalStateException.class)
   public void noSchema() {
-    RecordWriter writer = AvroWriter.newBuilder()
+    RecordWriter writer = StrictAvroWriter.newBuilder()
         .build();
   }
 
@@ -351,7 +356,7 @@ public class TestAvroWriter {
         .requiredString("field1")
         .requiredInt("field2")
         .endRecord();
-    RecordWriter writer = AvroWriter.newBuilder()
+    RecordWriter writer = StrictAvroWriter.newBuilder()
         .withSchema(schema)
         .withSchema(schema.toString())
         .build();
@@ -384,7 +389,7 @@ public class TestAvroWriter {
     String fullTableName = dbName + "." + tableName;
     dropAndCreateTable(fullTableName, "f1 string, f2 int");
 
-    RecordWriter writer = AvroWriter.newBuilder()
+    RecordWriter writer = StrictAvroWriter.newBuilder()
         .withSchema(streamingSchema)
         .build();
 
@@ -434,7 +439,7 @@ public class TestAvroWriter {
     String fullTableName = dbName + "." + tableName;
     dropAndCreateTable(fullTableName, "f1 string");
 
-    RecordWriter writer = AvroWriter.newBuilder()
+    RecordWriter writer = StrictAvroWriter.newBuilder()
         .withSchema(streamingSchema)
         .build();
 
@@ -484,7 +489,7 @@ public class TestAvroWriter {
     String fullTableName = dbName + "." + tableName;
     dropAndCreateTable(fullTableName, "f1 string, f2 int");
 
-    RecordWriter writer = AvroWriter.newBuilder()
+    RecordWriter writer = StrictAvroWriter.newBuilder()
         .withSchema(streamingSchema)
         .build();
 
@@ -527,7 +532,7 @@ public class TestAvroWriter {
     String fullTableName = dbName + "." + tableName;
     dropAndCreateTable(fullTableName, "f1 string");
 
-    RecordWriter writer = AvroWriter.newBuilder()
+    RecordWriter writer = StrictAvroWriter.newBuilder()
         .withSchema(schema)
         .build();
 
@@ -576,4 +581,6 @@ public class TestAvroWriter {
       return Collections.emptyList();
     }
   }
+
+  // TODO need to make sure I'm handling partition columns correctly.
 }
