@@ -230,13 +230,13 @@ public class MappingAvroWriter extends AbstractRecordWriter<GenericRecord> {
     protected void buildTranslator() throws SerializationError {
       // Do a quick sanity to check to assure that all the Hive columns they specified actually exist
       // Have to make a copy of the key set to avoid screwing up the map.
-      Set<String> hiveColsFromSchemaMapping = new HashSet<>(schemaMapping.keySet());
-      for (FieldSchema fs : hiveSchema) hiveColsFromSchemaMapping.remove(fs.getName());
-      if (hiveColsFromSchemaMapping.size() > 0) {
-        throw new SerializationError("Unknown Hive columns " + StringUtils.join(hiveColsFromSchemaMapping, ", ") +
-            " referenced in schema mapping");
-      }
-      final int size = schemaMapping.size();
+        Set<String> hiveColsFromSchemaMapping = new HashSet<>(schemaMapping.keySet());
+        for (FieldSchema fs : hiveSchema) hiveColsFromSchemaMapping.remove(fs.getName());
+        if (hiveColsFromSchemaMapping.size() > 0) {
+          throw new SerializationError("Unknown Hive columns " + StringUtils.join(hiveColsFromSchemaMapping, ", ") +
+              " referenced in schema mapping");
+        }
+        final int size = schemaMapping.size();
       List<String> colNames = new ArrayList<>(size);
       List<ObjectInspector> ois = new ArrayList<>(size);
       // a map of Hive field name to (avro field name, deserializer)
@@ -247,6 +247,7 @@ public class MappingAvroWriter extends AbstractRecordWriter<GenericRecord> {
         if (avroCol == null) {
           // This wasn't in the map, so just set it to null
           ObjectInspector oi = PrimitiveObjectInspectorFactory.getPrimitiveJavaObjectInspector(PrimitiveObjectInspector.PrimitiveCategory.STRING);
+
           ois.add(oi);
           deserializers.put(fs.getName(), null);
           // TODO should I be setting this to a default value?
@@ -263,7 +264,7 @@ public class MappingAvroWriter extends AbstractRecordWriter<GenericRecord> {
 
       tInfo = new TranslatorInfo(ObjectInspectorFactory.getStandardStructObjectInspector(colNames, ois),
           o -> {
-            GenericData.Record record = (GenericData.Record)o;
+            GenericData.Record record = (GenericData.Record) o;
             assert record != null;
             List<Object> row = new ArrayList<>(size);
             long length = 0;
@@ -300,11 +301,25 @@ public class MappingAvroWriter extends AbstractRecordWriter<GenericRecord> {
       return avroCol.split("[\\[.]", 2)[0];
     }
 
+    private String findKey(String avroCol) throws SerializationError {
+      assert avroCol.charAt(0) == '[';
+      int closeBracketAt = avroCol.indexOf(']');
+      if (closeBracketAt < 0) throw new SerializationError("Unmatched [ in " + avroCol);
+      return avroCol.substring(1, closeBracketAt);
+    }
+
+    private String findIndexRemainder(String avroCol) {
+      int closeBracketAt = avroCol.indexOf(']');
+      assert closeBracketAt > 0; // Since this should always be called after findKey we should be guaranteed
+                                 // that we've already checked for the close bracket.
+      return closeBracketAt < avroCol.length() - 1 ? avroCol.substring(closeBracketAt + 1) : null;
+
+    }
+
     private String findRemainder(String avroCol) {
-      int dotAt = avroCol.indexOf('.');
-      if (dotAt > -1) return avroCol.substring(dotAt);
-      int openBracketAt = avroCol.indexOf('[');
-      if (openBracketAt > -1) return avroCol.substring(openBracketAt);
+      for (int i = 0; i < avroCol.length(); i++) {
+        if (avroCol.charAt(i) == '.' || avroCol.charAt(i) == '[') return avroCol.substring(i);
+      }
       return null;
     }
 
@@ -316,35 +331,32 @@ public class MappingAvroWriter extends AbstractRecordWriter<GenericRecord> {
       if (avroCol.charAt(0) == '.') {
         // its a record
         if (schema.getType() != Schema.Type.RECORD) {
-          throw new SerializationError("Attempt to dereference " + avroCol + " when containing column is not a record");
+          throw new SerializationError("Attempt to dereference '" + avroCol + "' when containing column is not a record");
         }
-        String[] split = avroCol.substring(1).split("[\\[.]", 2);
-        Schema.Field innerField = schema.getField(split[0]);
+        String fieldName = findTopLevelColName(avroCol.substring(1));
+        Schema.Field innerField = schema.getField(fieldName);
         if (innerField == null) {
-          throw new SerializationError("Attempt to reference non-existent record field " + split[0]);
+          throw new SerializationError("Attempt to reference non-existent record field '" + fieldName + "'");
         }
-        final TranslatorInfo subInfo = getSubTranslatorInfo(split, innerField.schema());
+        final TranslatorInfo subInfo = getSubTranslatorInfo(findRemainder(avroCol.substring(1)), innerField.schema());
         return new TranslatorInfo(subInfo.getObjectInspector(), o -> {
           GenericData.Record record = (GenericData.Record)o;
-          Object element = record.get(split[0]);
+          Object element = record.get(fieldName);
           return element == null ? null : subInfo.getDeserializer().apply(element);
         });
       } else if (avroCol.charAt(0) == '[') {
         // it's a array, map, or union
-        String[] split = avroCol.substring(1).split("]");
-        // Make sure this is a properly formed dereference
-        if (split.length == 1 && avroCol.charAt(avroCol.length() - 1) != ']') {
-          throw new SerializationError("Unmatched [ in " + avroCol);
-        }
+        String key = findKey(avroCol);
+        String remainder = findIndexRemainder(avroCol);
         switch (schema.getType()) {
           case ARRAY:
             int index;
             try {
-              index = Integer.valueOf(split[0]);
+              index = Integer.valueOf(key);
             } catch (NumberFormatException e) {
-              throw new SerializationError("Attempt to dereference array with non-number " + split[0], e);
+              throw new SerializationError("Attempt to dereference array with non-number '" + key + "'", e);
             }
-            final TranslatorInfo arraySubInfo = getSubTranslatorInfo(split, schema.getElementType());
+            final TranslatorInfo arraySubInfo = getSubTranslatorInfo(remainder, schema.getElementType());
             return new TranslatorInfo(arraySubInfo.getObjectInspector(), o -> {
               List<Object> avroList = (List)o;
               Object element = (index >= avroList.size()) ? null : avroList.get(index);
@@ -352,8 +364,7 @@ public class MappingAvroWriter extends AbstractRecordWriter<GenericRecord> {
             });
 
           case MAP:
-            final TranslatorInfo mapSubInfo = getSubTranslatorInfo(split, schema.getValueType());
-            final String key = split[0];
+            final TranslatorInfo mapSubInfo = getSubTranslatorInfo(remainder, schema.getValueType());
             return new TranslatorInfo(mapSubInfo.getObjectInspector(), o -> {
               Map<CharSequence, Object> avroMap = (Map)o;
               Object val = avroMap.get(key);
@@ -363,15 +374,15 @@ public class MappingAvroWriter extends AbstractRecordWriter<GenericRecord> {
           case UNION:
             int unionTag;
             try {
-              unionTag = Integer.valueOf(split[0]);
+              unionTag = Integer.valueOf(key);
             } catch (NumberFormatException e) {
-              throw new SerializationError("Attempt to dereference union with non-number " + split[0], e);
+              throw new SerializationError("Attempt to dereference union with non-number '" + key + "'", e);
             }
             if (unionTag >= schema.getTypes().size()) {
               throw new SerializationError("Attempt to read union element " + unionTag + " in union with only " +
                   schema.getTypes().size() + " elements");
             }
-            final TranslatorInfo unionSubInfo = getSubTranslatorInfo(split, schema.getTypes().get(unionTag));
+            final TranslatorInfo unionSubInfo = getSubTranslatorInfo(remainder, schema.getTypes().get(unionTag));
             return new TranslatorInfo(unionSubInfo.getObjectInspector(), o -> {
               int offset = GenericData.get().resolveUnion(schema, o);
               return offset == unionTag ?
@@ -380,8 +391,8 @@ public class MappingAvroWriter extends AbstractRecordWriter<GenericRecord> {
             });
 
           default:
-            throw new SerializationError("Attempt to deference " + avroCol +
-                " when containing column is not an array, map, or union");
+            throw new SerializationError("Attempt to deference '" + avroCol +
+                "' when containing column is not an array, map, or union");
         }
       } else {
         // it's a column name
@@ -394,12 +405,12 @@ public class MappingAvroWriter extends AbstractRecordWriter<GenericRecord> {
       }
     }
 
-    private TranslatorInfo getSubTranslatorInfo(String[] splitColName, Schema subSchema) throws SerializationError {
+    private TranslatorInfo getSubTranslatorInfo(String remainder, Schema subSchema) throws SerializationError {
       // if split col name has only one element (that is, the name wasn't really split), then just return
       // a translator info for that field.  If it has a subelement, then parse further down.
-      return splitColName.length == 2 ?
-          parseAvroColumn(splitColName[1], subSchema) :
-          Translators.buildColTranslatorInfo(subSchema);
+      return remainder == null ?
+          Translators.buildColTranslatorInfo(subSchema) :
+          parseAvroColumn(remainder, subSchema);
     }
   }
 
@@ -424,41 +435,4 @@ public class MappingAvroWriter extends AbstractRecordWriter<GenericRecord> {
       return tInfo.getDeserializer();
     }
   }
-
-  /*
-  private static class ParsedColDef {
-    private final String colName;
-    private final String index;
-    private final String remainder;
-
-    ParsedColDef(String colName, String index, String remainder) {
-      this.colName = colName;
-      this.index = index;
-      this.remainder = remainder;
-    }
-
-    String getColName() {
-      return colName;
-    }
-
-    String getIndex() {
-      return index;
-    }
-
-    String getRemainder() {
-      return remainder;
-    }
-
-    static ParsedColDef parseColDef(String colDef) {
-      int dotAt = colDef.indexOf('.');
-      assert dotAt != 0;
-      if (dotAt > 0) return new ParsedColDef(colDef.substring(0, dotAt), null, colDef.substring(dotAt));
-      int openBracketAt = colDef.indexOf('[');
-      assert openBracketAt != 0;
-
-
-    }
-  }
-  */
-
 }
