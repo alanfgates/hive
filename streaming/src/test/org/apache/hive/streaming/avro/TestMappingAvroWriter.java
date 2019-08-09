@@ -32,6 +32,7 @@ import org.junit.Test;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -284,6 +285,178 @@ public class TestMappingAvroWriter extends AvroTestBase {
     }
   }
 
+  @Test
+  public void arrayDereference() throws StreamingException, IOException {
+    Schema schema = SchemaBuilder.record("arrayderef")
+        .namespace("org.apache.hive.streaming")
+        .fields()
+        .name("avroArray")
+        .type().array().items().intType().noDefault()
+        .requiredDouble("avroDouble")
+        .endRecord();
+
+    List<GenericRecord> records = new ArrayList<>();
+    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(schema);
+    for (int i = 0; i < 10; i++) {
+      List<Integer> list = new ArrayList<>();
+      for (int j = i; j < 10; j++) list.add(j);
+      recordBuilder.set("avroArray", list);
+
+      double d = i + (double)i * 0.1;
+      recordBuilder.set("avroDouble", d);
+
+      records.add(recordBuilder.build());
+    }
+    String tableName = "arrayderef";
+    String fullTableName = dbName + "." + tableName;
+    dropAndCreateTable(fullTableName, "f1 int, f2 int ");
+
+    RecordWriter writer = MappingAvroWriter.newBuilder()
+        .withAvroSchema(schema)
+        .addMappingColumn("f1", "avroArray[0]")
+        .addMappingColumn("f2", "avroArray[1]")
+        .build();
+
+    HiveStreamingConnection conn = HiveStreamingConnection.newBuilder()
+        .withDatabase(dbName)
+        .withTable(tableName)
+        .withTransactionBatchSize(5)
+        .withRecordWriter(writer)
+        .withHiveConf(conf)
+        .connect();
+
+    conn.beginTransaction();
+    for (GenericRecord r : records) conn.write(r);
+    conn.commitTransaction();
+    conn.close();
+
+    List<String> results = querySql("select f1, f2 from " + fullTableName);
+    Assert.assertEquals(10, results.size());
+    for (int i = 0; i < 10; i++) {
+      StringBuilder buf = new StringBuilder();
+      buf.append(i)
+          .append('\t');
+      if (i < 9) buf.append(i + 1);
+      else buf.append("NULL");
+
+      Assert.assertEquals(buf.toString(), results.get(i));
+    }
+  }
+
+  @Test
+  public void mapDereference() throws StreamingException, IOException {
+    Schema schema = SchemaBuilder.record("mapderef")
+        .namespace("org.apache.hive.streaming")
+        .fields()
+        .requiredLong("avroLong")
+        .name("avroMap")
+        .type().map().values().intType().mapDefault(Collections.emptyMap())
+        .endRecord();
+
+    List<GenericRecord> records = new ArrayList<>();
+    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(schema);
+    for (int i = 0; i < 10; i++) {
+      recordBuilder.set("avroLong", new Long(i));
+
+      Map<String, Integer> m = new HashMap<>();
+      m.put("always", i);
+      m.put("alsoAlways", i * 10);
+      if (i % 2 == 0) m.put("sometimes", i * 100);
+      recordBuilder.set("avroMap", m);
+
+      records.add(recordBuilder.build());
+    }
+    String tableName = "mapderef";
+    String fullTableName = dbName + "." + tableName;
+    dropAndCreateTable(fullTableName, "f1 int, f2 int ");
+
+    RecordWriter writer = MappingAvroWriter.newBuilder()
+        .withAvroSchema(schema)
+        .addMappingColumn("f1", "avroMap[always]")
+        .addMappingColumn("f2", "avroMap[sometimes]")
+        .build();
+
+    HiveStreamingConnection conn = HiveStreamingConnection.newBuilder()
+        .withDatabase(dbName)
+        .withTable(tableName)
+        .withTransactionBatchSize(5)
+        .withRecordWriter(writer)
+        .withHiveConf(conf)
+        .connect();
+
+    conn.beginTransaction();
+    for (GenericRecord r : records) conn.write(r);
+    conn.commitTransaction();
+    conn.close();
+
+    List<String> results = querySql("select f1, f2 from " + fullTableName);
+    Assert.assertEquals(10, results.size());
+    for (int i = 0; i < 10; i++) {
+      StringBuilder buf = new StringBuilder();
+      buf.append(i)
+          .append('\t');
+      if (i % 2 == 0) buf.append(i * 100);
+      else buf.append("NULL");
+
+      Assert.assertEquals(buf.toString(), results.get(i));
+    }
+  }
+
+  @Test
+  public void unionDereference() throws StreamingException, IOException {
+    Schema schema = SchemaBuilder.record("unionDeref")
+        .namespace("org.apache.hive.streaming")
+        .fields()
+        .requiredLong("avroLong")
+        .name("avroUnion")
+        .type().unionOf().booleanType().and().intType().endUnion().booleanDefault(true)
+        .endRecord();
+
+    List<GenericRecord> records = new ArrayList<>();
+    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(schema);
+    for (int i = 0; i < 10; i++) {
+      recordBuilder.set("avroLong", new Long(i));
+
+      if (i % 2 == 0) recordBuilder.set("avroUnion", i);
+      else recordBuilder.set("avroUnion", true);
+
+      records.add(recordBuilder.build());
+    }
+    String tableName = "unionderef";
+    String fullTableName = dbName + "." + tableName;
+    dropAndCreateTable(fullTableName, "f1 int, f2 boolean ");
+
+    RecordWriter writer = MappingAvroWriter.newBuilder()
+        .withAvroSchema(schema)
+        .addMappingColumn("f1", "avroUnion[1]")
+        .addMappingColumn("f2", "avroUnion[0]")
+        .build();
+
+    HiveStreamingConnection conn = HiveStreamingConnection.newBuilder()
+        .withDatabase(dbName)
+        .withTable(tableName)
+        .withTransactionBatchSize(5)
+        .withRecordWriter(writer)
+        .withHiveConf(conf)
+        .connect();
+
+    conn.beginTransaction();
+    for (GenericRecord r : records) conn.write(r);
+    conn.commitTransaction();
+    conn.close();
+
+    List<String> results = querySql("select f1, f2 from " + fullTableName);
+    Assert.assertEquals(10, results.size());
+    for (int i = 0; i < 10; i++) {
+      StringBuilder buf = new StringBuilder();
+
+      if (i % 2 == 0) buf.append(i).append("\tNULL");
+      else buf.append("NULL\t").append(true);
+
+      Assert.assertEquals(buf.toString(), results.get(i));
+    }
+  }
+
   /*
   @Test
   public void allAvroTypes() throws StreamingException, IOException {
@@ -451,12 +624,6 @@ public class TestMappingAvroWriter extends AvroTestBase {
   }
 
    */
-  // TODO test record dereference
-  // TODO test array dereference
-  // TODO test map dereference
-  // TODO test union dereference
-  // TODO test multi-level dereference
-    // TODO test missing schema mapping
 
   @Test
   public void nonExistentHiveCol() throws StreamingException, IOException {
@@ -583,4 +750,18 @@ public class TestMappingAvroWriter extends AvroTestBase {
     Assert.assertEquals(10, results.size());
     for (int i = 0; i < 10; i++) Assert.assertEquals(i + "\t" + i, results.get(i));
   }
+
+  @Test(expected = IllegalStateException.class)
+  public void missingMapping() throws StreamingException, IOException {
+    MappingAvroWriter.newBuilder()
+        .withAvroSchema("abcdef")
+        .build();
+  }
+
+  // TODO test union dereference
+  // TODO test union dereference of out of range tag
+  // TODO test record dereference of non-existent column
+  // TODO test multi-level dereference
+  // TODO test union deref with non-number
+  // TODO test array deref with non-number
 }

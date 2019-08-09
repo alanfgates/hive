@@ -273,8 +273,12 @@ public class MappingAvroWriter extends AbstractRecordWriter<GenericRecord> {
                 row.add(null);
               } else {
                 DeserializerOutput output = mtInfo.getDeserializer().apply(record.get(mtInfo.getTopLevelColumn()));
-                length += output.getAddedLength();
-                row.add(output.getDeserialized());
+                if (output == null) {
+                  row.add(null);
+                } else {
+                  length += output.getAddedLength();
+                  row.add(output.getDeserialized());
+                }
               }
             }
             return new DeserializerOutput(length, row);
@@ -292,20 +296,16 @@ public class MappingAvroWriter extends AbstractRecordWriter<GenericRecord> {
       tInfo = new TranslatorInfo(oi, null);
     }
 
-    /*
-    private String[] parseColName(String avroCol) {
-      int dotAt = avroCol.indexOf('.');
-      assert dotAt != 0;
-      if (dotAt > 0) {
-        return new String[] {avroCol.substring(0, dotAt), avroCol.substring(dotAt)};
-      }
-      int openBracketAt = avroCol.in
-      return avroCol.split("[\\[.]", 2)[0];
-    }
-    */
-
     private String findTopLevelColName(String avroCol) {
       return avroCol.split("[\\[.]", 2)[0];
+    }
+
+    private String findRemainder(String avroCol) {
+      int dotAt = avroCol.indexOf('.');
+      if (dotAt > -1) return avroCol.substring(dotAt);
+      int openBracketAt = avroCol.indexOf('[');
+      if (openBracketAt > -1) return avroCol.substring(openBracketAt);
+      return null;
     }
 
     private MappingTranslatorInfo mapAvroColumn(String avroCol, Schema schema, String topLevelColName) throws SerializationError {
@@ -313,21 +313,17 @@ public class MappingAvroWriter extends AbstractRecordWriter<GenericRecord> {
     }
 
     private TranslatorInfo parseAvroColumn(String avroCol, Schema schema) throws SerializationError {
-      LOG.debug("XXX entering parseAvroColumn with " + avroCol);
       if (avroCol.charAt(0) == '.') {
         // its a record
         if (schema.getType() != Schema.Type.RECORD) {
           throw new SerializationError("Attempt to dereference " + avroCol + " when containing column is not a record");
         }
         String[] split = avroCol.substring(1).split("[\\[.]", 2);
-        LOG.debug("XXX Looking for record field " + split[0]);
         Schema.Field innerField = schema.getField(split[0]);
         if (innerField == null) {
           throw new SerializationError("Attempt to reference non-existent record field " + split[0]);
         }
-        LOG.debug("XXX schema for inner field is of type " + innerField.schema().getType());
         final TranslatorInfo subInfo = getSubTranslatorInfo(split, innerField.schema());
-        LOG.debug("XXX resulting object inspector is of type " + subInfo.getObjectInspector().getClass().getName());
         return new TranslatorInfo(subInfo.getObjectInspector(), o -> {
           GenericData.Record record = (GenericData.Record)o;
           Object element = record.get(split[0]);
@@ -351,7 +347,7 @@ public class MappingAvroWriter extends AbstractRecordWriter<GenericRecord> {
             final TranslatorInfo arraySubInfo = getSubTranslatorInfo(split, schema.getElementType());
             return new TranslatorInfo(arraySubInfo.getObjectInspector(), o -> {
               List<Object> avroList = (List)o;
-              Object element = avroList.get(index);
+              Object element = (index >= avroList.size()) ? null : avroList.get(index);
               return element == null ? null : arraySubInfo.getDeserializer().apply(element);
             });
 
@@ -391,11 +387,10 @@ public class MappingAvroWriter extends AbstractRecordWriter<GenericRecord> {
         // it's a column name
         // If this column name is followed by a dereference symbol (. or [) than we need to parse it.  Otherwise take
         // this column as is and place it in the map, whether it's simple or complex.
-        String[] split = avroCol.split("[.\\[]", 2);
-        LOG.debug("XXX for avroCol " + avroCol + " split length is " + split.length);
-        return (split.length == 2) ?
-            parseAvroColumn(split[1], schema) :
-            Translators.buildColTranslatorInfo(schema);
+        String remainder = findRemainder(avroCol);
+        return (remainder == null) ?
+            Translators.buildColTranslatorInfo(schema) :
+            parseAvroColumn(remainder, schema);
       }
     }
 
@@ -431,13 +426,37 @@ public class MappingAvroWriter extends AbstractRecordWriter<GenericRecord> {
   }
 
   /*
-  private static class ParsedColName {
+  private static class ParsedColDef {
     private final String colName;
     private final String index;
-    private final ParsedColName next;
+    private final String remainder;
 
-    ParsedColName(String inputColName) {
-      if ()
+    ParsedColDef(String colName, String index, String remainder) {
+      this.colName = colName;
+      this.index = index;
+      this.remainder = remainder;
+    }
+
+    String getColName() {
+      return colName;
+    }
+
+    String getIndex() {
+      return index;
+    }
+
+    String getRemainder() {
+      return remainder;
+    }
+
+    static ParsedColDef parseColDef(String colDef) {
+      int dotAt = colDef.indexOf('.');
+      assert dotAt != 0;
+      if (dotAt > 0) return new ParsedColDef(colDef.substring(0, dotAt), null, colDef.substring(dotAt));
+      int openBracketAt = colDef.indexOf('[');
+      assert openBracketAt != 0;
+
+
     }
   }
   */
