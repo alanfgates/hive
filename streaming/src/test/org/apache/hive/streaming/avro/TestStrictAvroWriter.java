@@ -559,5 +559,46 @@ public class TestStrictAvroWriter extends AvroTestBase {
     for (int i = 0; i < 10; i++) Assert.assertEquals(i + "\t" + i, results.get(i));
   }
 
+  @Test
+  public void withTypeDescrepncy() throws StreamingException, IOException {
+    Schema schema = SchemaBuilder.record("inttolong")
+        .namespace("org.apache.hive.streaming")
+        .fields()
+        .requiredString("field1")
+        .requiredInt("field2")
+        .endRecord();
+    List<GenericRecord> records = new ArrayList<>();
+    GenericRecordBuilder recordBuilder = new GenericRecordBuilder(schema);
+    for (int i = 0; i < 10; i++) {
+      recordBuilder.set("field1", Integer.toString(i));
+      recordBuilder.set("field2", i);
+      records.add(recordBuilder.build());
+    }
+
+    String tableName = "inttolong";
+    String fullTableName = dbName + "." + tableName;
+    dropAndCreateTable(fullTableName, "f1 string, f2 string");
+
+    RecordWriter writer = StrictAvroWriter.newBuilder()
+        .withSchema(schema)
+        .build();
+
+    HiveStreamingConnection conn = HiveStreamingConnection.newBuilder()
+        .withDatabase(dbName)
+        .withTable(tableName)
+        .withTransactionBatchSize(5)
+        .withRecordWriter(writer)
+        .withHiveConf(conf)
+        .connect();
+
+    conn.beginTransaction();
+    for (GenericRecord r : records) conn.write(r);
+    conn.commitTransaction();
+    conn.close();
+
+    List<String> results = querySql("select f1, f2 from " + fullTableName);
+    Assert.assertEquals(10, results.size());
+    for (int i = 0; i < 10; i++) Assert.assertEquals(i + "\t" + i, results.get(i));
+  }
 
 }
