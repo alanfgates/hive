@@ -52,8 +52,6 @@ import org.apache.hadoop.hive.ql.exec.persistence.MapJoinTableContainerSerDe;
 import org.apache.hadoop.hive.ql.exec.persistence.MatchTracker;
 import org.apache.hadoop.hive.ql.exec.persistence.ObjectContainer;
 import org.apache.hadoop.hive.ql.exec.persistence.UnwrapRowContainer;
-import org.apache.hadoop.hive.ql.exec.spark.SmallTableCache;
-import org.apache.hadoop.hive.ql.exec.spark.SparkUtilities;
 import org.apache.hadoop.hive.ql.exec.tez.LlapObjectCache;
 import org.apache.hadoop.hive.ql.exec.tez.LlapObjectSubCache;
 import org.apache.hadoop.hive.ql.io.HiveKey;
@@ -733,19 +731,6 @@ public class MapJoinOperator extends AbstractMapJoinOperator<MapJoinDesc> implem
 
     // Call the small table cache cache method, this way when a task finishes, we still keep the small table around
     // for at least 30 seconds, which gives any tasks scheduled in the future a chance to re-use the small table.
-    if (HiveConf.getVar(hconf, ConfVars.HIVE_EXECUTION_ENGINE).equals("spark") &&
-            SparkUtilities.isDedicatedCluster(hconf)) {
-
-      for (byte pos = 0; pos < mapJoinTables.length; pos++) {
-        if (pos != conf.getPosBigTable()) {
-          MapJoinTableContainer container = mapJoinTables[pos];
-          if (container != null && container.getKey() != null) {
-            SmallTableCache.cache(container.getKey(), container);
-          }
-        }
-      }
-    }
-
     if (isFullOuterMapJoin) {
 
       // FULL OUTER MapJoin: After matching the Big Table row keys against the Small Table, we now
@@ -838,17 +823,6 @@ public class MapJoinOperator extends AbstractMapJoinOperator<MapJoinDesc> implem
       // spilled tables are loaded always (no sharing), so clear it
       clearAllTableContainers();
       cache.remove(cacheKey);
-    }
-
-    // in mapreduce case, we need to always clear up as mapreduce doesn't have object registry.
-    if ((this.getExecContext() != null) && (this.getExecContext().getLocalWork() != null)
-        && (this.getExecContext().getLocalWork().getInputFileChangeSensitive())
-        && !(HiveConf.getVar(hconf, ConfVars.HIVE_EXECUTION_ENGINE).equals("spark")
-            && SparkUtilities.isDedicatedCluster(hconf))) {
-      if (LOG.isInfoEnabled()) {
-        LOG.info("MR: Clearing all map join table containers.");
-      }
-      clearAllTableContainers();
     }
 
     this.loader = null;

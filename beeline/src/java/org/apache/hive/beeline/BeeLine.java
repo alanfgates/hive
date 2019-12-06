@@ -979,6 +979,9 @@ public class BeeLine implements Closeable {
     if (HiveConf.ConfVars.HIVE_EXECUTION_ENGINE.varname.equals(key) && "mr".equals(val)) {
       info(HiveConf.generateMrDeprecationWarning());
     }
+    if (HiveConf.ConfVars.HIVE_EXECUTION_ENGINE.varname.equals(key) && "spark".equals(val)) {
+      info(HiveConf.generateSparkDeprecationWarning());
+    }
   }
 
   private String constructCmd(String url, String user, String pass, String driver, boolean stripPasswd) {

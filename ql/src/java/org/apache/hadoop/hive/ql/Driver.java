@@ -67,7 +67,6 @@ import org.apache.hadoop.hive.ql.exec.TaskFactory;
 import org.apache.hadoop.hive.ql.exec.TaskResult;
 import org.apache.hadoop.hive.ql.exec.TaskRunner;
 import org.apache.hadoop.hive.ql.exec.Utilities;
-import org.apache.hadoop.hive.ql.exec.spark.session.SparkSession;
 import org.apache.hadoop.hive.ql.history.HiveHistory.Keys;
 import org.apache.hadoop.hive.ql.hooks.Entity;
 import org.apache.hadoop.hive.ql.hooks.HookContext;
@@ -306,10 +305,6 @@ public class Driver implements IDriver {
     String queryId = Strings.isNullOrEmpty(driverContext.getQueryState().getQueryId()) ?
         QueryPlan.makeQueryId() : driverContext.getQueryState().getQueryId();
 
-    SparkSession ss = SessionState.get().getSparkSession();
-    if (ss != null) {
-      ss.onQuerySubmission(queryId);
-    }
     driverContext.getQueryDisplay().setQueryId(queryId);
 
     setTriggerContext(queryId);
@@ -1161,12 +1156,7 @@ public class Driver implements IDriver {
 
     boolean noName = Strings.isNullOrEmpty(driverContext.getConf().get(MRJobConfig.JOB_NAME));
 
-    int maxlen;
-    if ("spark".equals(driverContext.getConf().getVar(ConfVars.HIVE_EXECUTION_ENGINE))) {
-      maxlen = driverContext.getConf().getIntVar(HiveConf.ConfVars.HIVESPARKJOBNAMELENGTH);
-    } else {
-      maxlen = driverContext.getConf().getIntVar(HiveConf.ConfVars.HIVEJOBNAMELENGTH);
-    }
+    int maxlen = driverContext.getConf().getIntVar(HiveConf.ConfVars.HIVEJOBNAMELENGTH);
     Metrics metrics = MetricsFactory.getInstance();
 
     String queryId = driverContext.getPlan().getQueryId();
@@ -1224,8 +1214,7 @@ public class Driver implements IDriver {
 
       setQueryDisplays(driverContext.getPlan().getRootTasks());
       int mrJobs = Utilities.getMRTasks(driverContext.getPlan().getRootTasks()).size();
-      int jobs = mrJobs + Utilities.getTezTasks(driverContext.getPlan().getRootTasks()).size()
-          + Utilities.getSparkTasks(driverContext.getPlan().getRootTasks()).size();
+      int jobs = mrJobs + Utilities.getTezTasks(driverContext.getPlan().getRootTasks()).size();
       if (jobs > 0) {
         logMrWarning(mrJobs);
         CONSOLE.printInfo("Query ID = " + queryId);
@@ -1468,10 +1457,6 @@ public class Driver implements IDriver {
         }
         driverContext.getQueryState().setNumModifiedRows(numModifiedRows);
         CONSOLE.printInfo("Total MapReduce CPU Time Spent: " + Utilities.formatMsecToStr(totalCpu));
-      }
-      SparkSession ss = SessionState.get().getSparkSession();
-      if (ss != null) {
-        ss.onQueryCompletion(queryId);
       }
       driverState.lock();
       try {

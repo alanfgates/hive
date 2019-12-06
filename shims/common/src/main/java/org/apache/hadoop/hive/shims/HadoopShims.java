@@ -85,17 +85,13 @@ public interface HadoopShims {
   /**
    * Returns a shim to wrap MiniMrCluster
    */
-  public MiniMrShim getMiniMrCluster(Configuration conf, int numberOfTaskTrackers,
+  MiniMrShim getMiniMrCluster(Configuration conf, int numberOfTaskTrackers,
       String nameNode, int numDir) throws IOException;
 
-  public MiniMrShim getMiniTezCluster(Configuration conf, int numberOfTaskTrackers,
+  MiniMrShim getMiniTezCluster(Configuration conf, int numberOfTaskTrackers,
       String nameNode, boolean usingLlap) throws IOException;
 
-  public MiniMrShim getLocalMiniTezCluster(Configuration conf, boolean usingLlap);
-
-  public MiniMrShim getMiniSparkCluster(Configuration conf, int numberOfTaskTrackers,
-      String nameNode, int numDir) throws IOException;
-
+  MiniMrShim getLocalMiniTezCluster(Configuration conf, boolean usingLlap);
 
   /**
    * Set up the caller context for HDFS and Yarn.

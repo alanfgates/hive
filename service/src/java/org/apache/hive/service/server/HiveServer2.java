@@ -68,7 +68,6 @@ import org.apache.hadoop.hive.metastore.api.WMPool;
 import org.apache.hadoop.hive.metastore.api.WMResourcePlan;
 import org.apache.hadoop.hive.metastore.conf.MetastoreConf;
 import org.apache.hadoop.hive.ql.cache.results.QueryResultsCache;
-import org.apache.hadoop.hive.ql.exec.spark.session.SparkSessionManagerImpl;
 import org.apache.hadoop.hive.ql.exec.tez.TezSessionPoolManager;
 import org.apache.hadoop.hive.ql.exec.tez.WorkloadManager;
 import org.apache.hadoop.hive.ql.metadata.Hive;
@@ -904,14 +903,6 @@ public class HiveServer2 extends CompositeService {
 
     stopOrDisconnectTezSessions();
 
-    if (hiveConf != null && hiveConf.getVar(ConfVars.HIVE_EXECUTION_ENGINE).equals("spark")) {
-      try {
-        SparkSessionManagerImpl.getInstance().shutdown();
-      } catch(Exception ex) {
-        LOG.error("Spark session pool manager failed to stop during HiveServer2 shutdown.", ex);
-      }
-    }
-
     if (zKClientForPrivSync != null) {
       zKClientForPrivSync.close();
     }
@@ -1020,9 +1011,6 @@ public class HiveServer2 extends CompositeService {
             "warned upon.", t);
         }
 
-        if (hiveConf.getVar(ConfVars.HIVE_EXECUTION_ENGINE).equals("spark")) {
-          SparkSessionManagerImpl.getInstance().setup(hiveConf);
-        }
         break;
       } catch (Throwable throwable) {
         if (server != null) {

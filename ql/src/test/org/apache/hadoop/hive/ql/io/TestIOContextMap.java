@@ -171,37 +171,4 @@ public class TestIOContextMap {
       }
     }
   }
-
-  @Test
-    public void testSparkThreadLocal() throws Exception {
-    // Test that input name does not change IOContext returned, and that each thread gets its own.
-    final Configuration conf1 = new Configuration();
-    conf1.set(HiveConf.ConfVars.HIVE_EXECUTION_ENGINE.varname, "spark");
-    final Configuration conf2 = new Configuration(conf1);
-    conf2.set(Utilities.INPUT_NAME, "Other input");
-    final int THREAD_COUNT = 2;
-    ExecutorService executor = Executors.newFixedThreadPool(THREAD_COUNT);
-    final CountDownLatch cdlIn = new CountDownLatch(THREAD_COUNT), cdlOut = new CountDownLatch(1);
-    @SuppressWarnings("unchecked")
-    FutureTask<IOContext>[] tasks = new FutureTask[THREAD_COUNT];
-    for (int i = 0; i < tasks.length; ++i) {
-      tasks[i] = new FutureTask<IOContext>(new Callable<IOContext>() {
-        public IOContext call() throws Exception {
-          syncThreadStart(cdlIn, cdlOut);
-          IOContext c1 = IOContextMap.get(conf1), c2 = IOContextMap.get(conf2);
-          assertSame(c1, c2);
-          return c1;
-        }
-      });
-      executor.execute(tasks[i]);
-    }
-
-    cdlIn.await(); // Wait for all threads to be ready.
-    cdlOut.countDown(); // Release them at the same time.
-    Set<IOContext> results = Sets.newIdentityHashSet();
-    for (int i = 0; i < tasks.length; ++i) {
-      assertTrue(results.add(tasks[i].get())); // All the objects must be different.
-    }
-  }
-
 }

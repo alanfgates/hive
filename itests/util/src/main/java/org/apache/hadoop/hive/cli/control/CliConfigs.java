@@ -51,10 +51,7 @@ public class CliConfigs {
         excludesFrom(testConfigProps, "minimr.query.files");
         excludesFrom(testConfigProps, "minitez.query.files");
         excludesFrom(testConfigProps, "encrypted.query.files");
-        excludesFrom(testConfigProps, "spark.only.query.files");
-        excludesFrom(testConfigProps, "miniSparkOnYarn.only.query.files");
         excludesFrom(testConfigProps, "disabled.query.files");
-        excludesFrom(testConfigProps, "localSpark.only.query.files");
         excludesFrom(testConfigProps, "druid.query.files");
         excludesFrom(testConfigProps, "druid.kafka.query.files");
         excludesFrom(testConfigProps, "hive.kafka.query.files");
@@ -360,28 +357,6 @@ public class CliConfigs {
     }
   }
 
-  public static class SparkPerfCliConfig extends AbstractCliConfig {
-    public SparkPerfCliConfig() {
-      super(CorePerfCliDriver.class);
-      try {
-        setQueryDir("ql/src/test/queries/clientpositive/perf");
-
-        excludesFrom(testConfigProps, "spark.perf.disabled.query.files");
-
-        setResultsDir("ql/src/test/results/clientpositive/perf/spark");
-        setLogDir("itests/qtest/target/qfile-results/clientpositive/spark");
-
-        setInitScript("q_perf_test_init.sql");
-        setCleanupScript("q_perf_test_cleanup.sql");
-
-        setHiveConfDir("data/conf/perf-reg/spark");
-        setClusterType(MiniClusterType.SPARK);
-      } catch (Exception e) {
-        throw new RuntimeException("can't construct cliconfig", e);
-      }
-    }
-  }
-
   public static class CompareCliConfig extends AbstractCliConfig {
     public CompareCliConfig() {
       super(CoreCompareCliDriver.class);
@@ -409,7 +384,6 @@ public class CliConfigs {
         setQueryDir("ql/src/test/queries/clientnegative");
 
         excludesFrom(testConfigProps, "minimr.query.negative.files");
-        excludesFrom(testConfigProps, "spark.only.query.negative.files");
         excludeQuery("authorization_uri_import.q");
 
         setResultsDir("ql/src/test/results/clientnegative");
@@ -571,97 +545,6 @@ public class CliConfigs {
     }
   }
 
-  public static class SparkCliConfig extends AbstractCliConfig {
-    public SparkCliConfig() {
-      super(CoreCliDriver.class);
-      try {
-        setQueryDir("ql/src/test/queries/clientpositive");
-
-        includesFrom(testConfigProps, "spark.query.files");
-        includesFrom(testConfigProps, "spark.only.query.files");
-
-        setResultsDir("ql/src/test/results/clientpositive/spark");
-        setLogDir("itests/qtest-spark/target/qfile-results/clientpositive/spark");
-
-        setInitScript("q_test_init.sql");
-        setCleanupScript("q_test_cleanup.sql");
-
-        setHiveConfDir("data/conf/spark/standalone");
-        setClusterType(MiniClusterType.SPARK);
-      } catch (Exception e) {
-        throw new RuntimeException("can't construct cliconfig", e);
-      }
-    }
-  }
-
-  public static class LocalSparkCliConfig extends AbstractCliConfig {
-    public LocalSparkCliConfig() {
-      super(CoreCliDriver.class);
-      try {
-        setQueryDir("ql/src/test/queries/clientpositive");
-
-        includesFrom(testConfigProps, "localSpark.only.query.files");
-
-        setResultsDir("ql/src/test/results/clientpositive/spark");
-        setLogDir("itests/qtest-spark/target/qfile-results/clientpositive/spark");
-
-        setInitScript("q_test_init.sql");
-        setCleanupScript("q_test_cleanup.sql");
-
-        setHiveConfDir("data/conf/spark/local");
-        setClusterType(MiniClusterType.SPARK);
-      } catch (Exception e) {
-        throw new RuntimeException("can't construct cliconfig", e);
-      }
-    }
-  }
-
-  public static class SparkOnYarnCliConfig extends AbstractCliConfig {
-    public SparkOnYarnCliConfig() {
-      super(CoreCliDriver.class);
-      try {
-        setQueryDir("ql/src/test/queries/clientpositive");
-
-        includesFrom(testConfigProps, "miniSparkOnYarn.query.files");
-        includesFrom(testConfigProps, "miniSparkOnYarn.only.query.files");
-
-        setResultsDir("ql/src/test/results/clientpositive/spark");
-        setLogDir("itests/qtest-spark/target/qfile-results/clientpositive/spark");
-
-        setInitScript("q_test_init.sql");
-        setCleanupScript("q_test_cleanup.sql");
-
-        setHiveConfDir("data/conf/spark/yarn-cluster");
-        setClusterType(MiniClusterType.MINI_SPARK_ON_YARN);
-      } catch (Exception e) {
-        throw new RuntimeException("can't construct cliconfig", e);
-      }
-    }
-  }
-
-  public static class SparkNegativeCliConfig extends AbstractCliConfig {
-    public SparkNegativeCliConfig() {
-      super(CoreNegativeCliDriver.class);
-      try {
-        setQueryDir("ql/src/test/queries/clientnegative");
-
-        includesFrom(testConfigProps, "spark.query.negative.files");
-        includesFrom(testConfigProps, "spark.only.query.negative.files");
-
-        setResultsDir("ql/src/test/results/clientnegative/spark");
-        setLogDir("itests/qtest-spark/target/qfile-results/clientnegative/spark");
-
-        setInitScript("q_test_init.sql");
-        setCleanupScript("q_test_cleanup.sql");
-
-        setHiveConfDir("data/conf/spark/standalone");
-        setClusterType(MiniClusterType.SPARK);
-      } catch (Exception e) {
-        throw new RuntimeException("can't construct cliconfig", e);
-      }
-    }
-  }
-
   public static class BlobstoreCliConfig extends AbstractCliConfig {
     public BlobstoreCliConfig() {
       super(CoreBlobstoreCliDriver.class);
@@ -735,12 +618,6 @@ public class CliConfigs {
       switch (clusterType) {
       case TEZ:
         setHiveConfDir("data/conf/tez");
-        break;
-      case SPARK:
-        setHiveConfDir("data/conf/spark/standalone");
-        break;
-      case MINI_SPARK_ON_YARN:
-        setHiveConfDir("data/conf/spark/yarn-cluster");
         break;
       default:
         setHiveConfDir("data/conf");

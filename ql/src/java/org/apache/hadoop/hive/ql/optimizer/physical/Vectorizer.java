@@ -47,7 +47,6 @@ import org.apache.hadoop.hive.ql.exec.vector.expressions.gen.DecimalColDivideDec
 import org.apache.hadoop.hive.ql.exec.vector.reducesink.*;
 import org.apache.hadoop.hive.ql.exec.vector.udf.VectorUDFArgDesc;
 import org.apache.hadoop.hive.ql.io.AcidUtils;
-import org.apache.hadoop.hive.ql.parse.spark.SparkPartitionPruningSinkOperator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.fs.Path;
@@ -59,7 +58,6 @@ import org.apache.hadoop.hive.ql.CompilationOpContext;
 import org.apache.hadoop.hive.ql.exec.*;
 import org.apache.hadoop.hive.ql.exec.mr.MapRedTask;
 import org.apache.hadoop.hive.ql.exec.persistence.MapJoinKey;
-import org.apache.hadoop.hive.ql.exec.spark.SparkTask;
 import org.apache.hadoop.hive.ql.exec.tez.TezTask;
 import org.apache.hadoop.hive.ql.exec.vector.VectorExpressionDescriptor;
 import org.apache.hadoop.hive.ql.exec.vector.filesink.VectorFileSinkArrowOperator;
@@ -149,9 +147,6 @@ import org.apache.hadoop.hive.ql.plan.PartitionDesc;
 import org.apache.hadoop.hive.ql.plan.ReduceSinkDesc;
 import org.apache.hadoop.hive.ql.plan.ReduceWork;
 import org.apache.hadoop.hive.ql.plan.SMBJoinDesc;
-import org.apache.hadoop.hive.ql.plan.SparkHashTableSinkDesc;
-import org.apache.hadoop.hive.ql.optimizer.spark.SparkPartitionPruningSinkDesc;
-import org.apache.hadoop.hive.ql.plan.SparkWork;
 import org.apache.hadoop.hive.ql.plan.TableDesc;
 import org.apache.hadoop.hive.ql.plan.TableScanDesc;
 import org.apache.hadoop.hive.ql.plan.TezWork;
@@ -1035,26 +1030,6 @@ public class Vectorizer implements PhysicalPlanResolver {
             setMergeJoinWorkExplainConditions(mergeJoinWork);
 
             logMergeJoinWorkExplainVectorization(mergeJoinWork);
-          }
-        }
-      } else if (currTask instanceof SparkTask) {
-        SparkWork sparkWork = (SparkWork) currTask.getWork();
-        for (BaseWork baseWork : sparkWork.getAllWork()) {
-          if (baseWork instanceof MapWork) {
-            MapWork mapWork = (MapWork) baseWork;
-            setMapWorkExplainConditions(mapWork);
-            convertMapWork(mapWork, /* isTezOrSpark */ true);
-            logMapWorkExplainVectorization(mapWork);
-          } else if (baseWork instanceof ReduceWork) {
-            ReduceWork reduceWork = (ReduceWork) baseWork;
-
-            // Always set the EXPLAIN conditions.
-            setReduceWorkExplainConditions(reduceWork);
-
-            if (isReduceVectorizationEnabled) {
-              convertReduceWork(reduceWork);
-            }
-            logReduceWorkExplainVectorization(reduceWork);
           }
         }
       } else if (currTask instanceof FetchTask) {
@@ -5371,38 +5346,6 @@ public class Vectorizer implements PhysicalPlanResolver {
             }
 
             vectorOp = vectorizePTFOperator(op, vContext, vectorPTFDesc);
-            isNative = true;
-          }
-          break;
-        case HASHTABLESINK:
-          {
-            // No validation.
-
-            SparkHashTableSinkDesc sparkHashTableSinkDesc = (SparkHashTableSinkDesc) op.getConf();
-
-            VectorSparkHashTableSinkDesc vectorSparkHashTableSinkDesc = new VectorSparkHashTableSinkDesc();
-            vectorOp = OperatorFactory.getVectorOperator(
-                op.getCompilationOpContext(), sparkHashTableSinkDesc,
-                vContext, vectorSparkHashTableSinkDesc);
-            isNative = true;
-          }
-          break;
-        case SPARKPRUNINGSINK:
-          {
-            // No validation.
-
-            SparkPartitionPruningSinkDesc sparkPartitionPruningSinkDesc =
-                (SparkPartitionPruningSinkDesc) op.getConf();
-
-            VectorSparkPartitionPruningSinkDesc vectorSparkPartitionPruningSinkDesc =
-                new VectorSparkPartitionPruningSinkDesc();
-            vectorOp = OperatorFactory.getVectorOperator(
-                op.getCompilationOpContext(), sparkPartitionPruningSinkDesc,
-                vContext, vectorSparkPartitionPruningSinkDesc);
-            // need to maintain the unique ID so that target map works can
-            // read the output
-            ((SparkPartitionPruningSinkOperator) vectorOp).setUniqueId(
-                ((SparkPartitionPruningSinkOperator) op).getUniqueId());
             isNative = true;
           }
           break;

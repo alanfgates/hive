@@ -337,14 +337,11 @@ public class ATSHook implements ExecuteWithHookContext {
 
   protected ExecutionMode getExecutionMode(QueryPlan plan) {
     int numMRJobs = Utilities.getMRTasks(plan.getRootTasks()).size();
-    int numSparkJobs = Utilities.getSparkTasks(plan.getRootTasks()).size();
     int numTezJobs = Utilities.getTezTasks(plan.getRootTasks()).size();
 
     ExecutionMode mode = ExecutionMode.MR;
-    if (0 == (numMRJobs + numSparkJobs + numTezJobs)) {
+    if (0 == (numMRJobs + numTezJobs)) {
       mode = ExecutionMode.NONE;
-    } else if (numSparkJobs > 0) {
-      return ExecutionMode.SPARK;
     } else if (numTezJobs > 0) {
       mode = ExecutionMode.TEZ;
       // Need to go in and check if any of the tasks is running in LLAP mode.
