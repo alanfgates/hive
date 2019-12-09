@@ -276,7 +276,7 @@ public class TestExplainTask {
     JsonNode expected = objectMapper.readTree("{\"key-1\":\"value-1\",\"tez-list-2\":" +
             "[{\"parent\":\"name\"}," + "{\"parent\":\"name\"}],\"tez-list-1\":" +
             "{\"parent\":\"name\"},\"empty-list\":\"[]\", \"map-1\":\"{inner-key-1=inner-value-1, " +
-            "inner-key-2=[mock-tez-dependency]}}");
+            "inner-key-2=[mock-tez-dependency]}\"}");
 
     assertEquals(expected, result);
   }
@@ -288,7 +288,7 @@ public class TestExplainTask {
 
     JsonNode result = objectMapper.readTree(
             uut.outputPlan(work, null, false, true, 0, null).toString());
-    JsonNode expected = objectMapper.readTree("{\"Tez\":{\"DagName:\":\"tez-work:1\"}}");
+    JsonNode expected = objectMapper.readTree("{\"Tez\":{\"DagId:\":\"tez-work:1\",\"DagName:\":\"tez-work:1\"}}");
     assertEquals(expected, result);
 
     // Operator with single child
